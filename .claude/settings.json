@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "fullstack-dev-skills@fullstack-dev-skills": true
+    "fullstack-dev-skills@fullstack-dev-skills": true,
+    "dev-team@dev-team": true
   }
 }
