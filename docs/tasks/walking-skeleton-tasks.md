@@ -124,7 +124,15 @@
   scope) and excludes trashed rows.
 - **Testing:** model unit test — `http_method` cast, `proxy` relation, `assertSoftDeleted` after
   `delete()`, and that a soft-deleted destination is absent from `proxy->destinations`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Migration `2026_07_30_000002_create_destinations_table.php`:
+  `proxy_id`/`team_id` via plain `constrained()` (RESTRICT — **no** `cascadeOnDelete`),
+  `url` string, `enum('http_method',['POST','PUT'])`, `timestamps()` + `softDeletes()`.
+  Model `Destination`: `SoftDeletes`, `http_method`→`HttpMethod` cast, `proxy()` `BelongsTo`.
+  `DestinationFactory` (https url, POST default, team_id derived from parent proxy, `trashed()`).
+  Test `DestinationTest` (5 passed, 8 assertions): `http_method` cast, `proxy` relation,
+  `assertSoftDeleted`, trashed destination excluded from `proxy->destinations` (SoftDeletes scope on
+  the relation), and `information_schema.REFERENTIAL_CONSTRAINTS` confirms the FK `DELETE_RULE` is
+  not `CASCADE`. Pint green. PHPStan consolidated at T6 (see T4 note).
 
 ## T6 — `delivery_attempts` table + `DeliveryAttempt` model (payload-free)
 - **Description:** Migration and model per plan §Data Model → `delivery_attempts` and ADR-003.
