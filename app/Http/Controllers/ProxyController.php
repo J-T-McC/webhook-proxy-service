@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
+use App\Http\Resources\ProxyResource;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\IngestTokenService;
@@ -23,15 +24,13 @@ class ProxyController extends Controller
     {
         $this->authorize('viewAny', Proxy::class);
 
+        // Keep the native paginator envelope (data/links/last_page) the Index
+        // page relies on, mapping each row through the resource. Destinations are
+        // not eager-loaded here, so the resource omits them for the list.
         $proxies = Proxy::query()
             ->latest()
             ->paginate(15)
-            ->through(fn (Proxy $proxy) => [
-                'id' => $proxy->id,
-                'name' => $proxy->name,
-                'mode' => $proxy->mode->value,
-                'ingest_url' => $proxy->ingestUrl(),
-            ]);
+            ->through(fn (Proxy $proxy) => new ProxyResource($proxy));
 
         return Inertia::render('proxies/Index', [
             'proxies' => $proxies,
@@ -99,7 +98,7 @@ class ProxyController extends Controller
         $this->authorize('view', $proxy);
 
         return Inertia::render('proxies/Show', [
-            'proxy' => $this->proxyPayload($proxy),
+            'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
         ]);
     }
 
@@ -111,16 +110,7 @@ class ProxyController extends Controller
         $this->authorize('update', $proxy);
 
         return Inertia::render('proxies/Edit', [
-            'proxy' => [
-                'id' => $proxy->id,
-                'name' => $proxy->name,
-                'mode' => $proxy->mode->value,
-                'destinations' => $proxy->destinations->map(fn (Destination $destination) => [
-                    'id' => $destination->id,
-                    'url' => $destination->url,
-                    'http_method' => $destination->http_method->value,
-                ])->values(),
-            ],
+            'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
         ]);
     }
 
@@ -218,25 +208,5 @@ class ProxyController extends Controller
         }
 
         return $normalised;
-    }
-
-    /**
-     * The detail-page proxy payload (ingest URL built server-side from config).
-     *
-     * @return array<string, mixed>
-     */
-    private function proxyPayload(Proxy $proxy): array
-    {
-        return [
-            'id' => $proxy->id,
-            'name' => $proxy->name,
-            'mode' => $proxy->mode->value,
-            'ingest_url' => $proxy->ingestUrl(),
-            'destinations' => $proxy->destinations->map(fn (Destination $destination) => [
-                'id' => $destination->id,
-                'url' => $destination->url,
-                'http_method' => $destination->http_method->value,
-            ])->values(),
-        ];
     }
 }
