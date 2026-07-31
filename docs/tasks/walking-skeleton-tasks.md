@@ -441,7 +441,25 @@
   proxy's token; CSRF-exempt POST/PUT succeed without a session; **a non-HTTPS (insecure) ingest
   request is rejected** (e.g. simulate `$request->isSecure() === false`); config test asserting the
   body-size + rate-limit keys resolve to their placeholder defaults.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Route `Route::match(['post','put'],'/ingest/{token}',
+  IngestController::class)->name('ingest')` in new `routes/ingest.php`, registered via the
+  `withRouting(then: …)` closure in `bootstrap/app.php` as `Route::group([], routes/ingest.php)` —
+  **outside** the web group (no session, CSRF-exempt). Middleware stack: `EnsureIngestIsSecure`
+  (app-layer `abort_if(! $request->isSecure(), 403)` HTTPS assert — defense-in-depth with edge TLS;
+  note: needs trusted-proxy + X-Forwarded-Proto behind a LB), `EnforceIngestBodyLimit`
+  (413 over `config('ingest.max_body_bytes')`), and `throttle:ingest`. Per-token `RateLimiter::for('ingest')`
+  registered in `AppServiceProvider` keyed by `hash('sha256',$token)` (plaintext token never in a
+  cache key), limit `config('ingest.rate_limit_per_minute')`. `config/ingest.php` adds
+  `max_body_bytes` (50 MB) + `rate_limit_per_minute` (6000) high placeholders (+ `.env.example`).
+  `IngestController::__invoke`: resolves via `Proxy::withoutGlobalScope(TeamScope::class)
+  ->where('ingest_token_hash', hash('sha256',$token,binary:true))->first()` (keeps SoftDeletes — no
+  `withTrashed()`), `abort_if(null,404)`; builds `PipelineContext` (uuid, method, headers, rawBody,
+  payload=rawBody); `ResponseResolver::resolve`; `ProcessIngestedWebhook::run`; returns the 202.
+  Token never logged. Also made `ProxyFactory` tokens URL-safe base64url (matches production) so
+  route path matching is reliable. Test `IngestControllerTest` (7 passed): 202 on valid token,
+  CSRF-less PUT 202, 404 unknown, 404 + nothing-sent for soft-deleted proxy, spoofed `Host` still
+  202, non-HTTPS rejected 403 + nothing-sent, and body/rate config defaults. **Full suite green
+  (140 passed, 460 assertions).** Pint + PHPStan L7 green.
 
 ## T18 — Ingest fan-out acceptance tests (AC7–AC11, AC13–AC15, ADR-003/004/008)
 - **Description:** End-to-end feature tests over the wired ingest path (the AC acceptance harness

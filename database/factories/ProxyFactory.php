@@ -19,7 +19,8 @@ class ProxyFactory extends Factory
      */
     public function definition(): array
     {
-        $token = base64_encode(random_bytes(32));
+        // URL-safe base64url token, matching IngestTokenService::generate().
+        $token = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
 
         return [
             'team_id' => Team::factory(),
