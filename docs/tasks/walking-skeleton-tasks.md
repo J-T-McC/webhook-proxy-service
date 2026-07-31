@@ -298,7 +298,10 @@
 - **Acceptance Criteria:** each event constructs from a `DeliveryAttempt` and exposes it; no
   listeners are registered at #1 (seam only).
 - **Testing:** covered behaviorally by T12 via `Event::fake()` assertions.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Events/{DeliveryAttempted,DeliverySucceeded,DeliveryFailed}.php`
+  — each uses `Dispatchable` and constructs from `public readonly DeliveryAttempt $attempt`. No
+  listeners registered at #1 (pure seams). Behavioral coverage lands in T12/T18 via `Event::fake()`.
+  Pint + PHPStan L7 green.
 
 ## T12 — `DeliverToDestination` action (delivery-level, sync `::run`) (AC13/AC14, ADR-003)
 - **Description:** Per Appendix A §5 and plan §Services. `AsAction`. `handle(DeliveryUnit)`:
