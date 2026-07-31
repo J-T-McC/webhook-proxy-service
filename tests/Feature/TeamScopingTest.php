@@ -32,6 +32,24 @@ class TeamScopingTest extends TestCase
         $this->assertNull(Proxy::find($otherProxy->id));
     }
 
+    public function test_authenticated_user_without_a_current_team_sees_zero_rows(): void
+    {
+        // A proxy owned by some team exists in the database.
+        $other = User::factory()->createQuietly();
+        Proxy::factory()->createQuietly(['team_id' => $other->current_team_id]);
+
+        // A signed-in user who has no current team must NOT see it (fail-closed).
+        $teamless = User::factory()->createQuietly();
+        $teamless->forceFill(['current_team_id' => null])->saveQuietly();
+
+        $this->actingAs($teamless);
+
+        // team_id ?? 0 constrains to a sentinel no row owns: zero rows, not global.
+        $this->assertSame(0, Proxy::query()->count());
+        $this->assertTrue(Proxy::all()->isEmpty());
+        $this->assertNull(Proxy::first());
+    }
+
     public function test_creating_a_proxy_auto_assigns_the_current_team(): void
     {
         $user = User::factory()->createQuietly();
