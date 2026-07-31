@@ -1,9 +1,10 @@
 # Question: PRD-01 AC11 wording vs. roadmap attempt-record mandate
 
-- **Status:** Open
+- **Status:** RESOLVED (2026-07-30)
 - **Raised by:** Principal Engineer
 - **Owner (must answer):** Product Manager *(requirement wording)*
 - **Raised:** 2026-07-30
+- **Resolved:** 2026-07-30 — by Project Owner decision (see Answer below)
 - **Gates:** Final wording of PRD-01 AC11 (not the foundational architecture, which
   proceeds on the approved roadmap)
 - **Source:** `docs/product/roadmap.md` item #1 build-ahead note vs.
@@ -39,4 +40,23 @@ Blocks only the final, unambiguous wording of PRD-01 AC11 and the item #1 per-PR
 implementation plan.
 
 ## Answer
-_Pending Product Manager._
+**RESOLVED by Project Owner on 2026-07-30.**
+
+Analytics are **always** captured — in simple proxy mode **and** enhanced mode.
+Analytics capture does **not** depend on payload storage. Everything else excluded
+from item #1 (payload storage, mapping, retry/replay, notifications) is optional
+primarily because it relies on payload storage — but analytics does not, so it is
+in from the first commit.
+
+This matches the approved roadmap (item #1 build-ahead note) and ADR-003
+(payload-free per-delivery-attempt records emitted from the first commit). The
+error was in PRD-01: its AC11 wrongly said item #1 delivers "without analytics."
+
+**Action taken:** PRD-01 (`docs/product/prd-01-walking-skeleton.md`) AC11 was
+corrected — it no longer states or implies item #1 has no analytics/attempt
+records. Analytics **capture** was moved out of the Out-of-Scope section and into
+scope (Goals + new Acceptance Criteria 13–15), specifying that a payload-free
+delivery-attempt record is captured per destination per delivery (outcome/status,
+team-scoped, queryable, containing no payload body). The analytics *dashboard /
+stats presentation* remains roadmap #11. PRD-01 stays Draft, pending Project Owner
+approval.
