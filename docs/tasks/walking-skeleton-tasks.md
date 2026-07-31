@@ -482,7 +482,18 @@
     before the outcome (ADR-003). Events asserted via `Event::fake()`.
   - Simple mode stores no payload (no payload table exists) and delivers the body unchanged (AC11).
 - **Testing:** the above, using `Http::fake()` + `Event::fake()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Ingest/IngestFanOutTest.php` (7 passed, 36 assertions),
+  end-to-end over the wired ingest path (no new production code). Covers: one request per **live**
+  destination with the destination's own method and **body unchanged** (trashed excluded); header
+  forwarding (Content-Type + custom X- forwarded; Cookie/Authorization/Connection/Stripe-Signature
+  stripped); independent failure (one destination throws, the other still delivers, response still
+  202); exactly one `DeliveryAttempt` per destination with succeeded+`http_status`,
+  proxy_id/destination_id/ingest_id set, single shared `ingest_id`, no `payload` column and no
+  `webhook_payloads` table; 500 → failed+http_status; 202 even when all deliveries 503; simple mode
+  delivers unchanged and stores no payload. Events asserted via `Event::fake()`. **Wiring note:** a
+  test-harness gotcha surfaced — raw `$this->call()` does not apply `withHeaders()` defaults, so the
+  helper uses `transformHeadersToServerVars()` to inject inbound headers while preserving the exact
+  raw body; no production wiring gap was found. Pint + PHPStan L7 green.
 
 ## T19 — `StoreProxyRequest` + `UpdateProxyRequest` (Validation; AC2/AC3/AC16b)
 - **Description:** Per plan §Validation. Server-authoritative FormRequests with the **confirmed
