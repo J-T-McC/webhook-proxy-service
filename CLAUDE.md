@@ -16,6 +16,10 @@ source of truth; `docs/status.md` tracks all features — ask the orchestrator
   the upstream agent → Project Owner. Never invent requirements.
 - Stack: `docs/stack/stack.md` · Standards: `docs/standards/` — ask, don't
   guess, where placeholders remain.
+- Past-session context (prior work, discussions, rationale) not captured in 
+  `docs/` is searchable via the **mem-search** skill — consult it before
+  asking an upstream agent. `docs/` remains authoritative where they conflict.
+
 
 ## Commands
 
