@@ -745,7 +745,18 @@
   meaning.
 - **Testing:** Inertia feature assertion (`Proxies/Index` with props) from T21; interaction/a11y
   per T26 note.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `resources/js/pages/proxies/Index.vue`: paginated `Table` — Name
+  (links to detail), Mode `Badge` (text carries meaning, not colour-only), full inline ingest URL
+  via `CopyField` (per-row `copy-label` "Copy ingest URL for {name}"), Actions (View/Edit links +
+  Delete). One table-level secrecy caution line. Empty state `Card` ("No proxies yet" + "Create your
+  first proxy"). Delete opens the `AlertDialog` (Cancel = default/non-destructive, Esc-dismissible via
+  reka-ui, destructive confirm) → `router.delete` → Sonner flash from the backend redirect.
+  Pagination via the paginator `links`. Added **Proxies** nav item to `AppSidebar` "Platform" section
+  (`Webhook` icon, `proxyRoutes.index(slug)`, active state via `NavMain`'s `isCurrentUrl`). New
+  `resources/js/types/proxies.ts` (`ProxyListItem`/`ProxyDetail`/`Paginated<T>` etc.). Routes via
+  Wayfinder (`@/routes/proxies`); import aliased `proxyRoutes` to avoid clashing with the `proxies`
+  prop. **Verification:** `npm run types:check` clean; eslint clean. Prop shape matches T21's
+  `proxies/Index` Inertia assertion.
 
 ## T28 — `Proxies/Create.vue` + `Proxies/Edit.vue` shared form (Flows A/D, AC1–AC3/AC16a/AC16b)
 - **Description:** Per design Screen 2. One shared form component serving create and edit:
