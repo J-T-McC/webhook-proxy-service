@@ -7,14 +7,11 @@ use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
 use App\Notifications\Teams\TeamInvitation as TeamInvitationNotification;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class TeamInvitationTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_team_invitations_can_be_created()
     {
         Notification::fake();

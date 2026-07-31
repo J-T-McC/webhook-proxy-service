@@ -6,13 +6,10 @@ use App\Enums\TeamRole;
 use App\Models\Team;
 use App\Models\TeamInvitation;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class PruneExpiredTeamInvitationsTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_expired_invitations_are_deleted_by_the_scheduled_cleanup(): void
     {
         $this->travelTo(now()->startOfDay());
