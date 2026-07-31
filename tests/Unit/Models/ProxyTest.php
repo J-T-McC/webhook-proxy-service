@@ -13,7 +13,7 @@ class ProxyTest extends TestCase
 {
     public function test_ingest_token_round_trips_through_the_encrypted_cast(): void
     {
-        $proxy = Proxy::factory()->create(['ingest_token' => 'plain-secret-token']);
+        $proxy = Proxy::factory()->createQuietly(['ingest_token' => 'plain-secret-token']);
 
         // Decrypted via the cast on read.
         $this->assertSame('plain-secret-token', $proxy->fresh()->ingest_token);
@@ -25,11 +25,11 @@ class ProxyTest extends TestCase
 
     public function test_mode_casts_to_enum_and_defaults_to_simple(): void
     {
-        $proxy = Proxy::factory()->create();
+        $proxy = Proxy::factory()->createQuietly();
         $this->assertInstanceOf(ProxyMode::class, $proxy->mode);
 
         // DB-level default: insert omitting mode.
-        $team = Team::factory()->create();
+        $team = Team::factory()->createQuietly();
         $token = random_bytes(8);
         $id = DB::table('proxies')->insertGetId([
             'team_id' => $team->id,
@@ -75,15 +75,15 @@ class ProxyTest extends TestCase
     public function test_duplicate_ingest_token_hash_is_rejected(): void
     {
         $hash = hash('sha256', 'dup', binary: true);
-        Proxy::factory()->create(['ingest_token_hash' => $hash]);
+        Proxy::factory()->createQuietly(['ingest_token_hash' => $hash]);
 
         $this->expectException(QueryException::class);
-        Proxy::factory()->create(['ingest_token_hash' => $hash]);
+        Proxy::factory()->createQuietly(['ingest_token_hash' => $hash]);
     }
 
     public function test_delete_soft_deletes_and_hides_from_default_queries(): void
     {
-        $proxy = Proxy::factory()->create();
+        $proxy = Proxy::factory()->createQuietly();
         $proxy->delete();
 
         $this->assertSoftDeleted($proxy);

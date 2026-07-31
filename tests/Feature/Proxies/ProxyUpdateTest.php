@@ -21,7 +21,7 @@ class ProxyUpdateTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
+        $user = User::factory()->createQuietly();
         $user->switchTeam($user->currentTeam);
 
         return $user;
@@ -30,9 +30,9 @@ class ProxyUpdateTest extends TestCase
     public function test_edit_prefills_current_values_with_live_destinations_only(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id, 'name' => 'Original']);
-        $live = Destination::factory()->for($proxy)->create(['url' => 'https://live.example.com/hook']);
-        $trashed = Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id, 'name' => 'Original']);
+        $live = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://live.example.com/hook']);
+        $trashed = Destination::factory()->for($proxy)->createQuietly();
         $trashed->delete();
 
         $this->actingAs($user)
@@ -49,9 +49,9 @@ class ProxyUpdateTest extends TestCase
     public function test_update_changes_name_mode_and_reconciles_destinations(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id, 'name' => 'Old', 'mode' => ProxyMode::Simple]);
-        $keep = Destination::factory()->for($proxy)->create(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
-        $remove = Destination::factory()->for($proxy)->create(['url' => 'https://remove.example.com/hook']);
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id, 'name' => 'Old', 'mode' => ProxyMode::Simple]);
+        $keep = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
+        $remove = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://remove.example.com/hook']);
 
         $ingestUrlBefore = $proxy->ingestUrl();
 
@@ -87,8 +87,8 @@ class ProxyUpdateTest extends TestCase
     public function test_update_that_would_leave_zero_live_destinations_is_rejected(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
-        Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        Destination::factory()->for($proxy)->createQuietly();
 
         $this->actingAs($user)->put(
             route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),

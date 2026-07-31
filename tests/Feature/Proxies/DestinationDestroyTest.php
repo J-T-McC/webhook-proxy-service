@@ -11,7 +11,7 @@ class DestinationDestroyTest extends TestCase
 {
     private function actingUser(): User
     {
-        $user = User::factory()->create();
+        $user = User::factory()->createQuietly();
         $user->switchTeam($user->currentTeam);
 
         return $user;
@@ -29,9 +29,9 @@ class DestinationDestroyTest extends TestCase
     public function test_removing_a_non_last_destination_soft_deletes_it(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
-        $a = Destination::factory()->for($proxy)->create();
-        $b = Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $a = Destination::factory()->for($proxy)->createQuietly();
+        $b = Destination::factory()->for($proxy)->createQuietly();
 
         $this->actingAs($user)
             ->delete($this->route($user, $proxy, $a))
@@ -45,8 +45,8 @@ class DestinationDestroyTest extends TestCase
     public function test_removing_the_last_live_destination_is_refused(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
-        $only = Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $only = Destination::factory()->for($proxy)->createQuietly();
 
         $this->actingAs($user)
             ->deleteJson($this->route($user, $proxy, $only))
@@ -60,12 +60,12 @@ class DestinationDestroyTest extends TestCase
     public function test_cross_team_destination_returns_404(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
-        Destination::factory()->for($proxy)->count(2)->create();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        Destination::factory()->for($proxy)->count(2)->createQuietly();
 
-        $other = User::factory()->create();
-        $foreignProxy = Proxy::factory()->create(['team_id' => $other->current_team_id]);
-        $foreignDestination = Destination::factory()->for($foreignProxy)->create();
+        $other = User::factory()->createQuietly();
+        $foreignProxy = Proxy::factory()->createQuietly(['team_id' => $other->current_team_id]);
+        $foreignDestination = Destination::factory()->for($foreignProxy)->createQuietly();
 
         // Attempt to remove a foreign proxy's destination via the acting team.
         $this->actingAs($user)

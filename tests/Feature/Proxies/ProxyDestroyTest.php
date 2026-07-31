@@ -19,7 +19,7 @@ class ProxyDestroyTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
+        $user = User::factory()->createQuietly();
         $user->switchTeam($user->currentTeam);
 
         return $user;
@@ -28,9 +28,9 @@ class ProxyDestroyTest extends TestCase
     public function test_destroy_soft_deletes_proxy_and_destinations_and_retains_attempts(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
-        $destination = Destination::factory()->for($proxy)->create();
-        $attempt = DeliveryAttempt::factory()->create([
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $attempt = DeliveryAttempt::factory()->createQuietly([
             'team_id' => $user->current_team_id,
             'proxy_id' => $proxy->id,
             'destination_id' => $destination->id,
@@ -56,8 +56,8 @@ class ProxyDestroyTest extends TestCase
     public function test_soft_deleted_proxy_token_no_longer_ingests(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
-        Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        Destination::factory()->for($proxy)->createQuietly();
         $token = $proxy->ingest_token;
 
         $this->actingAs($user)
@@ -69,11 +69,11 @@ class ProxyDestroyTest extends TestCase
     public function test_new_proxy_after_soft_delete_still_gets_a_distinct_hash(): void
     {
         $user = $this->actingUser();
-        $deleted = Proxy::factory()->create(['team_id' => $user->current_team_id]);
+        $deleted = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
         $deletedHash = $deleted->ingest_token_hash;
         $deleted->delete();
 
-        $fresh = Proxy::factory()->create(['team_id' => $user->current_team_id]);
+        $fresh = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
 
         // The soft-deleted row keeps its hash slot; a new proxy never reuses it.
         $this->assertNotSame($deletedHash, $fresh->ingest_token_hash);

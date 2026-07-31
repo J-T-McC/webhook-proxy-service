@@ -12,7 +12,7 @@ class DestinationTest extends TestCase
 {
     public function test_http_method_casts_to_enum(): void
     {
-        $destination = Destination::factory()->create(['http_method' => HttpMethod::Put]);
+        $destination = Destination::factory()->createQuietly(['http_method' => HttpMethod::Put]);
 
         $this->assertInstanceOf(HttpMethod::class, $destination->fresh()->http_method);
         $this->assertSame(HttpMethod::Put, $destination->fresh()->http_method);
@@ -20,15 +20,15 @@ class DestinationTest extends TestCase
 
     public function test_proxy_relation_returns_the_owning_proxy(): void
     {
-        $proxy = Proxy::factory()->create();
-        $destination = Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly();
+        $destination = Destination::factory()->for($proxy)->createQuietly();
 
         $this->assertTrue($destination->proxy->is($proxy));
     }
 
     public function test_delete_soft_deletes_the_destination(): void
     {
-        $destination = Destination::factory()->create();
+        $destination = Destination::factory()->createQuietly();
         $destination->delete();
 
         $this->assertSoftDeleted($destination);
@@ -36,9 +36,9 @@ class DestinationTest extends TestCase
 
     public function test_soft_deleted_destination_is_excluded_from_proxy_destinations(): void
     {
-        $proxy = Proxy::factory()->create();
-        $live = Destination::factory()->for($proxy)->create();
-        $trashed = Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly();
+        $live = Destination::factory()->for($proxy)->createQuietly();
+        $trashed = Destination::factory()->for($proxy)->createQuietly();
         $trashed->delete();
 
         $ids = $proxy->destinations()->pluck('id');

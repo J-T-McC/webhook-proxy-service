@@ -10,7 +10,7 @@ class ProxyStoreTest extends TestCase
 {
     private function actingUser(): User
     {
-        $user = User::factory()->create();
+        $user = User::factory()->createQuietly();
         $user->switchTeam($user->currentTeam);
 
         return $user;

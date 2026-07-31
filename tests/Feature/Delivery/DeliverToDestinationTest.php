@@ -38,7 +38,7 @@ class DeliverToDestinationTest extends TestCase
         Event::fake();
         Http::fake(['*' => Http::response('ok', 200)]);
 
-        $destination = Destination::factory()->create(['http_method' => HttpMethod::Post]);
+        $destination = Destination::factory()->createQuietly(['http_method' => HttpMethod::Post]);
 
         DeliverToDestination::run($this->unit($destination));
 
@@ -58,7 +58,7 @@ class DeliverToDestinationTest extends TestCase
         Event::fake();
         Http::fake(['*' => Http::response('nope', 500)]);
 
-        $destination = Destination::factory()->create();
+        $destination = Destination::factory()->createQuietly();
 
         DeliverToDestination::run($this->unit($destination));
 
@@ -77,7 +77,7 @@ class DeliverToDestinationTest extends TestCase
         $longMessage = str_repeat('E', 600);
         Http::fake(fn () => throw new ConnectionException($longMessage));
 
-        $destination = Destination::factory()->create();
+        $destination = Destination::factory()->createQuietly();
         $payload = str_repeat('P', 400);
 
         DeliverToDestination::run($this->unit($destination, $payload));
@@ -102,7 +102,7 @@ class DeliverToDestinationTest extends TestCase
             return Http::response('ok', 200);
         });
 
-        $destination = Destination::factory()->create();
+        $destination = Destination::factory()->createQuietly();
 
         DeliverToDestination::run($this->unit($destination));
 

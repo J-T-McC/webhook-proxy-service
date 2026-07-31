@@ -12,7 +12,7 @@ class DeliveryAttemptTest extends TestCase
 {
     public function test_status_casts_to_enum(): void
     {
-        $attempt = DeliveryAttempt::factory()->create();
+        $attempt = DeliveryAttempt::factory()->createQuietly();
 
         $this->assertInstanceOf(AttemptStatus::class, $attempt->fresh()->status);
     }

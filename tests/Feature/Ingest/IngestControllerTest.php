@@ -20,8 +20,8 @@ class IngestControllerTest extends TestCase
 
     private function proxyWithToken(): array
     {
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly();
 
         return [$proxy, $proxy->ingest_token];
     }

@@ -20,7 +20,7 @@ class ProxyIndexShowTest extends TestCase
 
     private function actingUser(): User
     {
-        $user = User::factory()->create();
+        $user = User::factory()->createQuietly();
         $user->switchTeam($user->currentTeam);
 
         return $user;
@@ -36,10 +36,10 @@ class ProxyIndexShowTest extends TestCase
         config()->set('ingest.url', 'https://fixed.example.test');
 
         $user = $this->actingUser();
-        Proxy::factory()->count(2)->create(['team_id' => $user->current_team_id]);
+        Proxy::factory()->count(2)->createQuietly(['team_id' => $user->current_team_id]);
 
-        $other = User::factory()->create();
-        Proxy::factory()->create(['team_id' => $other->current_team_id]);
+        $other = User::factory()->createQuietly();
+        Proxy::factory()->createQuietly(['team_id' => $other->current_team_id]);
 
         $this->actingAs($user)
             ->get(route('proxies.index', ['current_team' => $this->teamSlug($user)]))
@@ -54,8 +54,8 @@ class ProxyIndexShowTest extends TestCase
     public function test_show_returns_ingest_url_mode_and_destinations(): void
     {
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
-        Destination::factory()->for($proxy)->count(2)->create();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        Destination::factory()->for($proxy)->count(2)->createQuietly();
 
         $this->actingAs($user)
             ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $proxy->id]))
@@ -74,8 +74,8 @@ class ProxyIndexShowTest extends TestCase
     public function test_cross_team_show_returns_404(): void
     {
         $user = $this->actingUser();
-        $other = User::factory()->create();
-        $foreignProxy = Proxy::factory()->create(['team_id' => $other->current_team_id]);
+        $other = User::factory()->createQuietly();
+        $foreignProxy = Proxy::factory()->createQuietly(['team_id' => $other->current_team_id]);
 
         $this->actingAs($user)
             ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $foreignProxy->id]))
@@ -95,7 +95,7 @@ class ProxyIndexShowTest extends TestCase
         config()->set('ingest.url', 'https://fixed.example.test');
 
         $user = $this->actingUser();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
 
         $this->actingAs($user)
             ->withHeaders(['Host' => 'attacker.example.com'])

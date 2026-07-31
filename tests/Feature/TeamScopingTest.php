@@ -17,11 +17,11 @@ class TeamScopingTest extends TestCase
 {
     public function test_queries_return_only_the_current_teams_proxies(): void
     {
-        $userA = User::factory()->create();
-        $userB = User::factory()->create();
+        $userA = User::factory()->createQuietly();
+        $userB = User::factory()->createQuietly();
 
-        $ownProxy = Proxy::factory()->create(['team_id' => $userA->current_team_id]);
-        $otherProxy = Proxy::factory()->create(['team_id' => $userB->current_team_id]);
+        $ownProxy = Proxy::factory()->createQuietly(['team_id' => $userA->current_team_id]);
+        $otherProxy = Proxy::factory()->createQuietly(['team_id' => $userB->current_team_id]);
 
         $this->actingAs($userA);
 
@@ -34,7 +34,7 @@ class TeamScopingTest extends TestCase
 
     public function test_creating_a_proxy_auto_assigns_the_current_team(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->createQuietly();
         $this->actingAs($user);
 
         $proxy = new Proxy(['name' => 'Auto', 'mode' => ProxyMode::Simple]);
@@ -47,8 +47,8 @@ class TeamScopingTest extends TestCase
 
     public function test_creating_a_destination_and_attempt_auto_assigns_the_current_team(): void
     {
-        $user = User::factory()->create();
-        $proxy = Proxy::factory()->create(['team_id' => $user->current_team_id]);
+        $user = User::factory()->createQuietly();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
 
         $this->actingAs($user);
 
@@ -75,10 +75,10 @@ class TeamScopingTest extends TestCase
 
     public function test_proxy_policy_allows_owning_team_member_and_denies_others(): void
     {
-        $owner = User::factory()->create();
-        $outsider = User::factory()->create();
+        $owner = User::factory()->createQuietly();
+        $outsider = User::factory()->createQuietly();
 
-        $proxy = Proxy::factory()->create(['team_id' => $owner->current_team_id]);
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $owner->current_team_id]);
         $policy = new ProxyPolicy;
 
         foreach (['view', 'update', 'delete'] as $ability) {
@@ -89,8 +89,8 @@ class TeamScopingTest extends TestCase
 
     public function test_proxy_policy_is_registered_via_the_gate(): void
     {
-        $owner = User::factory()->create();
-        $proxy = Proxy::factory()->create(['team_id' => $owner->current_team_id]);
+        $owner = User::factory()->createQuietly();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $owner->current_team_id]);
 
         $this->assertTrue(Gate::forUser($owner)->allows('view', $proxy));
     }

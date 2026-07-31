@@ -18,9 +18,9 @@ class ProcessIngestedWebhookTest extends TestCase
         Event::fake();
         Http::fake(['*' => Http::response('ok', 200)]);
 
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->count(3)->create();
-        $trashed = Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->count(3)->createQuietly();
+        $trashed = Destination::factory()->for($proxy)->createQuietly();
         $trashed->delete();
 
         $ctx = new PipelineContext(

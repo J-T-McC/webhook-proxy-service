@@ -38,10 +38,10 @@ class IngestFanOutTest extends TestCase
     {
         Http::fake(['*' => Http::response('ok', 200)]);
 
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->create(['url' => 'https://a.test/hook', 'http_method' => HttpMethod::Post]);
-        Destination::factory()->for($proxy)->create(['url' => 'https://b.test/hook', 'http_method' => HttpMethod::Put]);
-        $trashed = Destination::factory()->for($proxy)->create(['url' => 'https://trashed.test/hook']);
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly(['url' => 'https://a.test/hook', 'http_method' => HttpMethod::Post]);
+        Destination::factory()->for($proxy)->createQuietly(['url' => 'https://b.test/hook', 'http_method' => HttpMethod::Put]);
+        $trashed = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://trashed.test/hook']);
         $trashed->delete();
 
         $rawBody = '{"event":"invoice.paid","amount":42}';
@@ -58,8 +58,8 @@ class IngestFanOutTest extends TestCase
     {
         Http::fake(['*' => Http::response('ok', 200)]);
 
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->create(['url' => 'https://dest.test/hook', 'http_method' => HttpMethod::Post]);
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly(['url' => 'https://dest.test/hook', 'http_method' => HttpMethod::Post]);
 
         $this->ingest($proxy->ingest_token, '{}', [
             'X-Custom-Event' => 'invoice.paid',
@@ -89,9 +89,9 @@ class IngestFanOutTest extends TestCase
             '*' => Http::response('ok', 200),
         ]);
 
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->create(['url' => 'https://fail.test/hook']);
-        Destination::factory()->for($proxy)->create(['url' => 'https://ok.test/hook']);
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly(['url' => 'https://fail.test/hook']);
+        Destination::factory()->for($proxy)->createQuietly(['url' => 'https://ok.test/hook']);
 
         $this->ingest($proxy->ingest_token, '{}')->assertStatus(202);
 
@@ -104,8 +104,8 @@ class IngestFanOutTest extends TestCase
         Event::fake();
         Http::fake(['*' => Http::response('ok', 201)]);
 
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->count(2)->create();
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->count(2)->createQuietly();
 
         $this->ingest($proxy->ingest_token, '{"a":1}')->assertStatus(202);
 
@@ -137,8 +137,8 @@ class IngestFanOutTest extends TestCase
         Event::fake();
         Http::fake(['*' => Http::response('boom', 500)]);
 
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->create();
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly();
 
         $this->ingest($proxy->ingest_token, '{}')->assertStatus(202);
 
@@ -153,8 +153,8 @@ class IngestFanOutTest extends TestCase
     {
         Http::fake(['*' => Http::response('no', 503)]);
 
-        $proxy = Proxy::factory()->create();
-        Destination::factory()->for($proxy)->count(2)->create();
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->count(2)->createQuietly();
 
         $this->ingest($proxy->ingest_token, '{}')->assertStatus(202);
     }
@@ -163,8 +163,8 @@ class IngestFanOutTest extends TestCase
     {
         Http::fake(['*' => Http::response('ok', 200)]);
 
-        $proxy = Proxy::factory()->create(); // simple mode by default
-        Destination::factory()->for($proxy)->create(['url' => 'https://dest.test/hook']);
+        $proxy = Proxy::factory()->createQuietly(); // simple mode by default
+        Destination::factory()->for($proxy)->createQuietly(['url' => 'https://dest.test/hook']);
 
         $rawBody = '{"unchanged":true,"n":7}';
         $this->ingest($proxy->ingest_token, $rawBody)->assertStatus(202);
