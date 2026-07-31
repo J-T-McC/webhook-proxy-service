@@ -27,7 +27,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 
 | # | Feature | Phase | Current Agent | Blockers | Approvals |
 |---|---|---|---|---|---|
-| 1 | Walking skeleton: ingest → fan-out delivery | Review | Reviewer | Implementation complete (T1–T30) on `feat/item-01-walking-skeleton`, PR #1 ready for review; 181 tests green, Pint + PHPStan L7 clean | PRD/Design/Plan/Tasks Approved (2026-07-30); Impl complete + PR #1 opened (2026-07-31); awaiting Reviewer |
+| 1 | Walking skeleton: ingest → fan-out delivery | Implementation (defect rework) | Senior Developer | **Post-merge bug:** Index proxy table Delete confirm does not delete (`resources/js/pages/proxies/Index.vue` confirmDelete/AlertDialogAction wiring). Backend + Show-page delete verified working. Scoped rework within approved AC4, no plan/design change | PRD/Design/Plan/Tasks Approved (2026-07-30); Review *Approve with follow-ups* (2026-07-31); PR #1 merged (`5aba84b`). Delete-bug fix awaits Senior Developer, then Reviewer; release re-approval by Owner |
 | 2 | Role-based collaboration | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 3 | Decoupled upstream response | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 4 | Queued processing (FIFO & Async) | Backlog | — (Product Manager on start) | Not started; depends on #1. Open: V3, V8 | — |
@@ -53,12 +53,45 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
   in ADR-006), `docs/questions/prd-01-design-manage-scope.md` (Resolved),
   `docs/questions/prd-01-attempt-records-vs-storage.md` (Resolved). No open
   questions block implementation.
-- **Next action:** Task list **Approved by Project Owner (2026-07-30)**. Item #1 is
-  in **Implementation** and routed to the **Senior Developer**, who begins at T1;
-  inputs are the four approved artifacts above.
-- **Note for the Senior Developer (from the task plan):** the team-scope binding
-  (`current_team_id` / `HasTeams` / `EnsureTeamMembership`) must be confirmed with
-  the team lead before task T7 — a flagged gap, not an open question.
+- **History:** Task list Approved (2026-07-30); T1–T30 implemented; Review
+  `docs/reviews/review-01-walking-skeleton.md` returned *Approve with follow-ups*
+  (2026-07-31); PR #1 **merged** to `main` (`5aba84b`).
+- **Open defect (2026-07-31, from Project Owner):** On the proxies **Index** table
+  (`resources/js/pages/proxies/Index.vue`), clicking a row's Delete → confirm modal
+  → Confirm does **not** delete the proxy. The Show/detail-page delete button works,
+  and the backend is verified green (`ProxyDestroyTest`, route helper
+  `resources/js/routes/proxies/index.ts` `destroy()`, `SetTeamUrlDefaults` +
+  `EnsureTeamMembership`). Root cause is isolated to Index-table frontend wiring —
+  suspected `AlertDialogAction` (reka-ui) auto-close interfering with
+  `confirmDelete()` at Index.vue:53-73 / :231-237; the working pattern is on
+  `resources/js/pages/proxies/Show.vue`.
+- **Routing:** Defect in merged, implemented code → rework flows back to the
+  **Senior Developer** (per workflow rework rule). Scope is contained within
+  approved AC4; no PRD/design/plan/tasks change required, so no upstream gate to
+  reopen. Inputs: this bug report, the four approved item-#1 artifacts, and the
+  working `Show.vue` delete reference. Deliverable: minimal fix on the Index table
+  wiring **plus a regression test** proving row-delete removes the proxy, then hand
+  to the **Reviewer**; final release re-approval stays with the Project Owner.
+- **Delete-bug fix status (2026-07-31):** Fix applied in
+  `resources/js/pages/proxies/Index.vue` (decouple dialog `open` boolean from target
+  data; see T27 rework note in `docs/tasks/walking-skeleton-tasks.md`); verified green
+  (`pnpm lint:check`/`types:check`/`format:check`, `composer lint`/`types:check`,
+  `./vendor/bin/sail test --filter ProxyDestroyTest`). The **automated frontend
+  regression test is deferred** per Project Owner decision **Option B**
+  (`docs/questions/prd-01-index-delete-regression-test-harness.md`, RESOLVED
+  2026-07-31): ship the fix now with a **documented manual-verification step** (Index
+  Delete → confirm → row removed + toast), and defer the frontend test harness to the
+  backlog. Ready for the **Reviewer**.
+
+## Backlog follow-ups (deferred, not gating any current item)
+
+- **Frontend test harness (Vitest + `@vue/test-utils` + DOM env + `test:js` script).**
+  Deferred per Owner Option B (2026-07-31) and already captured as deferred/backlog task
+  **T31** in `docs/tasks/walking-skeleton-tasks.md`. First automated test to write once it
+  lands: the **Index-table row-delete regression** (row Delete → confirm → `router.delete`
+  fires / proxy removed), which no PHP/sail test can exercise. Until then the fix is guarded
+  by the documented manual-verification step (T27 rework note). Does **not** run under
+  `./vendor/bin/sail test` (PHPUnit); CI wiring to be updated when scheduled.
 
 ## Open questions register (roadmap-level, deferred to their gating item)
 

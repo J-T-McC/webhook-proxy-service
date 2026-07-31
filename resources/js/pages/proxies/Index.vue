@@ -48,7 +48,13 @@ const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
 const deleteTarget = ref<ProxyListItem | null>(null);
+const deleteOpen = ref(false);
 const deleting = ref(false);
+
+function requestDelete(proxy: ProxyListItem): void {
+    deleteTarget.value = proxy;
+    deleteOpen.value = true;
+}
 
 function confirmDelete(): void {
     const target = deleteTarget.value;
@@ -66,6 +72,7 @@ function confirmDelete(): void {
             preserveScroll: true,
             onFinish: () => {
                 deleting.value = false;
+                deleteOpen.value = false;
                 deleteTarget.value = null;
             },
         },
@@ -176,7 +183,7 @@ function confirmDelete(): void {
                                     variant="ghost"
                                     size="sm"
                                     :aria-label="`Delete proxy ${proxy.name}`"
-                                    @click="deleteTarget = proxy"
+                                    @click="requestDelete(proxy)"
                                 >
                                     Delete
                                 </Button>
@@ -209,12 +216,8 @@ function confirmDelete(): void {
     </div>
 
     <AlertDialog
-        :open="deleteTarget !== null"
-        @update:open="
-            (value) => {
-                if (!value) deleteTarget = null;
-            }
-        "
+        :open="deleteOpen"
+        @update:open="(value) => (deleteOpen = value)"
     >
         <AlertDialogContent>
             <AlertDialogHeader>
