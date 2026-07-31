@@ -56,7 +56,11 @@ class ProxyController extends Controller
         $data = $request->validated();
 
         $proxy = DB::transaction(function () use ($data, $tokens): Proxy {
-            $proxy = new Proxy(['name' => $data['name'], 'mode' => $data['mode']]);
+            // Pass the validated payload straight to mass-assignment: only
+            // name/mode are fillable (see Proxy #[Fillable]), so the `destinations`
+            // key is ignored and the ingest token/hash stay server-minted, never
+            // from input. (new Proxy() over Proxy::make() per larastan.noModelMake.)
+            $proxy = new Proxy($data);
             $tokens->assignTo($proxy);
             $proxy->save();
 
