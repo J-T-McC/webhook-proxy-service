@@ -1,6 +1,6 @@
 # PRD: Walking skeleton — ingest -> fan-out delivery
 
-- **Status:** Draft (pending Project Owner approval)
+- **Status:** Approved
 - **Author:** Product Manager
 - **Date:** 2026-07-30
 - **Revised:** 2026-07-30 — scope broadened to include fan-out (delivery to one
@@ -18,7 +18,20 @@
   `docs/architecture/adr-006-ingest-url-generation-security.md`. AC12 is now
   concretely testable; R5 removed from Open Questions. Only two non-blocking
   Owner preferences remain open. Still Draft, pending Project Owner approval.
-- **Approved by / date:** _Pending — Project Owner_
+- **Revised:** 2026-07-30 — **Approved by the Project Owner.** Status set to
+  Approved. The two remaining Open Questions (TLS enforcement layer;
+  plaintext-token fallback) are Owner **preferences** and are explicitly
+  **Deferred (non-blocking)** — they do not gate design or build and can be
+  resolved at implementation time. No scope or requirement content changed.
+- **Revised:** 2026-07-30 — Designer question
+  `docs/questions/prd-01-design-manage-scope.md` resolved by the Project Owner.
+  Item #1 now explicitly includes **edit and delete** of proxies and their
+  destinations: AC2 and AC6 clarified and new **AC16** added. Mode-selector note
+  added — the Enhanced option may be selectable in a partial state and needs no
+  "coming soon"/disabled gating (pre-MVP partial state is permitted); the Simple
+  path is what item #1's ACs verify. Scope of the create/list/view/deliver
+  behaviour is unchanged.
+- **Approved by / date:** Project Owner — 2026-07-30
 - **Backlog item:** Roadmap #1 (`docs/product/roadmap.md`)
 
 ## Feature
@@ -92,7 +105,9 @@ Every later capability layers on top of this slice.
    one or more destination endpoint URLs.
 2. A created proxy has exactly one ingest URL and a collection of one or more
    destinations. A proxy with zero destinations cannot be created; adding
-   additional destinations is supported.
+   additional destinations is supported both during creation and after the proxy
+   exists (post-creation add/remove — see AC16). A proxy must always retain at
+   least one destination.
 3. Outbound delivery specifies the HTTP method used, restricted to POST or PUT;
    no other method can be selected or used.
 4. A team member can view a list of their team's proxies and, for each, see the
@@ -100,7 +115,9 @@ Every later capability layers on top of this slice.
 5. Every proxy, its ingest URL, and its destinations are owned by a team. A user
    can only view or manage proxies belonging to a team they are a member of.
 6. Creating or managing a proxy requires an authenticated user in a team;
-   unauthenticated requests cannot create or view proxies.
+   unauthenticated requests cannot create or view proxies. "Managing" includes
+   editing a proxy (its name and its destinations) and deleting a proxy or an
+   individual destination after creation — see AC16.
 7. When a webhook is posted to a proxy's ingest URL, the service delivers the
    received payload to every configured destination of that proxy over HTTP(S)
    using the configured method (POST or PUT).
@@ -139,6 +156,34 @@ Every later capability layers on top of this slice.
     is roadmap #5). Attempt records are team-scoped and queryable: a team member
     can only access attempt records for proxies belonging to a team they are a
     member of.
+16. **(Manage — resolved by `docs/questions/prd-01-design-manage-scope.md`)** A
+    team member can manage an existing proxy that belongs to their team:
+    - **16a. Edit proxy.** Edit the proxy's name and edit its destinations
+      (add a destination, remove a destination, and change a destination's URL
+      and HTTP method — POST or PUT only per AC3).
+    - **16b. Minimum-destination invariant.** An edit cannot leave a proxy with
+      zero destinations; removing the last remaining destination is not permitted
+      (a proxy always retains at least one destination — see AC2).
+    - **16c. Delete destination.** Delete an individual destination from a proxy,
+      subject to 16b.
+    - **16d. Delete proxy.** Delete a proxy in its entirety (including its
+      destinations).
+    - **16e. Team-scoped.** All of the above are restricted to proxies belonging
+      to a team the user is a member of (per AC5); a user cannot edit or delete
+      another team's proxy or its destinations.
+
+## Mode selector (item #1)
+Per the Project Owner decision resolving
+`docs/questions/prd-01-design-manage-scope.md`: the proxy's `simple`/`enhanced`
+mode (ADR-002) may be surfaced as a selector at creation. Because this is pre-MVP,
+partially-functional code is allowed to exist unpolished and un-gated — so the
+Enhanced option **may** be selectable and **may** persist an `enhanced` value even
+though enhanced-mode behaviours (mapping #8, storage #5, retry #6) are not yet
+functional. A "coming soon"/disabled treatment of the Enhanced option is **not
+required**. The acceptance bar for item #1 remains the correctness of the
+**Simple**-mode behaviour defined in AC1–AC15; the selector adds no new
+Simple-path requirement. (UI presentation of the selector is the Designer's to
+decide.)
 
 ## Out of Scope
 Explicitly excluded from item #1. Each points to the later roadmap item that
@@ -187,18 +232,21 @@ R5 (ingest-URL generation & security) is **RESOLVED** — see
 resolution in `docs/questions/prd-01-walking-skeleton-r5-ingest-url.md`. AC12 is
 now objectively testable and R5 no longer gates item #1.
 
-The following two points remain open as **Project Owner preferences only**. Both
-are **non-blocking for the item #1 build** — the recommended design in ADR-006
-proceeds without them being decided.
+The following two points are **Project Owner preferences only** and are
+**DEFERRED (non-blocking)**. They do **not** gate design or build of item #1 —
+the recommended design in ADR-006 proceeds without them being decided — and
+either may be resolved at implementation time.
 
-- **TLS enforcement layer** (non-blocking) — whether an item #1 ingest request
-  without TLS is rejected at the application layer or terminated/enforced at the
-  load balancer. Either satisfies the "TLS-only" requirement; this is an
-  operational-placement preference for the Owner.
-- **Plaintext-token fallback** (non-blocking) — whether the simpler
+- **TLS enforcement layer** — **Deferred (non-blocking).** Whether an item #1
+  ingest request without TLS is rejected at the application layer or
+  terminated/enforced at the load balancer. Either satisfies the "TLS-only"
+  requirement; this is an operational-placement preference for the Owner that can
+  be resolved at implementation time.
+- **Plaintext-token fallback** — **Deferred (non-blocking).** Whether the simpler
   plaintext-token storage fallback is acceptable to the Owner, versus the
   recommended hash-lookup-plus-encrypted-at-rest approach. Both satisfy AC12; the
-  choice is an Owner preference on defence-in-depth.
+  choice is an Owner preference on defence-in-depth that can be resolved at
+  implementation time.
 
 ## Handoff
 - **Inputs:** `docs/product/vision.md`, `docs/product/roadmap.md` (item #1;
@@ -209,8 +257,9 @@ proceeds without them being decided.
 - **Dependencies:** Laravel starter-kit auth/teams boilerplate (registration and
   teams are reused, not rebuilt).
 - **Outstanding Questions:** None blocking. R5 (ingest-URL generation & security)
-  is resolved by ADR-006; AC12 is now testable. Two non-blocking Owner
-  preferences remain (TLS enforcement layer; plaintext-token fallback) — see Open
-  Questions; neither gates the item #1 build.
+  is resolved by ADR-006; AC12 is now testable. Two Owner preferences (TLS
+  enforcement layer; plaintext-token fallback) are **Deferred (non-blocking)** —
+  see Open Questions; neither gates design or build and both can be resolved at
+  implementation time.
 - **Next Agent:** Designer *(item #1 has user-facing UI: proxy creation with one
   or more destinations and the proxy/ingest-URL/destinations listing)*.

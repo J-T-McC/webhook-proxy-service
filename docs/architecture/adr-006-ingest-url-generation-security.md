@@ -85,6 +85,55 @@ The hash-lookup design scales; the lookup is not the ingest constraint. Assessme
   against unset throughput targets (roadmap V8). No change to PRD-01 or the
   foundational plan is required.
 
+## Display feasibility for the UI (added 2026-07-30 — resolves design-01 Open Question #3; Owner chose INLINE-in-list)
+The Designer (`docs/design/design-01-walking-skeleton.md`, Screen 1/3 + Open
+Question #3) asks whether the full, resolvable ingest URL is available for
+**server-side rendering** on the detail screen **and inline in every proxies-list
+row** (the Owner has chosen inline). Verdict: **yes, feasible for both; the Owner's
+inline choice is supported.** Specifics:
+
+- **Plaintext token is decryptable server-side.** Point 3 of this ADR stores
+  `ingest_token` in a Laravel **`encrypted`** cast column precisely so the URL can be
+  shown to team members (AC4/AC12d). The cast decrypts transparently on attribute
+  access, so the controller/resource can build the absolute URL
+  `https://<ingest-host>/ingest/{token}` for both detail and list. The
+  `ingest_token_hash` (`BINARY(32)`) is used only for inbound lookup and is never
+  displayed.
+- **Decrypting N rows for a list page is acceptable — no perf reason to avoid the
+  inline full URL.** One AES decrypt of a ~40-byte token is single-digit microseconds;
+  a **paginated** list page (bounded N, e.g. 15–50 rows) totals well under a
+  millisecond of decrypt work, negligible against framework bootstrap and the DB
+  query. The list must stay **paginated** (bounds N) and the `ingest_token` column
+  must be selected/loaded for those rows (it is a normal column, loaded by default
+  unless a `select()` projection excludes it). No copy-only / decrypt-on-demand
+  affordance is needed for performance; render the full URL inline as the Owner chose.
+- **Security consideration for inline-in-list vs detail-only.** The ingest URL is a
+  **bearer secret** ("anyone with this URL can post" — see point 3 and the design's
+  caution line). Rendering it inline places **every visible proxy's live secret** in
+  one page's HTML/Inertia props at once, rather than one at a time on drill-in —
+  larger shoulder-surf / screenshot / browser-history surface and a larger blast
+  radius if a single page response leaks. **No new trust boundary is crossed:** the
+  list is already behind the same team-scoped session auth + TLS as the detail screen
+  (AC5/AC6), and tokens only ever reach an authenticated member of the owning team.
+  Inline is therefore **acceptable**, subject to two standing precautions that apply
+  regardless: (a) these tokens/URLs must be kept out of request/response logging, APM
+  payload capture, and analytics that serialize Inertia props; (b) the authenticated
+  pages must carry non-cacheable headers (Laravel's authenticated defaults already do
+  this) so the URLs are not stored by shared caches. The design's per-URL caution copy
+  should also appear (or be reachable) for the inline list affordance.
+- **Where the base/host comes from.** Build the absolute URL from a **server-side
+  configured ingest base**, never from the incoming request `Host` header (a
+  handed-out bearer URL built from an attacker-controllable Host is a Host-header
+  injection risk). Recommended: a dedicated config key (e.g. `config('ingest.url')`
+  backed by an env var such as `INGEST_URL`, defaulting to `config('app.url')`) so the
+  ingest domain can differ from the app-UI domain without code change, with the path
+  generated against the named `ingest` route/token. The Task Planner/plan should pin
+  the exact config key; this ADR only fixes that it is **server config, not the
+  request host**.
+
+This confirms the design's **[ASSUMPTION — feasibility]** on Screen 3 and closes
+design-01 Open Question #3. No redesign is required.
+
 ## Impact
 - **Resolves** PRD-01 AC12: "unique" = DB-unique 256-bit token; "not guessable" =
   256-bit CSPRNG entropy, no identifiers in the path, `404` on miss.
