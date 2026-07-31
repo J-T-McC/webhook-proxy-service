@@ -544,7 +544,17 @@
   auth + membership; binding a cross-team `{proxy}`/`{destination}` yields 404; guests are
   redirected to login (AC6).
 - **Testing:** covered by T21–T25 (guest redirect + cross-team 404 assertions there).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `routes/web.php`: inside the **confirmed** `{current_team}` prefix
+  group (`['auth','verified',EnsureTeamMembership::class]`, mirroring `dashboard`) added
+  `Route::resource('proxies', ProxyController::class)` (8 REST endpoints) and
+  `DELETE proxies/{proxy}/destinations/{destination}` → `[DestinationController::class,'destroy']`
+  named `proxies.destinations.destroy` with `->scopeBindings()` so `{destination}` must belong to
+  `{proxy}` (and be live). Implicit route-model binding applies the team `TeamScope`, so a
+  cross-team `{proxy}`/`{destination}` id 404s. Full suite green (163 passed) — routes register
+  lazily. **PHPStan note:** `routes/web.php` forward-references `ProxyController` (created T21) and
+  `DestinationController` (created T25); those two `class.notFound` errors clear as each controller
+  lands, and the consolidated PHPStan L7 gate is run green at T25 (same forward-reference pattern
+  as T4). Guest-redirect + cross-team-404 assertions live in T21–T25.
 
 ## T21 — `ProxyController` index / create / show (AC4/AC12d, AC5/AC6)
 - **Description:** Per plan §API → Inertia responses. `index` (paginated `Proxies/Index` with
