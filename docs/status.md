@@ -27,7 +27,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 
 | # | Feature | Phase | Current Agent | Blockers | Approvals |
 |---|---|---|---|---|---|
-| 1 | Walking skeleton: ingest → fan-out delivery | Task Planning | Project Owner (task-list approval gate) | Task list is **Draft**, pending Project Owner approval before Senior Developer may implement | PRD Approved (2026-07-30); Design Approved (2026-07-30); Technical Plan Accepted (2026-07-30); Task list **not yet approved** |
+| 1 | Walking skeleton: ingest → fan-out delivery | Implementation (ready) | Senior Developer | Task list **Approved** (2026-07-30); ready for Senior Developer to begin T1 | PRD Approved (2026-07-30); Design Approved (2026-07-30); Technical Plan Accepted (2026-07-30); Task list **Approved (2026-07-30)** |
 | 2 | Role-based collaboration | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 3 | Decoupled upstream response | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 4 | Queued processing (FIFO & Async) | Backlog | — (Product Manager on start) | Not started; depends on #1. Open: V3, V8 | — |
@@ -53,10 +53,9 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
   in ADR-006), `docs/questions/prd-01-design-manage-scope.md` (Resolved),
   `docs/questions/prd-01-attempt-records-vs-storage.md` (Resolved). No open
   questions block implementation.
-- **Next action:** Project Owner records approval of the task list (the ✋ Owner
-  approves tasks gate). On approval, the Orchestrator moves item #1 to
-  **Implementation** and routes to the **Senior Developer**; inputs are the four
-  approved artifacts above.
+- **Next action:** Task list **Approved by Project Owner (2026-07-30)**. Item #1 is
+  in **Implementation** and routed to the **Senior Developer**, who begins at T1;
+  inputs are the four approved artifacts above.
 - **Note for the Senior Developer (from the task plan):** the team-scope binding
   (`current_team_id` / `HasTeams` / `EnsureTeamMembership`) must be confirmed with
   the team lead before task T7 — a flagged gap, not an open question.

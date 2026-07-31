@@ -1,10 +1,10 @@
 # Task Plan: Walking skeleton — ingest → fan-out delivery (item #1)
 
-- **Status:** Draft
+- **Status:** Approved
 - **Author:** Task Planner
 - **Technical Plan:** `docs/plans/plan-01-walking-skeleton.md` (Accepted — Project Owner, 2026-07-30)
 - **PRD:** `docs/product/prd-01-walking-skeleton.md` (Approved) · **Design:** `docs/design/design-01-walking-skeleton.md` (Approved) · **ADRs:** 001–008 (Accepted)
-- **Approved by / date:** _pending Project Owner approval_
+- **Approved by / date:** Project Owner, 2026-07-30
 
 > **Scope / conventions.** Every task traces to the plan and its ACs/flows. Sequence is
 > migrations/models → services → controllers → Vue pages, tests accompanying each behavioral
