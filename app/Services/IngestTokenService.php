@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Proxy;
-use App\Models\Scopes\TeamScope;
 
 /**
  * Mints, hashes and stores a proxy's ingest token (ADR-006).
@@ -71,11 +70,14 @@ class IngestTokenService
 
     /**
      * Whether a proxy already holds the given token hash (any team, incl. trashed).
+     *
+     * Team scoping is not a global scope, so this query already spans all teams;
+     * `withTrashed()` additionally spans soft-deleted proxies (the UNIQUE index
+     * covers both).
      */
     protected function hashExists(string $hash): bool
     {
-        return Proxy::withoutGlobalScope(TeamScope::class)
-            ->withTrashed()
+        return Proxy::withTrashed()
             ->where('ingest_token_hash', $hash)
             ->exists();
     }

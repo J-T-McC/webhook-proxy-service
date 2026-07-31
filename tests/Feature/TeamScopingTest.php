@@ -4,18 +4,71 @@ namespace Tests\Feature;
 
 use App\Enums\HttpMethod;
 use App\Enums\ProxyMode;
+use App\Http\Middleware\ApplyTeamScope;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\Proxy;
+use App\Models\Scopes\TeamScope;
 use App\Models\User;
 use App\Policies\ProxyPolicy;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TeamScopingTest extends TestCase
 {
-    public function test_queries_return_only_the_current_teams_proxies(): void
+    /**
+     * Run the given callback inside the ApplyTeamScope middleware, mirroring how a
+     * team-scoped route resolves queries while the scope is active.
+     *
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $inside
+     * @return TReturn
+     */
+    private function withinTeamScope(callable $inside): mixed
+    {
+        $captured = null;
+
+        (new ApplyTeamScope)->handle(Request::create('/'), function () use ($inside, &$captured): Response {
+            $captured = $inside();
+
+            return new Response('ok');
+        });
+
+        return $captured;
+    }
+
+    public function test_team_owned_models_carry_no_global_read_scope_by_default(): void
+    {
+        // Scoping is no longer always-on: a default/settings route (which never runs
+        // ApplyTeamScope) must not see a team predicate silently applied.
+        foreach ([Proxy::class, Destination::class, DeliveryAttempt::class] as $model) {
+            $this->assertFalse(
+                $model::hasGlobalScope(TeamScope::class),
+                "{$model} must not register TeamScope globally",
+            );
+        }
+    }
+
+    public function test_default_queries_are_unscoped_across_teams(): void
+    {
+        $userA = User::factory()->createQuietly();
+        $userB = User::factory()->createQuietly();
+
+        Proxy::factory()->createQuietly(['team_id' => $userA->current_team_id]);
+        Proxy::factory()->createQuietly(['team_id' => $userB->current_team_id]);
+
+        $this->actingAs($userA);
+
+        // Outside the team-scoped middleware (e.g. ingest, console, settings) the
+        // query spans every team.
+        $this->assertSame(2, Proxy::query()->count());
+    }
+
+    public function test_middleware_filters_queries_to_the_current_team(): void
     {
         $userA = User::factory()->createQuietly();
         $userB = User::factory()->createQuietly();
@@ -25,29 +78,49 @@ class TeamScopingTest extends TestCase
 
         $this->actingAs($userA);
 
-        $ids = Proxy::query()->pluck('id');
+        [$ids, $found, $foreign] = $this->withinTeamScope(fn () => [
+            Proxy::query()->pluck('id'),
+            Proxy::find($ownProxy->id),
+            Proxy::find($otherProxy->id),
+        ]);
 
         $this->assertTrue($ids->contains($ownProxy->id));
         $this->assertFalse($ids->contains($otherProxy->id));
-        $this->assertNull(Proxy::find($otherProxy->id));
+        $this->assertNotNull($found);
+        $this->assertNull($foreign, 'cross-team id must resolve to null under the scope');
     }
 
-    public function test_authenticated_user_without_a_current_team_sees_zero_rows(): void
+    public function test_middleware_fails_closed_for_an_authenticated_user_without_a_current_team(): void
     {
-        // A proxy owned by some team exists in the database.
         $other = User::factory()->createQuietly();
         Proxy::factory()->createQuietly(['team_id' => $other->current_team_id]);
 
-        // A signed-in user who has no current team must NOT see it (fail-closed).
         $teamless = User::factory()->createQuietly();
         $teamless->forceFill(['current_team_id' => null])->saveQuietly();
 
         $this->actingAs($teamless);
 
         // team_id ?? 0 constrains to a sentinel no row owns: zero rows, not global.
-        $this->assertSame(0, Proxy::query()->count());
-        $this->assertTrue(Proxy::all()->isEmpty());
-        $this->assertNull(Proxy::first());
+        $count = $this->withinTeamScope(fn () => Proxy::query()->count());
+
+        $this->assertSame(0, $count);
+    }
+
+    public function test_middleware_removes_the_scope_after_the_request(): void
+    {
+        $user = User::factory()->createQuietly();
+        $this->actingAs($user);
+
+        $this->withinTeamScope(fn () => Proxy::query()->count());
+
+        // Global scopes live in a shared static; a leak would bleed into later
+        // requests in the same process (ingest, queue, other tests).
+        foreach ([Proxy::class, Destination::class, DeliveryAttempt::class] as $model) {
+            $this->assertFalse(
+                $model::hasGlobalScope(TeamScope::class),
+                "{$model} must not retain TeamScope after the request",
+            );
+        }
     }
 
     public function test_creating_a_proxy_auto_assigns_the_current_team(): void
