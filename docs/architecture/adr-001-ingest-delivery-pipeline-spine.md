@@ -50,3 +50,33 @@ steps at fixed ordered positions without touching `DeliverStep` or the runner.
 - **Coupling:** where and when the pipeline runs (inline now, queued at #4) is
   delegated to the dispatch seam in ADR-005, so this ADR does not fix execution
   location. `DeliverStep` emits a per-destination attempt via ADR-003.
+
+## Note — conditional map selection is an in-step capability of the mapping seam (2026-07-30)
+
+Added 2026-07-30 after the roadmap/vision refinement to item #8 (a proxy holds
+multiple maps; one map is selected per incoming event by matching a key against a
+value, with a global/default fallback). This ADR already accommodates it with no
+change to the spine, the `PipelineContext` contract, or `DeliverStep`:
+
+- **Selection is internal to `MapStep(#8)`.** When `MapStep` runs it reads the
+  incoming (already-captured, and normalized-to-JSON by `NormalizeStep(#9)`)
+  payload from `PipelineContext`, evaluates the proxy's map-selection condition to
+  choose exactly one of the proxy's maps (or the default), applies that single map,
+  and writes one reshaped payload back to the context. Input and output of the step
+  are unchanged: one context in, one payload out. Everything upstream (ingest
+  capture, envelope) and downstream (`DeliverStep`) is untouched.
+- **No new day-one seam is required.** The value the condition matches on is part
+  of the received payload the `PipelineContext` already carries from the first
+  commit; no additional ingest capture, context field, or item-#1 data-model
+  change is needed. The proxy's *set of maps* and their selection conditions are
+  enhanced-only configuration attached under #8 (ADR-002 keeps `mode` a pure
+  selector and enhanced config attaches as its own tables), not built at #1.
+- **Boundary holds — this is not conditional routing.** The branch is over *data*
+  (which reshaping map to apply), not over pipeline topology or destinations. The
+  pipeline stays linear, `DeliverStep` stays the single terminal fan-out, and every
+  destination still receives the same resulting structure for a given event (R3).
+  The "conditional routing / branching is deliberately excluded" constraint above
+  is unaffected; no new superseding ADR is needed.
+- **Not decided here.** The precedence/fallback rules (M1) and matching syntax (M2)
+  are product/PRD-time decisions for item #8; this note only confirms the
+  architecture leaves room for them inside `MapStep`.

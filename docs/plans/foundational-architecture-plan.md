@@ -80,11 +80,16 @@ models; the starter kit provides `users`/`teams`.
 - `id`, `team_id` (FK, indexed)
 - `name`
 - `mode` enum(`simple`,`enhanced`) not null default `simple` — ADR-002
-- `ingest_token_hash` char(64) **UNIQUE** (SHA-256 lookup) — ADR-006
+- `ingest_token_hash` **UNIQUE** (SHA-256 lookup) — `BINARY(32)` preferred, or
+  `char(64)` hex with a **binary/`ascii_bin` collation** (never a case-insensitive
+  `utf8mb4_*_ci` collation) — ADR-006 (see Performance & scaling)
 - `ingest_token` (`encrypted` cast, for display) — ADR-006
 - `response_status`, `response_body` — (later, #3)
 - `retention_days` — (later, #5)
-- `mapping_id` / mapping definition, `expected_structure` — (later, #8/#12)
+- a **set of maps** per proxy, each with its selection condition, plus a
+  global/default map, and `expected_structure` — (later, #8/#12; a proxy owns
+  multiple maps, one selected per event — see ADR-001 note dated 2026-07-30. Shape
+  hint only; selection precedence/syntax are M1/M2, settled at #8's PRD)
 - `retry_strategy` — (later, #6)
 - timestamps
 

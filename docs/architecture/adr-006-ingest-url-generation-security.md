@@ -48,6 +48,43 @@ verification) for item #1? See `docs/questions/prd-01-walking-skeleton-r5-ingest
   model (an unauthenticated external POST fanned out to destinations) is
   adequately covered by an unguessable secret URL plus TLS and body-size limits.
 
+## Performance & scaling (added 2026-07-30 — Project Owner question on ingest-token lookup)
+The hash-lookup design scales; the lookup is not the ingest constraint. Assessment:
+
+- **Lookup cost.** Per request = one SHA-256 over the ~32-byte token (single-digit
+  microseconds; negligible vs framework bootstrap, TLS, and outbound dispatch) plus
+  **one UNIQUE B-tree point lookup** (O(log n), ~3–5 buffer-pool pages, sub-ms once
+  warm). Cheapest class of query the DB runs; not a bottleneck at high ingest volume.
+- **Column type / collation (implementation requirement, not just a hint).** Store
+  the digest as **`BINARY(32)`** (raw 32 bytes) — narrowest key, no collation, exact
+  byte match — **or** `char(64)` hex with an **`ascii_bin` / binary collation**. Do
+  **not** leave it on a default case-insensitive `utf8mb4_*_ci` collation: that makes
+  the hash comparison collation-aware (slower and semantically loose for an exact
+  match). `BINARY(32)` is preferred (denser index pages → better cache residency).
+  This refines the plan's `char(64)` spec.
+- **Index / InnoDB.** SHA-256 is uniformly distributed ⇒ perfect selectivity
+  (cardinality == row count); the optimizer always uses the unique index. Keep the
+  hash as a **secondary** unique index, not the clustered PK — the auto-increment
+  `id` PK stays clustered so table inserts remain sequential; the random hash's index
+  only takes random inserts at human-speed proxy-creation frequency, so page-split
+  cost is irrelevant. The index stays fully cached (~tens of MB at 1M proxies; a few
+  GB at 10^8 rows).
+- **Scale ceiling / where it strains first.** Ingest resolution is a pure **read** of
+  proxy config — InnoDB plain SELECTs take no row locks (MVCC), so a hot/popular proxy
+  just re-reads the same cached page, contention-free; there is **no write to the
+  proxy row on ingest** (attempt writes are appends to a different table). Table rows
+  never make the lookup the first constraint. The app tier (PHP-FPM workers, DB
+  connections) and the downstream dispatch/attempt-write path saturate long before the
+  token lookup does.
+- **Scaling levers (all deferred; none precluded by this design).** Because
+  resolution is keyed on a deterministic hash, these drop in later without changing
+  URL generation: a **proxy-config cache keyed by token-hash** (invalidate on
+  update/rotation), **read replicas** for the read-only lookup (mind read-your-writes
+  for a just-created proxy), and buffer-pool/vertical sizing. **Day-one: none** — a
+  cache now adds invalidation complexity for no measured benefit and would over-build
+  against unset throughput targets (roadmap V8). No change to PRD-01 or the
+  foundational plan is required.
+
 ## Impact
 - **Resolves** PRD-01 AC12: "unique" = DB-unique 256-bit token; "not guessable" =
   256-bit CSPRNG entropy, no identifiers in the path, `404` on miss.
