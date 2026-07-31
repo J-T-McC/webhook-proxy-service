@@ -398,7 +398,10 @@
 - **Files:** `app/Services/ResponseResolver.php`
 - **Acceptance Criteria:** returns HTTP `202` for any proxy, independent of any delivery outcome.
 - **Testing:** unit test asserting a `202` response.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Services/ResponseResolver.php`: `resolve(Proxy): Response` returns
+  `new Response('', 202)` — minimal body, resolved independent of delivery; no proxy columns read
+  at #1 (the #3 body is a commented seam). Test `ResponseResolverTest` (1 passed): asserts status
+  202 for any proxy. Pint + PHPStan L7 green.
 
 ## T17 — Ingest route + `IngestController` resolution (AC12c, ADR-004/006)
 - **Description:** Per plan §API → Ingest. Register `Route::match(['post','put'],
