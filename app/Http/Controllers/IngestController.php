@@ -32,7 +32,7 @@ class IngestController extends Controller
             ->where('ingest_token_hash', hash('sha256', $token, binary: true))
             ->first();
 
-        abort_if($proxy === null, 404);
+        abort_if($proxy === null, Response::HTTP_NOT_FOUND);
 
         $rawBody = $request->getContent();
 

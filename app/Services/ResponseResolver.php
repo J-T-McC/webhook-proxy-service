@@ -16,6 +16,6 @@ class ResponseResolver
     public function resolve(Proxy $proxy): Response
     {
         // LATER (#3): return response($proxy->response_body, $proxy->response_status);
-        return new Response('', 202);
+        return new Response('', Response::HTTP_ACCEPTED);
     }
 }
