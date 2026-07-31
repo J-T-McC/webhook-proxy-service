@@ -54,7 +54,13 @@
 - **Acceptance Criteria:** `config('ingest.url')` returns `INGEST_URL` when set, else
   `config('app.url')`; no code reads the request `Host` header to build ingest URLs.
 - **Testing:** unit/config test asserting the default-to-`app.url` fallback and the env override.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Added `config/ingest.php` with `'url' => env('INGEST_URL',
+  env('APP_URL', 'http://localhost'))` — INGEST_URL wins, else mirrors the app URL; no request
+  `Host` header is read. `.env.example` documents the commented `INGEST_URL` key.
+  `tests/Unit/Config/IngestConfigTest.php` asserts (a) fallback: `config('ingest.url')` ===
+  `config('app.url')` when INGEST_URL unset, and (b) env override by re-evaluating the config file
+  with `putenv('INGEST_URL=…')`. Pint + PHPStan L7 + tests green (2 passed). Additional
+  ingest config keys (`max_body_bytes`, `rate_limit_per_minute`) are deferred to T17 per its scope.
 
 ## T3 — Domain enums (`Mode`, `HttpMethod`, `AttemptStatus`)
 - **Description:** Backed string enums used by the models and pipeline: `Mode(simple,enhanced)`
