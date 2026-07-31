@@ -1,6 +1,6 @@
 # ADR-002: Simple/enhanced mode as a first-class proxy attribute from item #1
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** cross-cutting (locks Roadmap #1 build-ahead seam; serves #5, #7, #8)

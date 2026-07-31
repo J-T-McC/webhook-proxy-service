@@ -1,6 +1,6 @@
 # ADR-003: Per-delivery-attempt records and domain-event emission from item #1
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** cross-cutting (locks Roadmap #1 build-ahead seam; serves #6, #11, #13)

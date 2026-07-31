@@ -1,6 +1,6 @@
 # ADR-006: Ingest-URL generation and security (resolves R5)
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** walking-skeleton (Roadmap #1 / PRD-01 AC12); resolves open question R5

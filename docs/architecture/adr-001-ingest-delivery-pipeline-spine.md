@@ -1,6 +1,6 @@
 # ADR-001: Ingest→delivery pipeline spine
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** cross-cutting (locks Roadmap #1 build-ahead seam; serves #4, #5, #6, #8, #9, #10, #12, #14)

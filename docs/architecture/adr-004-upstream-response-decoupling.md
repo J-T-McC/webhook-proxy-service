@@ -1,6 +1,6 @@
 # ADR-004: Upstream-response path decoupled from dispatch outcome
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** cross-cutting (locks Roadmap #1 build-ahead seam; serves #3, #4)
