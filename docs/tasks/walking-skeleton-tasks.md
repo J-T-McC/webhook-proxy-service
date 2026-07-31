@@ -72,7 +72,12 @@
 - **Acceptance Criteria:** each enum exposes exactly the plan's cases and backing values; no other
   cases.
 - **Testing:** unit test asserting the case set and backing values of each enum.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Added backed string enums: `ProxyMode(Simple=simple, Enhanced=enhanced)`,
+  `HttpMethod(Post=POST, Put=PUT)`, `AttemptStatus(Dispatched=dispatched, Succeeded=succeeded,
+  Failed=failed)` — case-name convention matches existing `TeamRole`/`TeamPermission`. (The mode
+  enum is class `ProxyMode` per the task's Files list, not the description's shorthand `Mode`.)
+  `tests/Unit/Enums/DomainEnumsTest.php` asserts each enum's exact case set + backing values (3
+  passed). Pint green.
 
 ## T4 — `proxies` table + `Proxy` model
 - **Description:** Migration and Eloquent model per plan §Data Model → `proxies`. Columns:
