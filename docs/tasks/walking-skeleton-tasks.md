@@ -347,7 +347,15 @@
 - **Testing:** unit — `DeliverStep::make()->handle($ctx, fn ($c) => $c)` over a proxy with N live
   destinations (+ a trashed one that must be skipped); with one destination faked to fail, assert
   the rest still receive their call.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Actions/DeliverStep.php` (`AsObject`, implements `PipelineStep`):
+  iterates `$ctx->proxy->destinations` (live-only via SoftDeletes scope), builds a `DeliveryUnit`
+  per destination (`method = $destination->http_method->value`, headers/payload from context,
+  `attemptNumber` 1), calls `DeliverToDestination::run($unit)`, then `return $next($ctx)`. Reads
+  only `$ctx->payload`. AC9 independence is provided by DeliverToDestination's internal Throwable
+  catch (the step stays thin, matching the Appendix A reference). Test `DeliverStepTest` (2 passed,
+  9 assertions): 2 live + 1 trashed → exactly 2 attempts (none for trashed), each destination's own
+  method on the wire (POST/PUT via `Http::assertSent`), returns the same `$ctx`; and one destination
+  faked to throw does not prevent the other's delivery. Pint + PHPStan L7 green.
 
 ## T14 — `PipelineFactory::stepsFor()` (ADR-001/002)
 - **Description:** Per Appendix A §2. `stepsFor(Proxy): PipelineStep[]` returns exactly
