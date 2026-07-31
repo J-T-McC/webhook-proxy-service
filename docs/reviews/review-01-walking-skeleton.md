@@ -99,6 +99,24 @@ soft-delete, ingest 404). Header-forwarding allowlist (ADR-008) is proven end-to
 | 7 | Nit | `resources/js/**` (build) | `pnpm/npm run build` was not runnable in this environment (Node 21 vs required ≥22); the compiled bundle is unverified here. Vue SFCs pass `vue-tsc` + eslint (T26–T30 notes). Run `npm run build` under Node ≥22 before merge to confirm the production bundle compiles (env fix, not a code fix). Do not gate approval on this alone. |
 | 8 | Nit | `tests/Feature/Proxies/*` | Cross-team 404 is directly asserted for `show` and destination `destroy`; `edit`/`update`/`destroy(proxy)` rely on the same proven `TeamScope` route-binding path but lack their own dedicated cross-team assertion. A belt-and-suspenders test per verb would fully close AC16e. |
 
+## Owner review comments (PR #1) — resolved 2026-07-31
+Addressed on-branch after the initial review: (A) authorization moved to
+controller Policies via auto-discovered `ProxyPolicy`, FormRequest `authorize()`
+→ `true`, manual gate registration removed; (B) HTTP `Response::HTTP_*` constants
+over magic numbers; (C) Inertia props via `ProxyResource`/`DestinationResource`;
+(D) `Proxy::make($validated)` (larastan `noModelMake` disabled); (E)
+`Rule::enum(...)` for `mode`/`http_method`; (F) `TeamScope` fail-closed
+(`team_id = current_team_id ?? 0`) for authenticated team-less users + test.
+Suite green (182). Owner accepted `make()` and the auth-only scope of (F).
+
+### Future follow-up (Owner idea, not scheduled)
+- **Middleware-initiated team scope (opt-in per route).** Consider moving
+  `TeamScope` from an always-on global model scope to a scope applied by a
+  route middleware, so the set of routes it governs is chosen explicitly (rather
+  than globally applied + explicitly stripped via `withoutGlobalScope` on system
+  paths). Design decision for the Principal Engineer — natural to fold in when
+  item #2 (role-based collaboration) touches the team-authorization surface.
+
 ## Recommendations
 - None of the findings block approval. Findings 1–8 are all Minor/Nit follow-ups.
 - Before any real deployment (not before merge of item #1): address finding 2
