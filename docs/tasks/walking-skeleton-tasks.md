@@ -654,7 +654,14 @@
   (soft-deleted row retains its unique hash slot — no reuse).
 - **Testing:** feature tests — `assertSoftDeleted` proxy + destinations; post-delete ingest `404`;
   attempt records retained/unchanged; unique-hash-retained-after-soft-delete.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyController@destroy(string $current_team, Proxy $proxy)`:
+  `Gate::authorize('delete')`, `DB::transaction` soft-deletes the proxy's live destinations then the
+  proxy; `delivery_attempts` untouched. Redirect to index with `Proxy deleted` toast. Test
+  `ProxyDestroyTest` (3 passed, 10 assertions): proxy + destination `assertSoftDeleted` and gone from
+  team-scoped queries while the `delivery_attempts` row is retained and still queryable (AC15);
+  soft-deleted proxy's token → ingest `404` (via T17, soft-delete scope kept); and a new proxy after a
+  soft-delete gets a distinct hash while the trashed row keeps its hash slot (no reuse). Pint green;
+  PHPStan only the T25 `DestinationController` forward-ref.
 
 ## T25 — `DestinationController@destroy` (single soft-remove, min-1 guard) (AC16c/AC16b)
 - **Description:** Per plan §Validation (Flow E). In a DB transaction with a re-count of

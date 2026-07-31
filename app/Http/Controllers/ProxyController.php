@@ -174,6 +174,26 @@ class ProxyController extends Controller
     }
 
     /**
+     * Soft-delete the proxy and its live destinations in one transaction (AC16d).
+     *
+     * delivery_attempts are always retained (never cascade-removed, no soft delete).
+     */
+    public function destroy(string $current_team, Proxy $proxy): RedirectResponse
+    {
+        Gate::authorize('delete', $proxy);
+
+        DB::transaction(function () use ($proxy): void {
+            $proxy->destinations()->get()
+                ->each(fn (Destination $destination) => $destination->delete());
+            $proxy->delete();
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Proxy deleted.')]);
+
+        return to_route('proxies.index');
+    }
+
+    /**
      * Normalise the validated destinations payload into typed rows.
      *
      * @param  array<string, mixed>  $data
