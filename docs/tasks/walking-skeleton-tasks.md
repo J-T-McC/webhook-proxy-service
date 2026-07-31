@@ -96,7 +96,19 @@
   `deleted_at` and hides the row from default queries.
 - **Testing:** model unit test — encrypted-token round-trip, `mode` default + cast, `BINARY(32)`
   unique column present, `assertSoftDeleted` after `delete()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Migration `2026_07_30_000001_create_proxies_table.php`:
+  `binary('ingest_token_hash', 32, true)` → fixed `BINARY(32)` with a single-column `->unique()`
+  (not composite with `deleted_at`); `enum('mode',['simple','enhanced'])->default('simple')`;
+  `text('ingest_token')`; `timestamps()` + `softDeletes()`; `team_id` indexed via `constrained()`.
+  Model `Proxy`: `SoftDeletes`, casts `mode`→`ProxyMode` and `ingest_token`→`encrypted`,
+  `team()`/`destinations()`/`deliveryAttempts()` relations, `Fillable([team_id,name,mode])`.
+  `ProxyFactory` mints a random token + matching SHA-256 hash, `enhanced()`/`trashed()` states.
+  Test `ProxyTest` (5 passed, 11 assertions): encrypted round-trip (ciphertext ≠ plaintext at rest),
+  `mode` cast + DB default `simple`, `information_schema` proves `BINARY(32)` + single-column
+  unique index, duplicate-hash rejected (`QueryException`), `assertSoftDeleted` + hidden from
+  default query. Pint green. **PHPStan note:** the `Destination`/`DeliveryAttempt` relation return
+  types forward-reference the T5/T6 model classes (plan's ordering); the consolidated PHPStan L7
+  gate is run green at T6 once those classes exist.
 
 ## T5 — `destinations` table + `Destination` model
 - **Description:** Migration and model per plan §Data Model → `destinations`. Columns: `id`,
