@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\ProcessIngestedWebhook;
 use App\Models\Proxy;
-use App\Models\Scopes\TeamScope;
 use App\Pipeline\PipelineContext;
 use App\Services\ResponseResolver;
 use Illuminate\Http\Request;
@@ -15,9 +14,10 @@ use Symfony\Component\HttpFoundation\Response;
  * Public, token-authenticated ingest entry point (ADR-004/006).
  *
  * No session auth, CSRF-exempt (registered outside the web group). The presented
- * token IS the authenticator, so the proxy lookup strips ONLY the team global
- * scope — the SoftDeletes scope is kept, so a soft-deleted proxy 404s and no
- * longer ingests (never `withTrashed()`). The plaintext token is never logged.
+ * token IS the authenticator. Team scoping is no longer a global model scope, so
+ * this lookup is naturally unscoped by team; the SoftDeletes scope still applies,
+ * so a soft-deleted proxy 404s and no longer ingests (never `withTrashed()`). The
+ * plaintext token is never logged.
  */
 class IngestController extends Controller
 {
@@ -25,10 +25,11 @@ class IngestController extends Controller
 
     public function __invoke(Request $request, string $token): Response
     {
-        // Resolve by SHA-256 token hash on the BINARY(32) UNIQUE index. Strip only
-        // the team scope; keep SoftDeletes. Unknown/soft-deleted -> 404, no
-        // existence disclosure (AC12c).
-        $proxy = Proxy::withoutGlobalScope(TeamScope::class)
+        // Resolve by SHA-256 token hash on the BINARY(32) UNIQUE index. Not team
+        // scoped (no global scope; this route is outside the team group), but
+        // SoftDeletes still applies. Unknown/soft-deleted -> 404, no existence
+        // disclosure (AC12c).
+        $proxy = Proxy::query()
             ->where('ingest_token_hash', hash('sha256', $token, binary: true))
             ->first();
 

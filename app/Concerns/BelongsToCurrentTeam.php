@@ -2,25 +2,26 @@
 
 namespace App\Concerns;
 
-use App\Models\Scopes\TeamScope;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * Applies the current-team global scope and auto-assigns `team_id` on create for
- * team-owned models (AC5/AC15). The ingest path strips only the TeamScope, never
- * the SoftDeletes scope.
+ * Auto-assigns `team_id` on create for team-owned models (AC5/AC15).
+ *
+ * Team-read scoping is NOT applied here. The current-team query constraint is
+ * applied selectively by the ApplyTeamScope middleware on the team-scoped route
+ * group only, so default framework routes that carry no team context (e.g. the
+ * settings routes) are never wrongly constrained. The token-authenticated ingest
+ * path likewise runs unscoped without needing to strip a global scope.
  */
 trait BelongsToCurrentTeam
 {
     /**
-     * Boot the trait: register the global scope and the team_id auto-assignment.
+     * Boot the trait: register the team_id auto-assignment on create.
      */
     public static function bootBelongsToCurrentTeam(): void
     {
-        static::addGlobalScope(new TeamScope);
-
         static::creating(function (Model $model): void {
             $user = Auth::user();
 

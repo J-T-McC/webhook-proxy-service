@@ -4,13 +4,14 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
 use App\Http\Controllers\ProxyController;
 use App\Http\Controllers\Teams\TeamInvitationController;
+use App\Http\Middleware\ApplyTeamScope;
 use App\Http\Middleware\EnsureTeamMembership;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
 
 Route::prefix('{current_team}')
-    ->middleware(['auth', 'verified', EnsureTeamMembership::class])
+    ->middleware(['auth', 'verified', EnsureTeamMembership::class, ApplyTeamScope::class])
     ->group(function () {
         Route::get('dashboard', DashboardController::class)->name('dashboard');
 
