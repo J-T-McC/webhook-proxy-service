@@ -151,7 +151,20 @@
   `AttemptStatus`.
 - **Testing:** unit/schema test asserting the payload-free/`deleted_at`-free column set, the three
   indexes, and the `status` cast.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Migration `2026_07_30_000003_create_delivery_attempts_table.php`:
+  `team_id`/`proxy_id`/`destination_id` FKs, `uuid('ingest_id')`, `enum('status',[dispatched,
+  succeeded,failed])`, nullable `smallInteger http_status`, `string('error_summary',250)` nullable,
+  `attempt_number` default 1, `started_at`, nullable `duration_ms`, timestamps. Indexes
+  `(team_id,created_at)`, `(proxy_id,status)`, `(ingest_id)`. **No** payload/body column and **no**
+  `deleted_at`. Model `DeliveryAttempt`: `status`→`AttemptStatus`, `started_at`→datetime,
+  `proxy()`/`destination()` relations, **no** SoftDeletes. `DeliveryAttemptFactory` with
+  `succeeded()`/`failed()` states. Test `DeliveryAttemptTest` (3 passed, 9 assertions):
+  `status` cast, `Schema::getColumnListing` proves absence of `deleted_at`/`payload`/`body`/…,
+  `information_schema.STATISTICS` proves the three indexes. **Consolidated gate (all three models
+  now exist):** Pint green, PHPStan L7 green (0 errors — fixed a larastan `findOrFail`
+  `Model|Collection` inference in the two factories by switching to `whereKey(...)->firstOrFail()`),
+  full `tests/Unit/Models` suite green (13 passed, 28 assertions). Note: PHPStan analyses
+  `app/bootstrap/config/database/routes` (not `tests/`) per `phpstan.neon`.
 
 ## T7 — Team global scope, `team_id` auto-assign, and `ProxyPolicy` (AC5/AC6/AC15/AC16e)
 - **Description:** A single team-scoping mechanism per plan §Services → Team scoping. Add a global

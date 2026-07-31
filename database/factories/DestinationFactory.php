@@ -23,7 +23,7 @@ class DestinationFactory extends Factory
 
         return [
             'proxy_id' => $proxy,
-            'team_id' => fn (array $attributes) => Proxy::findOrFail($attributes['proxy_id'])->team_id,
+            'team_id' => fn (array $attributes) => Proxy::whereKey($attributes['proxy_id'])->firstOrFail()->team_id,
             'url' => 'https://'.fake()->domainName().'/'.fake()->slug(),
             'http_method' => HttpMethod::Post,
         ];
