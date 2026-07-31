@@ -36,7 +36,13 @@
   `AsObject` traits resolvable; `composer types:check` still green.
 - **Testing:** `composer types:check` green; a throwaway `use Lorisleiva\Actions\Concerns\AsAction;`
   resolves (verified by later tasks that consume it).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `composer require lorisleiva/laravel-actions` → resolved `^2.10`
+  (Laravel 13 compatible), auto-discovered. Verified `AsAction` and `AsObject` traits resolve at
+  runtime (`trait_exists` both OK). `composer.json` + `composer.lock` updated. PHPStan green
+  (`php -d memory_limit=1G vendor/bin/phpstan analyse` → 0 errors; see env note below re: default
+  128M memory limit). **Env note:** the `composer types:check` script inherits the local
+  php.ini `memory_limit=128M` and PHPStan's parallel worker OOMs while reflecting `Carbon`/`User`
+  (pre-existing, unrelated to this change); it passes clean at `memory_limit=1G`.
 
 ## T2 — Ingest-URL config key (`config('ingest.url')`)
 - **Description:** Add a dedicated ingest base config key per ADR-006 "Where the base/host comes
