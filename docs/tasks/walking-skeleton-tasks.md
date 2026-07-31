@@ -366,7 +366,12 @@
 - **Acceptance Criteria:** returns exactly one step (`DeliverStep`) for a `simple` proxy and the
   identical single-step list for an `enhanced` proxy.
 - **Testing:** unit test asserting `[DeliverStep::class]` for both modes.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Pipeline/PipelineFactory.php`: `stepsFor(Proxy): list<PipelineStep>`
+  returns exactly `[DeliverStep::make()]` for both `simple` and `enhanced`. Enhanced front/tail
+  stages are commented insertion-contract stubs only (VerifyStep/NormalizeStep/CaptureRawStep/
+  MapStep/CaptureDispatchedStep/ChangeDetectStep) — nothing built. Test `PipelineFactoryTest`
+  (2 passed, 4 assertions): simple and enhanced each yield a single `DeliverStep`. Pint + PHPStan
+  L7 green.
 
 ## T15 — `ProcessIngestedWebhook` action (pipeline-level, sync `::run`)
 - **Description:** Per Appendix A §4(a). `AsAction`. `handle(PipelineContext)` drives the native
