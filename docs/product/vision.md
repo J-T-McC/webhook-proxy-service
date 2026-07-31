@@ -8,6 +8,10 @@ mapping must support selecting among multiple maps per proxy by a key/value
 condition, with a global/default. This is conditional map selection, not
 conditional destination routing; the same-structure-to-all-destinations rule and
 the conditional-routing Out-of-Scope exclusion are unchanged.
+Revised 2026-07-30: recorded the Project Owner's HTTPS-only (in and out) security
+ruling as a product-wide Known Constraint so future PRDs inherit it, and resolved
+the transport/security dimension of Open Question #1 to HTTPS-only (POST/PUT
+method per V1); the non-HTTP-transport sub-dimension remains open.
 
 > This is a **vision document**, not a PRD and not a feature spec. It describes
 > what the product is, who it serves, and how we will judge success. It contains
@@ -151,6 +155,13 @@ matter**.
   learning project with no timeline or deadline, but it is to be approached as a
   serious SaaS platform — the informal build model must not lower the ambition.
 - **Compliance:** No additional compliance requirements today.
+- **HTTPS-only (in and out):** All incoming ingest requests and all outgoing
+  destination deliveries are HTTPS-only. Non-HTTPS is never accepted (inbound
+  plaintext HTTP ingest requests are rejected) and never allowed (outbound
+  destination URLs must be `https://`). This is a Project Owner security ruling
+  (2026-07-30). It already governs roadmap item #1 via PRD-01 (AC3a for outbound
+  destination scheme, AC17 for inbound rejection); it is recorded here so later
+  roadmap items inherit it.
 - **Budget:** No budget currently; the owner wants to host a demo.
 
 ## Open Questions
@@ -160,7 +171,11 @@ Items with a technical dimension are for the Principal Engineer; product/scope
 items are for the Project Owner.
 
 1. **Outgoing delivery format/transport** — HTTP(S) POST only, or other
-   transports? (Not confirmed.)
+   transports? **Transport/security dimension RESOLVED (2026-07-30):** transport
+   is **HTTPS-only** (HTTP-vs-HTTPS is settled to HTTPS-only per the Project Owner
+   security ruling; see Known Constraints), using the POST/PUT method per the
+   walking-skeleton decision (V1). Still open: whether **non-HTTP transports**
+   (e.g. Kafka/streaming) are offered in a later version.
 2. **Webhook verification-token standards** — which standards to support at MVP
    (existing standards to be reviewed).
 3. **Scalable queue/streaming choice beyond Redis** — Kafka-with-Laravel and

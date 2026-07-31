@@ -31,13 +31,21 @@
   "coming soon"/disabled gating (pre-MVP partial state is permitted); the Simple
   path is what item #1's ACs verify. Scope of the create/list/view/deliver
   behaviour is unchanged.
+- **Revised:** 2026-07-30 — **HTTPS-only security constraint** ruled by the
+  Project Owner and recorded as a product-wide invariant (see *Product-wide
+  invariant: HTTPS-only*). AC3 now validates destination-URL **scheme**
+  (`https://` required, `http://`/missing-scheme rejected) alongside the existing
+  POST/PUT method rule; new **AC17** requires non-HTTPS ingest requests to be
+  rejected; AC7, AC10, the Feature line, and the Goals transport bullets are
+  tightened from "HTTP(S)" to "HTTPS". Enforcement layer (edge vs. app) remains
+  an implementation detail for the technical plan.
 - **Approved by / date:** Project Owner — 2026-07-30
 - **Backlog item:** Roadmap #1 (`docs/product/roadmap.md`)
 
 ## Feature
 A team member can create a simple-proxy that receives a webhook at one ingest
 URL and delivers it, unchanged, to a collection of one or more destination
-endpoints over HTTP(S) using POST or PUT only.
+endpoints over HTTPS using POST or PUT only.
 
 ## Problem
 The product's core value — fan-out and payload reshaping — sits on top of a base
@@ -54,11 +62,13 @@ Every later capability layers on top of this slice.
 - A team member can create a proxy that has exactly one ingest URL and a
   collection of one or more destination endpoints.
 - A webhook posted to a proxy's ingest URL is delivered to every destination
-  configured on that proxy over HTTP(S).
+  configured on that proxy over HTTPS.
 - Each destination receives the same incoming payload structure (per resolved
   decision R3 — fan-out delivers one payload structure to all destinations).
-- Outbound delivery is restricted to HTTP(S) POST or PUT only (per resolved
-  decision V1); no other methods or transports.
+- Outbound delivery is restricted to HTTPS with POST or PUT only (POST/PUT per
+  resolved decision V1; HTTPS-only per the Project Owner security ruling of
+  2026-07-30); no other methods or transports. Destination URLs must be `https://`
+  (see AC3 and *Product-wide invariant: HTTPS-only*).
 - Delivery to each destination is independent: one destination failing does not
   block delivery to the others. Delivery is fire-and-forget in this slice — no
   retry or replay of failed deliveries.
@@ -73,6 +83,33 @@ Every later capability layers on top of this slice.
   destinations per proxy.
 - The proxy runs in **simple proxy mode** only — minimal processing, no mapping,
   no storage, no retry.
+
+## Product-wide invariant: HTTPS-only (in and out)
+Per the Project Owner security ruling of 2026-07-30, **all webhook traffic — both
+incoming ingest and outgoing delivery — must use HTTPS**. This is a cross-cutting
+product invariant, not a walking-skeleton-only rule: every later roadmap item that
+ingests a webhook or delivers to a destination inherits it. Concretely:
+
+- **Incoming:** the ingest endpoint accepts requests only over HTTPS; non-HTTPS
+  (plaintext HTTP) ingest requests are rejected (AC17). Rationale: the ingest URL
+  carries a bearer token, so a plaintext request would leak it.
+- **Outgoing:** destination URLs must have an `https://` scheme, validated and
+  rejected at create and edit time (AC3a); outbound delivery uses HTTPS only
+  (AC7, AC10).
+
+The **enforcement mechanism/layer** (edge termination and redirect vs. a thin
+app-layer assertion) is an implementation detail for the technical plan, not a
+requirement dimension — see the *Open Questions* note on the TLS enforcement
+layer.
+
+**Flagged for the vision/roadmap owner (not edited here):** because this
+invariant is cross-cutting, it should also be recorded in
+`docs/product/vision.md` (e.g. under *Known Constraints*) and/or
+`docs/product/roadmap.md` so downstream PRDs inherit it explicitly. This also
+partially settles Vision Open Question #1 ("Outgoing delivery format/transport —
+HTTP(S) POST only, or other transports?") on the transport dimension: transport
+is **HTTPS-only**. Per role boundaries the Product Manager has not edited the
+vision or roadmap; this is a flag for the Project Owner / vision owner.
 
 ## Users
 - **Team member** — a registered user who belongs to a team (via the starter-kit
@@ -108,8 +145,15 @@ Every later capability layers on top of this slice.
    additional destinations is supported both during creation and after the proxy
    exists (post-creation add/remove — see AC16). A proxy must always retain at
    least one destination.
-3. Outbound delivery specifies the HTTP method used, restricted to POST or PUT;
-   no other method can be selected or used.
+3. Every destination URL is valid at both create time and edit time (AC16),
+   verified by two independent rules:
+   - **3a. HTTPS-only scheme.** The destination URL's scheme must be `https`. A
+     URL with an `http://` scheme, any non-`https` scheme, or no scheme at all is
+     rejected and the proxy/destination is not saved. Testable — *invalid:*
+     `http://example.com/hook`, `ftp://example.com/hook`, `example.com/hook`
+     (missing scheme); *valid:* `https://example.com/hook`.
+   - **3b. Method POST or PUT.** Outbound delivery specifies the HTTP method used,
+     restricted to POST or PUT; no other method can be selected or used.
 4. A team member can view a list of their team's proxies and, for each, see the
    ingest URL and every configured destination.
 5. Every proxy, its ingest URL, and its destinations are owned by a team. A user
@@ -119,14 +163,14 @@ Every later capability layers on top of this slice.
    editing a proxy (its name and its destinations) and deleting a proxy or an
    individual destination after creation — see AC16.
 7. When a webhook is posted to a proxy's ingest URL, the service delivers the
-   received payload to every configured destination of that proxy over HTTP(S)
+   received payload to every configured destination of that proxy over HTTPS
    using the configured method (POST or PUT).
 8. Each destination receives the same payload structure as the incoming webhook.
 9. Delivery to each destination is independent: if delivery to one destination
    fails, deliveries to the other destinations still proceed. Failed deliveries
    are not retried or replayed in this item (fire-and-forget).
-10. Outbound delivery uses HTTP(S) POST or PUT only. No other HTTP method and no
-    non-HTTP transport is used.
+10. Outbound delivery uses HTTPS with POST or PUT only. No non-HTTPS transport
+    and no other HTTP method is used (destination URLs are HTTPS-only per AC3a).
 11. The proxy operates in simple proxy mode: the incoming payload is delivered
     without mapping/reshaping, without the payload being stored, without retry or
     replay, and without notifications. Delivery analytics are still captured —
@@ -171,6 +215,15 @@ Every later capability layers on top of this slice.
     - **16e. Team-scoped.** All of the above are restricted to proxies belonging
       to a team the user is a member of (per AC5); a user cannot edit or delete
       another team's proxy or its destinations.
+17. **(Ingest HTTPS-only — Project Owner security ruling of 2026-07-30)** The
+    ingest endpoint accepts requests only over HTTPS. A non-HTTPS (plaintext
+    HTTP) request to an ingest URL is rejected and the webhook is **not**
+    delivered to any destination. Rationale: the ingest URL carries a bearer
+    token, so a plaintext request would leak it. This criterion is satisfied so
+    long as no non-HTTPS ingest request is ever accepted; the enforcement
+    layer — edge termination/redirect vs. a thin app-layer assertion — is an
+    implementation detail for the technical plan and is not part of this
+    criterion.
 
 ## Mode selector (item #1)
 Per the Project Owner decision resolving
@@ -237,11 +290,14 @@ The following two points are **Project Owner preferences only** and are
 the recommended design in ADR-006 proceeds without them being decided — and
 either may be resolved at implementation time.
 
-- **TLS enforcement layer** — **Deferred (non-blocking).** Whether an item #1
-  ingest request without TLS is rejected at the application layer or
-  terminated/enforced at the load balancer. Either satisfies the "TLS-only"
-  requirement; this is an operational-placement preference for the Owner that can
-  be resolved at implementation time.
+- **TLS enforcement layer** — **Deferred (non-blocking).** The *requirement* that
+  ingest be HTTPS-only is now settled: the Project Owner's 2026-07-30 security
+  ruling makes HTTPS-only a product-wide invariant (AC17). What remains deferred
+  is only the enforcement *placement* — application layer vs. load-balancer
+  termination/redirect (the Owner's steer is "both edge termination/redirect **and**
+  a thin app-layer assert"). Placement does not gate design or build and is an
+  implementation detail for the technical plan; it can be resolved at
+  implementation time.
 - **Plaintext-token fallback** — **Deferred (non-blocking).** Whether the simpler
   plaintext-token storage fallback is acceptable to the Owner, versus the
   recommended hash-lookup-plus-encrypted-at-rest approach. Both satisfy AC12; the
