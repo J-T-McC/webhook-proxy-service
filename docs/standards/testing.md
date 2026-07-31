@@ -45,6 +45,23 @@ Consequences to preserve:
 - Cross-team isolation tests must set distinct `team_id`s explicitly so they
   genuinely prove scoping and cannot pass by accident of a wrong default.
 
+## Database refresh (active)
+
+Test classes **must not** declare the `RefreshDatabase` (or `FasterRefreshDatabase`)
+trait themselves. Database migration + per-test transaction rollback is provided
+**globally** by the base `Tests\TestCase`, which uses `FasterRefreshDatabase`,
+which in turn uses Laravel's `RefreshDatabase`.
+
+- **Rule:** no `use RefreshDatabase;` / `use FasterRefreshDatabase;` in individual
+  test classes. Extend `Tests\TestCase` and you get rollback for free.
+- **Sole owner:** `tests/FasterRefreshDatabase.php` is the only place the
+  `RefreshDatabase` trait is used. **Do not** remove `use RefreshDatabase;` from
+  it — that trait supplies `beginDatabaseTransaction()` / `refreshTestDatabase()`;
+  stripping it silently disables rollback and tests pollute each other
+  (duplicate-key failures across cases).
+- **Rationale:** one place to configure DB behavior; no per-class boilerplate; no
+  risk of a class forgetting the trait and leaking state.
+
 ## Scope
 
 - Applies going forward to all item-#1 tests and every new/modified test.
