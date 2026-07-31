@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Proxy;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -11,15 +10,15 @@ use Illuminate\Foundation\Http\FormRequest;
  * Same rules as create, incl. the HTTPS-only destination URL invariant (Owner
  * security decision 2026-07-30, PRD-01). `destinations.*.id` (optional) keys the
  * reconciliation of existing live rows in the controller.
+ *
+ * Authorization lives on the controller endpoint (ProxyPolicy::update via
+ * $this->authorize), not here — this request only validates.
  */
 class UpdateProxyRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        $proxy = $this->route('proxy');
-
-        return $proxy instanceof Proxy
-            && ($this->user()?->can('update', $proxy) ?? false);
+        return true;
     }
 
     /**

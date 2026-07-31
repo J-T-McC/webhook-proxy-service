@@ -6,7 +6,6 @@ use App\Models\Destination;
 use App\Models\Proxy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -19,7 +18,7 @@ class DestinationController extends Controller
      */
     public function destroy(string $current_team, Proxy $proxy, Destination $destination): RedirectResponse
     {
-        Gate::authorize('update', $proxy);
+        $this->authorize('update', $proxy);
 
         DB::transaction(function () use ($proxy, $destination): void {
             // Re-count only live rows under a row lock to guard the concurrent

@@ -10,7 +10,6 @@ use App\Services\IngestTokenService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -22,7 +21,7 @@ class ProxyController extends Controller
      */
     public function index(Request $request): Response
     {
-        Gate::authorize('viewAny', Proxy::class);
+        $this->authorize('viewAny', Proxy::class);
 
         $proxies = Proxy::query()
             ->latest()
@@ -44,7 +43,7 @@ class ProxyController extends Controller
      */
     public function create(): Response
     {
-        Gate::authorize('create', Proxy::class);
+        $this->authorize('create', Proxy::class);
 
         return Inertia::render('proxies/Create');
     }
@@ -93,7 +92,7 @@ class ProxyController extends Controller
      */
     public function show(string $current_team, Proxy $proxy): Response
     {
-        Gate::authorize('view', $proxy);
+        $this->authorize('view', $proxy);
 
         return Inertia::render('proxies/Show', [
             'proxy' => $this->proxyPayload($proxy),
@@ -105,7 +104,7 @@ class ProxyController extends Controller
      */
     public function edit(string $current_team, Proxy $proxy): Response
     {
-        Gate::authorize('update', $proxy);
+        $this->authorize('update', $proxy);
 
         return Inertia::render('proxies/Edit', [
             'proxy' => [
@@ -180,7 +179,7 @@ class ProxyController extends Controller
      */
     public function destroy(string $current_team, Proxy $proxy): RedirectResponse
     {
-        Gate::authorize('delete', $proxy);
+        $this->authorize('delete', $proxy);
 
         DB::transaction(function () use ($proxy): void {
             $proxy->destinations()->get()

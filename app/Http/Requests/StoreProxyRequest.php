@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Proxy;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -10,12 +9,15 @@ use Illuminate\Foundation\Http\FormRequest;
  *
  * HTTPS-only destination URLs (Owner security decision 2026-07-30, PRD-01): any
  * non-`https://` scheme — `http://`, or a scheme-less/malformed URL — is rejected.
+ *
+ * Authorization lives on the controller endpoint (ProxyPolicy::create via
+ * $this->authorize), not here — this request only validates.
  */
 class StoreProxyRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('create', Proxy::class) ?? false;
+        return true;
     }
 
     /**
