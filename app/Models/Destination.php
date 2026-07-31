@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToCurrentTeam;
 use App\Enums\HttpMethod;
 use Database\Factories\DestinationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -26,7 +27,7 @@ use Illuminate\Support\Carbon;
 class Destination extends Model
 {
     /** @use HasFactory<DestinationFactory> */
-    use HasFactory, SoftDeletes;
+    use BelongsToCurrentTeam, HasFactory, SoftDeletes;
 
     /**
      * The proxy this destination belongs to.

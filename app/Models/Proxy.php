@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToCurrentTeam;
 use App\Enums\ProxyMode;
 use Database\Factories\ProxyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -31,7 +32,7 @@ use Illuminate\Support\Carbon;
 class Proxy extends Model
 {
     /** @use HasFactory<ProxyFactory> */
-    use HasFactory, SoftDeletes;
+    use BelongsToCurrentTeam, HasFactory, SoftDeletes;
 
     /**
      * The team that owns the proxy.

@@ -6,6 +6,7 @@ use App\Enums\AttemptStatus;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\Proxy;
+use App\Models\Scopes\TeamScope;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -25,7 +26,8 @@ class DeliveryAttemptFactory extends Factory
 
         return [
             'proxy_id' => $proxy,
-            'team_id' => fn (array $attributes) => Proxy::whereKey($attributes['proxy_id'])->firstOrFail()->team_id,
+            'team_id' => fn (array $attributes) => Proxy::withoutGlobalScope(TeamScope::class)
+                ->whereKey($attributes['proxy_id'])->firstOrFail()->team_id,
             'destination_id' => fn (array $attributes) => Destination::factory()->state([
                 'proxy_id' => $attributes['proxy_id'],
                 'team_id' => $attributes['team_id'],

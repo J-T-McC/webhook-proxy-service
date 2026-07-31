@@ -187,7 +187,25 @@
   and denies a non-member for view/update/delete.
 - **Testing:** feature tests — user A cannot see user B's proxies via the scoped query; created
   proxy/destination/attempt carry the actor's `current_team_id`; `ProxyPolicy` allow/deny cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. **Team-scope binding CONFIRMED against the installed kit** (Owner
+  decision / Flagged gap #4): `User` uses `App\Concerns\HasTeams`; `current_team_id` column +
+  `currentTeam()` relation exist; `EnsureTeamMembership` middleware switches `current_team_id` when
+  the `{current_team}` route param is present; `routes/web.php` nests `dashboard` under
+  `Route::prefix('{current_team}')->middleware(['auth','verified',EnsureTeamMembership::class])`.
+  The plan's kit-inspected binding matches reality exactly — no deviation needed.
+  Implemented: `app/Models/Scopes/TeamScope.php` (class-based global scope filtering
+  `team_id = Auth::user()->current_team_id`, applied only when authenticated so console/ingest are
+  unconstrained; removable via `withoutGlobalScope(TeamScope::class)` keeping SoftDeletes);
+  `app/Concerns/BelongsToCurrentTeam.php` (registers the scope + `creating` hook auto-setting
+  `team_id`), applied to `Proxy`/`Destination`/`DeliveryAttempt`. `app/Policies/ProxyPolicy.php`
+  (view/update/delete against team membership — roles seam #2 left open), registered via
+  `Gate::policy(Proxy::class, ProxyPolicy::class)` in `AppServiceProvider::boot`. Factories updated
+  to strip `TeamScope` when resolving a parent proxy's `team_id`. Test `TeamScopingTest` (5 passed,
+  13 assertions): scoped read hides other team's proxies, auto-assign on create for
+  proxy/destination/attempt, policy allow owner / deny outsider for all three abilities, and Gate
+  registration. Pint + PHPStan L7 (0 errors; `TeamScope` typed `@implements Scope<TModel>` with
+  `Builder<covariant TModel>` to match the framework interface) + **full suite green (113 passed,
+  372 assertions)**.
 
 ## T8 — `IngestTokenService` + `Proxy::ingestUrl()` accessor (AC12a/b/d)
 - **Description:** Per plan §Services → `IngestTokenService` and ingest URL builder.

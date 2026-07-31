@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Concerns\BelongsToCurrentTeam;
 use App\Enums\AttemptStatus;
 use Database\Factories\DeliveryAttemptFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -45,7 +46,7 @@ use Illuminate\Support\Carbon;
 class DeliveryAttempt extends Model
 {
     /** @use HasFactory<DeliveryAttemptFactory> */
-    use HasFactory;
+    use BelongsToCurrentTeam, HasFactory;
 
     /**
      * The proxy this attempt belongs to.

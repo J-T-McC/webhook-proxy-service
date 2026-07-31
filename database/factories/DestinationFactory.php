@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\HttpMethod;
 use App\Models\Destination;
 use App\Models\Proxy;
+use App\Models\Scopes\TeamScope;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -23,7 +24,8 @@ class DestinationFactory extends Factory
 
         return [
             'proxy_id' => $proxy,
-            'team_id' => fn (array $attributes) => Proxy::whereKey($attributes['proxy_id'])->firstOrFail()->team_id,
+            'team_id' => fn (array $attributes) => Proxy::withoutGlobalScope(TeamScope::class)
+                ->whereKey($attributes['proxy_id'])->firstOrFail()->team_id,
             'url' => 'https://'.fake()->domainName().'/'.fake()->slug(),
             'http_method' => HttpMethod::Post,
         ];
