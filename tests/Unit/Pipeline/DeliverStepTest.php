@@ -8,7 +8,6 @@ use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Pipeline\PipelineContext;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -16,8 +15,6 @@ use Tests\TestCase;
 
 class DeliverStepTest extends TestCase
 {
-    use RefreshDatabase;
-
     private function context(Proxy $proxy): PipelineContext
     {
         return new PipelineContext(

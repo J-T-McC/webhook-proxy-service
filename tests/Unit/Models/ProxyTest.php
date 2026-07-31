@@ -6,14 +6,11 @@ use App\Enums\ProxyMode;
 use App\Models\Proxy;
 use App\Models\Team;
 use Illuminate\Database\QueryException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ProxyTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_ingest_token_round_trips_through_the_encrypted_cast(): void
     {
         $proxy = Proxy::factory()->create(['ingest_token' => 'plain-secret-token']);

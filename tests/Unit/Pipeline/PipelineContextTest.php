@@ -4,14 +4,11 @@ namespace Tests\Unit\Pipeline;
 
 use App\Models\Proxy;
 use App\Pipeline\PipelineContext;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionProperty;
 use Tests\TestCase;
 
 class PipelineContextTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_payload_is_initialised_to_the_raw_body(): void
     {
         $proxy = Proxy::factory()->create();

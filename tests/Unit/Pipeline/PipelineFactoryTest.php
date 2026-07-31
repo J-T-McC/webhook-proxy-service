@@ -6,13 +6,10 @@ use App\Actions\DeliverStep;
 use App\Enums\ProxyMode;
 use App\Models\Proxy;
 use App\Pipeline\PipelineFactory;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class PipelineFactoryTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_simple_mode_returns_exactly_the_deliver_step(): void
     {
         $proxy = Proxy::factory()->create(['mode' => ProxyMode::Simple]);

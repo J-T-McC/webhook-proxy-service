@@ -4,13 +4,10 @@ namespace Tests\Unit\Pipeline;
 
 use App\Models\Destination;
 use App\Pipeline\DeliveryUnit;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class DeliveryUnitTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_forward_headers_keeps_benign_and_strips_sensitive_case_insensitively(): void
     {
         $destination = Destination::factory()->create();

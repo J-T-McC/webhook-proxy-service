@@ -7,15 +7,12 @@ use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Pipeline\PipelineContext;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ProcessIngestedWebhookTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_running_the_pipeline_delivers_once_per_live_destination(): void
     {
         Event::fake();

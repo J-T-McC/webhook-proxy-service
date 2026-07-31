@@ -4,14 +4,11 @@ namespace Tests\Unit\Services;
 
 use App\Models\Proxy;
 use App\Services\IngestTokenService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use Tests\TestCase;
 
 class IngestTokenServiceTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_generated_token_is_256_bit_and_url_safe(): void
     {
         $service = new IngestTokenService;

@@ -5,14 +5,11 @@ namespace Tests\Unit\Models;
 use App\Enums\HttpMethod;
 use App\Models\Destination;
 use App\Models\Proxy;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class DestinationTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_http_method_casts_to_enum(): void
     {
         $destination = Destination::factory()->create(['http_method' => HttpMethod::Put]);

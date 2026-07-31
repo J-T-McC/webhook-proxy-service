@@ -11,7 +11,6 @@ use App\Events\DeliverySucceeded;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Pipeline\DeliveryUnit;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -20,8 +19,6 @@ use Tests\TestCase;
 
 class DeliverToDestinationTest extends TestCase
 {
-    use RefreshDatabase;
-
     private function unit(Destination $destination, string $payload = '{"a":1}'): DeliveryUnit
     {
         return new DeliveryUnit(

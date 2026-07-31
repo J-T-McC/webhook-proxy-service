@@ -10,7 +10,6 @@ use App\Events\DeliverySucceeded;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\Proxy;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -20,8 +19,6 @@ use Tests\TestCase;
 
 class IngestFanOutTest extends TestCase
 {
-    use RefreshDatabase;
-
     /**
      * @param  array<string, string>  $headers
      */

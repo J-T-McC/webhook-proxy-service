@@ -9,15 +9,12 @@ use App\Models\Destination;
 use App\Models\Proxy;
 use App\Models\User;
 use App\Policies\ProxyPolicy;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class TeamScopingTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_queries_return_only_the_current_teams_proxies(): void
     {
         $userA = User::factory()->create();

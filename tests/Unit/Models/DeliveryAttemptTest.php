@@ -4,15 +4,12 @@ namespace Tests\Unit\Models;
 
 use App\Enums\AttemptStatus;
 use App\Models\DeliveryAttempt;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class DeliveryAttemptTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_status_casts_to_enum(): void
     {
         $attempt = DeliveryAttempt::factory()->create();

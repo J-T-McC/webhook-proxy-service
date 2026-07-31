@@ -4,15 +4,12 @@ namespace Tests\Feature\Ingest;
 
 use App\Models\Destination;
 use App\Models\Proxy;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class IngestControllerTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function setUp(): void
     {
         parent::setUp();
