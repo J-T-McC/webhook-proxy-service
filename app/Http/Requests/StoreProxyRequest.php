@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\HttpMethod;
+use App\Enums\ProxyMode;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Server-authoritative validation for creating a proxy (AC2/AC3/AC12).
@@ -27,10 +30,10 @@ class StoreProxyRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'mode' => ['required', 'in:simple,enhanced'],
+            'mode' => ['required', Rule::enum(ProxyMode::class)],
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.url' => ['required', 'string', 'url:https'],
-            'destinations.*.http_method' => ['required', 'in:POST,PUT'],
+            'destinations.*.http_method' => ['required', Rule::enum(HttpMethod::class)],
         ];
     }
 }
