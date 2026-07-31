@@ -320,7 +320,18 @@
 - **Testing:** feature/unit with `Http::fake()` + `Event::fake()` — success, non-2xx, and
   thrown-exception paths; assert the `dispatched`-before-outcome ordering, the field values, the
   events, and that `error_summary` is truncated and carries no body.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Actions/DeliverToDestination.php` (`AsAction`): writes the
+  `dispatched` `DeliveryAttempt` (payload-free) **before** the HTTP call and emits
+  `DeliveryAttempted`; sends via `Http::withHeaders($unit->forwardHeaders())->timeout(15)
+  ->send($method,$url,['body'=>$payload])`; on completion updates `status`
+  (succeeded/failed by `$response->successful()`) + `http_status` + `duration_ms` and emits
+  `DeliverySucceeded`/`DeliveryFailed`; `catch (Throwable)` → `failed` + `Str::limit($msg, 247)`
+  (247+'...' = 250, fitting `string(250)`, no payload) + `DeliveryFailed`. Invoked `::run` only.
+  Test `DeliverToDestinationTest` (4 passed, 21 assertions): 2xx→succeeded+200 (attempted+succeeded,
+  not failed), 500→failed+500 (attempted+failed), thrown `ConnectionException`→failed, null
+  http_status, error_summary ≤250 and not containing the 400-char payload; and a Http::fake closure
+  proves a `dispatched` row exists during the call with exactly one attempt persisted. Pint +
+  PHPStan L7 green.
 
 ## T13 — `DeliverStep` fan-out (terminal pipe) (AC7/AC9/AC10)
 - **Description:** Per Appendix A §3. `AsObject`, implements `PipelineStep`. Iterate the proxy's
