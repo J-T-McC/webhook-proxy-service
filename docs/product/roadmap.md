@@ -8,6 +8,12 @@ decision — old item #2 (fan-out) merged into #1; backlog renumbered from 15 to
 14 items. Approval status retained; this is a post-approval scope change.
 Revised 2026-07-30: added forward-compatibility Build-ahead notes per Project
 Owner. Approval status retained.
+Revised 2026-07-30: refined the mapping item (#8) and the R3 resolved decision
+per Project Owner insight — a proxy holds multiple maps, one selected per
+incoming event by a key/value condition, with a global/default map; the
+resulting structure is still applied uniformly to all destinations. This is
+conditional map SELECTION, not conditional destination routing (which remains
+out of scope). Approval status retained; design-ahead only, nothing built now.
 
 > This is a **prioritized feature backlog**, not a set of PRDs. Each line names a
 > feature and states the single outcome a user or the system gains once it is
@@ -131,16 +137,31 @@ Owner. Approval status retained.
 
 8. **Payload mapping / reshaping** — A user can reshape an incoming JSON payload
    into the structure the proxy's destinations expect through a no-code editor with
-   autocomplete and validation. Mapping is defined once per proxy, and every
-   destination of that proxy receives the same reshaped payload. *(Vision: "Payload
-   mapping / reshaping"; Problem: "Payload reshaping". Depends on #7. Resolves R3.)*
-   **Build-ahead note:** Mapping is per-proxy, producing one reshaped payload for
-   all destinations (R3), consistent with #1's same-structure fan-out. Capture the
+   autocomplete and validation. A single proxy can hold **multiple maps**, because
+   one ingest URL commonly receives many different payload structures (e.g. Stripe
+   sends `charge.succeeded`, `invoice.paid`, and other event types to one URL).
+   One map is **selected per incoming event** by matching a key against a specific
+   value (e.g. a `type == "CHARGE"` field selects that event's map), with support
+   for a **global/default map** that applies when no condition matches. Whichever
+   map is selected for a given event, every destination of that proxy receives the
+   same reshaped payload for that event. *(Vision: "Payload mapping / reshaping";
+   Problem: "Payload reshaping". Depends on #7. Resolves R3. Refined 2026-07-30 per
+   Project Owner — conditional map selection, see revision note in header.)*
+   **Build-ahead note:** Mapping is per-proxy but no longer one map per proxy — a
+   proxy owns a set of maps, and per event exactly one map is chosen (a
+   key/value-matched map, else the global/default) and applied to produce one
+   reshaped payload for all destinations (R3), consistent with #1's same-structure
+   fan-out. This is conditional map SELECTION (which reshaping map to apply), NOT
+   conditional destination routing — sending different events to different
+   destinations stays out of scope (see Notes on Scope Boundaries). Capture the
    proxy's known/expected incoming structure as a first-class thing here — not just
    a transform — so multi-format ingestion (#9) can feed XML/form-encoded input as
    JSON into the same editor and change detection (#12) can compare against it
-   (Principal Engineer to fix the approach). Test payloads (#14) will exercise this
-   mapping.
+   (Principal Engineer to fix the approach). The map-selection mechanism (the
+   matching key/value condition and the global/default fallback) is a new seam to
+   leave room for; its exact precedence/fallback rules and matching syntax are Open
+   Questions to settle at this item's PRD (see M1, M2). Test payloads (#14) will
+   exercise this mapping and its selection.
 
 9. **Multi-format ingestion** — A proxy can accept XML and form-encoded incoming
    payloads and present them as JSON for mapping. *(Vision: "Payload mapping /
@@ -235,6 +256,18 @@ referenced by number where they gate a backlog item.
   created and protected (uniqueness, secrets)? *(Technical — for the Principal
   Engineer; gates #1.)*
 
+**Still open (to settle at the #8 mapping PRD):**
+
+- M1. **Map-selection precedence & fallback** — When a proxy holds multiple maps,
+  what are the exact precedence and fallback rules for choosing one per event? For
+  example: does the global/default map apply only when no conditional map matches,
+  and what happens if more than one conditional map matches? *(Raised 2026-07-30
+  by Project Owner insight; must be settled before #8's PRD. Not answered here.)*
+- M2. **Map-selection matching syntax** — How is the selecting condition expressed
+  (e.g. the key path and value-match semantics for something like
+  `type == "CHARGE"`)? *(Raised 2026-07-30 by Project Owner insight; must be
+  settled before #8's PRD. Not answered here.)*
+
 ## Resolved Decisions
 
 Answered by the Project Owner on 2026-07-30 and folded into the backlog items
@@ -255,6 +288,14 @@ above. Retained here so the decisions are not lost.
 - R3. **Mapping vs. fan-out granularity** — Mapping is per-proxy, not
   per-destination. All destinations of a proxy receive the same payload structure.
   *(Applied to #1 and #8.)*
+  *Refined 2026-07-30 (Project Owner):* "one mapping per proxy" becomes "one map
+  SELECTED per event." A proxy holds multiple maps; per incoming event exactly one
+  map is chosen — either a map whose key/value condition matches (e.g.
+  `type == "CHARGE"`) or a global/default map when no condition matches — and that
+  single selected map is applied uniformly to all destinations. R3 still holds in
+  spirit: all destinations of a proxy receive the same resulting structure for a
+  given event. This is conditional map selection, not conditional destination
+  routing (which remains Out of Scope per the vision). *(Applied to #8.)*
 - R4. **Replay target selection** — When replaying a stored payload, the user can
   choose specific destinations or all of them. *(Applied to #6.)*
 - V1. **Outgoing delivery format/transport** — Outbound delivery supports HTTP(S)

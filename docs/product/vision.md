@@ -3,6 +3,11 @@
 Status: Draft (pending Project Owner approval)
 Owner-facing author: Product Manager
 Last updated: 2026-07-30
+Revised 2026-07-30: payload-mapping bullet refined per Project Owner insight —
+mapping must support selecting among multiple maps per proxy by a key/value
+condition, with a global/default. This is conditional map selection, not
+conditional destination routing; the same-structure-to-all-destinations rule and
+the conditional-routing Out-of-Scope exclusion are unchanged.
 
 > This is a **vision document**, not a PRD and not a feature spec. It describes
 > what the product is, who it serves, and how we will judge success. It contains
@@ -77,7 +82,14 @@ Even though these groups are out of scope initially, the product should be
   retry strategy).
 - **Payload mapping / reshaping.** Pure JSON-to-JSON for the MVP, through a
   no-code editor with autocomplete and validation. Accept XML and form-encoded
-  incoming payloads, but visualize them as JSON.
+  incoming payloads, but visualize them as JSON. A single ingest URL commonly
+  receives many different payload structures (e.g. Stripe sends many event types
+  to one URL), so mapping must support **multiple maps per proxy**, with one map
+  **selected per incoming event** by matching a key against a specific value
+  (e.g. `type == "CHARGE"`), plus a **global/default map**. This is conditional
+  map selection (which map to apply), not conditional destination routing: for a
+  given event the selected map's result is delivered to all destinations in the
+  same structure (see below — conditional routing stays out of scope).
 - **Retry / replay.** With configurable backoff strategies.
 - **Decoupled upstream response.** Return success upstream even if a downstream
   delivery fails, with a user-defined response body and status code, handled
