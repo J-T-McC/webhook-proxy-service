@@ -58,8 +58,8 @@ class ProxyController extends Controller
             // Pass the validated payload straight to mass-assignment: only
             // name/mode are fillable (see Proxy #[Fillable]), so the `destinations`
             // key is ignored and the ingest token/hash stay server-minted, never
-            // from input. (new Proxy() over Proxy::make() per larastan.noModelMake.)
-            $proxy = new Proxy($data);
+            // from input.
+            $proxy = Proxy::make($data);
             $tokens->assignTo($proxy);
             $proxy->save();
 
