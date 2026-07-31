@@ -383,7 +383,13 @@
   is queued; no `configureJob`/`onQueue`/middleware present.
 - **Testing:** feature/unit — `ProcessIngestedWebhook::run($ctx)` with `Http::fake()` results in
   one delivery per live destination (thin integration over T13/T14).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Actions/ProcessIngestedWebhook.php` (`AsAction`): constructor
+  injects `PipelineFactory`; `handle(PipelineContext)` drives the native
+  `app(Illuminate\Pipeline\Pipeline::class)->send($ctx)->through($factory->stepsFor($ctx->proxy))
+  ->thenReturn()`. Invoked `::run` only — **no** `configureJob`/`onQueue`/`getJobMiddleware`.
+  Test `ProcessIngestedWebhookTest` (1 passed, 2 assertions): over a proxy with 3 live + 1 trashed
+  destination, `::run` yields 3 delivery attempts and `Http::assertSentCount(3)`. Pint + PHPStan
+  L7 green.
 
 ## T16 — `ResponseResolver` (202) (ADR-004)
 - **Description:** Per Appendix A §6. `resolve(Proxy): Response` returns `202 Accepted` with a
