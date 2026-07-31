@@ -277,7 +277,17 @@
   and **omits** every stripped header regardless of header-name casing.
 - **Testing:** unit test asserting exactly the forward/strip partition above, including a
   mixed-case variant of each stripped header.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Pipeline/DeliveryUnit.php` (final, readonly `ingestId`, `teamId`,
+  `proxyId`, `destination`, `method`, `headers`, `payload`, `attemptNumber`). Maintained
+  `const STRIPPED_HEADERS` (lowercased list): `host`, hop-by-hop
+  (connection/keep-alive/proxy-authenticate/proxy-authorization/te/trailer/transfer-encoding/upgrade)
+  + `content-length`, `cookie`, `authorization`, and the ADR-008 webhook signature headers
+  (stripe-signature, x-hub-signature, x-hub-signature-256, x-signature, x-webhook-signature).
+  `forwardHeaders()` = `array_filter(..., ARRAY_FILTER_USE_KEY)` keeping headers whose lowercased
+  name is not in the deny-list — `Content-Type` preserved, no header added, case-insensitive.
+  Test `DeliveryUnitTest` (2 passed, 21 assertions): mixed-case variant of every stripped header is
+  removed, Content-Type + a custom X- header forwarded, exactly-two-remain, and no-header-added.
+  Pint + PHPStan L7 green.
 
 ## T11 — Delivery domain events (ADR-003)
 - **Description:** Three events per Appendix A §5: `DeliveryAttempted`, `DeliverySucceeded`,
