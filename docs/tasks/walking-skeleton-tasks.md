@@ -626,7 +626,20 @@
   unchanged after edit; omitted destinations are `assertSoftDeleted`, not hard-deleted.
 - **Testing:** feature tests — pre-fill; add/change/remove reconciliation; reject zero-live update;
   ingest URL unchanged; soft-delete (not hard-delete) of removed rows.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyController@edit(string $current_team, Proxy $proxy)` renders
+  `proxies/Edit` pre-filled with `{name, mode, destinations:[{id,url,http_method}]}` (live only, via
+  the SoftDeletes-scoped relation). `@update(UpdateProxyRequest, string $current_team, Proxy)`:
+  `DB::transaction` updates name/mode, then reconciles — updates existing live rows by id, creates
+  new rows, and **soft-deletes** omitted rows (`whereNotIn(keptIds)->each->delete()`), asserting ≥1
+  live before commit (`ValidationException` otherwise → nothing committed). Token never rotated.
+  Redirect to show with `Changes saved` toast. Added a typed `destinationRows()` helper (shared with
+  `store`) that normalises the validated payload to `list<array{id:?int,url:string,http_method:string}>`
+  — keeps PHPStan L7 happy without inline `@var`. Test `ProxyUpdateTest` (3 passed, 26 assertions):
+  edit pre-fill with live-only destinations, full add/update/soft-delete reconciliation with mode
+  change + ingest URL unchanged, and zero-live update `assertInvalid(['destinations'])` with the
+  original destination still live (nothing committed). Also confirms the FormRequest + leading
+  `string $current_team` + `Proxy` binding resolves. Pint green; PHPStan only the T25
+  `DestinationController` forward-ref.
 
 ## T24 — `ProxyController@destroy` (soft-delete cascade + retention) (AC16d)
 - **Description:** Per plan (Flow F, Owner ruling 1). In one transaction: **soft-delete** the

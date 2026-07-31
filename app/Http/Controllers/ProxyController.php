@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreProxyRequest;
+use App\Http\Requests\UpdateProxyRequest;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\IngestTokenService;
@@ -60,7 +61,7 @@ class ProxyController extends Controller
             $tokens->assignTo($proxy);
             $proxy->save();
 
-            foreach ($data['destinations'] as $destination) {
+            foreach ($this->destinationRows($data) as $destination) {
                 $proxy->destinations()->create([
                     'team_id' => $proxy->team_id,
                     'url' => $destination['url'],
@@ -97,6 +98,103 @@ class ProxyController extends Controller
         return Inertia::render('proxies/Show', [
             'proxy' => $this->proxyPayload($proxy),
         ]);
+    }
+
+    /**
+     * Show the pre-filled edit form (live destinations only) (AC16a).
+     */
+    public function edit(string $current_team, Proxy $proxy): Response
+    {
+        Gate::authorize('update', $proxy);
+
+        return Inertia::render('proxies/Edit', [
+            'proxy' => [
+                'id' => $proxy->id,
+                'name' => $proxy->name,
+                'mode' => $proxy->mode->value,
+                'destinations' => $proxy->destinations->map(fn (Destination $destination) => [
+                    'id' => $destination->id,
+                    'url' => $destination->url,
+                    'http_method' => $destination->http_method->value,
+                ])->values(),
+            ],
+        ]);
+    }
+
+    /**
+     * Update name/mode and reconcile destinations in one transaction (AC16a/AC16b).
+     *
+     * Reconciliation: existing live rows are updated by id, new rows are created,
+     * omitted rows are soft-deleted; ≥1 live destination must remain before commit.
+     * Editing never rotates the ingest token.
+     */
+    public function update(UpdateProxyRequest $request, string $current_team, Proxy $proxy): RedirectResponse
+    {
+        $data = $request->validated();
+
+        DB::transaction(function () use ($data, $proxy): void {
+            $proxy->update(['name' => $data['name'], 'mode' => $data['mode']]);
+
+            $keptIds = [];
+
+            foreach ($this->destinationRows($data) as $row) {
+                $existing = $row['id'] !== null
+                    ? $proxy->destinations()->whereKey($row['id'])->first()
+                    : null;
+
+                if ($existing !== null) {
+                    $existing->update(['url' => $row['url'], 'http_method' => $row['http_method']]);
+                    $keptIds[] = $existing->id;
+
+                    continue;
+                }
+
+                $created = $proxy->destinations()->create([
+                    'team_id' => $proxy->team_id,
+                    'url' => $row['url'],
+                    'http_method' => $row['http_method'],
+                ]);
+                $keptIds[] = $created->id;
+            }
+
+            // Soft-delete the live destinations that were omitted from the submission.
+            $proxy->destinations()->whereNotIn('id', $keptIds)->get()
+                ->each(fn (Destination $destination) => $destination->delete());
+
+            if ($proxy->destinations()->count() < 1) {
+                throw ValidationException::withMessages([
+                    'destinations' => __('A proxy must have at least one destination.'),
+                ]);
+            }
+        });
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => __('Changes saved.')]);
+
+        return to_route('proxies.show', ['proxy' => $proxy->id]);
+    }
+
+    /**
+     * Normalise the validated destinations payload into typed rows.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<array{id: int|null, url: string, http_method: string}>
+     */
+    private function destinationRows(array $data): array
+    {
+        $rows = $data['destinations'] ?? [];
+        $normalised = [];
+
+        foreach (is_array($rows) ? $rows : [] as $row) {
+            $row = is_array($row) ? $row : [];
+
+            $normalised[] = [
+                'id' => isset($row['id']) && is_numeric($row['id']) ? (int) $row['id'] : null,
+                'url' => isset($row['url']) && is_string($row['url']) ? $row['url'] : '',
+                'http_method' => isset($row['http_method']) && is_string($row['http_method']) ? $row['http_method'] : '',
+            ];
+        }
+
+        return $normalised;
     }
 
     /**
