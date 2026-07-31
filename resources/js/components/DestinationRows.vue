@@ -11,12 +11,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-
-export interface DestinationRow {
-    id?: number | null;
-    url: string;
-    http_method: string;
-}
+import type { DestinationRow } from '@/types/proxies';
 
 const model = defineModel<DestinationRow[]>({ required: true });
 

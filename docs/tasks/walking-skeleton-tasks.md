@@ -775,7 +775,18 @@
   persists; the ingest URL is not shown/rotated on edit.
 - **Testing:** Inertia feature assertions from T22/T23 (prop shapes, redirects, validation errors);
   a11y/interaction per T26 note.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `resources/js/pages/proxies/ProxyForm.vue` (shared): `useForm({name,
+  mode,destinations})`; Name `Input`+`Label`+help+`InputError`; Mode `Select` (Simple default,
+  Enhanced selectable — no disabled gating, neutral help note that Enhanced isn't functional yet);
+  `DestinationRows` bound `v-model="form.destinations"` with `:errors="form.errors"`; primary button
+  label via prop (`Create proxy`/`Save changes`) with `:disabled="form.processing"`; Cancel link.
+  On submit `form.submit(method, action)`; `onError` focuses the first `[aria-invalid="true"]` field
+  (name or a destination row). `Create.vue` (method post → `proxies.store`, one empty POST row,
+  breadcrumb "Proxies / New proxy") and `Edit.vue` (method put → `proxies.update`, pre-filled from
+  the `proxy` prop incl. destination ids, breadcrumb "Proxies / {name} / Edit", cancel → show) both
+  wrap `ProxyForm`. The ingest URL is never shown/rotated on edit. Moved the `DestinationRow` type to
+  `@/types/proxies` (SFC `<script setup>` can't export types). **Verification:** `npm run
+  types:check` clean; eslint clean. Backend prop shapes/redirects/validation asserted by T22/T23.
 
 ## T29 — `Proxies/Show.vue` detail (Flows C/E/F, AC4/AC12d/AC16c/AC16d)
 - **Description:** Per design Screen 3. Header: name + Mode badge. **Ingest URL card**: full URL in
