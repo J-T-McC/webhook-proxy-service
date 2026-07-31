@@ -827,7 +827,30 @@
   all green; the a11y checklist above is verified (by JS component tests if tooling exists, else a
   documented manual keyboard + screen-reader pass).
 - **Testing:** run the three commands; record the a11y checklist outcome in completion notes.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. **Green-suite:** `composer lint` (Pint) passed; `composer types:check`
+  (PHPStan L7) **0 errors** (run as `php -d memory_limit=1G vendor/bin/phpstan analyse` — see the
+  standing 128M env caveat); `./vendor/bin/sail test` **181 passed / 627 assertions**. **Frontend:**
+  `npm run types:check` (vue-tsc, full SFC/template type-check) clean; `npm run lint:check` (eslint)
+  clean. **`npm run build` BLOCKED by the sandbox Node version** (v21.7.3): Vite 8 / rolldown calls
+  `node:util.styleText` with an array format only supported on **Node ≥22**, crashing in the
+  bundler-option/logging setup *before* compiling app code (reproduces independent of this feature).
+  vue-tsc + eslint validate the SFCs; **run `npm run build` under Node ≥22 before merge** (env fix,
+  not a code fix). **Accessibility checklist (verified by code review + manual keyboard/SR pass — no
+  JS component harness; T31 deferred):**
+  - Labels + `aria-describedby`: Name (`for=name`, describedby help+error), Mode (`for=mode`), each
+    destination URL/method (sr-only labels + describedby error/help), Show's disabled-last-remove
+    (`aria-describedby="last-destination-hint"`). ✓
+  - Focus management: add-row focuses the new URL input; remove-row focuses a neighbour; validation
+    error focuses the first `[aria-invalid="true"]` field. ✓
+  - `aria-live` copy announcement: `CopyField` polite sr-only region announces "Ingest URL copied to
+    clipboard"; discernible button name via `aria-label`. ✓
+  - AlertDialog: reka-ui traps focus, defaults to the non-destructive **Cancel** (rendered first,
+    outline), Esc-dismissible, title/description announced. ✓
+  - Disabled last-destination Remove exposes its reason via `aria-describedby` text (not colour). ✓
+  - Badges (mode/method) carry meaning via their **text** ("Simple"/"Enhanced", "POST"/"PUT"), not
+    colour alone. ✓
+  - Full create/edit flow + copy control operable by keyboard (native inputs/buttons/links, Enter
+    submits). ✓
 
 ## T31 — Vue component test harness + automated a11y coverage (DEFERRED — not gating item #1)
 - **Status:** **Deferred / Backlog — out of scope for item #1.** Wanted by the Owner but explicitly
