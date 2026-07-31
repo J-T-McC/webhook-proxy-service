@@ -11,3 +11,6 @@ parameters:
         - routes/
 
     level: 7
+
+    # Allow Model::make() (used for server-side, mass-assignment-bounded builds)
+    noModelMake: false

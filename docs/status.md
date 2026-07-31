@@ -27,7 +27,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 
 | # | Feature | Phase | Current Agent | Blockers | Approvals |
 |---|---|---|---|---|---|
-| 1 | Walking skeleton: ingest → fan-out delivery | Implementation (ready) | Senior Developer | Task list **Approved** (2026-07-30); ready for Senior Developer to begin T1 | PRD Approved (2026-07-30); Design Approved (2026-07-30); Technical Plan Accepted (2026-07-30); Task list **Approved (2026-07-30)** |
+| 1 | Walking skeleton: ingest → fan-out delivery | Review | Reviewer | Implementation complete (T1–T30) on `feat/item-01-walking-skeleton`, PR #1 ready for review; 181 tests green, Pint + PHPStan L7 clean | PRD/Design/Plan/Tasks Approved (2026-07-30); Impl complete + PR #1 opened (2026-07-31); awaiting Reviewer |
 | 2 | Role-based collaboration | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 3 | Decoupled upstream response | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 4 | Queued processing (FIFO & Async) | Backlog | — (Product Manager on start) | Not started; depends on #1. Open: V3, V8 | — |

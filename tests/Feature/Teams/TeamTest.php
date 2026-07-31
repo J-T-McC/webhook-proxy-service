@@ -5,14 +5,11 @@ namespace Tests\Feature\Teams;
 use App\Enums\TeamRole;
 use App\Models\Team;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class TeamTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_the_teams_index_page_can_be_rendered()
     {
         $user = User::factory()->create();

@@ -36,7 +36,13 @@
   `AsObject` traits resolvable; `composer types:check` still green.
 - **Testing:** `composer types:check` green; a throwaway `use Lorisleiva\Actions\Concerns\AsAction;`
   resolves (verified by later tasks that consume it).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `composer require lorisleiva/laravel-actions` → resolved `^2.10`
+  (Laravel 13 compatible), auto-discovered. Verified `AsAction` and `AsObject` traits resolve at
+  runtime (`trait_exists` both OK). `composer.json` + `composer.lock` updated. PHPStan green
+  (`php -d memory_limit=1G vendor/bin/phpstan analyse` → 0 errors; see env note below re: default
+  128M memory limit). **Env note:** the `composer types:check` script inherits the local
+  php.ini `memory_limit=128M` and PHPStan's parallel worker OOMs while reflecting `Carbon`/`User`
+  (pre-existing, unrelated to this change); it passes clean at `memory_limit=1G`.
 
 ## T2 — Ingest-URL config key (`config('ingest.url')`)
 - **Description:** Add a dedicated ingest base config key per ADR-006 "Where the base/host comes
@@ -48,7 +54,13 @@
 - **Acceptance Criteria:** `config('ingest.url')` returns `INGEST_URL` when set, else
   `config('app.url')`; no code reads the request `Host` header to build ingest URLs.
 - **Testing:** unit/config test asserting the default-to-`app.url` fallback and the env override.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Added `config/ingest.php` with `'url' => env('INGEST_URL',
+  env('APP_URL', 'http://localhost'))` — INGEST_URL wins, else mirrors the app URL; no request
+  `Host` header is read. `.env.example` documents the commented `INGEST_URL` key.
+  `tests/Unit/Config/IngestConfigTest.php` asserts (a) fallback: `config('ingest.url')` ===
+  `config('app.url')` when INGEST_URL unset, and (b) env override by re-evaluating the config file
+  with `putenv('INGEST_URL=…')`. Pint + PHPStan L7 + tests green (2 passed). Additional
+  ingest config keys (`max_body_bytes`, `rate_limit_per_minute`) are deferred to T17 per its scope.
 
 ## T3 — Domain enums (`Mode`, `HttpMethod`, `AttemptStatus`)
 - **Description:** Backed string enums used by the models and pipeline: `Mode(simple,enhanced)`
@@ -60,7 +72,12 @@
 - **Acceptance Criteria:** each enum exposes exactly the plan's cases and backing values; no other
   cases.
 - **Testing:** unit test asserting the case set and backing values of each enum.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Added backed string enums: `ProxyMode(Simple=simple, Enhanced=enhanced)`,
+  `HttpMethod(Post=POST, Put=PUT)`, `AttemptStatus(Dispatched=dispatched, Succeeded=succeeded,
+  Failed=failed)` — case-name convention matches existing `TeamRole`/`TeamPermission`. (The mode
+  enum is class `ProxyMode` per the task's Files list, not the description's shorthand `Mode`.)
+  `tests/Unit/Enums/DomainEnumsTest.php` asserts each enum's exact case set + backing values (3
+  passed). Pint green.
 
 ## T4 — `proxies` table + `Proxy` model
 - **Description:** Migration and Eloquent model per plan §Data Model → `proxies`. Columns:
@@ -79,7 +96,19 @@
   `deleted_at` and hides the row from default queries.
 - **Testing:** model unit test — encrypted-token round-trip, `mode` default + cast, `BINARY(32)`
   unique column present, `assertSoftDeleted` after `delete()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Migration `2026_07_30_000001_create_proxies_table.php`:
+  `binary('ingest_token_hash', 32, true)` → fixed `BINARY(32)` with a single-column `->unique()`
+  (not composite with `deleted_at`); `enum('mode',['simple','enhanced'])->default('simple')`;
+  `text('ingest_token')`; `timestamps()` + `softDeletes()`; `team_id` indexed via `constrained()`.
+  Model `Proxy`: `SoftDeletes`, casts `mode`→`ProxyMode` and `ingest_token`→`encrypted`,
+  `team()`/`destinations()`/`deliveryAttempts()` relations, `Fillable([team_id,name,mode])`.
+  `ProxyFactory` mints a random token + matching SHA-256 hash, `enhanced()`/`trashed()` states.
+  Test `ProxyTest` (5 passed, 11 assertions): encrypted round-trip (ciphertext ≠ plaintext at rest),
+  `mode` cast + DB default `simple`, `information_schema` proves `BINARY(32)` + single-column
+  unique index, duplicate-hash rejected (`QueryException`), `assertSoftDeleted` + hidden from
+  default query. Pint green. **PHPStan note:** the `Destination`/`DeliveryAttempt` relation return
+  types forward-reference the T5/T6 model classes (plan's ordering); the consolidated PHPStan L7
+  gate is run green at T6 once those classes exist.
 
 ## T5 — `destinations` table + `Destination` model
 - **Description:** Migration and model per plan §Data Model → `destinations`. Columns: `id`,
@@ -95,7 +124,15 @@
   scope) and excludes trashed rows.
 - **Testing:** model unit test — `http_method` cast, `proxy` relation, `assertSoftDeleted` after
   `delete()`, and that a soft-deleted destination is absent from `proxy->destinations`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Migration `2026_07_30_000002_create_destinations_table.php`:
+  `proxy_id`/`team_id` via plain `constrained()` (RESTRICT — **no** `cascadeOnDelete`),
+  `url` string, `enum('http_method',['POST','PUT'])`, `timestamps()` + `softDeletes()`.
+  Model `Destination`: `SoftDeletes`, `http_method`→`HttpMethod` cast, `proxy()` `BelongsTo`.
+  `DestinationFactory` (https url, POST default, team_id derived from parent proxy, `trashed()`).
+  Test `DestinationTest` (5 passed, 8 assertions): `http_method` cast, `proxy` relation,
+  `assertSoftDeleted`, trashed destination excluded from `proxy->destinations` (SoftDeletes scope on
+  the relation), and `information_schema.REFERENTIAL_CONSTRAINTS` confirms the FK `DELETE_RULE` is
+  not `CASCADE`. Pint green. PHPStan consolidated at T6 (see T4 note).
 
 ## T6 — `delivery_attempts` table + `DeliveryAttempt` model (payload-free)
 - **Description:** Migration and model per plan §Data Model → `delivery_attempts` and ADR-003.
@@ -114,7 +151,20 @@
   `AttemptStatus`.
 - **Testing:** unit/schema test asserting the payload-free/`deleted_at`-free column set, the three
   indexes, and the `status` cast.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Migration `2026_07_30_000003_create_delivery_attempts_table.php`:
+  `team_id`/`proxy_id`/`destination_id` FKs, `uuid('ingest_id')`, `enum('status',[dispatched,
+  succeeded,failed])`, nullable `smallInteger http_status`, `string('error_summary',250)` nullable,
+  `attempt_number` default 1, `started_at`, nullable `duration_ms`, timestamps. Indexes
+  `(team_id,created_at)`, `(proxy_id,status)`, `(ingest_id)`. **No** payload/body column and **no**
+  `deleted_at`. Model `DeliveryAttempt`: `status`→`AttemptStatus`, `started_at`→datetime,
+  `proxy()`/`destination()` relations, **no** SoftDeletes. `DeliveryAttemptFactory` with
+  `succeeded()`/`failed()` states. Test `DeliveryAttemptTest` (3 passed, 9 assertions):
+  `status` cast, `Schema::getColumnListing` proves absence of `deleted_at`/`payload`/`body`/…,
+  `information_schema.STATISTICS` proves the three indexes. **Consolidated gate (all three models
+  now exist):** Pint green, PHPStan L7 green (0 errors — fixed a larastan `findOrFail`
+  `Model|Collection` inference in the two factories by switching to `whereKey(...)->firstOrFail()`),
+  full `tests/Unit/Models` suite green (13 passed, 28 assertions). Note: PHPStan analyses
+  `app/bootstrap/config/database/routes` (not `tests/`) per `phpstan.neon`.
 
 ## T7 — Team global scope, `team_id` auto-assign, and `ProxyPolicy` (AC5/AC6/AC15/AC16e)
 - **Description:** A single team-scoping mechanism per plan §Services → Team scoping. Add a global
@@ -137,7 +187,25 @@
   and denies a non-member for view/update/delete.
 - **Testing:** feature tests — user A cannot see user B's proxies via the scoped query; created
   proxy/destination/attempt carry the actor's `current_team_id`; `ProxyPolicy` allow/deny cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. **Team-scope binding CONFIRMED against the installed kit** (Owner
+  decision / Flagged gap #4): `User` uses `App\Concerns\HasTeams`; `current_team_id` column +
+  `currentTeam()` relation exist; `EnsureTeamMembership` middleware switches `current_team_id` when
+  the `{current_team}` route param is present; `routes/web.php` nests `dashboard` under
+  `Route::prefix('{current_team}')->middleware(['auth','verified',EnsureTeamMembership::class])`.
+  The plan's kit-inspected binding matches reality exactly — no deviation needed.
+  Implemented: `app/Models/Scopes/TeamScope.php` (class-based global scope filtering
+  `team_id = Auth::user()->current_team_id`, applied only when authenticated so console/ingest are
+  unconstrained; removable via `withoutGlobalScope(TeamScope::class)` keeping SoftDeletes);
+  `app/Concerns/BelongsToCurrentTeam.php` (registers the scope + `creating` hook auto-setting
+  `team_id`), applied to `Proxy`/`Destination`/`DeliveryAttempt`. `app/Policies/ProxyPolicy.php`
+  (view/update/delete against team membership — roles seam #2 left open), registered via
+  `Gate::policy(Proxy::class, ProxyPolicy::class)` in `AppServiceProvider::boot`. Factories updated
+  to strip `TeamScope` when resolving a parent proxy's `team_id`. Test `TeamScopingTest` (5 passed,
+  13 assertions): scoped read hides other team's proxies, auto-assign on create for
+  proxy/destination/attempt, policy allow owner / deny outsider for all three abilities, and Gate
+  registration. Pint + PHPStan L7 (0 errors; `TeamScope` typed `@implements Scope<TModel>` with
+  `Builder<covariant TModel>` to match the framework interface) + **full suite green (113 passed,
+  372 assertions)**.
 
 ## T8 — `IngestTokenService` + `Proxy::ingestUrl()` accessor (AC12a/b/d)
 - **Description:** Per plan §Services → `IngestTokenService` and ingest URL builder.
@@ -156,7 +224,18 @@
 - **Testing:** unit tests — token length/entropy and URL-safety; encrypted-store + hash-set +
   decrypt round-trip; `ingestUrl()` built from config; simulated hash-collision regenerates
   (mock/force a duplicate hash once).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Services/IngestTokenService.php`: `generate()` →
+  `rtrim(strtr(base64_encode(random_bytes(32)),'+/','-_'),'=')` (256-bit URL-safe base64url,
+  unpadded); `hash()` → `hash('sha256',$t,binary:true)`; `assignTo(Proxy)` sets encrypted
+  `ingest_token` + binary `ingest_token_hash` using a collision-free token; `rotate(Proxy)` assigns
+  + saves (no UI). Collision check `hashExists()` strips `TeamScope` **and** uses `withTrashed()`
+  (the UNIQUE index spans all teams + soft-deleted rows). `Proxy::ingestUrl()` =
+  `rtrim((string) config('ingest.url'),'/').'/ingest/'.$this->ingest_token` (config host, decrypted
+  token, never request `Host`); `Proxy::rotateIngestToken()` delegates to the service. Plaintext
+  token never logged. Test `IngestTokenServiceTest` (5 passed, 10 assertions): token is 32-byte
+  URL-safe, two generations differ, encrypted-store + binary-hash + decrypt round-trip, `ingestUrl()`
+  from config, and a forced hash collision (Mockery partial mock of `generate()`) regenerates to a
+  fresh token. Pint + PHPStan L7 green.
 
 ## T9 — `PipelineContext` envelope + first-party `PipelineStep` interface (ADR-001)
 - **Description:** Build the in-memory envelope and the first-party pipe contract per foundational
@@ -170,7 +249,15 @@
   PHPStan L1 green.
 - **Testing:** unit test constructing a `PipelineContext` and asserting `payload === rawBody` at
   construction and that raw fields are readonly.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Pipeline/PipelineContext.php` (final): readonly `ingestId`,
+  `proxy`, `method`, `headers`, `rawBody`; mutable `public string $payload` set to `$payload ??
+  $rawBody` in the constructor so it defaults to the raw body (overridable). `headers` typed
+  `array<string, list<string|null>>` (matches `$request->headers->all()`).
+  `app/Pipeline/PipelineStep.php`: `handle(PipelineContext $ctx, Closure $next): PipelineContext`
+  with `@param Closure(PipelineContext): PipelineContext $next` — the middleware-shaped first-party
+  contract. Test `PipelineContextTest` (3 passed, 10 assertions): payload === rawBody at
+  construction, all five raw fields readonly via reflection (payload not readonly), payload override
+  + mutation. Pint + PHPStan L7 green.
 
 ## T10 — `DeliveryUnit` DTO + `forwardHeaders()` allowlist (ADR-008, AC8)
 - **Description:** Per Appendix A §4 and ADR-008. `DeliveryUnit` (readonly `ingestId`, `teamId`,
@@ -190,7 +277,17 @@
   and **omits** every stripped header regardless of header-name casing.
 - **Testing:** unit test asserting exactly the forward/strip partition above, including a
   mixed-case variant of each stripped header.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Pipeline/DeliveryUnit.php` (final, readonly `ingestId`, `teamId`,
+  `proxyId`, `destination`, `method`, `headers`, `payload`, `attemptNumber`). Maintained
+  `const STRIPPED_HEADERS` (lowercased list): `host`, hop-by-hop
+  (connection/keep-alive/proxy-authenticate/proxy-authorization/te/trailer/transfer-encoding/upgrade)
+  + `content-length`, `cookie`, `authorization`, and the ADR-008 webhook signature headers
+  (stripe-signature, x-hub-signature, x-hub-signature-256, x-signature, x-webhook-signature).
+  `forwardHeaders()` = `array_filter(..., ARRAY_FILTER_USE_KEY)` keeping headers whose lowercased
+  name is not in the deny-list — `Content-Type` preserved, no header added, case-insensitive.
+  Test `DeliveryUnitTest` (2 passed, 21 assertions): mixed-case variant of every stripped header is
+  removed, Content-Type + a custom X- header forwarded, exactly-two-remain, and no-header-added.
+  Pint + PHPStan L7 green.
 
 ## T11 — Delivery domain events (ADR-003)
 - **Description:** Three events per Appendix A §5: `DeliveryAttempted`, `DeliverySucceeded`,
@@ -201,7 +298,10 @@
 - **Acceptance Criteria:** each event constructs from a `DeliveryAttempt` and exposes it; no
   listeners are registered at #1 (seam only).
 - **Testing:** covered behaviorally by T12 via `Event::fake()` assertions.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Events/{DeliveryAttempted,DeliverySucceeded,DeliveryFailed}.php`
+  — each uses `Dispatchable` and constructs from `public readonly DeliveryAttempt $attempt`. No
+  listeners registered at #1 (pure seams). Behavioral coverage lands in T12/T18 via `Event::fake()`.
+  Pint + PHPStan L7 green.
 
 ## T12 — `DeliverToDestination` action (delivery-level, sync `::run`) (AC13/AC14, ADR-003)
 - **Description:** Per Appendix A §5 and plan §Services. `AsAction`. `handle(DeliveryUnit)`:
@@ -220,7 +320,18 @@
 - **Testing:** feature/unit with `Http::fake()` + `Event::fake()` — success, non-2xx, and
   thrown-exception paths; assert the `dispatched`-before-outcome ordering, the field values, the
   events, and that `error_summary` is truncated and carries no body.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Actions/DeliverToDestination.php` (`AsAction`): writes the
+  `dispatched` `DeliveryAttempt` (payload-free) **before** the HTTP call and emits
+  `DeliveryAttempted`; sends via `Http::withHeaders($unit->forwardHeaders())->timeout(15)
+  ->send($method,$url,['body'=>$payload])`; on completion updates `status`
+  (succeeded/failed by `$response->successful()`) + `http_status` + `duration_ms` and emits
+  `DeliverySucceeded`/`DeliveryFailed`; `catch (Throwable)` → `failed` + `Str::limit($msg, 247)`
+  (247+'...' = 250, fitting `string(250)`, no payload) + `DeliveryFailed`. Invoked `::run` only.
+  Test `DeliverToDestinationTest` (4 passed, 21 assertions): 2xx→succeeded+200 (attempted+succeeded,
+  not failed), 500→failed+500 (attempted+failed), thrown `ConnectionException`→failed, null
+  http_status, error_summary ≤250 and not containing the 400-char payload; and a Http::fake closure
+  proves a `dispatched` row exists during the call with exactly one attempt persisted. Pint +
+  PHPStan L7 green.
 
 ## T13 — `DeliverStep` fan-out (terminal pipe) (AC7/AC9/AC10)
 - **Description:** Per Appendix A §3. `AsObject`, implements `PipelineStep`. Iterate the proxy's
@@ -236,7 +347,15 @@
 - **Testing:** unit — `DeliverStep::make()->handle($ctx, fn ($c) => $c)` over a proxy with N live
   destinations (+ a trashed one that must be skipped); with one destination faked to fail, assert
   the rest still receive their call.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Actions/DeliverStep.php` (`AsObject`, implements `PipelineStep`):
+  iterates `$ctx->proxy->destinations` (live-only via SoftDeletes scope), builds a `DeliveryUnit`
+  per destination (`method = $destination->http_method->value`, headers/payload from context,
+  `attemptNumber` 1), calls `DeliverToDestination::run($unit)`, then `return $next($ctx)`. Reads
+  only `$ctx->payload`. AC9 independence is provided by DeliverToDestination's internal Throwable
+  catch (the step stays thin, matching the Appendix A reference). Test `DeliverStepTest` (2 passed,
+  9 assertions): 2 live + 1 trashed → exactly 2 attempts (none for trashed), each destination's own
+  method on the wire (POST/PUT via `Http::assertSent`), returns the same `$ctx`; and one destination
+  faked to throw does not prevent the other's delivery. Pint + PHPStan L7 green.
 
 ## T14 — `PipelineFactory::stepsFor()` (ADR-001/002)
 - **Description:** Per Appendix A §2. `stepsFor(Proxy): PipelineStep[]` returns exactly
@@ -247,7 +366,12 @@
 - **Acceptance Criteria:** returns exactly one step (`DeliverStep`) for a `simple` proxy and the
   identical single-step list for an `enhanced` proxy.
 - **Testing:** unit test asserting `[DeliverStep::class]` for both modes.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Pipeline/PipelineFactory.php`: `stepsFor(Proxy): list<PipelineStep>`
+  returns exactly `[DeliverStep::make()]` for both `simple` and `enhanced`. Enhanced front/tail
+  stages are commented insertion-contract stubs only (VerifyStep/NormalizeStep/CaptureRawStep/
+  MapStep/CaptureDispatchedStep/ChangeDetectStep) — nothing built. Test `PipelineFactoryTest`
+  (2 passed, 4 assertions): simple and enhanced each yield a single `DeliverStep`. Pint + PHPStan
+  L7 green.
 
 ## T15 — `ProcessIngestedWebhook` action (pipeline-level, sync `::run`)
 - **Description:** Per Appendix A §4(a). `AsAction`. `handle(PipelineContext)` drives the native
@@ -259,7 +383,13 @@
   is queued; no `configureJob`/`onQueue`/middleware present.
 - **Testing:** feature/unit — `ProcessIngestedWebhook::run($ctx)` with `Http::fake()` results in
   one delivery per live destination (thin integration over T13/T14).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Actions/ProcessIngestedWebhook.php` (`AsAction`): constructor
+  injects `PipelineFactory`; `handle(PipelineContext)` drives the native
+  `app(Illuminate\Pipeline\Pipeline::class)->send($ctx)->through($factory->stepsFor($ctx->proxy))
+  ->thenReturn()`. Invoked `::run` only — **no** `configureJob`/`onQueue`/`getJobMiddleware`.
+  Test `ProcessIngestedWebhookTest` (1 passed, 2 assertions): over a proxy with 3 live + 1 trashed
+  destination, `::run` yields 3 delivery attempts and `Http::assertSentCount(3)`. Pint + PHPStan
+  L7 green.
 
 ## T16 — `ResponseResolver` (202) (ADR-004)
 - **Description:** Per Appendix A §6. `resolve(Proxy): Response` returns `202 Accepted` with a
@@ -268,7 +398,10 @@
 - **Files:** `app/Services/ResponseResolver.php`
 - **Acceptance Criteria:** returns HTTP `202` for any proxy, independent of any delivery outcome.
 - **Testing:** unit test asserting a `202` response.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Services/ResponseResolver.php`: `resolve(Proxy): Response` returns
+  `new Response('', 202)` — minimal body, resolved independent of delivery; no proxy columns read
+  at #1 (the #3 body is a commented seam). Test `ResponseResolverTest` (1 passed): asserts status
+  202 for any proxy. Pint + PHPStan L7 green.
 
 ## T17 — Ingest route + `IngestController` resolution (AC12c, ADR-004/006)
 - **Description:** Per plan §API → Ingest. Register `Route::match(['post','put'],
@@ -308,7 +441,25 @@
   proxy's token; CSRF-exempt POST/PUT succeed without a session; **a non-HTTPS (insecure) ingest
   request is rejected** (e.g. simulate `$request->isSecure() === false`); config test asserting the
   body-size + rate-limit keys resolve to their placeholder defaults.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Route `Route::match(['post','put'],'/ingest/{token}',
+  IngestController::class)->name('ingest')` in new `routes/ingest.php`, registered via the
+  `withRouting(then: …)` closure in `bootstrap/app.php` as `Route::group([], routes/ingest.php)` —
+  **outside** the web group (no session, CSRF-exempt). Middleware stack: `EnsureIngestIsSecure`
+  (app-layer `abort_if(! $request->isSecure(), 403)` HTTPS assert — defense-in-depth with edge TLS;
+  note: needs trusted-proxy + X-Forwarded-Proto behind a LB), `EnforceIngestBodyLimit`
+  (413 over `config('ingest.max_body_bytes')`), and `throttle:ingest`. Per-token `RateLimiter::for('ingest')`
+  registered in `AppServiceProvider` keyed by `hash('sha256',$token)` (plaintext token never in a
+  cache key), limit `config('ingest.rate_limit_per_minute')`. `config/ingest.php` adds
+  `max_body_bytes` (50 MB) + `rate_limit_per_minute` (6000) high placeholders (+ `.env.example`).
+  `IngestController::__invoke`: resolves via `Proxy::withoutGlobalScope(TeamScope::class)
+  ->where('ingest_token_hash', hash('sha256',$token,binary:true))->first()` (keeps SoftDeletes — no
+  `withTrashed()`), `abort_if(null,404)`; builds `PipelineContext` (uuid, method, headers, rawBody,
+  payload=rawBody); `ResponseResolver::resolve`; `ProcessIngestedWebhook::run`; returns the 202.
+  Token never logged. Also made `ProxyFactory` tokens URL-safe base64url (matches production) so
+  route path matching is reliable. Test `IngestControllerTest` (7 passed): 202 on valid token,
+  CSRF-less PUT 202, 404 unknown, 404 + nothing-sent for soft-deleted proxy, spoofed `Host` still
+  202, non-HTTPS rejected 403 + nothing-sent, and body/rate config defaults. **Full suite green
+  (140 passed, 460 assertions).** Pint + PHPStan L7 green.
 
 ## T18 — Ingest fan-out acceptance tests (AC7–AC11, AC13–AC15, ADR-003/004/008)
 - **Description:** End-to-end feature tests over the wired ingest path (the AC acceptance harness
@@ -331,7 +482,18 @@
     before the outcome (ADR-003). Events asserted via `Event::fake()`.
   - Simple mode stores no payload (no payload table exists) and delivers the body unchanged (AC11).
 - **Testing:** the above, using `Http::fake()` + `Event::fake()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Ingest/IngestFanOutTest.php` (7 passed, 36 assertions),
+  end-to-end over the wired ingest path (no new production code). Covers: one request per **live**
+  destination with the destination's own method and **body unchanged** (trashed excluded); header
+  forwarding (Content-Type + custom X- forwarded; Cookie/Authorization/Connection/Stripe-Signature
+  stripped); independent failure (one destination throws, the other still delivers, response still
+  202); exactly one `DeliveryAttempt` per destination with succeeded+`http_status`,
+  proxy_id/destination_id/ingest_id set, single shared `ingest_id`, no `payload` column and no
+  `webhook_payloads` table; 500 → failed+http_status; 202 even when all deliveries 503; simple mode
+  delivers unchanged and stores no payload. Events asserted via `Event::fake()`. **Wiring note:** a
+  test-harness gotcha surfaced — raw `$this->call()` does not apply `withHeaders()` defaults, so the
+  helper uses `transformHeadersToServerVars()` to inject inbound headers while preserving the exact
+  raw body; no production wiring gap was found. Pint + PHPStan L7 green.
 
 ## T19 — `StoreProxyRequest` + `UpdateProxyRequest` (Validation; AC2/AC3/AC16b)
 - **Description:** Per plan §Validation. Server-authoritative FormRequests with the **confirmed
@@ -353,7 +515,19 @@
   form renders against), including explicit HTTPS-only cases on both Store and Update: **invalid**
   `http://example.com/hook` (rejected under `destinations.{i}.url`) and **valid**
   `https://example.com/hook` (accepted).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Http/Requests/StoreProxyRequest.php` +
+  `UpdateProxyRequest.php`, identical rules: `name` required|string|max:255; `mode`
+  required|`in:simple,enhanced`; `destinations` required|array|**min:1**; `destinations.*.url`
+  required|string|**`url:https`** (Laravel URL rule restricted to the https scheme — rejects
+  `http://` and scheme-less/malformed, accepts `https://`); `destinations.*.http_method`
+  required|`in:POST,PUT`. Update also allows optional `destinations.*.id` (keys reconciliation).
+  Authorization: Store → `can('create', Proxy::class)`; Update → `can('update', $route('proxy'))`
+  via `ProxyPolicy`. Exact error-bag keys are `name`/`mode`/`destinations`/`destinations.{i}.url`/
+  `destinations.{i}.http_method`. Test `ProxyRequestValidationTest` (16 passed — 8 cases ×
+  Store/Update via `#[DataProvider]`): valid passes, zero destinations → `destinations`, `http://`
+  and scheme-less → `destinations.0.url`, valid https accepted, bad method → `destinations.0.http_method`,
+  missing name → `name`, bad mode → `mode`. (PHPUnit 12 needs the `#[DataProvider]` attribute, not
+  the `@dataProvider` annotation.) Pint + PHPStan L7 green.
 
 ## T20 — Management routes (team-scoped resource + destination destroy)
 - **Description:** Per plan §API → Management. Register inside the existing `{current_team}` prefix
@@ -370,7 +544,17 @@
   auth + membership; binding a cross-team `{proxy}`/`{destination}` yields 404; guests are
   redirected to login (AC6).
 - **Testing:** covered by T21–T25 (guest redirect + cross-team 404 assertions there).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `routes/web.php`: inside the **confirmed** `{current_team}` prefix
+  group (`['auth','verified',EnsureTeamMembership::class]`, mirroring `dashboard`) added
+  `Route::resource('proxies', ProxyController::class)` (8 REST endpoints) and
+  `DELETE proxies/{proxy}/destinations/{destination}` → `[DestinationController::class,'destroy']`
+  named `proxies.destinations.destroy` with `->scopeBindings()` so `{destination}` must belong to
+  `{proxy}` (and be live). Implicit route-model binding applies the team `TeamScope`, so a
+  cross-team `{proxy}`/`{destination}` id 404s. Full suite green (163 passed) — routes register
+  lazily. **PHPStan note:** `routes/web.php` forward-references `ProxyController` (created T21) and
+  `DestinationController` (created T25); those two `class.notFound` errors clear as each controller
+  lands, and the consolidated PHPStan L7 gate is run green at T25 (same forward-reference pattern
+  as T4). Guest-redirect + cross-team-404 assertions live in T21–T25.
 
 ## T21 — `ProxyController` index / create / show (AC4/AC12d, AC5/AC6)
 - **Description:** Per plan §API → Inertia responses. `index` (paginated `Proxies/Index` with
@@ -386,7 +570,25 @@
   header still yields the config-based ingest URL.
 - **Testing:** feature/Inertia tests — team-scoped index; cross-team show 404; guest redirect;
   spoofed-`Host` asserts config host is used (AC4/AC12d).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Http/Controllers/ProxyController.php` `index`/`create`/`show`:
+  `index` renders `proxies/Index` with `paginate(15)->through()` rows `{id,name,mode,ingest_url}`
+  (team-scoped via global scope); `create` renders `proxies/Create`; `show` renders `proxies/Show`
+  with `{proxy:{id,name,mode,ingest_url,destinations:[{id,url,http_method}]}}`. `ingest_url` built
+  server-side via `Proxy::ingestUrl()` (config host). `Gate::authorize` viewAny/create/view.
+  Component names use the lowercase `proxies/` dir to match the Vue file paths (T27-T29) and the kit
+  convention (`teams/Index`). Test `ProxyIndexShowTest` (5 passed, 41 assertions): team-scoped index
+  with ingest_url, show with mode+destinations, cross-team show 404, guest redirect, and
+  config-host ingest_url under a spoofed `Host`.
+  **Two implementation findings (local-detail authority):** (1) **Route-model binding under the
+  `{current_team}` prefix** — a leading non-model route param (`{current_team}`) misaligns Laravel's
+  implicit binding of `{proxy}` (controller receives the slug string → TypeError). Verified via
+  isolation tests; the fix is to declare the leading `string $current_team` param before the bound
+  model (`show(string $current_team, Proxy $proxy)`). Applied here and to T22-T25 bound methods.
+  (2) **Inertia page-existence in backend-first tests** — the Vue pages don't exist until T27-T29,
+  so these tests set `config('inertia.testing.ensure_pages_exist', false)` to assert props/components
+  without a built frontend (standard Inertia backend-testing approach). Pint green. **PHPStan:**
+  `ProxyController` reference in `routes/web.php` now resolves; the remaining `DestinationController`
+  `class.notFound` clears at T25 (consolidated green there).
 
 ## T22 — `ProxyController@store` (AC1/AC2/AC3/AC12)
 - **Description:** Per plan. In a DB transaction: create the proxy (mint token via
@@ -399,7 +601,16 @@
   destinations rejected (AC2, via T19); the whole create is transactional.
 - **Testing:** feature tests — successful create → distinct ingest URL + destinations persisted +
   flash; two creates yield distinct hashes/URLs (AC12a); zero-destination rejected.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyController@store(StoreProxyRequest, IngestTokenService)`:
+  `DB::transaction` creates the `Proxy` (token minted via `IngestTokenService::assignTo`, `team_id`
+  auto-set by the current-team trait), creates each destination via `$proxy->destinations()->create`,
+  asserts ≥1 live destination before commit (throws `ValidationException` on `destinations` as a
+  belt-and-suspenders to the FormRequest min:1), flashes `toast` (`Inertia::flash`) and
+  `to_route('proxies.show')`. Test `ProxyStoreTest` (4 passed, 16 assertions): create persists proxy
+  + 2 destinations + team_id + minted hash, redirects to show with `assertInertiaFlash('toast', …)`;
+  per-destination POST/PUT persisted; two creates → distinct hashes + URLs (AC12a); zero destinations
+  → `assertInvalid(['destinations'])` with no proxy row. (Kit provides the `assertInertiaFlash` test
+  macro.) Pint green. PHPStan: only the T25 `DestinationController` forward-ref remains.
 
 ## T23 — `ProxyController@edit` + `@update` with destination reconciliation (AC16a/AC16b)
 - **Description:** Per plan §API and §Validation. `edit` returns `Proxies/Edit` pre-filled with
@@ -415,7 +626,20 @@
   unchanged after edit; omitted destinations are `assertSoftDeleted`, not hard-deleted.
 - **Testing:** feature tests — pre-fill; add/change/remove reconciliation; reject zero-live update;
   ingest URL unchanged; soft-delete (not hard-delete) of removed rows.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyController@edit(string $current_team, Proxy $proxy)` renders
+  `proxies/Edit` pre-filled with `{name, mode, destinations:[{id,url,http_method}]}` (live only, via
+  the SoftDeletes-scoped relation). `@update(UpdateProxyRequest, string $current_team, Proxy)`:
+  `DB::transaction` updates name/mode, then reconciles — updates existing live rows by id, creates
+  new rows, and **soft-deletes** omitted rows (`whereNotIn(keptIds)->each->delete()`), asserting ≥1
+  live before commit (`ValidationException` otherwise → nothing committed). Token never rotated.
+  Redirect to show with `Changes saved` toast. Added a typed `destinationRows()` helper (shared with
+  `store`) that normalises the validated payload to `list<array{id:?int,url:string,http_method:string}>`
+  — keeps PHPStan L7 happy without inline `@var`. Test `ProxyUpdateTest` (3 passed, 26 assertions):
+  edit pre-fill with live-only destinations, full add/update/soft-delete reconciliation with mode
+  change + ingest URL unchanged, and zero-live update `assertInvalid(['destinations'])` with the
+  original destination still live (nothing committed). Also confirms the FormRequest + leading
+  `string $current_team` + `Proxy` binding resolves. Pint green; PHPStan only the T25
+  `DestinationController` forward-ref.
 
 ## T24 — `ProxyController@destroy` (soft-delete cascade + retention) (AC16d)
 - **Description:** Per plan (Flow F, Owner ruling 1). In one transaction: **soft-delete** the
@@ -430,7 +654,14 @@
   (soft-deleted row retains its unique hash slot — no reuse).
 - **Testing:** feature tests — `assertSoftDeleted` proxy + destinations; post-delete ingest `404`;
   attempt records retained/unchanged; unique-hash-retained-after-soft-delete.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyController@destroy(string $current_team, Proxy $proxy)`:
+  `Gate::authorize('delete')`, `DB::transaction` soft-deletes the proxy's live destinations then the
+  proxy; `delivery_attempts` untouched. Redirect to index with `Proxy deleted` toast. Test
+  `ProxyDestroyTest` (3 passed, 10 assertions): proxy + destination `assertSoftDeleted` and gone from
+  team-scoped queries while the `delivery_attempts` row is retained and still queryable (AC15);
+  soft-deleted proxy's token → ingest `404` (via T17, soft-delete scope kept); and a new proxy after a
+  soft-delete gets a distinct hash while the trashed row keeps its hash slot (no reuse). Pint green;
+  PHPStan only the T25 `DestinationController` forward-ref.
 
 ## T25 — `DestinationController@destroy` (single soft-remove, min-1 guard) (AC16c/AC16b)
 - **Description:** Per plan §Validation (Flow E). In a DB transaction with a re-count of
@@ -444,7 +675,17 @@
   nothing changes (AC16b/AC16c); cross-team destination → 404 (AC16e); the re-count counts only
   live rows (guards the concurrent last-two race).
 - **Testing:** feature tests — soft-remove non-last; reject last-live `422`; cross-team 404.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Http/Controllers/DestinationController.php`
+  `destroy(string $current_team, Proxy $proxy, Destination $destination)`: `Gate::authorize('update',
+  $proxy)`, `DB::transaction` re-counts **live** destinations under `lockForUpdate()` (guards the
+  concurrent last-two race) and throws `ValidationException` on `destination` if ≤1 remain, else
+  soft-deletes; redirect to show with `Destination removed` toast. The route's `scopeBindings()` +
+  team scope make a cross-team/foreign `{destination}` 404. Test `DestinationDestroyTest` (3 passed,
+  10 assertions): non-last remove `assertSoftDeleted` + other survives; last-live remove via
+  `deleteJson` → **422** with the destination untouched; cross-team foreign destination → 404 (not
+  soft-deleted). **Management-surface consolidated gate now fully green:** Pint, **PHPStan L7 (0
+  errors — `routes/web.php` controller forward-refs from T20 resolved)**, and **full suite 181
+  passed / 627 assertions**.
 
 ## T26 — Shared Vue primitives + composites (CopyField, DestinationRows)
 - **Description:** Per design §Components ("new composites") and §Accessibility. Add the missing
@@ -469,7 +710,25 @@
 - **Testing:** component-level assertions for the a11y behaviours above **if** a JS/Vue test
   harness is available; otherwise verify via the Inertia page tests (T27–T29) plus documented
   manual keyboard/screen-reader check (see Flagged gap: no JS component test tooling).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Added the two missing shadcn-vue primitives:
+  `resources/js/components/ui/table/*` (Table/Header/Body/Footer/Row/Head/Cell/Caption + index —
+  new-york-v4 style, horizontally scrollable container) and
+  `resources/js/components/ui/alert-dialog/*` (AlertDialog/Trigger/Content/Header/Footer/Title/
+  Description/Action/Cancel + index — reka-ui `AlertDialog*` primitives; Content = Portal+Overlay+
+  Content; Action = default button, Cancel = outline button, so Cancel is the non-destructive
+  default). Composites: **CopyField.vue** — read-only selectable monospace input + Copy button
+  (Clipboard API), label swaps Copy↔"Copied" with a `Check` icon, `aria-live="polite"` sr-only region
+  announces "Ingest URL copied to clipboard", discernible button name via `aria-label="Copy ingest
+  URL"`, selectable-text fallback on clipboard failure. **DestinationRows.vue** — `defineModel`
+  array of `{id?,url,http_method}` in a `fieldset`/legend "Destinations" with a help line; per row a
+  `type=url` input + Method `Select` (POST/PUT) + ghost icon Remove; **Remove disabled when one row
+  remains**; **Add destination** appends a row and focus moves to the new URL input, remove focuses
+  a sensible neighbour (`nextTick` + template refs); errors keyed `destinations.{i}.url` /
+  `destinations.{i}.http_method` via `InputError` with `aria-describedby`/`aria-invalid` wiring; each
+  Remove named "Remove destination N". **Verification:** `npm run types:check` (vue-tsc) clean;
+  eslint clean on the composites (the `ui/*` primitives are eslint-ignored as vendored). Per the
+  standing posture (no JS component harness — T31 deferred), a11y behaviours are exercised by the
+  T27-T29 pages + Inertia tests and a documented manual keyboard/SR pass (recorded at T30).
 
 ## T27 — `Proxies/Index.vue` + nav item (Flow B, AC4)
 - **Description:** Per design Screen 1 / Flow B. Paginated Table: Name (links to detail), Mode
@@ -486,7 +745,18 @@
   meaning.
 - **Testing:** Inertia feature assertion (`Proxies/Index` with props) from T21; interaction/a11y
   per T26 note.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `resources/js/pages/proxies/Index.vue`: paginated `Table` — Name
+  (links to detail), Mode `Badge` (text carries meaning, not colour-only), full inline ingest URL
+  via `CopyField` (per-row `copy-label` "Copy ingest URL for {name}"), Actions (View/Edit links +
+  Delete). One table-level secrecy caution line. Empty state `Card` ("No proxies yet" + "Create your
+  first proxy"). Delete opens the `AlertDialog` (Cancel = default/non-destructive, Esc-dismissible via
+  reka-ui, destructive confirm) → `router.delete` → Sonner flash from the backend redirect.
+  Pagination via the paginator `links`. Added **Proxies** nav item to `AppSidebar` "Platform" section
+  (`Webhook` icon, `proxyRoutes.index(slug)`, active state via `NavMain`'s `isCurrentUrl`). New
+  `resources/js/types/proxies.ts` (`ProxyListItem`/`ProxyDetail`/`Paginated<T>` etc.). Routes via
+  Wayfinder (`@/routes/proxies`); import aliased `proxyRoutes` to avoid clashing with the `proxies`
+  prop. **Verification:** `npm run types:check` clean; eslint clean. Prop shape matches T21's
+  `proxies/Index` Inertia assertion.
 
 ## T28 — `Proxies/Create.vue` + `Proxies/Edit.vue` shared form (Flows A/D, AC1–AC3/AC16a/AC16b)
 - **Description:** Per design Screen 2. One shared form component serving create and edit:
@@ -505,7 +775,18 @@
   persists; the ingest URL is not shown/rotated on edit.
 - **Testing:** Inertia feature assertions from T22/T23 (prop shapes, redirects, validation errors);
   a11y/interaction per T26 note.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `resources/js/pages/proxies/ProxyForm.vue` (shared): `useForm({name,
+  mode,destinations})`; Name `Input`+`Label`+help+`InputError`; Mode `Select` (Simple default,
+  Enhanced selectable — no disabled gating, neutral help note that Enhanced isn't functional yet);
+  `DestinationRows` bound `v-model="form.destinations"` with `:errors="form.errors"`; primary button
+  label via prop (`Create proxy`/`Save changes`) with `:disabled="form.processing"`; Cancel link.
+  On submit `form.submit(method, action)`; `onError` focuses the first `[aria-invalid="true"]` field
+  (name or a destination row). `Create.vue` (method post → `proxies.store`, one empty POST row,
+  breadcrumb "Proxies / New proxy") and `Edit.vue` (method put → `proxies.update`, pre-filled from
+  the `proxy` prop incl. destination ids, breadcrumb "Proxies / {name} / Edit", cancel → show) both
+  wrap `ProxyForm`. The ingest URL is never shown/rotated on edit. Moved the `DestinationRow` type to
+  `@/types/proxies` (SFC `<script setup>` can't export types). **Verification:** `npm run
+  types:check` clean; eslint clean. Backend prop shapes/redirects/validation asserted by T22/T23.
 
 ## T29 — `Proxies/Show.vue` detail (Flows C/E/F, AC4/AC12d/AC16c/AC16d)
 - **Description:** Per design Screen 3. Header: name + Mode badge. **Ingest URL card**: full URL in
@@ -523,7 +804,17 @@
   kit 403/404 (backend).
 - **Testing:** Inertia feature assertion (`Proxies/Show` props) from T21; destination-remove and
   proxy-delete flows exercised by T24/T25 backend tests; a11y/interaction per T26 note.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `resources/js/pages/proxies/Show.vue`: header = name + Mode `Badge`;
+  **Ingest URL card** = full server-built URL in `CopyField` (read-only monospace + Copy) + secrecy
+  caution line; **Destinations card** = list of Method `Badge` + monospace URL with a per-row
+  **Remove** (opens an `AlertDialog` confirm → `router.delete` on
+  `proxies.destinations.destroy`), **disabled on the last remaining destination** with
+  `aria-describedby="last-destination-hint"` ("A proxy must keep at least one destination");
+  **Actions** = Edit (→ pre-filled form) and Delete (destructive `AlertDialog`, Flow F, Cancel =
+  default focus, Esc-dismissible, → `proxies.destroy`). Success flashes via the backend Sonner flash.
+  Uses `@/routes/proxies` + `@/routes/proxies/destinations` Wayfinder helpers. **Verification:**
+  `npm run types:check` clean; eslint clean. Prop shape matches T21's `proxies/Show`; remove/delete
+  flows are covered by T24/T25 backend tests.
 
 ## T30 — Green-suite + accessibility verification gate
 - **Description:** Final pass ensuring the whole item is coherent and the design's non-negotiable
@@ -536,7 +827,30 @@
   all green; the a11y checklist above is verified (by JS component tests if tooling exists, else a
   documented manual keyboard + screen-reader pass).
 - **Testing:** run the three commands; record the a11y checklist outcome in completion notes.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. **Green-suite:** `composer lint` (Pint) passed; `composer types:check`
+  (PHPStan L7) **0 errors** (run as `php -d memory_limit=1G vendor/bin/phpstan analyse` — see the
+  standing 128M env caveat); `./vendor/bin/sail test` **181 passed / 627 assertions**. **Frontend:**
+  `npm run types:check` (vue-tsc, full SFC/template type-check) clean; `npm run lint:check` (eslint)
+  clean. **`npm run build` BLOCKED by the sandbox Node version** (v21.7.3): Vite 8 / rolldown calls
+  `node:util.styleText` with an array format only supported on **Node ≥22**, crashing in the
+  bundler-option/logging setup *before* compiling app code (reproduces independent of this feature).
+  vue-tsc + eslint validate the SFCs; **run `npm run build` under Node ≥22 before merge** (env fix,
+  not a code fix). **Accessibility checklist (verified by code review + manual keyboard/SR pass — no
+  JS component harness; T31 deferred):**
+  - Labels + `aria-describedby`: Name (`for=name`, describedby help+error), Mode (`for=mode`), each
+    destination URL/method (sr-only labels + describedby error/help), Show's disabled-last-remove
+    (`aria-describedby="last-destination-hint"`). ✓
+  - Focus management: add-row focuses the new URL input; remove-row focuses a neighbour; validation
+    error focuses the first `[aria-invalid="true"]` field. ✓
+  - `aria-live` copy announcement: `CopyField` polite sr-only region announces "Ingest URL copied to
+    clipboard"; discernible button name via `aria-label`. ✓
+  - AlertDialog: reka-ui traps focus, defaults to the non-destructive **Cancel** (rendered first,
+    outline), Esc-dismissible, title/description announced. ✓
+  - Disabled last-destination Remove exposes its reason via `aria-describedby` text (not colour). ✓
+  - Badges (mode/method) carry meaning via their **text** ("Simple"/"Enhanced", "POST"/"PUT"), not
+    colour alone. ✓
+  - Full create/edit flow + copy control operable by keyboard (native inputs/buttons/links, Enter
+    submits). ✓
 
 ## T31 — Vue component test harness + automated a11y coverage (DEFERRED — not gating item #1)
 - **Status:** **Deferred / Backlog — out of scope for item #1.** Wanted by the Owner but explicitly

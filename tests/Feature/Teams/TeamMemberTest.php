@@ -5,13 +5,10 @@ namespace Tests\Feature\Teams;
 use App\Enums\TeamRole;
 use App\Models\Team;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class TeamMemberTest extends TestCase
 {
-    use RefreshDatabase;
-
     public function test_team_member_roles_can_be_updated_by_owners()
     {
         $owner = User::factory()->create();

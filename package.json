@@ -2,6 +2,10 @@
     "$schema": "https://www.schemastore.org/package.json",
     "private": true,
     "type": "module",
+    "packageManager": "pnpm@10.19.0",
+    "engines": {
+        "node": ">=22"
+    },
     "scripts": {
         "build": "vite build",
         "build:ssr": "vite build && vite build --ssr",
