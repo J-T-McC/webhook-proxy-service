@@ -757,6 +757,24 @@
   Wayfinder (`@/routes/proxies`); import aliased `proxyRoutes` to avoid clashing with the `proxies`
   prop. **Verification:** `npm run types:check` clean; eslint clean. Prop shape matches T21's
   `proxies/Index` Inertia assertion.
+- **Rework (2026-07-31) — Index-table Delete confirm defect (AC4/Flow F):** Fixed the
+  post-merge defect where a row's Delete → confirm did not delete. Root cause was a Vue
+  template wiring race: the dialog's `open` state and its target data were the same ref, so
+  reka-ui's `AlertDialogAction` auto-dismiss synchronously fired `@update:open(false)` →
+  cleared the target, beating `confirmDelete()`, which then hit its `if (!target) return`
+  guard and never called `router.delete`. Fix decouples an `open` boolean (`deleteOpen`)
+  from the target data (`deleteTarget`) — matching the working `Show.vue` pattern —
+  in `resources/js/pages/proxies/Index.vue` (`requestDelete`/`confirmDelete`, ~lines 50–80).
+  **Verified green:** `pnpm lint:check`, `pnpm types:check` (vue-tsc), `pnpm format:check`,
+  `composer lint` (Pint), `composer types:check` (PHPStan L7), and
+  `./vendor/bin/sail test --filter ProxyDestroyTest` (3 passed).
+- **Manual-verification step (regression check, per Owner decision Option B —
+  `docs/questions/prd-01-index-delete-regression-test-harness.md`):** On the Proxies **Index**
+  table, click a row's **Delete** → **Confirm** in the modal → the proxy is removed from the
+  table and a success toast (Sonner) is shown. An automated frontend regression test is
+  deferred to the backlog frontend harness task **T31** (no Vitest/`@vue/test-utils` tooling
+  is added by this surgical fix); until then this manual step is the standing guard for this
+  wiring, consistent with the item-#1 manual-a11y verification approach.
 
 ## T28 — `Proxies/Create.vue` + `Proxies/Edit.vue` shared form (Flows A/D, AC1–AC3/AC16a/AC16b)
 - **Description:** Per design Screen 2. One shared form component serving create and edit:
