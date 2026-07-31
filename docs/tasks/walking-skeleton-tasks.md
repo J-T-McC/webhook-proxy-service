@@ -710,7 +710,25 @@
 - **Testing:** component-level assertions for the a11y behaviours above **if** a JS/Vue test
   harness is available; otherwise verify via the Inertia page tests (T27–T29) plus documented
   manual keyboard/screen-reader check (see Flagged gap: no JS component test tooling).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Added the two missing shadcn-vue primitives:
+  `resources/js/components/ui/table/*` (Table/Header/Body/Footer/Row/Head/Cell/Caption + index —
+  new-york-v4 style, horizontally scrollable container) and
+  `resources/js/components/ui/alert-dialog/*` (AlertDialog/Trigger/Content/Header/Footer/Title/
+  Description/Action/Cancel + index — reka-ui `AlertDialog*` primitives; Content = Portal+Overlay+
+  Content; Action = default button, Cancel = outline button, so Cancel is the non-destructive
+  default). Composites: **CopyField.vue** — read-only selectable monospace input + Copy button
+  (Clipboard API), label swaps Copy↔"Copied" with a `Check` icon, `aria-live="polite"` sr-only region
+  announces "Ingest URL copied to clipboard", discernible button name via `aria-label="Copy ingest
+  URL"`, selectable-text fallback on clipboard failure. **DestinationRows.vue** — `defineModel`
+  array of `{id?,url,http_method}` in a `fieldset`/legend "Destinations" with a help line; per row a
+  `type=url` input + Method `Select` (POST/PUT) + ghost icon Remove; **Remove disabled when one row
+  remains**; **Add destination** appends a row and focus moves to the new URL input, remove focuses
+  a sensible neighbour (`nextTick` + template refs); errors keyed `destinations.{i}.url` /
+  `destinations.{i}.http_method` via `InputError` with `aria-describedby`/`aria-invalid` wiring; each
+  Remove named "Remove destination N". **Verification:** `npm run types:check` (vue-tsc) clean;
+  eslint clean on the composites (the `ui/*` primitives are eslint-ignored as vendored). Per the
+  standing posture (no JS component harness — T31 deferred), a11y behaviours are exercised by the
+  T27-T29 pages + Inertia tests and a documented manual keyboard/SR pass (recorded at T30).
 
 ## T27 — `Proxies/Index.vue` + nav item (Flow B, AC4)
 - **Description:** Per design Screen 1 / Flow B. Paginated Table: Name (links to detail), Mode
