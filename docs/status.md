@@ -27,7 +27,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 
 | # | Feature | Phase | Current Agent | Blockers | Approvals |
 |---|---|---|---|---|---|
-| 1 | Walking skeleton: ingest → fan-out delivery | Implementation (defect rework) | Senior Developer | **Post-merge bug:** Index proxy table Delete confirm does not delete (`resources/js/pages/proxies/Index.vue` confirmDelete/AlertDialogAction wiring). Backend + Show-page delete verified working. Scoped rework within approved AC4, no plan/design change | PRD/Design/Plan/Tasks Approved (2026-07-30); Review *Approve with follow-ups* (2026-07-31); PR #1 merged (`5aba84b`). Delete-bug fix awaits Senior Developer, then Reviewer; release re-approval by Owner |
+| 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | PRD/Design/Plan/Tasks Approved (2026-07-30); Review *Approve with follow-ups* (2026-07-31); PR #1 merged (`5aba84b`). Post-merge Index-delete bug **fixed** (`89cfd71`, merged `19e73c7`, 2026-07-31); Owner skipped re-review and merged. Frontend regression-test harness deferred to backlog (Option B) |
 | 2 | Role-based collaboration | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 3 | Decoupled upstream response | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 4 | Queued processing (FIFO & Async) | Backlog | — (Product Manager on start) | Not started; depends on #1. Open: V3, V8 | — |
@@ -81,7 +81,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
   (`docs/questions/prd-01-index-delete-regression-test-harness.md`, RESOLVED
   2026-07-31): ship the fix now with a **documented manual-verification step** (Index
   Delete → confirm → row removed + toast), and defer the frontend test harness to the
-  backlog. Ready for the **Reviewer**.
+  backlog. **Merged to `main`** (`89cfd71`, merge `19e73c7`, pushed 2026-07-31); Owner skipped re-review. Item #1 **Done**.
 
 ## Backlog follow-ups (deferred, not gating any current item)
 
