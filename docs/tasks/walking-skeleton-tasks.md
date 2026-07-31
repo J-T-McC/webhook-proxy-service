@@ -675,7 +675,17 @@
   nothing changes (AC16b/AC16c); cross-team destination → 404 (AC16e); the re-count counts only
   live rows (guards the concurrent last-two race).
 - **Testing:** feature tests — soft-remove non-last; reject last-live `422`; cross-team 404.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Http/Controllers/DestinationController.php`
+  `destroy(string $current_team, Proxy $proxy, Destination $destination)`: `Gate::authorize('update',
+  $proxy)`, `DB::transaction` re-counts **live** destinations under `lockForUpdate()` (guards the
+  concurrent last-two race) and throws `ValidationException` on `destination` if ≤1 remain, else
+  soft-deletes; redirect to show with `Destination removed` toast. The route's `scopeBindings()` +
+  team scope make a cross-team/foreign `{destination}` 404. Test `DestinationDestroyTest` (3 passed,
+  10 assertions): non-last remove `assertSoftDeleted` + other survives; last-live remove via
+  `deleteJson` → **422** with the destination untouched; cross-team foreign destination → 404 (not
+  soft-deleted). **Management-surface consolidated gate now fully green:** Pint, **PHPStan L7 (0
+  errors — `routes/web.php` controller forward-refs from T20 resolved)**, and **full suite 181
+  passed / 627 assertions**.
 
 ## T26 — Shared Vue primitives + composites (CopyField, DestinationRows)
 - **Description:** Per design §Components ("new composites") and §Accessibility. Add the missing
