@@ -249,7 +249,15 @@
   PHPStan L1 green.
 - **Testing:** unit test constructing a `PipelineContext` and asserting `payload === rawBody` at
   construction and that raw fields are readonly.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Pipeline/PipelineContext.php` (final): readonly `ingestId`,
+  `proxy`, `method`, `headers`, `rawBody`; mutable `public string $payload` set to `$payload ??
+  $rawBody` in the constructor so it defaults to the raw body (overridable). `headers` typed
+  `array<string, list<string|null>>` (matches `$request->headers->all()`).
+  `app/Pipeline/PipelineStep.php`: `handle(PipelineContext $ctx, Closure $next): PipelineContext`
+  with `@param Closure(PipelineContext): PipelineContext $next` — the middleware-shaped first-party
+  contract. Test `PipelineContextTest` (3 passed, 10 assertions): payload === rawBody at
+  construction, all five raw fields readonly via reflection (payload not readonly), payload override
+  + mutation. Pint + PHPStan L7 green.
 
 ## T10 — `DeliveryUnit` DTO + `forwardHeaders()` allowlist (ADR-008, AC8)
 - **Description:** Per Appendix A §4 and ADR-008. `DeliveryUnit` (readonly `ingestId`, `teamId`,
