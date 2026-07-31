@@ -515,7 +515,19 @@
   form renders against), including explicit HTTPS-only cases on both Store and Update: **invalid**
   `http://example.com/hook` (rejected under `destinations.{i}.url`) and **valid**
   `https://example.com/hook` (accepted).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Http/Requests/StoreProxyRequest.php` +
+  `UpdateProxyRequest.php`, identical rules: `name` required|string|max:255; `mode`
+  required|`in:simple,enhanced`; `destinations` required|array|**min:1**; `destinations.*.url`
+  required|string|**`url:https`** (Laravel URL rule restricted to the https scheme — rejects
+  `http://` and scheme-less/malformed, accepts `https://`); `destinations.*.http_method`
+  required|`in:POST,PUT`. Update also allows optional `destinations.*.id` (keys reconciliation).
+  Authorization: Store → `can('create', Proxy::class)`; Update → `can('update', $route('proxy'))`
+  via `ProxyPolicy`. Exact error-bag keys are `name`/`mode`/`destinations`/`destinations.{i}.url`/
+  `destinations.{i}.http_method`. Test `ProxyRequestValidationTest` (16 passed — 8 cases ×
+  Store/Update via `#[DataProvider]`): valid passes, zero destinations → `destinations`, `http://`
+  and scheme-less → `destinations.0.url`, valid https accepted, bad method → `destinations.0.http_method`,
+  missing name → `name`, bad mode → `mode`. (PHPUnit 12 needs the `#[DataProvider]` attribute, not
+  the `@dataProvider` annotation.) Pint + PHPStan L7 green.
 
 ## T20 — Management routes (team-scoped resource + destination destroy)
 - **Description:** Per plan §API → Management. Register inside the existing `{current_team}` prefix
