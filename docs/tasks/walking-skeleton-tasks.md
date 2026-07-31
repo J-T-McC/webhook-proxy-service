@@ -804,7 +804,17 @@
   kit 403/404 (backend).
 - **Testing:** Inertia feature assertion (`Proxies/Show` props) from T21; destination-remove and
   proxy-delete flows exercised by T24/T25 backend tests; a11y/interaction per T26 note.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `resources/js/pages/proxies/Show.vue`: header = name + Mode `Badge`;
+  **Ingest URL card** = full server-built URL in `CopyField` (read-only monospace + Copy) + secrecy
+  caution line; **Destinations card** = list of Method `Badge` + monospace URL with a per-row
+  **Remove** (opens an `AlertDialog` confirm → `router.delete` on
+  `proxies.destinations.destroy`), **disabled on the last remaining destination** with
+  `aria-describedby="last-destination-hint"` ("A proxy must keep at least one destination");
+  **Actions** = Edit (→ pre-filled form) and Delete (destructive `AlertDialog`, Flow F, Cancel =
+  default focus, Esc-dismissible, → `proxies.destroy`). Success flashes via the backend Sonner flash.
+  Uses `@/routes/proxies` + `@/routes/proxies/destinations` Wayfinder helpers. **Verification:**
+  `npm run types:check` clean; eslint clean. Prop shape matches T21's `proxies/Show`; remove/delete
+  flows are covered by T24/T25 backend tests.
 
 ## T30 — Green-suite + accessibility verification gate
 - **Description:** Final pass ensuring the whole item is coherent and the design's non-negotiable
