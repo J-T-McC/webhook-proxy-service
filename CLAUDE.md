@@ -20,7 +20,7 @@ source of truth; `docs/status.md` tracks all features — ask the orchestrator
 ## Commands
 
 - Run code style fixer: `composer lint` (uses Laravel Pint)
-- Run static analysis: `composer types:check` (PHPStan level 1)
+- Run static analysis: `composer types:check` (PHPStan level 7)
 - Run a specific test class: `./vendor/bin/sail test --filter TestClassName`
 - Run tests matching a pattern: `./vendor/bin/sail test --parallel --filter "pattern"`
 
