@@ -570,7 +570,25 @@
   header still yields the config-based ingest URL.
 - **Testing:** feature/Inertia tests — team-scoped index; cross-team show 404; guest redirect;
   spoofed-`Host` asserts config host is used (AC4/AC12d).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Http/Controllers/ProxyController.php` `index`/`create`/`show`:
+  `index` renders `proxies/Index` with `paginate(15)->through()` rows `{id,name,mode,ingest_url}`
+  (team-scoped via global scope); `create` renders `proxies/Create`; `show` renders `proxies/Show`
+  with `{proxy:{id,name,mode,ingest_url,destinations:[{id,url,http_method}]}}`. `ingest_url` built
+  server-side via `Proxy::ingestUrl()` (config host). `Gate::authorize` viewAny/create/view.
+  Component names use the lowercase `proxies/` dir to match the Vue file paths (T27-T29) and the kit
+  convention (`teams/Index`). Test `ProxyIndexShowTest` (5 passed, 41 assertions): team-scoped index
+  with ingest_url, show with mode+destinations, cross-team show 404, guest redirect, and
+  config-host ingest_url under a spoofed `Host`.
+  **Two implementation findings (local-detail authority):** (1) **Route-model binding under the
+  `{current_team}` prefix** — a leading non-model route param (`{current_team}`) misaligns Laravel's
+  implicit binding of `{proxy}` (controller receives the slug string → TypeError). Verified via
+  isolation tests; the fix is to declare the leading `string $current_team` param before the bound
+  model (`show(string $current_team, Proxy $proxy)`). Applied here and to T22-T25 bound methods.
+  (2) **Inertia page-existence in backend-first tests** — the Vue pages don't exist until T27-T29,
+  so these tests set `config('inertia.testing.ensure_pages_exist', false)` to assert props/components
+  without a built frontend (standard Inertia backend-testing approach). Pint green. **PHPStan:**
+  `ProxyController` reference in `routes/web.php` now resolves; the remaining `DestinationController`
+  `class.notFound` clears at T25 (consolidated green there).
 
 ## T22 — `ProxyController@store` (AC1/AC2/AC3/AC12)
 - **Description:** Per plan. In a DB transaction: create the proxy (mint token via
