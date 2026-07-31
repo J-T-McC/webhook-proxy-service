@@ -224,7 +224,18 @@
 - **Testing:** unit tests — token length/entropy and URL-safety; encrypted-store + hash-set +
   decrypt round-trip; `ingestUrl()` built from config; simulated hash-collision regenerates
   (mock/force a duplicate hash once).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `app/Services/IngestTokenService.php`: `generate()` →
+  `rtrim(strtr(base64_encode(random_bytes(32)),'+/','-_'),'=')` (256-bit URL-safe base64url,
+  unpadded); `hash()` → `hash('sha256',$t,binary:true)`; `assignTo(Proxy)` sets encrypted
+  `ingest_token` + binary `ingest_token_hash` using a collision-free token; `rotate(Proxy)` assigns
+  + saves (no UI). Collision check `hashExists()` strips `TeamScope` **and** uses `withTrashed()`
+  (the UNIQUE index spans all teams + soft-deleted rows). `Proxy::ingestUrl()` =
+  `rtrim((string) config('ingest.url'),'/').'/ingest/'.$this->ingest_token` (config host, decrypted
+  token, never request `Host`); `Proxy::rotateIngestToken()` delegates to the service. Plaintext
+  token never logged. Test `IngestTokenServiceTest` (5 passed, 10 assertions): token is 32-byte
+  URL-safe, two generations differ, encrypted-store + binary-hash + decrypt round-trip, `ingestUrl()`
+  from config, and a forced hash collision (Mockery partial mock of `generate()`) regenerates to a
+  fresh token. Pint + PHPStan L7 green.
 
 ## T9 — `PipelineContext` envelope + first-party `PipelineStep` interface (ADR-001)
 - **Description:** Build the in-memory envelope and the first-party pipe contract per foundational

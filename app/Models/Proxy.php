@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\BelongsToCurrentTeam;
 use App\Enums\ProxyMode;
+use App\Services\IngestTokenService;
 use Database\Factories\ProxyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
@@ -62,6 +63,25 @@ class Proxy extends Model
     public function deliveryAttempts(): HasMany
     {
         return $this->hasMany(DeliveryAttempt::class);
+    }
+
+    /**
+     * The absolute public ingest URL for this proxy.
+     *
+     * Built from server config (`config('ingest.url')`) and the decrypted token —
+     * never the request `Host` header (ADR-006 Host-header injection guard).
+     */
+    public function ingestUrl(): string
+    {
+        return rtrim((string) config('ingest.url'), '/').'/ingest/'.$this->ingest_token;
+    }
+
+    /**
+     * Rotate this proxy's ingest token and persist it. No UI exists at item #1.
+     */
+    public function rotateIngestToken(): void
+    {
+        app(IngestTokenService::class)->rotate($this);
     }
 
     /**
