@@ -37,7 +37,11 @@ defineOptions({
             :action="proxyRoutes.store(teamSlug).url"
             submit-label="Create proxy"
             :cancel-href="proxyRoutes.index(teamSlug).url"
-            :initial="{ name: '', mode: 'simple', destinations: [{ url: '', http_method: 'POST' }] }"
+            :initial="{
+                name: '',
+                mode: 'simple',
+                destinations: [{ url: '', http_method: 'POST' }],
+            }"
         />
     </div>
 </template>

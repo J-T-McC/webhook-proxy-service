@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Plus, Trash2 } from '@lucide/vue';
-import {  nextTick, ref } from 'vue';
-import type {ComponentPublicInstance} from 'vue';
+import { nextTick, ref } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
@@ -31,7 +31,10 @@ function setUrlRef(
     }
 }
 
-function fieldError(index: number, field: 'url' | 'http_method'): string | undefined {
+function fieldError(
+    index: number,
+    field: 'url' | 'http_method',
+): string | undefined {
     return props.errors?.[`destinations.${index}.${field}`];
 }
 
@@ -66,7 +69,7 @@ const inputClass =
 <template>
     <fieldset class="grid gap-3">
         <legend class="text-sm font-medium">Destinations</legend>
-        <p id="destinations-help" class="text-muted-foreground text-sm">
+        <p id="destinations-help" class="text-sm text-muted-foreground">
             The webhook is delivered to every destination below.
         </p>
 
@@ -88,8 +91,14 @@ const inputClass =
                     placeholder="https://example.com/webhook"
                     :class="inputClass"
                     :disabled="disabled"
-                    :aria-invalid="fieldError(index, 'url') ? 'true' : undefined"
-                    :aria-describedby="fieldError(index, 'url') ? errorId(index, 'url') : 'destinations-help'"
+                    :aria-invalid="
+                        fieldError(index, 'url') ? 'true' : undefined
+                    "
+                    :aria-describedby="
+                        fieldError(index, 'url')
+                            ? errorId(index, 'url')
+                            : 'destinations-help'
+                    "
                 />
                 <div :id="errorId(index, 'url')">
                     <InputError :message="fieldError(index, 'url')" />
@@ -104,7 +113,11 @@ const inputClass =
                     <SelectTrigger
                         :id="`destination-${index}-method`"
                         class="w-full sm:w-28"
-                        :aria-describedby="fieldError(index, 'http_method') ? errorId(index, 'http_method') : undefined"
+                        :aria-describedby="
+                            fieldError(index, 'http_method')
+                                ? errorId(index, 'http_method')
+                                : undefined
+                        "
                     >
                         <SelectValue placeholder="Method" />
                     </SelectTrigger>

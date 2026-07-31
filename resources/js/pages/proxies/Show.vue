@@ -83,7 +83,10 @@ function confirmDeleteProxy(): void {
     busy.value = true;
 
     router.delete(
-        proxyRoutes.destroy({ current_team: teamSlug.value, proxy: props.proxy.id }).url,
+        proxyRoutes.destroy({
+            current_team: teamSlug.value,
+            proxy: props.proxy.id,
+        }).url,
         {
             onFinish: () => {
                 busy.value = false;
@@ -102,12 +105,21 @@ function confirmDeleteProxy(): void {
             <div class="flex items-center gap-3">
                 <h1 class="text-xl font-semibold">{{ props.proxy.name }}</h1>
                 <Badge variant="secondary">
-                    {{ props.proxy.mode === 'enhanced' ? 'Enhanced' : 'Simple' }}
+                    {{
+                        props.proxy.mode === 'enhanced' ? 'Enhanced' : 'Simple'
+                    }}
                 </Badge>
             </div>
             <div class="flex items-center gap-2">
                 <Button variant="outline" as-child>
-                    <Link :href="proxyRoutes.edit({ current_team: teamSlug, proxy: props.proxy.id })">
+                    <Link
+                        :href="
+                            proxyRoutes.edit({
+                                current_team: teamSlug,
+                                proxy: props.proxy.id,
+                            })
+                        "
+                    >
                         Edit
                     </Link>
                 </Button>
@@ -125,8 +137,9 @@ function confirmDeleteProxy(): void {
         <Card class="gap-3 p-6">
             <h2 class="text-sm font-medium">Ingest URL</h2>
             <CopyField :value="props.proxy.ingest_url" />
-            <p class="text-muted-foreground text-sm">
-                Anyone with this URL can post webhooks to this proxy. Keep it secret.
+            <p class="text-sm text-muted-foreground">
+                Anyone with this URL can post webhooks to this proxy. Keep it
+                secret.
             </p>
         </Card>
 
@@ -136,7 +149,7 @@ function confirmDeleteProxy(): void {
             <p
                 v-if="isLastDestination"
                 id="last-destination-hint"
-                class="text-muted-foreground text-sm"
+                class="text-sm text-muted-foreground"
             >
                 A proxy must keep at least one destination.
             </p>
@@ -147,15 +160,23 @@ function confirmDeleteProxy(): void {
                     class="flex items-center justify-between gap-3 py-3"
                 >
                     <div class="flex min-w-0 items-center gap-3">
-                        <Badge variant="outline">{{ destination.http_method }}</Badge>
-                        <span class="truncate font-mono text-sm">{{ destination.url }}</span>
+                        <Badge variant="outline">{{
+                            destination.http_method
+                        }}</Badge>
+                        <span class="truncate font-mono text-sm">{{
+                            destination.url
+                        }}</span>
                     </div>
                     <Button
                         variant="ghost"
                         size="sm"
                         :disabled="isLastDestination"
                         :aria-label="`Remove destination ${destination.url}`"
-                        :aria-describedby="isLastDestination ? 'last-destination-hint' : undefined"
+                        :aria-describedby="
+                            isLastDestination
+                                ? 'last-destination-hint'
+                                : undefined
+                        "
                         @click="destinationTarget = destination"
                     >
                         Remove
@@ -168,7 +189,11 @@ function confirmDeleteProxy(): void {
     <!-- Remove destination confirmation -->
     <AlertDialog
         :open="destinationTarget !== null"
-        @update:open="(value) => { if (!value) destinationTarget = null; }"
+        @update:open="
+            (value) => {
+                if (!value) destinationTarget = null;
+            }
+        "
     >
         <AlertDialogContent>
             <AlertDialogHeader>

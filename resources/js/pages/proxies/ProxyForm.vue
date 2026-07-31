@@ -48,7 +48,11 @@ function submit(): void {
 </script>
 
 <template>
-    <form ref="formEl" class="mx-auto w-full max-w-2xl" @submit.prevent="submit">
+    <form
+        ref="formEl"
+        class="mx-auto w-full max-w-2xl"
+        @submit.prevent="submit"
+    >
         <Card class="gap-6 p-6">
             <!-- Details -->
             <div class="grid gap-2">
@@ -62,7 +66,7 @@ function submit(): void {
                     :aria-invalid="form.errors.name ? 'true' : undefined"
                     aria-describedby="name-help name-error"
                 />
-                <p id="name-help" class="text-muted-foreground text-sm">
+                <p id="name-help" class="text-sm text-muted-foreground">
                     A name to recognise this proxy.
                 </p>
                 <span id="name-error">
@@ -81,9 +85,10 @@ function submit(): void {
                         <SelectItem value="enhanced">Enhanced</SelectItem>
                     </SelectContent>
                 </Select>
-                <p class="text-muted-foreground text-sm">
-                    Enhanced-mode behaviours (mapping, storage, retries) are not yet
-                    functional; Simple delivers the webhook to every destination.
+                <p class="text-sm text-muted-foreground">
+                    Enhanced-mode behaviours (mapping, storage, retries) are not
+                    yet functional; Simple delivers the webhook to every
+                    destination.
                 </p>
                 <InputError :message="form.errors.mode" />
             </div>

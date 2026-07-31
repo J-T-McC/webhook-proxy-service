@@ -60,7 +60,8 @@ function confirmDelete(): void {
     deleting.value = true;
 
     router.delete(
-        proxyRoutes.destroy({ current_team: teamSlug.value, proxy: target.id }).url,
+        proxyRoutes.destroy({ current_team: teamSlug.value, proxy: target.id })
+            .url,
         {
             preserveScroll: true,
             onFinish: () => {
@@ -89,17 +90,21 @@ function confirmDelete(): void {
             class="items-center gap-3 p-10 text-center"
         >
             <h2 class="text-lg font-medium">No proxies yet</h2>
-            <p class="text-muted-foreground text-sm">
-                Create a proxy to get an ingest URL and start fanning out webhooks.
+            <p class="text-sm text-muted-foreground">
+                Create a proxy to get an ingest URL and start fanning out
+                webhooks.
             </p>
             <Button as-child class="mt-2">
-                <Link :href="proxyRoutes.create(teamSlug)">Create your first proxy</Link>
+                <Link :href="proxyRoutes.create(teamSlug)"
+                    >Create your first proxy</Link
+                >
             </Button>
         </Card>
 
         <template v-else>
-            <p class="text-muted-foreground text-sm">
-                These ingest URLs are secrets — anyone with one can post webhooks.
+            <p class="text-sm text-muted-foreground">
+                These ingest URLs are secrets — anyone with one can post
+                webhooks.
             </p>
 
             <Table>
@@ -115,7 +120,12 @@ function confirmDelete(): void {
                     <TableRow v-for="proxy in proxies.data" :key="proxy.id">
                         <TableCell class="font-medium">
                             <Link
-                                :href="proxyRoutes.show({ current_team: teamSlug, proxy: proxy.id })"
+                                :href="
+                                    proxyRoutes.show({
+                                        current_team: teamSlug,
+                                        proxy: proxy.id,
+                                    })
+                                "
                                 class="hover:underline"
                             >
                                 {{ proxy.name }}
@@ -123,7 +133,11 @@ function confirmDelete(): void {
                         </TableCell>
                         <TableCell>
                             <Badge variant="secondary">
-                                {{ proxy.mode === 'enhanced' ? 'Enhanced' : 'Simple' }}
+                                {{
+                                    proxy.mode === 'enhanced'
+                                        ? 'Enhanced'
+                                        : 'Simple'
+                                }}
                             </Badge>
                         </TableCell>
                         <TableCell class="min-w-[18rem]">
@@ -135,12 +149,26 @@ function confirmDelete(): void {
                         <TableCell>
                             <div class="flex items-center justify-end gap-1">
                                 <Button variant="ghost" size="sm" as-child>
-                                    <Link :href="proxyRoutes.show({ current_team: teamSlug, proxy: proxy.id })">
+                                    <Link
+                                        :href="
+                                            proxyRoutes.show({
+                                                current_team: teamSlug,
+                                                proxy: proxy.id,
+                                            })
+                                        "
+                                    >
                                         View
                                     </Link>
                                 </Button>
                                 <Button variant="ghost" size="sm" as-child>
-                                    <Link :href="proxyRoutes.edit({ current_team: teamSlug, proxy: proxy.id })">
+                                    <Link
+                                        :href="
+                                            proxyRoutes.edit({
+                                                current_team: teamSlug,
+                                                proxy: proxy.id,
+                                            })
+                                        "
+                                    >
                                         Edit
                                     </Link>
                                 </Button>
@@ -182,7 +210,11 @@ function confirmDelete(): void {
 
     <AlertDialog
         :open="deleteTarget !== null"
-        @update:open="(value) => { if (!value) deleteTarget = null; }"
+        @update:open="
+            (value) => {
+                if (!value) deleteTarget = null;
+            }
+        "
     >
         <AlertDialogContent>
             <AlertDialogHeader>

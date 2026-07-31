@@ -58,9 +58,19 @@ defineOptions({
     <div class="p-4">
         <ProxyForm
             method="put"
-            :action="proxyRoutes.update({ current_team: teamSlug, proxy: props.proxy.id }).url"
+            :action="
+                proxyRoutes.update({
+                    current_team: teamSlug,
+                    proxy: props.proxy.id,
+                }).url
+            "
             submit-label="Save changes"
-            :cancel-href="proxyRoutes.show({ current_team: teamSlug, proxy: props.proxy.id }).url"
+            :cancel-href="
+                proxyRoutes.show({
+                    current_team: teamSlug,
+                    proxy: props.proxy.id,
+                }).url
+            "
             :initial="{
                 name: props.proxy.name,
                 mode: props.proxy.mode,
