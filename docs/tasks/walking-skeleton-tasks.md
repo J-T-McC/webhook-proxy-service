@@ -601,7 +601,16 @@
   destinations rejected (AC2, via T19); the whole create is transactional.
 - **Testing:** feature tests — successful create → distinct ingest URL + destinations persisted +
   flash; two creates yield distinct hashes/URLs (AC12a); zero-destination rejected.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyController@store(StoreProxyRequest, IngestTokenService)`:
+  `DB::transaction` creates the `Proxy` (token minted via `IngestTokenService::assignTo`, `team_id`
+  auto-set by the current-team trait), creates each destination via `$proxy->destinations()->create`,
+  asserts ≥1 live destination before commit (throws `ValidationException` on `destinations` as a
+  belt-and-suspenders to the FormRequest min:1), flashes `toast` (`Inertia::flash`) and
+  `to_route('proxies.show')`. Test `ProxyStoreTest` (4 passed, 16 assertions): create persists proxy
+  + 2 destinations + team_id + minted hash, redirects to show with `assertInertiaFlash('toast', …)`;
+  per-destination POST/PUT persisted; two creates → distinct hashes + URLs (AC12a); zero destinations
+  → `assertInvalid(['destinations'])` with no proxy row. (Kit provides the `assertInertiaFlash` test
+  macro.) Pint green. PHPStan: only the T25 `DestinationController` forward-ref remains.
 
 ## T23 — `ProxyController@edit` + `@update` with destination reconciliation (AC16a/AC16b)
 - **Description:** Per plan §API and §Validation. `edit` returns `Proxies/Edit` pre-filled with
