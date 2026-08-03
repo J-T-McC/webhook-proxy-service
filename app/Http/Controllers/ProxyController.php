@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Data\ProxyPermissions;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
 use App\Http\Resources\ProxyResource;
@@ -32,8 +33,16 @@ class ProxyController extends Controller
             ->paginate(15)
             ->through(fn (Proxy $proxy) => new ProxyResource($proxy));
 
+        // Page-level create/view affordances for the acting user on the current team
+        // (ADR-009 §4 tier 1). Per-record edit/delete flags ride each ProxyResource.
+        $user = $request->user();
+        $team = $user?->currentTeam;
+
         return Inertia::render('proxies/Index', [
             'proxies' => $proxies,
+            'permissions' => $team !== null
+                ? $user->toProxyPermissions($team)
+                : new ProxyPermissions(canCreateProxy: false, canViewProxy: false),
         ]);
     }
 
@@ -52,6 +61,8 @@ class ProxyController extends Controller
      */
     public function store(StoreProxyRequest $request, IngestTokenService $tokens): RedirectResponse
     {
+        $this->authorize('create', Proxy::class);
+
         $data = $request->validated();
 
         $proxy = DB::transaction(function () use ($data, $tokens): Proxy {
@@ -123,6 +134,8 @@ class ProxyController extends Controller
      */
     public function update(UpdateProxyRequest $request, string $current_team, Proxy $proxy): RedirectResponse
     {
+        $this->authorize('update', $proxy);
+
         $data = $request->validated();
 
         DB::transaction(function () use ($data, $proxy): void {
