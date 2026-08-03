@@ -1,8 +1,8 @@
 # Webhook Proxy Service
 
-This is a SaaS solution that allows a team of users to create and manage a subset of incoming and outgoing webhooks.  
+This is a SaaS solution that allows a team of users to create and manage a subset of incoming and outgoing webhooks.
 We ingest, map and replay webhook events to one or more spoecified endpoints while providing failure re-try and related analytics.
-Example: stripe webhook recieved, mapping logic is defined to restructure the payload, webhook is replayed to 3 target webhook urls. 
+Example: stripe webhook recieved, mapping logic is defined to restructure the payload, webhook is replayed to 3 target webhook urls.
 
 ## Development Organization
 
@@ -14,12 +14,15 @@ source of truth; `docs/status.md` tracks all features — ask the orchestrator
 - Small work is flat, no gates: bugs/chores → senior-developer (fix + tests +
   record in `docs/fixes/`); doc corrections → the owning role updates the doc.
   Only decision-changing work goes through the pipeline.
-- No phase advances without explicit Project Owner approval.
+- Owner approval only for PRDs, releases, and major decisions (new deps,
+  stack/data-model changes, security, irreversible). Other gates are delegated:
+  design → product-manager, plan → principal-engineer self-certified, tasks →
+  none. The product-manager answers requirement questions as the Owner's proxy.
 - Missing info: search `docs/` → ADRs/answered questions → question doc to
   the upstream agent → Project Owner. Never invent requirements.
 - Stack: `docs/stack/stack.md` · Standards: `docs/standards/` — ask, don't
   guess, where placeholders remain.
-- Past-session context (prior work, discussions, rationale) not captured in 
+- Past-session context (prior work, discussions, rationale) not captured in
   `docs/` is searchable via the **mem-search** skill — consult it before
   asking an upstream agent. `docs/` remains authoritative where they conflict.
 
