@@ -28,7 +28,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 | # | Feature | Phase | Current Agent | Blockers | Approvals |
 |---|---|---|---|---|---|
 | 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | PRD/Design/Plan/Tasks Approved (2026-07-30); Review *Approve with follow-ups* (2026-07-31); PR #1 merged (`5aba84b`). Post-merge Index-delete bug **fixed** (`89cfd71`, merged `19e73c7`, 2026-07-31); Owner skipped re-review and merged. Frontend regression-test harness deferred to backlog (Option B) |
-| 2 | Role-based collaboration | Requirements | Product Manager | None; #1 Done, PRD ready to start | — (awaiting PRD from Product Manager) |
+| 2 | Role-based collaboration | Task Planning | Task Planner | None | PRD-02 Approved by Owner 2026-08-03; ADR-009 Accepted by Owner 2026-08-03 |
 | 3 | Decoupled upstream response | Backlog | — (Product Manager on start) | Not started; depends on #1 | — |
 | 4 | Queued processing (FIFO & Async) | Backlog | — (Product Manager on start) | Not started; depends on #1. Open: V3, V8 | — |
 | 5 | Payload storage & retention | Backlog | — (Product Manager on start) | Not started; depends on #1, benefits from #4. Open: V4, V5, V6 | — |

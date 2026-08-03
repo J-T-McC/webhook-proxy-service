@@ -2,7 +2,7 @@
 
 Status: Approved by Project Owner on 2026-07-30
 Owner-facing author: Product Manager
-Last updated: 2026-07-30
+Last updated: 2026-08-03
 Revised 2026-07-30: item #1 broadened to include fan-out per Project Owner
 decision — old item #2 (fan-out) merged into #1; backlog renumbered from 15 to
 14 items. Approval status retained; this is a post-approval scope change.
@@ -14,6 +14,22 @@ incoming event by a key/value condition, with a global/default map; the
 resulting structure is still applied uniformly to all destinations. This is
 conditional map SELECTION, not conditional destination routing (which remains
 out of scope). Approval status retained; design-ahead only, nothing built now.
+Revised 2026-08-03: **item #2 trimmed and reframed** per Project Owner
+direction. Team-membership mechanics (invite by email with a role,
+accept/decline, change a member's role, remove a member) are already delivered
+by the starter kit boilerplate (`TeamRole`, `TeamPolicy`, `TeamPermission`,
+`TeamMemberController`, `TeamInvitationController`, `InviteMemberModal.vue`,
+`teams/Edit.vue`) and are no longer #2's scope. The genuine gap #2 now targets:
+those roles only gate team-administration actions today — the product's actual
+resource, proxies, is authorized purely by team membership
+(`app/Policies/ProxyPolicy.php`), with no permission distinction between roles.
+#2 is now specifically a **permission-based** (not role-literal), **team-scoped**
+authorization model that governs proxy actions (view/create/update/delete),
+with the existing roles as permission bundles. See
+`docs/product/prd-02-role-based-collaboration.md`. Approval status of the
+roadmap as a whole is retained; this is a post-approval scope refinement of a
+single item, matching how #1's fan-out and #8's map-selection revisions were
+handled.
 
 > This is a **prioritized feature backlog**, not a set of PRDs. Each line names a
 > feature and states the single outcome a user or the system gains once it is
@@ -67,16 +83,25 @@ out of scope). Approval status retained; design-ahead only, nothing built now.
    success, so the decoupled response (#3) is later configuration, not a rewrite.
    Team-scoping (R1) already applies to every entity here.
 
-2. **Role-based collaboration** — A lead developer can invite users to a team,
-   assign view / add / modify roles, and remove their access. Team ownership of
-   data is already baked in at #1, so this item is specifically about role-based
-   collaboration, not introducing team ownership. *(Vision: Target Users; "Teams
-   are first-class from day 1". Depends on #1. Resolves R1.)*
-   **Build-ahead note:** The view/add/modify roles must be able to govern actions
+2. **Role-based collaboration (permission-gated proxy authorization)** — Team
+   ownership of data and team-membership mechanics (invite, accept/decline,
+   change a member's role, remove a member) are already baked in at #1 / the
+   starter kit boilerplate, so this item is **not** about introducing team
+   ownership or rebuilding membership mechanics. It is specifically about
+   closing the gap where those roles currently govern only team-administration
+   actions: a team-scoped **permission** model — never a direct role check —
+   that gates proxy actions (view / create / update / delete), with the
+   existing Owner/Admin/Member roles acting as bundles of permissions. *(Vision:
+   Target Users; "Teams are first-class from day 1". Depends on #1. Resolves R1.
+   Trimmed and reframed 2026-08-03 per Project Owner direction — see revision
+   note above and `docs/product/prd-02-role-based-collaboration.md`.)*
+   **Build-ahead note:** The permission model must be able to govern actions
    introduced by every later item — mapping edits (#8), replay (#6), storage and
-   mode configuration (#5, #7), notification opt-outs (#13) — so permission checks
-   are defined against proxy actions in general, not hard-wired to the #1 action
-   set (Principal Engineer to fix the approach).
+   mode configuration (#5, #7), notification opt-outs (#13) — so permissions are
+   defined against proxy actions in general, not hard-wired to today's four
+   (view/create/update/delete) (Principal Engineer to fix the approach, including
+   which mechanism — Laratrust, Spatie laravel-permission, or Jetstream-native
+   permissions — implements team-scoped permission storage/checks).
 
 3. **Decoupled upstream response** — A proxy returns a user-defined status code
    and response body to the upstream sender immediately, independent of whether
