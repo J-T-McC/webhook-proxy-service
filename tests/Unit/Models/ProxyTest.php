@@ -5,6 +5,7 @@ namespace Tests\Unit\Models;
 use App\Enums\ProxyMode;
 use App\Models\Proxy;
 use App\Models\Team;
+use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -79,6 +80,49 @@ class ProxyTest extends TestCase
 
         $this->expectException(QueryException::class);
         Proxy::factory()->createQuietly(['ingest_token_hash' => $hash]);
+    }
+
+    public function test_created_by_is_nullable_and_fk_to_users_with_set_null_on_delete(): void
+    {
+        $column = DB::selectOne(
+            'SELECT IS_NULLABLE, DATA_TYPE
+             FROM information_schema.COLUMNS
+             WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+            ['proxies', 'created_by'],
+        );
+
+        $this->assertNotNull($column, 'Expected a created_by column on proxies.');
+        $this->assertSame('YES', strtoupper((string) $column->IS_NULLABLE), 'created_by must be nullable.');
+
+        $fk = DB::selectOne(
+            'SELECT k.REFERENCED_TABLE_NAME AS ref_table, r.DELETE_RULE AS delete_rule
+             FROM information_schema.KEY_COLUMN_USAGE k
+             JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+               ON r.CONSTRAINT_NAME = k.CONSTRAINT_NAME AND r.CONSTRAINT_SCHEMA = k.TABLE_SCHEMA
+             WHERE k.TABLE_NAME = ? AND k.COLUMN_NAME = ? AND k.TABLE_SCHEMA = DATABASE()
+               AND k.REFERENCED_TABLE_NAME IS NOT NULL',
+            ['proxies', 'created_by'],
+        );
+
+        $this->assertNotNull($fk, 'Expected a foreign key on proxies.created_by.');
+        $this->assertSame('users', strtolower((string) $fk->ref_table), 'created_by must reference users.');
+        $this->assertSame('SET NULL', strtoupper((string) $fk->delete_rule), 'created_by FK must be ON DELETE SET NULL, not cascade.');
+    }
+
+    public function test_creator_is_nulled_when_the_creating_user_is_deleted(): void
+    {
+        $user = User::factory()->createQuietly();
+        $this->actingAs($user);
+
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'created_by' => $user->id,
+        ]);
+
+        $user->delete();
+
+        // nullOnDelete: the proxy survives, its creator falls back to null.
+        $this->assertNull($proxy->fresh()->created_by);
     }
 
     public function test_delete_soft_deletes_and_hides_from_default_queries(): void

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\BelongsToCurrentTeam;
+use App\Concerns\HasCreator;
 use App\Enums\ProxyMode;
 use App\Services\IngestTokenService;
 use Database\Factories\ProxyFactory;
@@ -18,6 +19,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $team_id
+ * @property int|null $created_by
  * @property string $name
  * @property ProxyMode $mode
  * @property string $ingest_token_hash
@@ -26,6 +28,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read Team $team
+ * @property-read User|null $creator
  * @property-read Collection<int, Destination> $destinations
  * @property-read Collection<int, DeliveryAttempt> $deliveryAttempts
  */
@@ -33,7 +36,7 @@ use Illuminate\Support\Carbon;
 class Proxy extends Model
 {
     /** @use HasFactory<ProxyFactory> */
-    use BelongsToCurrentTeam, HasFactory, SoftDeletes;
+    use BelongsToCurrentTeam, HasCreator, HasFactory, SoftDeletes;
 
     /**
      * The team that owns the proxy.
