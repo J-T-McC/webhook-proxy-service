@@ -25,10 +25,15 @@ import {
 } from '@/components/ui/table';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
-import type { Paginated, ProxyListItem } from '@/types/proxies';
+import type {
+    Paginated,
+    ProxyListItem,
+    ProxyPermissions,
+} from '@/types/proxies';
 
 defineProps<{
     proxies: Paginated<ProxyListItem>;
+    permissions: ProxyPermissions;
 }>();
 
 defineOptions({
@@ -86,7 +91,7 @@ function confirmDelete(): void {
     <div class="flex h-full flex-1 flex-col gap-6 p-4">
         <div class="flex items-center justify-between">
             <h1 class="text-xl font-semibold">Proxies</h1>
-            <Button as-child>
+            <Button v-if="permissions.canCreateProxy" as-child>
                 <Link :href="proxyRoutes.create(teamSlug)">New proxy</Link>
             </Button>
         </div>
@@ -101,7 +106,7 @@ function confirmDelete(): void {
                 Create a proxy to get an ingest URL and start fanning out
                 webhooks.
             </p>
-            <Button as-child class="mt-2">
+            <Button v-if="permissions.canCreateProxy" as-child class="mt-2">
                 <Link :href="proxyRoutes.create(teamSlug)"
                     >Create your first proxy</Link
                 >
@@ -167,7 +172,12 @@ function confirmDelete(): void {
                                         View
                                     </Link>
                                 </Button>
-                                <Button variant="ghost" size="sm" as-child>
+                                <Button
+                                    v-if="proxy.can.update"
+                                    variant="ghost"
+                                    size="sm"
+                                    as-child
+                                >
                                     <Link
                                         :href="
                                             proxyRoutes.edit({
@@ -180,6 +190,7 @@ function confirmDelete(): void {
                                     </Link>
                                 </Button>
                                 <Button
+                                    v-if="proxy.can.delete"
                                     variant="ghost"
                                     size="sm"
                                     :aria-label="`Delete proxy ${proxy.name}`"
