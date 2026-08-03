@@ -29,8 +29,23 @@ enum TeamRole: string
                 TeamPermission::UpdateTeam,
                 TeamPermission::CreateInvitation,
                 TeamPermission::CancelInvitation,
+                // Full proxy CRUD plus both ownership-bypass cases: Admin manages
+                // any team proxy regardless of creator (ADR-009 Amendment A2.2).
+                TeamPermission::ViewProxy,
+                TeamPermission::CreateProxy,
+                TeamPermission::UpdateProxy,
+                TeamPermission::DeleteProxy,
+                TeamPermission::UpdateAnyProxy,
+                TeamPermission::DeleteAnyProxy,
             ],
-            self::Member => [],
+            // Full proxy CRUD but NO -any bypass: Member acts only on proxies they
+            // created (ADR-009 Amendment A2.2). Team-admin permissions unchanged.
+            self::Member => [
+                TeamPermission::ViewProxy,
+                TeamPermission::CreateProxy,
+                TeamPermission::UpdateProxy,
+                TeamPermission::DeleteProxy,
+            ],
         };
     }
 
