@@ -2,21 +2,29 @@
 
 namespace App\Policies;
 
+use App\Enums\TeamPermission;
 use App\Models\Proxy;
 use App\Models\User;
 
 /**
- * Authorization for proxy management actions (AC5/AC6/AC15/AC16e).
+ * Authorization for proxy management actions (PRD-02 AC1/AC4/AC5/AC6; ADR-009 §3,
+ * Amendment A2.3).
  *
- * Expressed against proxy *actions* (view/update/delete) and team ownership so the
- * roles seam (#2) can layer richer permission checks later without reshaping the
- * controller/authorization surface. At item #1 any member of the owning team may
- * perform every action.
+ * Permission-based, never a role check: every decision resolves the proxy's owning
+ * team and gates on a `TeamPermission` via `$user->hasTeamPermission($team, ...)`,
+ * so a role held on a different team confers nothing (AC4). Update/delete compose
+ * the base CRUD permission with an ownership axis — the actor must either have
+ * created the record or hold the matching `-any` bypass permission (Admin/Owner).
+ * "Ownership-limited" means the role's bundle lacks the bypass; the policy never
+ * names a role.
  */
 class ProxyPolicy
 {
     /**
      * Determine whether the user can view any proxies.
+     *
+     * Team-membership presence, not a permission — the list route is guarded by the
+     * team scope/membership middleware and renders only the current team's proxies.
      */
     public function viewAny(User $user): bool
     {
@@ -28,15 +36,17 @@ class ProxyPolicy
      */
     public function view(User $user, Proxy $proxy): bool
     {
-        return $this->ownsThroughTeam($user, $proxy);
+        return $user->hasTeamPermission($proxy->team, TeamPermission::ViewProxy);
     }
 
     /**
-     * Determine whether the user can create proxies.
+     * Determine whether the user can create proxies on their acting team.
      */
     public function create(User $user): bool
     {
-        return $user->current_team_id !== null;
+        $team = $user->currentTeam;
+
+        return $team !== null && $user->hasTeamPermission($team, TeamPermission::CreateProxy);
     }
 
     /**
@@ -44,7 +54,8 @@ class ProxyPolicy
      */
     public function update(User $user, Proxy $proxy): bool
     {
-        return $this->ownsThroughTeam($user, $proxy);
+        return $user->hasTeamPermission($proxy->team, TeamPermission::UpdateProxy)
+            && $this->ownsOrCanManageAny($user, $proxy, TeamPermission::UpdateAnyProxy);
     }
 
     /**
@@ -52,14 +63,18 @@ class ProxyPolicy
      */
     public function delete(User $user, Proxy $proxy): bool
     {
-        return $this->ownsThroughTeam($user, $proxy);
+        return $user->hasTeamPermission($proxy->team, TeamPermission::DeleteProxy)
+            && $this->ownsOrCanManageAny($user, $proxy, TeamPermission::DeleteAnyProxy);
     }
 
     /**
-     * The proxy belongs to a team the user is a member of.
+     * The ownership axis: the actor created the proxy, or holds the given `-any`
+     * bypass permission on the proxy's owning team. A null `created_by` matches no
+     * user, so it is a safe deny for ownership-limited roles (ADR-009 Amendment A3).
      */
-    protected function ownsThroughTeam(User $user, Proxy $proxy): bool
+    protected function ownsOrCanManageAny(User $user, Proxy $proxy, TeamPermission $bypass): bool
     {
-        return $user->teams()->whereKey($proxy->team_id)->exists();
+        return (int) $proxy->created_by === (int) $user->id
+            || $user->hasTeamPermission($proxy->team, $bypass);
     }
 }
