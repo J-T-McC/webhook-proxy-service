@@ -111,7 +111,11 @@ function confirmDeleteProxy(): void {
                 </Badge>
             </div>
             <div class="flex items-center gap-2">
-                <Button variant="outline" as-child>
+                <Button
+                    v-if="props.proxy.can.update"
+                    variant="outline"
+                    as-child
+                >
                     <Link
                         :href="
                             proxyRoutes.edit({
@@ -124,6 +128,7 @@ function confirmDeleteProxy(): void {
                     </Link>
                 </Button>
                 <Button
+                    v-if="props.proxy.can.delete"
                     variant="destructive"
                     :aria-label="`Delete proxy ${props.proxy.name}`"
                     @click="proxyDeleteOpen = true"
