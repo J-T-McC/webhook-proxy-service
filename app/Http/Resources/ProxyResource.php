@@ -28,6 +28,8 @@ class ProxyResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $user = $request->user();
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -35,6 +37,13 @@ class ProxyResource extends JsonResource
             // Built server-side from config, never the request Host header (ADR-006).
             'ingest_url' => $this->ingestUrl(),
             'destinations' => DestinationResource::collection($this->whenLoaded('destinations')),
+            // Per-record edit/delete affordances computed from the policy itself, so
+            // the UI can never drift from the server gate (ADR-009 Amendment A5).
+            // view/create stay page-level (ProxyPermissions DTO), not per-record.
+            'can' => [
+                'update' => $user?->can('update', $this->resource) ?? false,
+                'delete' => $user?->can('delete', $this->resource) ?? false,
+            ],
         ];
     }
 }
