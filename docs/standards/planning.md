@@ -1,10 +1,11 @@
 # Planning Standards
 
-> **PLACEHOLDER — not yet ratified.** Scaffolded by the Orchestrator from the
-> dev-team plugin seed and reconciled with the conventions already in use in
-> `docs/tasks/walking-skeleton-tasks.md`. Owned by the Task Planner's process.
-> The Project Owner (or Task Planner, with Owner approval) should ratify or amend
-> this before it is treated as binding. Customize thresholds per project.
+> **Status: Proposed — pending Project Owner approval.** Owned by the Task
+> Planner (proposes) and Project Owner (approves/ratifies). Sections below
+> codify patterns already in use in `docs/tasks/walking-skeleton-tasks.md`;
+> rules with no existing precedent are tagged **Proposed default (no prior
+> precedent)** so the Owner ratifies the observed patterns and decides the
+> genuinely new ones.
 
 ## Task sizing (active)
 - One sitting, one concern, independently verifiable — small and ordered.
@@ -24,12 +25,30 @@
 ## Definition of done (this project)
 Per `CLAUDE.md`, a task is done only when it leaves the tree green:
 - `composer lint` (Laravel Pint) passes.
-- `composer types:check` (PHPStan level 1) passes.
+- `composer types:check` (PHPStan level 7) passes.
 - `./vendor/bin/sail test` passes (accompanying tests included).
 - Completion notes are recorded on the task before handoff to the Reviewer.
 
 ## Estimation
-_TBD — whether estimates are used at all. Placeholder; ratify with Task Planner._
+
+**No numeric time or point estimates (codifies observed).** `docs/tasks/walking-skeleton-tasks.md`
+(T1–T30) carries no time/point/t-shirt field on any task — only Description,
+Dependencies, Files, Acceptance Criteria, Testing, and Completion notes. This
+project does not track velocity or burn-down; ordering and dependency chains
+(see Task sizing) are what drive sequencing, not size estimates.
+
+The only "size" signal is the Task sizing rule itself: a task that cannot fit
+one sitting / one concern is too big and must be split, not estimated. That
+constraint is the sizing control — a separate estimate would duplicate it
+without adding information the Task Planner or Reviewer acts on.
+
+**Proposed default (no prior precedent):** if the Task Planner or Reviewer
+finds a task plan drifting past one-sitting scope in practice, an optional
+S/M/L flag *may* be added per task purely as a can't-fit-in-one-sitting
+tripwire (prompting a split), never as a velocity/estimation input and never
+tracked in aggregate. This has no precedent in `docs/tasks/` today and is not
+adopted unless the Owner ratifies it; until then, do not add size flags to
+task plans.
 
 ## Scope discipline
 Do not build forward-looking (`LATER`) scaffolding beyond what the approved plan
