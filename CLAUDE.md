@@ -38,3 +38,4 @@ source of truth; `docs/status.md` tracks all features — ask the orchestrator
 
 - Never automatically commit or push unless asked.
 - Commit messages should be short with additional context added via list items below the header message
+- Commits follow Conventional Commits: `type(scope): summary` where type ∈ feat, fix, docs, refactor, chore, test, build, ci. Header short and imperative; context as list items below.
