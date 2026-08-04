@@ -415,7 +415,26 @@
   file) — success path asserts the `webhook_events` row exists with the request's `ingest_id`
   before/alongside the 2xx response, in both modes; failure path mocks `WebhookEventCapture::capture`
   to throw and asserts `500`, no `webhook_events` row, no delivery attempted.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). Reordered `IngestController::__invoke()` per ADR-010:
+  after the 404 token-hash lookup (unchanged), it mints the single `ingestId` and reads
+  `method`/`headers`/`rawBody` first, then calls `WebhookEventCapture::capture()` inside a
+  `try/catch (Throwable)` — on failure `report($e)` + `abort(500)` (dispatching nothing); only on
+  success does it build the `PipelineContext` (same `ingestId`), resolve the response, dispatch
+  `ProcessIngestedWebhook::run($ctx)`, and return. Capture is unconditional on `$proxy->mode` (no
+  mode branch, AC7/R2). Injected `WebhookEventCapture` via the constructor alongside the existing
+  `ResponseResolver`. **Load-bearing ordering preserved (per intro invariant):** capture commits
+  before the response is resolved and before dispatch; nothing else reordered — the
+  `ResponseResolver`/`ProcessIngestedWebhook::run` calls keep their relative order after capture.
+  Failure path never logs the raw body or token (`report()` only). `PipelineFactory`: replaced the
+  `CaptureRawStep // #5` placeholder comment with a note that raw capture is superseded by
+  IngestController + WebhookEventCapture (ADR-010); left `CaptureDispatchedStep // #5` as-is
+  (comment-only change; no behavior). Tests in `IngestControllerTest`: successful ingest commits
+  exactly one `webhook_events` row whose `ingest_id` matches the fan-out `delivery_attempts` (AC9),
+  simple mode; capture also happens in enhanced mode (AC7); capture failure (mocked
+  `WebhookEventCapture::capture` throws) returns 500, commits zero `webhook_events`, zero
+  `delivery_attempts`, and `Http::assertNothingSent()` (AC6, fail-closed). Gates: `composer lint`
+  passed, `composer types:check` 0 errors, `--filter IngestControllerTest` 10/10, full
+  `--parallel` 264/264.
 
 ## T12 — Capture acceptance tests (AC5–AC9, ADR-003/ADR-010)
 
