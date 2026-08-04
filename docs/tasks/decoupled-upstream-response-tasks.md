@@ -126,7 +126,18 @@
 - **Testing:** `tests/Unit/Services/ResponseResolverTest.php` (extend or new) — the four
   status/body combinations above, asserting exact status, body, and `Content-Type` header presence/
   absence.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). `ResponseResolver::resolve()` now returns
+  `new Response($body, $status, $headers)` where `$status = $proxy->response_status ?? 202`
+  (HTTP_ACCEPTED) and `$body = $proxy->response_body ?? ''`; `Content-Type: text/plain;
+  charset=utf-8` is set **only** when the body is non-empty (`$body === '' ? [] : [...]`).
+  Reads only `$proxy` columns — no `DeliveryAttempt`/delivery-outcome read (ADR-004, AC2);
+  removed the `// LATER (#3)` placeholder and updated the class docblock. Rewrote
+  `tests/Unit/Services/ResponseResolverTest.php` (the prior single 202 case is subsumed) to
+  cover all four combinations: both set → exact 201 + body + content-type; neither → 202,
+  empty, no forced content-type; only status (204) → that status, empty body, no content-type;
+  only body → 202 + body + content-type. Gates: `composer lint` passed, `composer types:check`
+  0 errors, `--filter ResponseResolverTest` 4/4, full `--parallel` 231/231 (existing ingest
+  tests unaffected — factory proxies are unconfigured, so still 202 empty).
 
 ## T4 — `StoreProxyRequest`/`UpdateProxyRequest`: response validation rules (AC4)
 
