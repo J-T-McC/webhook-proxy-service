@@ -133,4 +133,46 @@ class ProxyTest extends TestCase
         $this->assertSoftDeleted($proxy);
         $this->assertNull(Proxy::find($proxy->id));
     }
+
+    public function test_response_config_columns_are_nullable_with_no_schema_default(): void
+    {
+        foreach (['response_status', 'response_body'] as $name) {
+            $column = DB::selectOne(
+                'SELECT IS_NULLABLE, COLUMN_DEFAULT
+                 FROM information_schema.COLUMNS
+                 WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+                ['proxies', $name],
+            );
+
+            $this->assertNotNull($column, "Expected a {$name} column on proxies.");
+            $this->assertSame('YES', strtoupper((string) $column->IS_NULLABLE), "{$name} must be nullable.");
+            $this->assertNull($column->COLUMN_DEFAULT, "{$name} must have no schema default (202 is owned by ResponseResolver).");
+        }
+    }
+
+    public function test_existing_proxy_row_has_null_response_config(): void
+    {
+        // A factory-made proxy (no response config supplied) simulates a pre-#3 row:
+        // the migration writes no value, so both columns stay NULL (AC3, no backfill).
+        $proxy = Proxy::factory()->createQuietly();
+
+        $this->assertNull($proxy->response_status);
+        $this->assertNull($proxy->response_body);
+    }
+
+    public function test_response_status_round_trips_through_the_integer_cast(): void
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'response_status' => 201,
+            'response_body' => 'ok',
+        ]);
+
+        $fresh = $proxy->fresh();
+        $this->assertSame(201, $fresh->response_status);
+        $this->assertSame('ok', $fresh->response_body);
+
+        // Unset stays null through the cast.
+        $unset = Proxy::factory()->createQuietly();
+        $this->assertNull($unset->fresh()->response_status);
+    }
 }

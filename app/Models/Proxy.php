@@ -22,6 +22,8 @@ use Illuminate\Support\Carbon;
  * @property int|null $created_by
  * @property string $name
  * @property ProxyMode $mode
+ * @property int|null $response_status
+ * @property string|null $response_body
  * @property string $ingest_token_hash
  * @property string $ingest_token
  * @property Carbon|null $created_at
@@ -32,7 +34,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Destination> $destinations
  * @property-read Collection<int, DeliveryAttempt> $deliveryAttempts
  */
-#[Fillable(['team_id', 'name', 'mode'])]
+#[Fillable(['team_id', 'name', 'mode', 'response_status', 'response_body'])]
 class Proxy extends Model
 {
     /** @use HasFactory<ProxyFactory> */
@@ -96,6 +98,7 @@ class Proxy extends Model
     {
         return [
             'mode' => ProxyMode::class,
+            'response_status' => 'integer',
             'ingest_token' => 'encrypted',
         ];
     }

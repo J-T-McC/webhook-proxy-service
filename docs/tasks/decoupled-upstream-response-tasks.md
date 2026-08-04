@@ -92,7 +92,23 @@
 - **Testing:** extend `tests/Unit/Models/ProxyTest.php` (or a schema test alongside it) — schema
   assertions for both columns' nullability/no-default, and a model-level cast/round-trip test for
   `response_status`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). New migration
+  `2026_08_04_000001_add_response_config_to_proxies_table.php` adds
+  `response_status` (`unsignedSmallInteger`, nullable, no default, `after('mode')`) and
+  `response_body` (`text`, nullable, no default) — NULL = unconfigured; the `202` default
+  stays owned by `ResponseResolver` (T3), never the schema. `down()` drops both columns.
+  Verified up/down both apply cleanly on the testing DB (`migrate:rollback --step=1` then
+  `migrate`). `Proxy` model: extended `#[Fillable]` to add `response_status`/`response_body`,
+  added cast `'response_status' => 'integer'` (nullable; no cast on `response_body`), and
+  added `@property int|null $response_status` / `@property string|null $response_body`
+  docblock lines. Tests in `tests/Unit/Models/ProxyTest.php`: (1) schema assertion that both
+  columns are `IS_NULLABLE = 'YES'` with `COLUMN_DEFAULT IS NULL` via `information_schema`;
+  (2) a factory-made (pre-#3-simulating) proxy has both columns NULL with no backfill;
+  (3) `response_status` round-trips `201` through the integer cast and stays `null` when unset.
+  **Verified information_schema facts (per intro note):** both columns report
+  `IS_NULLABLE=YES`, `COLUMN_DEFAULT=NULL`. Gates: `composer lint` passed,
+  `composer types:check` 0 errors, `./vendor/bin/sail test --filter ProxyTest` 10/10, full
+  `--parallel` 228/228.
 
 ## T3 — `ResponseResolver`: config-driven resolution (AC1–AC4, ADR-004)
 
