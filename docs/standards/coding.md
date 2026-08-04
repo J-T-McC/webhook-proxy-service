@@ -208,6 +208,11 @@ never-log list, which is a **codification of the security baseline** (ADR-006,
 **pnpm** (`pnpm-lock.yaml`, pinned via `packageManager`) for JS/TS — **not npm**.
 Both lockfiles are committed and CI installs from them.
 
+- **Prefer a well-maintained existing library over reinventing the wheel — and
+  say so.** The team is encouraged to *suggest* established packages rather than
+  hand-roll equivalent functionality; surfacing a candidate is free and welcome.
+  This does **not** bypass the gate below: **suggesting is encouraged; adopting
+  still needs Owner sign-off** via an ADR. Raise the suggestion, then escalate.
 - **Adding any new runtime dependency (Composer or pnpm) requires an
   Owner-approved ADR** and must stay within `docs/stack/stack.md`; a stack change
   is itself an ADR. This is the project default and is binding — do not add a
