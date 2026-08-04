@@ -21,6 +21,9 @@ export interface ProxyListItem {
     name: string;
     mode: ProxyMode;
     ingest_url: string;
+    /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
+    response_status: number | null;
+    response_body: string | null;
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
 }
@@ -43,6 +46,9 @@ export interface ProxyDetail {
     name: string;
     mode: ProxyMode;
     ingest_url: string;
+    /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
+    response_status: number | null;
+    response_body: string | null;
     destinations: ProxyDestination[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;

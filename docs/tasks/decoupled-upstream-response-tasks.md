@@ -212,7 +212,15 @@
 - **Testing:** extend `tests/Feature/Proxies/ProxyIndexShowTest.php` (or a resource-focused test)
   asserting the two new keys appear with the correct values for a configured and an unconfigured
   proxy.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). `ProxyResource::toArray()` now exposes
+  `response_status` and `response_body` (raw model values, nullable) on every proxy payload
+  (index/show/edit). Added `response_status: number | null` / `response_body: string | null`
+  to both `ProxyListItem` and `ProxyDetail` in `resources/js/types/proxies.ts` (index doesn't
+  render them but the shape stays consistent with the resource; `ProxyDetail` is what
+  `Edit.vue` consumes). Tests in `ProxyIndexShowTest`: show payload exposes `201` /
+  `{"ok":true}` for a configured proxy and `null` / `null` for an unconfigured one. Gates:
+  `composer lint` passed, `composer types:check` 0 errors, `--filter ProxyIndexShowTest` 7/7,
+  full `--parallel` 245/245; `pnpm types:check` / `lint:check` / `format:check` all green.
 
 ## T7 — `ProxyForm.vue`: response status/body inputs (PRD UX Direction)
 
