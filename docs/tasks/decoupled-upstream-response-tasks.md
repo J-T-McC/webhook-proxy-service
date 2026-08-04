@@ -186,7 +186,17 @@
 - **Testing:** extend `tests/Feature/Proxies/ProxyStoreTest.php` and
   `tests/Feature/Proxies/ProxyUpdateTest.php` with cases for configured, unconfigured, and
   clear-to-null.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). `store()` needed no change — `Proxy::make($data)`
+  mass-assigns `response_status`/`response_body` now that they are `#[Fillable]` (T2) and
+  validated (T4); verified explicitly by test. `update()` extended to pass
+  `'response_status' => $data['response_status'] ?? null` and
+  `'response_body' => $data['response_body'] ?? null` alongside name/mode — the `?? null`
+  lets an omitted/explicit-null field clear a previously configured value (AC3). Tests:
+  `ProxyStoreTest` — create-with-config persists both (201 / `{"ok":true}`), create-without
+  leaves both NULL; `ProxyUpdateTest` — update sets both (200 / `thanks`), and update with
+  explicit `null` clears a proxy previously configured (201 / `previously set`) back to NULL.
+  Gates: `composer lint` passed, `composer types:check` 0 errors,
+  `--filter "ProxyStoreTest|ProxyUpdateTest"` 11/11, full `--parallel` 243/243.
 
 ## T6 — `ProxyResource` + frontend types: expose response config
 
