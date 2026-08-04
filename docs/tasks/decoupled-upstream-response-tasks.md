@@ -288,7 +288,20 @@
   - `ResponseResolver` is not passed and does not read any `DeliveryAttempt` (inspection note in the
     test referencing T3's code-level guarantee, plus the behavioral proof above).
 - **Testing:** the cases above using `Http::fake()` for the destination outcomes.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). New `tests/Feature/Ingest/ResponseResolutionTest.php`
+  (4 tests) over the real `POST/PUT /ingest/{token}` route, no new production code (all wiring
+  was already correct from T2/T3): (1) configured proxy (201 / `{"ok":true}`) → exactly that
+  status + body + `Content-Type: text/plain; charset=utf-8` (asserted at the HTTP layer, AC1);
+  (2) factory (unconfigured, pre-#3-simulating) proxy → 202 empty body, no forced text/plain
+  content-type (AC3); (3) the same configured 200/`ACK` response is returned identically across
+  three faked delivery outcomes — success, upstream 500, and a thrown transport exception (AC2,
+  ADR-004); (4) a failing destination (503) does not alter the configured 299/`received`
+  response. `Event::fake()` suppresses only delivery *listeners* — the pipeline still runs
+  `DeliverToDestination` (an action call), which catches `Throwable` internally, so the thrown-
+  transport case exercises real delivery without propagating. Inline comments reference T3's
+  code-level guarantee that `ResponseResolver` reads only `$proxy` columns (never
+  `DeliveryAttempt`). Gates: `composer lint` passed, `composer types:check` 0 errors,
+  `--filter ResponseResolutionTest` 4/4, full `--parallel` 249/249.
 
 ## T9 — `webhook_events` table + `WebhookEvent` model (AC5, AC7–AC9, ADR-010)
 
