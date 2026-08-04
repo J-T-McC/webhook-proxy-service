@@ -330,7 +330,30 @@
 - **Testing:** `tests/Unit/Models/WebhookEventTest.php` (new) — schema assertions above, plus the
   encrypted-body round-trip and `headers`/`byte_size` cast tests (mirrors `ProxyTest`'s encrypted
   round-trip and `DeliveryAttemptTest`'s payload-free schema pattern).
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). New migration
+  `2026_08_04_000002_create_webhook_events_table.php`. All columns per plan via `Schema::create`
+  (`id`; `team_id`/`proxy_id` `foreignId()->constrained()` = restrict, no cascade; `ingest_id`
+  `uuid()->unique()`; `method` string(7); `headers` json; `content_type` nullable string;
+  `byte_size` unsignedInteger; `received_at` timestamp; `timestamps()`; composite indexes
+  `(team_id, created_at)` and `(proxy_id, created_at)`), **except** `body`. **LONGBLOB gap
+  handled (per intro note):** Laravel 13's Blueprint `binary()` maps to MySQL `BLOB` (64 KiB) —
+  verified in `MySqlGrammar::typeBinary` (`return 'blob'`), no `longBlob` helper exists — so
+  `body` is added via a raw `DB::statement('ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER
+  content_type')`. **Verified information_schema fact:** `webhook_events.body`
+  `DATA_TYPE = longblob` (asserted in the test and confirmed directly on the dev DB). up/down
+  both exercised (`migrate:rollback --step=2` then `migrate` — clean both ways). `WebhookEvent`
+  model: `BelongsToCurrentTeam` + `belongsTo(Proxy)`, `#[Fillable]` per plan, casts
+  `body => encrypted`, `headers => array`, `received_at => datetime`, `byte_size => integer`; no
+  `SoftDeletes`, no dispatched-output column; `@property` docblock. New `WebhookEventFactory`
+  (team_id derived from the proxy via `withoutGlobalScope(TeamScope::class)`, mirroring
+  `DeliveryAttemptFactory`; `byte_size = strlen($body)`). Tests
+  `tests/Unit/Models/WebhookEventTest.php` (7): `body` DATA_TYPE longblob; `ingest_id`
+  single-column UNIQUE; the two composite indexes present; raw-only schema (no `deleted_at`, no
+  dispatched-output/response columns); encrypted-body round-trip on **binary** bytes (ciphertext
+  ≠ plaintext at rest, decrypts back exactly); `headers` array round-trip (`assertEquals` — MySQL
+  JSON does not preserve object key order); `byte_size` integer cast. Gates: `composer lint`
+  passed, `composer types:check` 0 errors, `--filter WebhookEventTest` 7/7, full `--parallel`
+  256/256.
 
 ## T10 — `WebhookEventCapture` service (AC5, AC7–AC9)
 
