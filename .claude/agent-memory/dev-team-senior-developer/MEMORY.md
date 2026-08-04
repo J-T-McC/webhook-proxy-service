@@ -1,0 +1,2 @@
+- [Testing patterns](testing_patterns.md) — role-attach, actingUser personal-team-Owner helper, createQuietly, no RefreshDatabase
+- [Frontend checks](frontend_checks.md) — pnpm types:check/lint:check/format:check triad + Prettier-on-Vue gotcha
