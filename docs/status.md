@@ -22,6 +22,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 | ADR-006 ingest-URL generation & security (resolves R5) | Accepted | 2026-07-30 |
 | ADR-007 Laravel Actions adoption | Accepted | 2026-07-30 |
 | ADR-008 inbound header-forwarding policy | Accepted | 2026-07-30 |
+| ADR-010 raw-payload capture (durable pre-dispatch) | Accepted | 2026-08-04 |
 
 ## Feature status
 
@@ -29,7 +30,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 |---|---|---|---|---|---|
 | 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | PRD/Design/Plan/Tasks Approved (2026-07-30); Review *Approve with follow-ups* (2026-07-31); PR #1 merged (`5aba84b`). Post-merge Index-delete bug **fixed** (`89cfd71`, merged `19e73c7`, 2026-07-31); Owner skipped re-review and merged. Frontend regression-test harness deferred to backlog (Option B) |
 | 2 | Role-based collaboration | Done | — | None | PRD-02 Approved by Owner 2026-08-03; ADR-009 Accepted by Owner 2026-08-03 (incl. Amendments A and B); Task Plan `docs/tasks/role-based-collaboration-tasks.md` Task-Planner-certified; Reviewer review-02 Approve-with-follow-ups (2026-08-03); Merged to main PR #3 2026-08-03; M1 fixed, M2 fixed via ADR-009 Amendment B (client-side affordance derivation); Owner-accepted |
-| 3 | Decoupled upstream response | Backlog | — (Product Manager on start) | None | — |
+| 3 | Decoupled upstream response | Implementation | Senior Developer | None | PRD-03 Approved (Owner 2026-08-03); Task plan `docs/tasks/decoupled-upstream-response-tasks.md` Task-Planner-certified (T1–T12), ready for implementation; R2 override—capture mode-independent (Owner 2026-08-04); ADR-010 Accepted (Owner 2026-08-04); proxies columns `response_status`/`response_body` approved (Owner 2026-08-04); security acknowledgements—headers plaintext until #10 + APP_PREVIOUS_KEYS guard binding (Owner 2026-08-04) |
 | 4 | Queued processing (FIFO & Async) | Backlog | — (Product Manager on start) | Not started; depends on #1. Open: V3, V8 | — |
 | 5 | Payload storage & retention | Backlog | — (Product Manager on start) | Not started; depends on #1, benefits from #4. Open: V4, V5, V6 | — |
 | 6 | Retry & replay | Backlog | — (Product Manager on start) | Not started; depends on #4, #5 | — |
