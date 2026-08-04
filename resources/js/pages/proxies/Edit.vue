@@ -10,6 +10,8 @@ interface EditProxy {
     id: number;
     name: string;
     mode: ProxyMode;
+    response_status: number | null;
+    response_body: string | null;
     destinations: DestinationRow[];
 }
 
@@ -74,6 +76,8 @@ defineOptions({
             :initial="{
                 name: props.proxy.name,
                 mode: props.proxy.mode,
+                responseStatus: props.proxy.response_status,
+                responseBody: props.proxy.response_body,
                 destinations: props.proxy.destinations,
             }"
         />

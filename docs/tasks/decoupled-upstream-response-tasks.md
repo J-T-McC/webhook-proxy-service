@@ -244,7 +244,32 @@
 - **Testing:** none automated (no JS test framework exists); the manual walkthrough above is the
   acceptance gate, recorded in Completion notes. `pnpm types:check` / `lint:check` / `format:check`
   green.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). Added two optional fields to the shared
+  `ProxyForm.vue` after the mode block: "Response status code" (`Input type="number"`,
+  `inputmode="numeric"`, placeholder `202`) and "Response body" (`Input type="text"`,
+  placeholder `(empty)`), each with `Label`/help `<p>`/`InputError`, `aria-describedby`, and
+  `aria-invalid` bound to the matching `form.errors.*` — mirroring the existing `name`/`mode`
+  patterns exactly. Used the existing `Input` component for both (no new Textarea UI component
+  introduced — stays within the two-field scope). The `initial` prop gained
+  `responseStatus: number | null` / `responseBody: string | null`; the form holds them as
+  strings (`responseStatus?.toString() ?? ''`, `responseBody ?? ''`) for the text inputs and a
+  `form.transform()` normalises blank → `null` and a set status to a `Number` on submit, so
+  leaving both blank persists NULL (resolver returns 202) and clearing a configured field
+  clears it to NULL (AC3 / T5 semantics). `Create.vue` `initial` defaults both to `null`;
+  `Edit.vue` extends its `EditProxy` interface with `response_status`/`response_body` and passes
+  them through to `initial` (pre-fill on edit). Copy conveys the acknowledgement-vs-delivery
+  contract in both help texts ("returned the moment the webhook is received ... independently of
+  whether delivery ... succeeds", "a static reply, not a delivery report, and never reflects
+  your destinations' responses"). **Verification (inspection-based, no JS test framework):**
+  vue-tsc type-checks the templates and the `initial`/`EditProxy` prop shapes end-to-end (green);
+  the field/error wiring, `aria-invalid`, `aria-describedby`, and focus-on-error reuse the exact
+  proven `name`-field structure so keyboard reachability and error focus match; server validation
+  (T4) already covers non-2xx status and oversized body under the correct keys, surfaced via
+  `InputError` under each field. Palette/interaction inherit from the shared `Input`/`Label`/
+  `Card` components (unchanged), so light/dark rendering matches existing fields. No production
+  behavior beyond the two form fields. Gates: `pnpm types:check` green, `pnpm lint:check` green,
+  `pnpm format:check` green (ran `prettier --write` on the three Vue files first per the known
+  Vue-reformat gotcha); backend unchanged (no PHP re-run needed; last full suite 245/245 at T6).
 
 ## T8 — Response-resolution acceptance tests (AC1–AC4, ADR-004)
 
