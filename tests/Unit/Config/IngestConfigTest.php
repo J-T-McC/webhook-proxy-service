@@ -25,4 +25,24 @@ class IngestConfigTest extends TestCase
 
         $this->assertSame('https://ingest.example.test', $resolved['url']);
     }
+
+    public function test_response_body_max_bytes_defaults_to_8_kib_when_env_not_set(): void
+    {
+        // INGEST_RESPONSE_BODY_MAX_BYTES is unset in the testing environment,
+        // so the response-body cap must fall back to the 8 KiB default.
+        $this->assertSame(8192, config('ingest.response_body_max_bytes'));
+    }
+
+    public function test_response_body_max_bytes_uses_env_override_when_set(): void
+    {
+        putenv('INGEST_RESPONSE_BODY_MAX_BYTES=16384');
+
+        try {
+            $resolved = require base_path('config/ingest.php');
+        } finally {
+            putenv('INGEST_RESPONSE_BODY_MAX_BYTES');
+        }
+
+        $this->assertSame(16384, $resolved['response_body_max_bytes']);
+    }
 }
