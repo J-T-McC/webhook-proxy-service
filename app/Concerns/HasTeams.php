@@ -2,6 +2,7 @@
 
 namespace App\Concerns;
 
+use App\Data\ProxyPermissions;
 use App\Data\TeamPermissions;
 use App\Data\UserTeam;
 use App\Enums\TeamPermission;
@@ -175,6 +176,27 @@ trait HasTeams
             canRemoveMember: $role?->hasPermission(TeamPermission::RemoveMember) ?? false,
             canCreateInvitation: $role?->hasPermission(TeamPermission::CreateInvitation) ?? false,
             canCancelInvitation: $role?->hasPermission(TeamPermission::CancelInvitation) ?? false,
+        );
+    }
+
+    /**
+     * Get the acting user's page-level proxy permissions for a team as a
+     * ProxyPermissions DTO (ADR-009 §4 tier 1, Amendment B4). Every boolean is
+     * derived from the role bundle, so a later item's permission is exposed the
+     * same way (AC2). The update/delete + `-any` booleans let the client compose
+     * per-record affordances against ProxyResource.is_creator with no per-row cost.
+     */
+    public function toProxyPermissions(Team $team): ProxyPermissions
+    {
+        $role = $this->teamRole($team);
+
+        return new ProxyPermissions(
+            canCreateProxy: $role?->hasPermission(TeamPermission::CreateProxy) ?? false,
+            canViewProxy: $role?->hasPermission(TeamPermission::ViewProxy) ?? false,
+            canUpdateProxy: $role?->hasPermission(TeamPermission::UpdateProxy) ?? false,
+            canDeleteProxy: $role?->hasPermission(TeamPermission::DeleteProxy) ?? false,
+            canUpdateAnyProxy: $role?->hasPermission(TeamPermission::UpdateAnyProxy) ?? false,
+            canDeleteAnyProxy: $role?->hasPermission(TeamPermission::DeleteAnyProxy) ?? false,
         );
     }
 

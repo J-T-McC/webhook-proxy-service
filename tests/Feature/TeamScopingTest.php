@@ -136,6 +136,50 @@ class TeamScopingTest extends TestCase
         $this->assertSame($user->current_team_id, $proxy->team_id);
     }
 
+    public function test_creating_a_proxy_captures_the_authenticated_creator(): void
+    {
+        $user = User::factory()->createQuietly();
+        $this->actingAs($user);
+
+        $proxy = new Proxy(['name' => 'Owned', 'mode' => ProxyMode::Simple]);
+        $proxy->ingest_token = 'creator-token';
+        $proxy->ingest_token_hash = hash('sha256', 'creator-token', binary: true);
+        $proxy->save();
+
+        $this->assertSame($user->id, $proxy->created_by);
+        // creator() relation resolves back to the same user.
+        $this->assertTrue($proxy->creator->is($user));
+    }
+
+    public function test_creating_a_proxy_leaves_creator_null_when_unauthenticated(): void
+    {
+        // No actor: the hook must not throw and must not fabricate a creator.
+        $team = User::factory()->createQuietly()->currentTeam;
+
+        $proxy = new Proxy(['name' => 'No actor', 'mode' => ProxyMode::Simple, 'team_id' => $team->id]);
+        $proxy->ingest_token = 'noactor-token';
+        $proxy->ingest_token_hash = hash('sha256', 'noactor-token', binary: true);
+        $proxy->save();
+
+        $this->assertNull($proxy->created_by);
+    }
+
+    public function test_creating_a_proxy_never_overwrites_a_preset_creator(): void
+    {
+        $actor = User::factory()->createQuietly();
+        $preset = User::factory()->createQuietly();
+        $this->actingAs($actor);
+
+        $proxy = new Proxy(['name' => 'Preset', 'mode' => ProxyMode::Simple]);
+        $proxy->created_by = $preset->id;
+        $proxy->ingest_token = 'preset-token';
+        $proxy->ingest_token_hash = hash('sha256', 'preset-token', binary: true);
+        $proxy->save();
+
+        // The explicitly-set creator wins over the authenticated user.
+        $this->assertSame($preset->id, $proxy->created_by);
+    }
+
     public function test_creating_a_destination_and_attempt_auto_assigns_the_current_team(): void
     {
         $user = User::factory()->createQuietly();

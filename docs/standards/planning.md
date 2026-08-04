@@ -28,6 +28,9 @@ Per `CLAUDE.md`, a task is done only when it leaves the tree green:
 - `composer types:check` (PHPStan level 7) passes.
 - `./vendor/bin/sail test` passes (accompanying tests included).
 - Completion notes are recorded on the task before handoff to the Reviewer.
+- The Senior Developer commits per completed task on the feature branch (or per
+  logical part of a large task) — small, working, checks-green commits, one
+  Conventional Commit each. Push, PR, and merge remain Owner-gated.
 
 ## Estimation
 

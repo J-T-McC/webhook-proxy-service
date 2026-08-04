@@ -36,6 +36,8 @@ source of truth; `docs/status.md` tracks all features — ask the orchestrator
 
 ## Project rules
 
-- Never automatically commit or push unless asked.
+- Never push or merge unless asked. Per-task commits on a feature branch during
+  implementation are pre-authorized (see `docs/standards/planning.md`); any other
+  commit requires an explicit ask.
 - Commit messages should be short with additional context added via list items below the header message
 - Commits follow Conventional Commits: `type(scope): summary` where type ∈ feat, fix, docs, refactor, chore, test, build, ci. Header short and imperative; context as list items below.

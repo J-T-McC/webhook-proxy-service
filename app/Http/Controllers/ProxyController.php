@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Data\ProxyPermissions;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
 use App\Http\Resources\ProxyResource;
@@ -32,8 +33,13 @@ class ProxyController extends Controller
             ->paginate(15)
             ->through(fn (Proxy $proxy) => new ProxyResource($proxy));
 
+        // Page-level proxy affordances for the acting user on the current team
+        // (ADR-009 §4 tier 1, Amendment B4). Each row's edit/delete visibility is
+        // composed client-side from these booleans + ProxyResource.is_creator — no
+        // per-record policy call.
         return Inertia::render('proxies/Index', [
             'proxies' => $proxies,
+            'permissions' => $this->proxyPermissions($request),
         ]);
     }
 
@@ -52,6 +58,8 @@ class ProxyController extends Controller
      */
     public function store(StoreProxyRequest $request, IngestTokenService $tokens): RedirectResponse
     {
+        $this->authorize('create', Proxy::class);
+
         $data = $request->validated();
 
         $proxy = DB::transaction(function () use ($data, $tokens): Proxy {
@@ -93,12 +101,16 @@ class ProxyController extends Controller
      * The leading `{current_team}` route parameter is accepted so implicit binding
      * of `{proxy}` aligns correctly under the team-prefixed group.
      */
-    public function show(string $current_team, Proxy $proxy): Response
+    public function show(Request $request, string $current_team, Proxy $proxy): Response
     {
         $this->authorize('view', $proxy);
 
+        // Share the page-level permission booleans alongside the resource so Show.vue
+        // composes the edit/delete affordances client-side from these + is_creator
+        // (ADR-009 Amendment B5) — server enforcement is unchanged.
         return Inertia::render('proxies/Show', [
             'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
+            'permissions' => $this->proxyPermissions($request),
         ]);
     }
 
@@ -123,6 +135,8 @@ class ProxyController extends Controller
      */
     public function update(UpdateProxyRequest $request, string $current_team, Proxy $proxy): RedirectResponse
     {
+        $this->authorize('update', $proxy);
+
         $data = $request->validated();
 
         DB::transaction(function () use ($data, $proxy): void {
@@ -184,6 +198,30 @@ class ProxyController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Proxy deleted.')]);
 
         return to_route('proxies.index');
+    }
+
+    /**
+     * Build the page-level proxy permission DTO for the acting user on their
+     * current team (ADR-009 Amendment B4). A user without a current team gets an
+     * all-false DTO — the fail-closed default.
+     */
+    private function proxyPermissions(Request $request): ProxyPermissions
+    {
+        $user = $request->user();
+        $team = $user?->currentTeam;
+
+        if ($user === null || $team === null) {
+            return new ProxyPermissions(
+                canCreateProxy: false,
+                canViewProxy: false,
+                canUpdateProxy: false,
+                canDeleteProxy: false,
+                canUpdateAnyProxy: false,
+                canDeleteAnyProxy: false,
+            );
+        }
+
+        return $user->toProxyPermissions($team);
     }
 
     /**

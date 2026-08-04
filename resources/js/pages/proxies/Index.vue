@@ -25,11 +25,33 @@ import {
 } from '@/components/ui/table';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
-import type { Paginated, ProxyListItem } from '@/types/proxies';
+import type {
+    Paginated,
+    ProxyListItem,
+    ProxyPermissions,
+} from '@/types/proxies';
 
-defineProps<{
+const props = defineProps<{
     proxies: Paginated<ProxyListItem>;
+    permissions: ProxyPermissions;
 }>();
+
+// Affordances derive client-side from the shared page-level permissions + each
+// row's is_creator flag (ADR-009 Amendment B5) — no per-row policy call. The
+// server ProxyPolicy still enforces the mutation.
+function canUpdate(proxy: ProxyListItem): boolean {
+    return (
+        props.permissions.canUpdateProxy &&
+        (proxy.is_creator || props.permissions.canUpdateAnyProxy)
+    );
+}
+
+function canDelete(proxy: ProxyListItem): boolean {
+    return (
+        props.permissions.canDeleteProxy &&
+        (proxy.is_creator || props.permissions.canDeleteAnyProxy)
+    );
+}
 
 defineOptions({
     layout: (props: { currentTeam?: Team | null }) => ({
@@ -86,7 +108,7 @@ function confirmDelete(): void {
     <div class="flex h-full flex-1 flex-col gap-6 p-4">
         <div class="flex items-center justify-between">
             <h1 class="text-xl font-semibold">Proxies</h1>
-            <Button as-child>
+            <Button v-if="permissions.canCreateProxy" as-child>
                 <Link :href="proxyRoutes.create(teamSlug)">New proxy</Link>
             </Button>
         </div>
@@ -101,7 +123,7 @@ function confirmDelete(): void {
                 Create a proxy to get an ingest URL and start fanning out
                 webhooks.
             </p>
-            <Button as-child class="mt-2">
+            <Button v-if="permissions.canCreateProxy" as-child class="mt-2">
                 <Link :href="proxyRoutes.create(teamSlug)"
                     >Create your first proxy</Link
                 >
@@ -167,7 +189,12 @@ function confirmDelete(): void {
                                         View
                                     </Link>
                                 </Button>
-                                <Button variant="ghost" size="sm" as-child>
+                                <Button
+                                    v-if="canUpdate(proxy)"
+                                    variant="ghost"
+                                    size="sm"
+                                    as-child
+                                >
                                     <Link
                                         :href="
                                             proxyRoutes.edit({
@@ -180,6 +207,7 @@ function confirmDelete(): void {
                                     </Link>
                                 </Button>
                                 <Button
+                                    v-if="canDelete(proxy)"
                                     variant="ghost"
                                     size="sm"
                                     :aria-label="`Delete proxy ${proxy.name}`"

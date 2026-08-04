@@ -133,6 +133,17 @@ is laid out and named within that directory.
   server payload. Do not build a parallel notification path.
 - **Do not throw for expected server errors** in components; rely on the Inertia
   error bag / flash channel. Reserve thrown errors for genuine programmer bugs.
+- **Affordance gating derives client-side (ratified by Owner direction 2026-08-03;
+  ADR-009 Amendment B; architecture.md → Authorization).** Whether an
+  action affordance (edit/delete button, menu item) *renders* is computed in the
+  component from the **shared permission set** (page-level `ProxyPermissions`/
+  `TeamPermissions` booleans) plus **record fields already on the serialized prop**
+  (e.g. `proxy.is_creator`) — e.g.
+  `permissions.canUpdateProxy && (proxy.is_creator || permissions.canUpdateAnyProxy)`.
+  **Never** trigger a per-row round trip or a per-row server policy call to decide
+  visibility, and never re-fetch to answer "can I see this control." Gating is
+  display-only: the server Policy still enforces the action, so a rendered-but-
+  unauthorized control is denied server-side (defence-in-depth, not a leak).
 
 ## Logging
 

@@ -178,6 +178,25 @@ required); sensitive settings additionally use `RequirePassword` and tight throt
 - `created_by` id-equality ownership checks are composed with (not instead of) the
   permission check; a removed team member is denied by the permission check regardless
   of `created_by` (ADR-009).
+- **Enforcement vs. display authorization (ratified by Owner direction 2026-08-03;
+  ADR-009 Amendment B).** These are two distinct concerns and must not be conflated:
+  - **Enforcement** (may this request perform the action) lives **server-side in a
+    Policy** and is the *only* authoritative gate — the controller `authorize(...)`
+    call against `ProxyPolicy`/`TeamPolicy` stands regardless of any client state.
+  - **Display** (should this affordance render) is computed **client-side** from data
+    already shared to the stateful Inertia/Jetstream frontend: the current user's
+    permission set (page-level `ProxyPermissions`/`TeamPermissions` booleans, mirrored
+    from the role bundle once per page) plus record fields already on the serialized
+    resource (e.g. `ProxyResource.is_creator`, a plain in-memory comparison — never a
+    policy call). Affordance = `perms.<verb> && (record.is_creator || perms.<verb>Any)`.
+  - **Per-record server-side policy evaluation to produce a display flag is
+    disallowed** — calling `$user->can(...)` / `Gate::allows(...)` per row creates an
+    N+1 (review-02 M2) and duplicates the enforcement path into a display concern. The
+    stateful frontend already exposes the user's roles/permissions; derive from that +
+    already-loaded record data. Do **not** eager/lazy-load or memoize to make a per-row
+    policy call "cheap" — remove the per-row policy call. The client check never
+    replaces the server gate; a tampered client that renders a hidden control still
+    hits the Policy and is denied.
 
 **Secret handling (codifies observed + ADR-006):**
 - Config/secrets via `.env` (`.env.example` is the committed template; real values
