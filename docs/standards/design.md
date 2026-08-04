@@ -180,6 +180,19 @@ via `Inertia::flash('toast', [...])`. `type` must be a valid `sonner` method
 not `throw` in a component for an expected server error — render it through
 the error bag or the flash channel.
 
+**Affordance visibility (ratified by Owner direction 2026-08-03; ADR-009
+Amendment B):** whether an action affordance (button/menu item/control)
+renders is decided **client-side**, from the current user's already-shared
+permission set plus fields already present on the record — never a per-record
+round trip or a per-record server-side authorization call. The stateful
+Inertia/Jetstream frontend already exposes the user's roles/permissions; use
+them.
+- Example shape (proxies pattern): `perms.<action> && (record.is_creator ||
+  perms.<action>Any)`.
+- **Invariant:** this governs **display only**. Server-side policy remains the
+  authoritative gate for the action itself — hiding an affordance is never a
+  substitute for server authorization.
+
 ## Accessibility baseline
 
 **Target level (Owner-approved 2026-08-03):** **WCAG 2.1 AA** is the target for

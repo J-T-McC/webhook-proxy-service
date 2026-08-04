@@ -49,6 +49,7 @@
 - Inertia props serialize through an `Http/Resources` resource with `$wrap = null`; no bespoke JSON error envelope for Inertia routes — architecture.md → API design.
 - Naming: `StudlyCase` classes, role-suffixed class names, verb-first Actions, typed properties/params/returns (PHPStan L7) — coding.md → Naming.
 - Any new runtime Composer/pnpm dependency has an Owner-approved ADR and a committed lockfile in the same change; no npm / `package-lock.json` — coding.md → Dependencies.
+- No per-record server-side policy/authorization call (`$user->can(...)` / `Gate::allows(...)` per row in a Resource/serializer) produces a UI display flag — that is an N+1 duplicating the enforcement path; emit a plain record field instead (e.g. `ProxyResource.is_creator`, an in-memory `created_by === user.id` comparison), never eager/lazy-load or memoize to make a per-row policy call "cheap". Server `authorize()`/Policy stays the sole authoritative enforcement gate; a hidden affordance is never accepted as authorization — `(ADR-009)` architecture.md → Authorization (Amendment B; ratified Owner direction 2026-08-03).
 
 ### Frontend / Accessibility
 _No JS test framework exists (stack.md; testing.md T31 gap) — every check here is `(manual — no automated coverage)` unless noted._
@@ -61,6 +62,7 @@ _No JS test framework exists (stack.md; testing.md T31 gap) — every check here
 - No hardcoded colours or arbitrary radii; use semantic token utilities (`bg-card`, `text-muted-foreground`) and `rounded-lg/md/sm`; every surface works in both light and `.dark` palettes — design.md → Design system. (manual — no automated coverage)
 - Reuse existing `ui/*` primitives before adding one; style variants follow the `cva` + exported `*Variants` + `defaultVariants` shape; icons come only from `@lucide/vue` — design.md → Component library / Variant pattern. (manual — no automated coverage)
 - Prop keys mirroring a server payload keep the Resource's `snake_case` keys; client-only props are `camelCase` — coding.md → Naming.
+- Action affordances (create/edit/delete) derive client-side from the shared page-level permission set (`ProxyPermissions`/`TeamPermissions` booleans) plus fields already on the record (`is_creator`) — `perms.<verb> && (record.is_creator || perms.<verb>Any)` — never a per-row server round trip or policy call; visibility is display-only and never substitutes for the server gate — `(ADR-009)` architecture.md → Authorization (Amendment B; ratified Owner direction 2026-08-03). (manual — no automated coverage)
 
 ### Testing
 - Tests run green locally via the suite, not by trusting claimed results — review.md → Review scope.
