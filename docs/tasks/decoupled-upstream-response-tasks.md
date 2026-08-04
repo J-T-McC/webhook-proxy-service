@@ -156,7 +156,19 @@
 - **Testing:** extend `tests/Feature/Proxies/ProxyRequestValidationTest.php` with data-provider
   cases for both new fields on Store and Update (non-2xx rejected, boundary values 200/299 accepted,
   null accepted, oversized body rejected, cap-sized body accepted).
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). Added identical rules to both
+  `StoreProxyRequest` and `UpdateProxyRequest`: `response_status` →
+  `['nullable','integer','between:200,299']` and `response_body` →
+  `['nullable','string','max:'.config('ingest.response_body_max_bytes')]` (cap from T1,
+  default 8192). No change to existing `name`/`mode`/`destinations.*` rules. Extended
+  `tests/Feature/Proxies/ProxyRequestValidationTest.php` (data-provider over both Store and
+  Update): non-2xx statuses (199/300/404) rejected under `response_status`; explicit-null and
+  absent accepted; boundaries 200/299 accepted; `response_body` at the cap accepted and cap+1
+  rejected under `response_body`. Note: followed the plan's literal `max:<cap>` rule — Laravel's
+  string `max` counts characters (mb-aware), so the cap is characters not raw bytes; the tests
+  use single-byte `'a'` so the boundary is exact, and this matches the plan verbatim (no
+  deviation). Gates: `composer lint` passed, `composer types:check` 0 errors,
+  `--filter ProxyRequestValidationTest` 24/24, full `--parallel` 239/239.
 
 ## T5 — `ProxyController` store/update: persist response config (AC1, AC3)
 

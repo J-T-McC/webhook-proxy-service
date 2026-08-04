@@ -115,4 +115,65 @@ class ProxyRequestValidationTest extends TestCase
         $this->assertTrue($validator->fails());
         $this->assertArrayHasKey('mode', $validator->errors()->messages());
     }
+
+    /**
+     * @return array<string, array{0: int}>
+     */
+    public static function nonTwoXxStatuses(): array
+    {
+        return [
+            'below range 199' => [199],
+            'above range 300' => [300],
+            'client error 404' => [404],
+        ];
+    }
+
+    /**
+     * @param  class-string  $requestClass
+     */
+    #[DataProvider('requestClasses')]
+    public function test_response_status_null_or_absent_is_accepted(string $requestClass): void
+    {
+        // Explicit null.
+        $validator = $this->validate($requestClass, $this->validData(['response_status' => null]));
+        $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+
+        // Absent entirely.
+        $validator = $this->validate($requestClass, $this->validData());
+        $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_non_2xx_response_status_is_rejected_under_response_status_key_on_store(string $requestClass): void
+    {
+        foreach (self::nonTwoXxStatuses() as [$status]) {
+            $validator = $this->validate($requestClass, $this->validData(['response_status' => $status]));
+
+            $this->assertTrue($validator->fails(), "Status {$status} should be rejected.");
+            $this->assertArrayHasKey('response_status', $validator->errors()->messages());
+        }
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_2xx_boundary_statuses_200_and_299_are_accepted(string $requestClass): void
+    {
+        foreach ([200, 299] as $status) {
+            $validator = $this->validate($requestClass, $this->validData(['response_status' => $status]));
+
+            $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+        }
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_response_body_at_cap_is_accepted_and_over_cap_is_rejected(string $requestClass): void
+    {
+        $cap = (int) config('ingest.response_body_max_bytes');
+
+        $atCap = $this->validate($requestClass, $this->validData(['response_body' => str_repeat('a', $cap)]));
+        $this->assertArrayNotHasKey('response_body', $atCap->errors()->messages());
+
+        $overCap = $this->validate($requestClass, $this->validData(['response_body' => str_repeat('a', $cap + 1)]));
+        $this->assertTrue($overCap->fails());
+        $this->assertArrayHasKey('response_body', $overCap->errors()->messages());
+    }
 }
