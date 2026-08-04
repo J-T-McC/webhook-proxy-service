@@ -456,7 +456,21 @@
   - **Raw immutability (AC8):** the captured `body` equals the exact received bytes and is
     unchanged after delivery completes (re-read the row post-request and compare).
 - **Testing:** the cases above using `Http::fake()` for delivery outcomes.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). New `tests/Feature/Ingest/WebhookEventCaptureAcceptanceTest.php`
+  (5 tests), no new production code — all ACs held against the T9–T11 wiring. Uses `$this->call()`
+  with an explicit raw body + `CONTENT_TYPE` so the captured bytes/headers/content-type are exact.
+  Cases: (1) simple-mode ingest writes exactly one `webhook_events` row with the exact raw body,
+  `method=POST`, `byte_size=strlen`, `content_type=application/json`, faithful `headers`
+  (content-type + a custom `x-custom` header), and `team_id`/`proxy_id` from the proxy, sharing
+  the fan-out `delivery_attempts` `ingest_id` (AC5/AC8/AC9); (2) enhanced mode captures the raw
+  event too (AC7); (3) capture failure (mocked throw) → HTTP 500, **not** the proxy's configured
+  201, zero `webhook_events`, zero `delivery_attempts`, `Http::assertNothingSent()` (AC6); (4) no
+  parallel path — `delivery_attempts` schema stays payload-free (no body/payload/request_body/
+  response_body column), joined to capture only by `ingest_id` (AC9, ADR-003); (5) raw
+  immutability — the captured `body` is byte-for-byte unchanged when re-read after synchronous
+  delivery completes (AC8). Gates: `composer lint` passed (Pint auto-ordered imports),
+  `composer types:check` 0 errors, `--filter WebhookEventCaptureAcceptanceTest` 5/5, full
+  `--parallel` 269/269.
 
 ---
 
