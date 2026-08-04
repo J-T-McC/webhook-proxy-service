@@ -374,7 +374,21 @@
 - **Testing:** `tests/Unit/Services/WebhookEventCaptureTest.php` (new) — asserts the row's field
   values above, including a case with no `Content-Type` header (`content_type` null) and one with a
   mixed-case header name.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-04). New `App\Services\WebhookEventCapture` (a plain
+  Service — no `AsAction`, so it can never be `::dispatch`ed, ADR-010). `capture(Proxy, string
+  $ingestId, string $method, array $headers, string $rawBody): WebhookEvent` creates one
+  `webhook_events` row with `team_id`/`proxy_id` taken **explicitly** from `$proxy` (no `Auth`
+  read), `byte_size = strlen($rawBody)` computed from the plaintext before the `encrypted` cast
+  runs, `received_at = now()`, and `content_type` derived by a private case-insensitive
+  `Content-Type` lookup that handles both array-valued (framework `headers->all()` shape) and
+  scalar header values, returning `null` when absent. Tests
+  `tests/Unit/Services/WebhookEventCaptureTest.php` (5): exactly one row with all passed fields
+  (body decrypts back, `byte_size === strlen`); `team_id`/`proxy_id` come from the proxy even
+  when a user on a **different** team is authenticated (proves no Auth dependency); `content_type`
+  null when the header is absent; `content_type` derived from a mixed-case (`CoNtEnT-TyPe`) header
+  name; `byte_size` records the plaintext size (5000) not the larger encrypted envelope. Gates:
+  `composer lint` passed, `composer types:check` 0 errors, `--filter WebhookEventCaptureTest`
+  5/5, full `--parallel` 261/261.
 
 ## T11 — `IngestController`: synchronous pre-dispatch capture + 500 on failure (AC5–AC9, ADR-010)
 
