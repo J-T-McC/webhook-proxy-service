@@ -6,15 +6,18 @@ use App\Enums\TeamRole;
 use App\Models\Proxy;
 use App\Models\Team;
 use App\Models\User;
+use App\Policies\ProxyPolicy;
 use Illuminate\Support\Collection;
 use Inertia\Testing\AssertableInertia as Assert;
-use PHPUnit\Framework\Attributes\DataProvider;
+use Mockery\MockInterface;
 use Tests\TestCase;
 
 /**
- * Per-record can.update/can.delete flags on ProxyResource (ADR-009 Amendment A5).
- * The flags are computed by the policy, so they mirror the server gate exactly:
- * a Member sees them on their own proxy only; Admin/Owner on every proxy.
+ * Per-record `is_creator` flag on ProxyResource (ADR-009 Amendment B). The flag is
+ * a plain `created_by === auth id` comparison — no policy call, no query — and the
+ * client composes edit/delete affordances from it plus the page-level permission
+ * booleans. The old policy-driven `can:{update,delete}` shape (Amendment A5) is
+ * withdrawn (review-02 M2 N+1). Server ProxyPolicy remains the authoritative gate.
  */
 class ProxyCanFlagsTest extends TestCase
 {
@@ -34,7 +37,7 @@ class ProxyCanFlagsTest extends TestCase
         return $user;
     }
 
-    public function test_member_can_flags_are_true_only_on_their_own_proxy_in_the_index_list(): void
+    public function test_is_creator_is_true_only_on_the_actors_own_proxy_in_the_index_list(): void
     {
         $team = Team::factory()->createQuietly();
         $member = $this->member($team, TeamRole::Member);
@@ -51,15 +54,16 @@ class ProxyCanFlagsTest extends TestCase
                 ->where('proxies.data', function (Collection $rows) use ($own, $foreign) {
                     $byId = $rows->keyBy('id');
 
-                    return $byId[$own->id]['can']['update'] === true
-                        && $byId[$own->id]['can']['delete'] === true
-                        && $byId[$foreign->id]['can']['update'] === false
-                        && $byId[$foreign->id]['can']['delete'] === false;
+                    // The new shape: a per-record is_creator boolean, and no `can` key.
+                    return $byId[$own->id]['is_creator'] === true
+                        && $byId[$foreign->id]['is_creator'] === false
+                        && ! array_key_exists('can', $byId[$own->id])
+                        && ! array_key_exists('can', $byId[$foreign->id]);
                 })
             );
     }
 
-    public function test_member_can_flags_on_the_show_payload_track_ownership(): void
+    public function test_is_creator_on_the_show_payload_tracks_ownership_and_no_can_key_is_present(): void
     {
         $team = Team::factory()->createQuietly();
         $member = $this->member($team, TeamRole::Member);
@@ -72,43 +76,57 @@ class ProxyCanFlagsTest extends TestCase
             ->get(route('proxies.show', ['current_team' => $team->slug, 'proxy' => $own->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->where('proxy.can.update', true)
-                ->where('proxy.can.delete', true)
+                ->where('proxy.is_creator', true)
+                ->missing('proxy.can')
             );
 
         $this->actingAs($member)
             ->get(route('proxies.show', ['current_team' => $team->slug, 'proxy' => $foreign->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->where('proxy.can.update', false)
-                ->where('proxy.can.delete', false)
+                ->where('proxy.is_creator', false)
+                ->missing('proxy.can')
+            );
+    }
+
+    public function test_a_null_created_by_proxy_reports_is_creator_false(): void
+    {
+        $team = Team::factory()->createQuietly();
+        $member = $this->member($team, TeamRole::Member);
+
+        // Pre-feature / no-actor proxy: created_by is null, so the plain comparison is
+        // false and the Member sees no update/delete affordance — fail-closed (A4).
+        $orphan = Proxy::factory()->createQuietly(['team_id' => $team->id, 'created_by' => null]);
+
+        $this->actingAs($member)
+            ->get(route('proxies.show', ['current_team' => $team->slug, 'proxy' => $orphan->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('proxy.is_creator', false)
+                ->missing('proxy.can')
             );
     }
 
     /**
-     * @return iterable<string, array{TeamRole}>
+     * Proves the M2 N+1 is gone: the index render composes affordances from the
+     * page-level bundle + is_creator, so ProxyPolicy's per-record update/delete
+     * abilities are never evaluated during serialization — regardless of row count.
+     * viewAny still runs (real, via the partial mock) to authorize the page.
      */
-    public static function privilegedRoleProvider(): iterable
-    {
-        yield 'admin' => [TeamRole::Admin];
-        yield 'owner' => [TeamRole::Owner];
-    }
-
-    #[DataProvider('privilegedRoleProvider')]
-    public function test_admin_and_owner_can_flags_are_true_regardless_of_creator(TeamRole $role): void
+    public function test_index_serialization_never_invokes_the_per_record_update_delete_policy(): void
     {
         $team = Team::factory()->createQuietly();
-        $creator = $this->member($team, TeamRole::Member);
-        $privileged = $this->member($team, $role);
+        $member = $this->member($team, TeamRole::Member);
 
-        $proxy = Proxy::factory()->createQuietly(['team_id' => $team->id, 'created_by' => $creator->id]);
+        Proxy::factory()->count(3)->createQuietly(['team_id' => $team->id, 'created_by' => $member->id]);
 
-        $this->actingAs($privileged)
-            ->get(route('proxies.show', ['current_team' => $team->slug, 'proxy' => $proxy->id]))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('proxy.can.update', true)
-                ->where('proxy.can.delete', true)
-            );
+        $this->partialMock(ProxyPolicy::class, function (MockInterface $mock) {
+            $mock->shouldReceive('update')->never();
+            $mock->shouldReceive('delete')->never();
+        });
+
+        $this->actingAs($member)
+            ->get(route('proxies.index', ['current_team' => $team->slug]))
+            ->assertOk();
     }
 }

@@ -18,11 +18,30 @@ import { Card } from '@/components/ui/card';
 import proxyRoutes from '@/routes/proxies';
 import destinationRoutes from '@/routes/proxies/destinations';
 import type { Team } from '@/types';
-import type { ProxyDestination, ProxyDetail } from '@/types/proxies';
+import type {
+    ProxyDestination,
+    ProxyDetail,
+    ProxyPermissions,
+} from '@/types/proxies';
 
 const props = defineProps<{
     proxy: ProxyDetail;
+    permissions: ProxyPermissions;
 }>();
+
+// Edit/delete visibility derives from the shared page-level permissions + the
+// resource's is_creator flag (ADR-009 Amendment B5) — no per-record policy call.
+// The server ProxyPolicy still enforces the mutation.
+const canUpdate = computed(
+    () =>
+        props.permissions.canUpdateProxy &&
+        (props.proxy.is_creator || props.permissions.canUpdateAnyProxy),
+);
+const canDelete = computed(
+    () =>
+        props.permissions.canDeleteProxy &&
+        (props.proxy.is_creator || props.permissions.canDeleteAnyProxy),
+);
 
 defineOptions({
     layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
@@ -111,11 +130,7 @@ function confirmDeleteProxy(): void {
                 </Badge>
             </div>
             <div class="flex items-center gap-2">
-                <Button
-                    v-if="props.proxy.can.update"
-                    variant="outline"
-                    as-child
-                >
+                <Button v-if="canUpdate" variant="outline" as-child>
                     <Link
                         :href="
                             proxyRoutes.edit({
@@ -128,7 +143,7 @@ function confirmDeleteProxy(): void {
                     </Link>
                 </Button>
                 <Button
-                    v-if="props.proxy.can.delete"
+                    v-if="canDelete"
                     variant="destructive"
                     :aria-label="`Delete proxy ${props.proxy.name}`"
                     @click="proxyDeleteOpen = true"

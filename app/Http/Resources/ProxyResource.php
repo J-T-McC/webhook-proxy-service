@@ -37,13 +37,13 @@ class ProxyResource extends JsonResource
             // Built server-side from config, never the request Host header (ADR-006).
             'ingest_url' => $this->ingestUrl(),
             'destinations' => DestinationResource::collection($this->whenLoaded('destinations')),
-            // Per-record edit/delete affordances computed from the policy itself, so
-            // the UI can never drift from the server gate (ADR-009 Amendment A5).
-            // view/create stay page-level (ProxyPermissions DTO), not per-record.
-            'can' => [
-                'update' => $user?->can('update', $this->resource) ?? false,
-                'delete' => $user?->can('delete', $this->resource) ?? false,
-            ],
+            // Ownership-for-display only: a plain id comparison, never a policy call
+            // (ADR-009 Amendment B3). `created_by` is already on the row, so this adds
+            // no query and no per-record policy evaluation — the M2 N+1 fix. The client
+            // composes update/delete affordances from this + the page-level
+            // ProxyPermissions booleans; the server ProxyPolicy remains authoritative (B2).
+            // A null `created_by` (pre-feature / no-actor proxy) yields false — fail-closed.
+            'is_creator' => $user !== null && (int) $this->created_by === (int) $user->id,
         ];
     }
 }

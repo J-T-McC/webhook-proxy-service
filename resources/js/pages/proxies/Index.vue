@@ -31,10 +31,27 @@ import type {
     ProxyPermissions,
 } from '@/types/proxies';
 
-defineProps<{
+const props = defineProps<{
     proxies: Paginated<ProxyListItem>;
     permissions: ProxyPermissions;
 }>();
+
+// Affordances derive client-side from the shared page-level permissions + each
+// row's is_creator flag (ADR-009 Amendment B5) — no per-row policy call. The
+// server ProxyPolicy still enforces the mutation.
+function canUpdate(proxy: ProxyListItem): boolean {
+    return (
+        props.permissions.canUpdateProxy &&
+        (proxy.is_creator || props.permissions.canUpdateAnyProxy)
+    );
+}
+
+function canDelete(proxy: ProxyListItem): boolean {
+    return (
+        props.permissions.canDeleteProxy &&
+        (proxy.is_creator || props.permissions.canDeleteAnyProxy)
+    );
+}
 
 defineOptions({
     layout: (props: { currentTeam?: Team | null }) => ({
@@ -173,7 +190,7 @@ function confirmDelete(): void {
                                     </Link>
                                 </Button>
                                 <Button
-                                    v-if="proxy.can.update"
+                                    v-if="canUpdate(proxy)"
                                     variant="ghost"
                                     size="sm"
                                     as-child
@@ -190,7 +207,7 @@ function confirmDelete(): void {
                                     </Link>
                                 </Button>
                                 <Button
-                                    v-if="proxy.can.delete"
+                                    v-if="canDelete(proxy)"
                                     variant="ghost"
                                     size="sm"
                                     :aria-label="`Delete proxy ${proxy.name}`"

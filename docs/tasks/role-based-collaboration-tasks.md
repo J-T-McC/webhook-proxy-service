@@ -424,16 +424,48 @@ addressing M1 (defense-in-depth) and deferring M2.
   `ProxyAuthorizationTest` green (11 tests / 31 assertions), full suite green (223 tests /
   836 assertions).
 
-### M2 — Index-page per-row policy N+1 (DEFERRED — backlog)
-- **Not fixed** (Owner elected to defer). Recorded here as the tracked follow-up.
-- **What:** `app/Http/Resources/ProxyResource.php` computes `can.update`/`can.delete` per row
-  via `$user->can(...)` → `hasTeamPermission($proxy->team, ...)`; the `index` query
-  (`ProxyController::index`) paginates without `with('team')` and `teamRole` is not memoized,
-  so each row lazy-loads `$proxy->team` and re-runs the membership lookup per row and per
-  ability. Bounded by the page size of 15; correctness is unaffected — this is a query-count
-  efficiency item only.
-- **Candidate fix when picked up:** eager-load `team` on the index query (`->with('team')`)
-  and/or memoize `teamRole` per team on the `User`. No AC or interface impact.
+### M2 — Index-page per-row policy N+1 (DONE — ADR-009 Amendment B, 2026-08-03)
+- **Fixed** per **ADR-009 Amendment B** (Owner-directed): the per-record policy-driven
+  `can:{update,delete}` display mechanism (Amendment A5) is withdrawn and replaced with a
+  client-side affordance derivation. Server enforcement (`ProxyPolicy` + `ProxyController`'s
+  `authorize()` calls) is **unchanged** — this is a display-only optimization (Amendment B2
+  invariant). The A4 fail-closed semantics for null-`created_by` rows are preserved.
+- **What changed (display path only):**
+  - `app/Http/Resources/ProxyResource.php` — removed the `can` block and its two per-row
+    `$user->can(...)` policy calls (each of which lazy-loaded `$proxy->team` and re-ran the
+    membership lookup per row per ability — the N+1). Added a single `is_creator` boolean
+    computed as a plain `(int) created_by === (int) auth id` comparison — no query, no policy.
+    A null `created_by` yields `false` (fail-closed), matching the A4 enforcement.
+  - `app/Data/ProxyPermissions.php` + `app/Concerns/HasTeams.php::toProxyPermissions()` —
+    added four page-level booleans derived once from the role bundle: `canUpdateProxy`,
+    `canDeleteProxy`, `canUpdateAnyProxy`, `canDeleteAnyProxy` (existing create/view kept).
+  - `app/Http/Controllers/ProxyController.php` — `index()`/`show()` now share the page-level
+    `permissions` DTO (extracted a `proxyPermissions()` helper with an all-false fallback);
+    `authorize()` calls untouched; index still paginates without `with('team')` (no longer
+    needed — the flag never touches `team`).
+  - `resources/js/types/proxies.ts` — removed the per-record `ProxyCan` object; added
+    `is_creator: boolean` to the list/detail items; extended `ProxyPermissions` with the four
+    new camelCase booleans.
+  - `resources/js/pages/proxies/{Index,Show}.vue` — affordances now derive client-side:
+    `canUpdate = canUpdateProxy && (is_creator || canUpdateAnyProxy)` (and delete likewise),
+    reading the shared `permissions` DTO + `is_creator`. AlertDialog/InputError/a11y intact.
+- **Tests:**
+  - `ProxyCanFlagsTest` reworked — asserts the new `is_creator` shape (creator true,
+    teammate/null-creator false) and the **absence** of any `can` key on the resource.
+  - Added a **no-N+1 proof** in `ProxyCanFlagsTest`: a partial-mock of `ProxyPolicy` with
+    `shouldReceive('update')->never()` / `delete->never()` over a multi-row index render —
+    `viewAny` runs real (authorizes the page), and the per-record update/delete abilities
+    receive **zero** calls regardless of row count, proving serialization no longer invokes
+    the per-row policy. (This is the cleanest available assertion; a full `Gate::spy` would
+    also intercept the required `viewAny` authorize, so the policy-scoped partial mock is the
+    honest, targeted choice.)
+  - `ProxyPermissionsDtoTest` — asserts the four new DTO booleans per role (Member:
+    update/delete true, `-any` false; Admin/Owner: all four true; non-member: all false).
+  - `ProxyIndexPermissionsTest` — asserts the new page-level props, with `-any` per role.
+  - Enforcement tests (`ProxyAuthorizationTest`, `ProxyPolicyTest`) unchanged and green.
+- **Verified (2026-08-03):** `composer lint` clean, `composer types:check` 0 errors (PHPStan
+  L7), `./vendor/bin/sail test` full suite **223 passed / 865 assertions**; `pnpm types:check`
+  / `lint:check` / `format:check` all green.
 
 ---
 
