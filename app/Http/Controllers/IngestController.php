@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\AdvanceProxyFifoQueue;
 use App\Actions\ProcessIngestedWebhook;
+use App\Enums\FifoDispatchStatus;
+use App\Enums\ProcessingMode;
+use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Services\ResponseResolver;
 use App\Services\WebhookEventCapture;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -47,13 +52,28 @@ class IngestController extends Controller
         $headers = $request->headers->all();
         $rawBody = $request->getContent();
 
-        // ADR-010: durably capture the raw payload SYNCHRONOUSLY — before the response
-        // is resolved and before pipeline dispatch — unconditionally on mode (AC5/AC7,
-        // R2 override). A capture-write failure returns HTTP 500 and dispatches nothing
-        // (AC6): success is never acknowledged for an uncaptured event. Report the
-        // exception but never log the raw body or token on this path.
+        $isFifo = $proxy->processing_mode === ProcessingMode::Fifo;
+
+        // ADR-010/011: durably capture the raw payload SYNCHRONOUSLY — before the
+        // response is resolved and before any dispatch — unconditionally on mode
+        // (AC5/AC7, R2 override). For FIFO, the `fifo_dispatches` ordering row is
+        // committed in the SAME transaction as capture (ADR-011), so a captured FIFO
+        // event always has its ordering key. A capture-write failure returns HTTP 500,
+        // rolls back, and dispatches nothing (AC6): success is never acknowledged for
+        // an uncaptured event. Report the exception, never log the raw body or token.
         try {
-            $this->capture->capture($proxy, $ingestId, $method, $headers, $rawBody);
+            DB::transaction(function () use ($proxy, $ingestId, $method, $headers, $rawBody, $isFifo): void {
+                $event = $this->capture->capture($proxy, $ingestId, $method, $headers, $rawBody);
+
+                if ($isFifo) {
+                    FifoDispatch::create([
+                        'team_id' => $proxy->team_id,
+                        'proxy_id' => $proxy->id,
+                        'webhook_event_id' => $event->id,
+                        'status' => FifoDispatchStatus::Pending,
+                    ]);
+                }
+            });
         } catch (Throwable $e) {
             report($e);
             abort(Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -63,10 +83,15 @@ class IngestController extends Controller
         // Only reachable after a committed capture (AC5).
         $response = $this->responseResolver->resolve($proxy);
 
-        // ADR-005 timing seam (PIPELINE level): dispatch by reference (ingest_id) —
-        // the action rebuilds the context from the durable capture (ADR-011 Decision 3).
-        // Still ::run inline here; T12 flips this to the mode branch dispatched afterCommit.
-        ProcessIngestedWebhook::run($ingestId);
+        // ADR-005/011 dispatch seam — dispatched afterCommit, by reference, never
+        // blocking the response. FIFO advances the proxy's ordered line; Async
+        // processes the event's fan-out on its own. Both rebuild context from the
+        // durable capture (ADR-011 Decision 3).
+        if ($isFifo) {
+            AdvanceProxyFifoQueue::dispatch($proxy->id)->afterCommit();
+        } else {
+            ProcessIngestedWebhook::dispatch($ingestId)->afterCommit();
+        }
 
         return $response;
     }

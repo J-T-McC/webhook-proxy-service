@@ -410,7 +410,17 @@
   assertion + no-`DeliveryAttempt`-at-return; FIFO-mode `fifo_dispatches` row + `AdvanceProxyFifoQueue`
   dispatch assertion; capture-failure-dispatches-nothing for both modes; response identity check
   against a faked-failing destination (drain after response, assert response unchanged).
-- **Completion notes:** _pending_
+- **Completion notes:** Controller now wraps capture in a `DB::transaction`; for FIFO it creates the
+  `fifo_dispatches` `pending` row (keyed to the captured event) in the SAME commit as capture. After
+  the commit it resolves the response, then dispatches by mode `afterCommit()`: FIFO →
+  `AdvanceProxyFifoQueue::dispatch($proxy->id)`, Async → `ProcessIngestedWebhook::dispatch($ingestId)`.
+  Capture-failure path unchanged in spirit — the transaction rolls back, returns 500, dispatches
+  nothing. Four new `IngestControllerTest` cases (async dispatches ProcessIngestedWebhook + no
+  DeliveryAttempt/fifo row at return; FIFO commits one pending row + dispatches the advancer; FIFO
+  capture-failure 500 + `Queue::assertNothingPushed()`). Response-identity (AC2) is covered
+  end-to-end in T13. Under the `sync` driver (no `Queue::fake`), `afterCommit` dispatch fires
+  immediately post-commit so existing inline-delivery tests stay green (38 ingest+delivery tests
+  pass). All three checks green.
 
 ---
 

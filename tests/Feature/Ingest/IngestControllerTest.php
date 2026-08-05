@@ -2,13 +2,19 @@
 
 namespace Tests\Feature\Ingest;
 
+use App\Actions\AdvanceProxyFifoQueue;
+use App\Actions\ProcessIngestedWebhook;
+use App\Enums\FifoDispatchStatus;
+use App\Enums\ProcessingMode;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
+use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use App\Services\WebhookEventCapture;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
 use Tests\TestCase;
 
@@ -138,5 +144,71 @@ class IngestControllerTest extends TestCase
         $this->assertSame(0, WebhookEvent::count());
         $this->assertSame(0, DeliveryAttempt::count());
         Http::assertNothingSent();
+    }
+
+    public function test_async_proxy_dispatches_processing_and_returns_before_any_delivery(): void
+    {
+        Queue::fake();
+
+        [, $token] = $this->proxyWithToken();
+
+        $this->post($this->ingestUrl($token), ['hello' => 'world'])
+            ->assertStatus(202);
+
+        // Async dispatches the pipeline job by reference; no fifo row, no advancer.
+        ProcessIngestedWebhook::assertPushed(1);
+        AdvanceProxyFifoQueue::assertNotPushed();
+
+        // Capture committed, but no delivery ran before the response (dispatch was faked).
+        $this->assertSame(1, WebhookEvent::count());
+        $this->assertSame(0, DeliveryAttempt::count());
+        $this->assertSame(0, FifoDispatch::count());
+    }
+
+    public function test_fifo_proxy_commits_a_pending_ordering_row_and_dispatches_the_advancer(): void
+    {
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Fifo]);
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $this->post($this->ingestUrl($proxy->ingest_token), ['hello' => 'world'])
+            ->assertStatus(202);
+
+        // One pending ordering row keyed to the captured event, committed with capture.
+        $this->assertSame(1, FifoDispatch::count());
+        $row = FifoDispatch::firstOrFail();
+        $this->assertSame(FifoDispatchStatus::Pending, $row->status);
+        $this->assertSame($proxy->id, $row->proxy_id);
+        $this->assertSame(WebhookEvent::firstOrFail()->id, $row->webhook_event_id);
+
+        // The advancer is dispatched; the async pipeline job is not.
+        AdvanceProxyFifoQueue::assertPushed(fn ($job, array $params) => $params[0] === $proxy->id);
+        ProcessIngestedWebhook::assertNotPushed();
+
+        // No delivery ran before the response (dispatch was faked).
+        $this->assertSame(0, DeliveryAttempt::count());
+    }
+
+    public function test_fifo_capture_failure_returns_500_and_dispatches_nothing(): void
+    {
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Fifo]);
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $this->mock(
+            WebhookEventCapture::class,
+            fn (MockInterface $m) => $m->shouldReceive('capture')
+                ->andThrow(new \RuntimeException('capture store unavailable')),
+        );
+
+        $this->post($this->ingestUrl($proxy->ingest_token), ['hello' => 'world'])
+            ->assertStatus(500);
+
+        // Transaction rolled back: no capture row, no ordering row, nothing dispatched.
+        $this->assertSame(0, WebhookEvent::count());
+        $this->assertSame(0, FifoDispatch::count());
+        Queue::assertNothingPushed();
     }
 }
