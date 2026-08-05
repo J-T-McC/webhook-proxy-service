@@ -1,17 +1,26 @@
 # PRD: Payload storage & retention
 
-- **Status:** Approved
+- **Status:** **Approved — amended** (Amendment A, Project Owner ruling 2026-08-05).
+  Not reopened, not downgraded; the original approval stands and is unchanged.
 - **Author:** Product Manager
-- **Date:** 2026-08-05
-- **Approved by / date:** Project Owner, 2026-08-05
+- **Date:** 2026-08-05 · **Amended:** 2026-08-05 (Amendment A)
+- **Approved by / date:** **Project Owner, 2026-08-05** — original approval, intact.
+- **Amendment A / date:** **Project Owner ruling, 2026-08-05** — retention **erases
+  payload content in place** instead of deleting the captured event record. The
+  ruling is the Owner's; the acceptance-criteria wording below is the Product
+  Manager's rendering of it as the Owner's proxy and is open to Owner correction.
+  See **§ Amendment A** for the ruling, its scope, and what it invalidates
+  downstream. Affects AC5–AC12, AC15; adds AC21, AC22; adds deferred concern D1.
 - **Backlog item:** Roadmap #5 (`docs/product/roadmap.md`)
 
 ## Feature
 Every payload the service stores has a bounded life: a **team-level 30-day
 retention window** measured from capture, and a **garbage collector** that
-permanently removes payloads once that window elapses — while an **enhanced-mode**
-proxy additionally stores the payload it **dispatched**, separately from and
-without mutating the raw input it received.
+permanently **erases the payload content** once that window elapses — while an
+**enhanced-mode** proxy additionally stores the payload it **dispatched**,
+separately from and without altering the raw input it received. *(Amendment A:
+erasure happens **in place** — the payload content is destroyed, the captured
+event record is retained and carries an explicit cleaned state, AC21.)*
 
 ## Problem
 Three gaps sit on top of #1/#3/#4:
@@ -21,7 +30,8 @@ Three gaps sit on top of #1/#3/#4:
    **nothing ever removes it**. PRD-03 AC11 records this as an accepted interim
    trade-off explicitly deferred to #5 (Q-03-02). Payload content is the most
    sensitive data we hold; keeping it forever is both a cost and a
-   confidentiality problem.
+   confidentiality problem. *(Amendment A scopes the fix precisely: #5 bounds
+   **payload content**; growth in retained event records is deferred concern D1.)*
 2. **No defined retrievability guarantee.** #6 manual replay re-dispatches a
    stored payload, and #7 sells storage as an enhanced-mode benefit. Neither can
    promise anything without a stated window over which a stored payload is
@@ -33,8 +43,11 @@ Three gaps sit on top of #1/#3/#4:
    construction); there is no home for what was actually sent, which #8 mapping
    makes materially different from the input.
 
-Item #5 closes all three without touching the ingest, response, or dispatch paths
-#1/#3/#4 already established.
+Item #5 closes all three without changing the ingest, response, or dispatch
+**behaviour** #1/#3/#4 already established. *(Amendment A qualifier: AC22 changes how
+captured headers are **protected at rest**, which may touch the capture path's
+storage of them; it changes nothing an upstream sender or a destination observes, and
+#3's capture-before-response guarantee is untouched. Feasibility is Q-05-04.)*
 
 ## What #3 already delivered vs. what #5 adds
 Recorded so scope is unambiguous — #3's Owner scope change moved the boundary.
@@ -42,7 +55,7 @@ Recorded so scope is unambiguous — #3's Owner scope change moved the boundary.
 | Concern | Owner | State |
 |---|---|---|
 | Durable raw capture, before the upstream response, **both modes** | #3 (ADR-010, R2 capture-dimension override) | Done |
-| Raw body encrypted at rest; headers plaintext | #3 (ADR-010 Amendment B) | Done — headers stay plaintext until #10 |
+| Raw body encrypted at rest; headers plaintext | #3 (ADR-010 Amendment B) | Done — **superseded for headers by Amendment A**: header at-rest encryption + expiry clearing move to **#5** (AC22). The rest of #10 is untouched |
 | Raw/dispatched separation as a principle | #3 AC8 (R2 build-ahead) | Principle set; output store does not exist |
 | **Retention window + garbage collection** | **#5** | **This PRD** |
 | **Dispatched-output storage (enhanced mode)** | **#5** | **This PRD** |
@@ -51,22 +64,29 @@ Recorded so scope is unambiguous — #3's Owner scope change moved the boundary.
 | Field obfuscation, header/sensitive-data policy, verification tokens | #10 | Not here |
 
 ## Goals
-- Every stored payload is removed automatically once its retention window elapses;
-  storage no longer grows unbounded (closes the PRD-03 AC11 interim gap).
+*(Amendment A aligns the verbs below: "removed/deleted" means the payload **content**
+is erased, in place, not that the captured event record is deleted.)*
+
+- Every stored payload's content is erased automatically once its retention window
+  elapses; **payload** storage no longer grows unbounded (closes the PRD-03 AC11
+  interim gap). Growth in retained **event records** is explicitly out of scope —
+  see deferred concern **D1**.
 - The retention window is **30 days from capture**, applied **per team**, in both
   simple and enhanced mode (Owner decision Q-03-02, 2026-08-03).
 - Within its window a stored raw payload is **guaranteed retrievable**, so #6
   replay has a defined guarantee to build on; after the window it is guaranteed
   **gone**, everywhere.
 - An enhanced-mode proxy stores the **dispatched output** separately from the raw
-  input; the raw input is never mutated (roadmap #5 line; R2's non-overridden half).
+  input; the raw input is never altered while retained (roadmap #5 line; R2's
+  non-overridden half).
 - Payload expiry never costs us delivery history: payload-free delivery-attempt
   records (ADR-003) and anything #11 derives from them survive independently and
   indefinitely.
-- Deleting expired payloads never loses an event that is still being processed
+- Erasing expired payloads never loses an event that is still being processed
   under #4's queued/FIFO dispatch (ADR-011).
-- The at-rest protection floor set at #3 is preserved by anything #5 stores; #10
-  still owns the full sensitive-data policy.
+- The at-rest protection floor set at #3 is preserved by anything #5 stores, and is
+  **raised to cover captured headers** (AC22, Amendment A); #10 still owns the full
+  sensitive-data **policy**.
 
 ## Users
 - **Team member** — owns proxies whose payloads are stored; gains a stated,
@@ -83,9 +103,12 @@ Recorded so scope is unambiguous — #3's Owner scope change moved the boundary.
 - As a team member, I want every payload my proxy received to stay retrievable for
   30 days, so recent events can be inspected and replayed (#6) while they still
   matter.
-- As a team member, I want payloads to be deleted automatically once that window
-  passes, so we do not hold sensitive payload content indefinitely and storage
-  does not grow without bound.
+- As a team member, I want payload content to be erased automatically once that
+  window passes, so we do not hold sensitive payload content indefinitely and
+  payload storage does not grow without bound.
+- As a team member, I want an event whose payload has been cleaned to *say so*, so
+  a missing payload reads as "expired on schedule" rather than "never captured" or
+  "lost" (AC21).
 - As a team member running an enhanced-mode proxy, I want what was **dispatched**
   stored separately from what was **received**, so that once mapping (#8) exists I
   can tell input from output when debugging.
@@ -97,6 +120,12 @@ Recorded so scope is unambiguous — #3's Owner scope change moved the boundary.
   a lost event under #4's queued/FIFO processing.
 
 ## Acceptance Criteria
+
+> **Numbering is append-only.** Amendment A edits criteria **in place** and appends
+> two new ones — **AC21** and **AC22** — carrying their labels explicitly, sitting in
+> their thematic group, so existing cross-references from ADR-012, ADR-013, plan-05
+> and Q-05-03 (which cite AC1–AC20) all stay valid. Nothing is renumbered. Criteria
+> amended by Amendment A are tagged **(A)**.
 
 **Retention**
 
@@ -116,46 +145,107 @@ Recorded so scope is unambiguous — #3's Owner scope change moved the boundary.
 
 **Garbage collection**
 
-5. **Expired payloads are removed automatically.** A garbage collector removes
-   payloads whose retention window has elapsed, with **no user action** and no
-   per-team opt-in. It runs recurrently, not once. (Scheduling and mechanism are
-   the Principal Engineer's — see Q-05-03.)
-6. **Removal is complete.** After removal, that event's payload content — the raw
-   body, its captured request metadata that constitutes payload content, and any
-   stored dispatched output for the same event — is no longer retrievable through
-   **any** user-facing or system path, including a #6 replay. No partial or
-   truncated copy of the body is retained anywhere as a side effect of GC.
-7. **Unexpired payloads are never removed.** A payload inside its window is never
-   deleted by GC. Within the window, retrieval of a stored raw payload for a
-   proxy's event is guaranteed — this is the guarantee #6 replay builds on.
-8. **In-flight events are not eligible for removal.** A payload for an event whose
-   dispatch has not completed — including one queued, pending, or claimed under
-   #4's per-proxy FIFO ordering, or in flight under Async — is **not** removed while
+5. **(A) Expired payload content is erased automatically.** A garbage collector
+   **erases the payload content** of every event whose retention window has elapsed,
+   with **no user action** and no per-team opt-in. It runs recurrently, not once.
+   *(Amendment A: "erases" replaces "removes payloads" — the content is destroyed,
+   the captured event record is retained per AC11.)* Scheduling and mechanism are the
+   Principal Engineer's — see Q-05-03.
+6. **(A) Erasure is complete — payload content, not the record.** After the expiry
+   pass, none of that event's **payload content** is retrievable through **any**
+   user-facing or system path, including a #6 replay. Payload content means, at
+   minimum: the raw body; the captured inbound **headers** (AC22); and any stored
+   dispatched output body for the same event (AC12). No partial, truncated,
+   prefixed, previewed, summarised, hashed, or otherwise reduced copy of payload
+   content is retained anywhere as a side effect of the pass, and nothing retained
+   may permit reconstruction of any part of it. **Retaining the captured event
+   record itself satisfies this criterion** provided it holds only non-content
+   **descriptors** of the transaction — e.g. HTTP method, content type, byte size,
+   capture/received time, identifiers and correlators, ownership — which describe
+   that an event occurred and its shape, never what it contained. *(Amendment A
+   ruling: "removed automatically and completely" is a guarantee about **payload
+   content**, not about the record. It is the same class of survivor AC9 already
+   requires — payload-free records about an event outlive the payload by design.
+   The single field that sits on the line, **content type**, is retained as a
+   format descriptor even though the captured header **collection** is erased: it
+   names the encoding, carries no credential, and the Owner named it explicitly as
+   retained metadata in the 2026-08-05 ruling.)*
+7. **(A) Unexpired payload content is never erased.** A payload inside its window is
+   never erased, cleared, or altered by GC. Within the window, retrieval of a stored
+   raw payload for a proxy's event is guaranteed — this is the guarantee #6 replay
+   builds on.
+8. **(A) In-flight events are not eligible for erasure.** The payload for an event
+   whose dispatch has not completed — including one queued, pending, or claimed under
+   #4's per-proxy FIFO ordering, or in flight under Async — is **not** erased while
    that dispatch is outstanding, even if its window has elapsed. Rationale: queued
-   dispatch rebuilds its input from the stored raw event (ADR-011), so removing it
+   dispatch rebuilds its input from the stored raw event (ADR-011), so erasing it
    mid-flight would lose the event. (Bounding a permanently stuck event is #6's
    dead-letter concern, not asserted here.)
-9. **Delivery history survives expiry.** Removing an expired payload never deletes
+9. **(A) Delivery history survives expiry.** Erasing an expired payload never deletes
    or alters the payload-free delivery-attempt records for that event (ADR-003).
    Success/failure history and anything #11 aggregates from it remain intact and
    are **not** subject to payload retention.
-10. **Expiry is a normal state, not an error.** Where an expired payload is
+10. **(A) Expiry is a normal state, not an error.** Where an expired payload is
     referenced, the system reports it as expired / no longer available and the
-    event's surviving outcome records stay readable; it does not error, 500, or
-    present as data corruption. (What a #6 replay does when the payload is expired
-    is #6's to specify; this criterion only requires the expired state be
-    represented, not fail.)
+    event's surviving records stay readable; it does not error, 500, or present as
+    data corruption. The cleaned-state signal of **AC21** is what makes this state
+    representable. (What a #6 replay does when the payload is expired is #6's to
+    specify; this criterion only requires the expired state be represented, not
+    fail.)
+
+- **AC21 (added — Amendment A). A cleaned payload is an explicitly signalled state.**
+  For any event the system can distinguish three states without ambiguity:
+  **(a) retained** — payload content is present and retrievable within its window;
+  **(b) cleaned** — the event *was* captured and its payload content has since been
+  erased on expiry; **(c) never captured** — no payload content was ever held for
+  that reference. The **cleaned** state is signalled explicitly by the event's own
+  record; it is **not** inferred from the absence of a record, a failed lookup, or an
+  empty value that is indistinguishable from "nothing was captured". #6 replay and
+  any later read path (AC16) build on this distinction. *Requirement only — how the
+  state is represented, stored, or named is the Principal Engineer's.*
 
 **Storage shape**
 
-11. **Raw stays immutable.** Nothing in #5 mutates a captured raw payload — not
-    storing the dispatched output, not marking retention state, not the GC pass
-    short of deleting the record (ADR-010; PRD-03 AC8; R2 build-ahead).
-12. **Dispatched output stored in enhanced mode.** When a proxy is in **enhanced
-    mode**, the payload actually dispatched to destinations for a received event is
-    stored **separately from** the raw input and is associated with the **same
-    received event**, so input and output are independently identifiable. In
-    **simple mode** no dispatched-output record is created.
+11. **(A) Captured payload content is immutable while retained; erasing it on expiry
+    is permitted.** Two halves, and the line between them is exact:
+    - **Capture fidelity is absolute for as long as the content is retained.** While
+      an event's payload is within its retention window, nothing in #5 may alter it —
+      not storing the dispatched output, not recording retention or dispatch state,
+      not the expiry pass, not any read path. What was captured is byte-for-byte what
+      is served. No rewrite, redaction, normalisation, truncation, re-encoding, or
+      partial clearing of retained payload content is permitted at #5 (field-level
+      obfuscation is #10's and is **not** authorised here).
+    - **Destruction on expiry is not alteration, and is permitted.** Once the window
+      has elapsed, the retention system **may erase the payload content in place** —
+      destroying the content while the captured event record is retained and marked
+      cleaned (AC21). This does **not** violate the immutability constraint.
+    *(Amendment A, Owner ruling 2026-08-05, recorded as reasoned: ADR-010's
+    immutability constraint exists to prevent **alteration** of captured payload
+    data, not to prevent its **cleanup**. Deleting the record and erasing the payload
+    content reach the same security outcome — the payload no longer exists past the
+    point it is needed — and treating the delete as compliant while treating the
+    erasure as a violation is incoherent, since the delete is the larger mutation.
+    Erasure also targets payload content **specifically**, which is the right
+    granularity now that payload content lives in two stores — the raw store and the
+    dispatched-output store. This reading supersedes ADR-010's "never mutate a
+    captured row" constraint as applied to expiry only; see § Amendment A.)*
+    Permitted lifecycle for a captured payload is therefore exactly:
+    **captured-and-unaltered → erased**. There is no third state and no intermediate
+    edit. (ADR-010; PRD-03 AC8 — whose "capture never mutates the raw input" is about
+    the capture and dispatch paths and is unaffected; R2 build-ahead.)
+12. **(A) Dispatched output stored in enhanced mode, and cleaned by the same pass.**
+    When a proxy is in **enhanced mode**, the payload actually dispatched to
+    destinations for a received event is stored **separately from** the raw input and
+    is associated with the **same received event**, so input and output are
+    independently identifiable. In **simple mode** no dispatched-output record is
+    created. **The dispatched output's payload content is subject to the same
+    retention window as the raw payload for that event and is erased by the *same
+    expiry pass*, with no window in which one survives the other.** A dispatched
+    output may never outlive its received event's payload. *(Amendment A: previously
+    this was a consequence of removing the raw record; now that the record is
+    retained, clearing the dispatched output is an explicit requirement of the expiry
+    pass in its own right. The cleaned state of AC21 covers the event as a whole,
+    including its output.)*
 13. **One dispatched output per received event.** Per resolved decision R3, all of
     a proxy's destinations receive the same payload structure for a given event, so
     the stored dispatched output is per received event — #5 introduces no
@@ -168,16 +258,39 @@ Recorded so scope is unambiguous — #3's Owner scope change moved the boundary.
 
 **Protection & access**
 
-15. **At-rest protection floor preserved.** Any payload content #5 stores carries
-    **at least** the at-rest protection established for the raw body at #3
-    (encrypted at rest — ADR-010 Amendment B). #5 does not create a
-    less-protected copy of payload content and does not decrypt payload content
-    into a new store. Inbound headers remain plaintext at rest until #10 —
-    unchanged and not widened by this item.
+15. **(A) At-rest protection floor preserved and raised.** Any payload content #5
+    stores carries **at least** the at-rest protection established for the raw body
+    at #3 (encrypted at rest — ADR-010 Amendment B). #5 does not create a
+    less-protected copy of payload content, does not decrypt payload content into a
+    new store, and its expiry pass creates no cleartext intermediate. **Inbound
+    headers no longer remain plaintext at rest:** the previous sentence deferring
+    header encryption to #10 is **superseded by AC22** (Amendment A). The floor now
+    covers captured bodies **and** captured headers; #10 still owns all header and
+    sensitive-data *policy*.
 16. **Access is team-scoped and permission-gated.** Any read path that exposes
     stored payload content is restricted to members of the owning team and gated by
     the existing proxy **read** permission (PRD-02 / ADR-009). #5 adds no sharing,
     export, download, or cross-team access path.
+
+- **AC22 (added — Amendment A). Captured headers are encrypted at rest and cleared on
+  expiry.** Inbound headers captured alongside a raw payload (#3 / ADR-010) must be:
+  **(a) encrypted at rest**, to at least the same protection floor the raw body
+  already carries (AC15); and **(b) erased by the same expiry pass** that erases that
+  event's payload content (AC5, AC6, AC11, AC12) — captured headers do not outlive
+  their event's retention window.
+  *Rationale (Owner ruling, 2026-08-05):* plaintext-at-rest headers are the exposure
+  PRD-03 / ADR-010 Amendment B knowingly deferred to #10; this ruling both **reduces
+  it now** (encrypted while retained) and **clears it on expiry** (erased with the
+  payload), the latter available at no extra cost because headers are already in the
+  cleanup.
+  **Scope — this is the only slice of #10 that moves.** #10 keeps its full scope
+  unchanged: field-level obfuscation/redaction, sensitive-**header policy** (which
+  headers are sensitive, what is redacted, what is displayed), verification-token
+  standards (V2), per-team/per-plan key policy, key rotation and re-encryption
+  tooling. #5 adds **no** header policy, no redaction, no classification of which
+  headers matter, and no header read or export surface — only at-rest protection and
+  expiry. Whether this is achievable without disturbing #3's capture path or ADR-008
+  header forwarding is the Principal Engineer's to determine (Q-05-04).
 
 **Scope boundaries**
 
@@ -260,6 +373,37 @@ all three.
     warrants revisiting the engine, that is an ADR, and any new dependency or
     data-store change carries the Owner approval gate in `CLAUDE.md`.
 
+## Deferred concerns (Amendment A)
+Recorded in the same manner as V4/V5 above — a **deferred concern, not a
+requirement**. Nothing below asserts anything #5 must build.
+
+- **D1 — Growth in retained event records — DEFERRED (explicitly accepted; out of
+  scope for #5).** Because retention now erases payload content **in place** rather
+  than deleting the captured event record (AC11), event records accumulate for the
+  life of the account: one per received event, retained after its payload is cleaned,
+  holding non-content descriptors and the AC21 cleaned-state signal.
+
+  **Settlement:** explicitly accepted by the **Project Owner, 2026-08-05**, as out of
+  scope for #5. Basis, as ruled: record growth is a **scalability concern that
+  materialises with user volume, not an MVP concern**. #5's mandate is bounding
+  **payload content** — the sensitive, bulky part — which erasure-in-place achieves in
+  full; a cleaned record carries none of the confidentiality weight that motivated
+  retention, and none of the volume.
+
+  **Not a requirement:** #5 asserts **no** cap, quota, archival, roll-up,
+  partitioning, or pruning of retained event records, and **no** numeric growth,
+  volume, or storage target for them (consistent with AC20). No acceptance criterion
+  depends on record count.
+
+  **What is kept open:** nothing in #5 requires event records to be kept *forever* —
+  it requires only that a cleaned payload stay distinguishable from a never-captured
+  one (AC21). A future record-lifecycle policy therefore attaches to the same
+  team-level property retention already hangs off (AC3), the same seam V5 and V6 use,
+  without re-modelling storage or GC. Whether and when record volume warrants action
+  is a judgement for a future item — and if the Principal Engineer judges it a #5-time
+  risk rather than a future one, that is an Open Question to raise, not a requirement
+  to infer.
+
 ## Out of Scope
 Each points to the item that owns it.
 
@@ -270,9 +414,16 @@ Each points to the item that owns it.
 - **Payload mapping / reshaping** — roadmap #8. #5 stores the dispatched output; it
   never transforms it.
 - **Encryption key policy, rotation/re-encryption tooling, field-level obfuscation,
-  sensitive-header handling, verification-token standards (V2)** — roadmap #10. #5
+  sensitive-header *policy*, verification-token standards (V2)** — roadmap #10. #5
   preserves the #3 floor (AC15) and adds no policy of its own. The APP_PREVIOUS_KEYS
   operational guard (ADR-010 Amendment B) remains binding and is unchanged.
+  **Amendment A moves exactly one slice of #10 forward:** header **at-rest
+  encryption** and **clearing headers on expiry** (AC22). Everything else in #10 —
+  including deciding *which* headers are sensitive and what is redacted or displayed
+  — stays at #10, untouched and not descoped.
+- **Any cap, archival, roll-up, or pruning of retained event records; any numeric
+  record-count or record-storage target** — deferred concern **D1** (Owner,
+  2026-08-05). #5 bounds payload content, not record count.
 - **Analytics / stats surfaces over stored payloads** — roadmap #11. AC9 guarantees
   stats never depend on expiring payloads; #5 adds no analytics surface.
 - **Notifications about retention, expiry, or storage volume** — roadmap #13.
@@ -290,6 +441,83 @@ Each points to the item that owns it.
   The viewing surface lands with **#6**, after or alongside #10's obfuscation —
   #10 depends on #5, so a viewer at #5 would render unobfuscated payload content.
   AC16 remains the standing constraint on any read path whenever one is introduced.
+
+## Amendment A — retention erases payload content in place (Project Owner ruling, 2026-08-05)
+Amends the Approved PRD; does **not** reopen it. The PRD stays **Approved**. Recorded
+per `docs/standards/documentation.md` (amend in place, retain history, never rewrite
+ratified content silently).
+
+### The ruling
+Retention cleanup **no longer hard-deletes the captured event record**. The expiry
+pass **nulls the payload content in place** and **keeps the record**, which carries an
+explicit signal that its payload has been cleaned.
+
+### The Owner's reasoning, as given
+1. **ADR-010's immutability constraint exists to prevent *alteration* of captured
+   payload data, not to prevent its *cleanup*.** Deleting the record and nulling the
+   payload content reach the same security outcome — the payload no longer exists past
+   the point it is needed. Treating the delete as compliant while treating the null as
+   a violation is incoherent, since **the delete is the larger mutation**.
+2. **Nulling targets the payload specifically**, which is the right granularity now
+   that payload content lives in **two places** — the raw store and the ADR-013
+   dispatched-output store.
+3. **The migration is trivial: there is no production data to protect.**
+4. **Headers get encryption**, and headers are included in the cleanup — so the
+   plaintext-header exposure currently deferred to #10 is **both reduced now and
+   cleared on expiry**.
+5. **An explicit state/status signalling that an event's payload has been cleaned**
+   replaces deriving "expired" from the absence of a record.
+6. **Growth from retaining records indefinitely is explicitly accepted as out of
+   scope** — a scalability concern that materialises with user volume, not an MVP
+   concern; recorded as a deferred concern (**D1**), not a requirement.
+
+### What changed in this PRD
+| Item | Change |
+|---|---|
+| AC11 | Rewritten. Immutability now binds **while content is retained**; erasure on expiry is explicitly permitted. Lifecycle: captured-and-unaltered → erased, nothing between. |
+| AC6 | **Ruling + rewrite.** A retained record holding only non-content **descriptors** satisfies "removed completely"; the guarantee is about payload **content**, not the record. Content now explicitly includes captured headers. Reconstruction and any reduced copy forbidden. Content-type explicitly ruled retained. |
+| AC12 | Clearing the dispatched output is now an explicit requirement of the **same expiry pass**, not a by-product of deleting the raw record. |
+| AC15 | Header-plaintext deferral to #10 **superseded**; floor now covers captured headers. |
+| AC5, AC7, AC8, AC9, AC10 | Verb alignment: "remove/delete a payload" → "erase payload content". AC10 additionally cross-references AC21. No change of substance. |
+| AC21 (new) | Cleaned state must be **explicitly signalled** and distinguishable from *retained* and from *never captured*. Mechanism not specified. |
+| AC22 (new) | Captured headers **encrypted at rest** and **cleared by the same expiry pass**. Explicitly the only slice of #10 that moves. |
+| D1 (new) | Record growth from retained records — deferred, accepted, not a requirement. |
+| AC13, AC14, AC16–AC20 | **Unchanged.** AC13 (one output per received event, no per-destination variance) is unaffected by erasure-vs-delete. |
+
+### Consequences downstream — Principal Engineer's to action, not edited here
+Recorded so nothing is papered over. Each artifact below rests on a premise this
+ruling changes; none is touched by this PRD.
+
+- **ADR-010 (Accepted, Owner 2026-08-04)** — its Impact constraint "never … mutate a
+  captured row here" and Amendment B's "**inbound headers remain plaintext at rest
+  until #10**, the Owner accepts this explicitly" are both **overridden by this
+  ruling**. An Owner-level decision supersedes an Owner-accepted ADR, but the ADR must
+  be amended or superseded on the record (documentation.md: reversing an Accepted
+  decision is a new/amending ADR, never a silent rewrite). PE's call which.
+- **ADR-012 (Proposed)** — built on "expiry is derived, never stored", "no retention
+  column, row, flag or tombstone", "removal is a **hard delete**", and "*expired* is
+  derived from the **absence** of a record". AC21 and AC11 now require the opposite of
+  the last two. Needs revision before Owner sign-off.
+- **ADR-013 (Proposed)** — its AC6 guarantee is structural via `cascadeOnDelete` from
+  the raw record. With the record retained, AC12 now requires the output to be cleared
+  by the expiry pass directly. Its rejection of storing dispatched headers also cites
+  AC15's "plaintext surface not widened", a premise AC22 changes — though the
+  per-destination-variance argument for that rejection (AC13/R3) stands independently
+  and is **not** disturbed by this ruling.
+- **plan-05 / Q-05-03** — Q-05-03 is RESOLVED; its answer (ii) ("there is no
+  bookkeeping … GC's only write is the DELETE") and (iii)'s header note are overtaken.
+  The PE decides whether to amend the resolved answer or record the change in the
+  revised ADRs.
+- **Owner approval gates** — this ruling likely **adds** to the CLAUDE.md gate list at
+  plan time (schema change to an existing table; a change to at-rest encryption
+  coverage). Assessing and presenting that is the PE's, per Q-05-03(iv).
+
+### What this ruling does **not** change
+V4, V5, V6, Q-05-01 (no inspection surface at #5), Q-05-02 (30 days fixed; output
+store at #5) — all untouched and not reopened. No UX Direction is added; #5 still adds
+**no UI** and still routes to the Principal Engineer with no Designer gate. The 30-day
+window, team-level scoping, both-modes coverage, in-flight holds, and the survival of
+delivery history are all unchanged.
 
 ## Open Questions
 Question IDs Q-05-0x. **Q-05-01 and Q-05-02 are both RESOLVED by the Project Owner
@@ -320,8 +548,13 @@ only, not requirement approval.
   doubling stored payload volume for no immediate user-visible difference; the
   30-day GC bounds it and AC15's at-rest floor covers the duplicate copy.
   No acceptance criterion changed as a result.
-- **Q-05-03 (Principal Engineer, technical) — OPEN. GC composition and the output
-  store's home. Non-blocking for requirement approval; gates technical design.**
+- **Q-05-03 (Principal Engineer, technical) — RESOLVED 2026-08-05** in
+  `docs/questions/prd-05-q-05-03-gc-composition-and-output-store.md`, ADR-012,
+  ADR-013 and plan-05. **Amendment A overtakes parts of that answer** — see §
+  Amendment A → *Consequences downstream*; specifically its (ii) (no bookkeeping /
+  derived expiry / delete-only write) and its (iii) header note. Re-answering is the
+  Principal Engineer's, and still gates technical design only, never requirement
+  approval. Original wording retained below.
   Confirm, at #5 technical design, that: (i) an expiry-driven delete pass composes with
   **ADR-011**'s FIFO ordering/claim state (rows referencing a captured event) and
   with Async in-flight jobs such that AC8 holds and no in-flight event is lost;
@@ -333,6 +566,18 @@ only, not requirement approval.
   **data-model change** requiring the Owner approval gate in `CLAUDE.md` at plan
   time. Mechanism, scheduling, batching, and delete strategy are the Principal
   Engineer's, not resolved here.
+- **Q-05-04 (Principal Engineer, technical) — OPEN, raised by Amendment A.
+  Feasibility of AC22 header encryption and the AC21 cleaned-state signal.
+  Non-blocking for requirement approval; gates technical design only.** Doc:
+  `docs/questions/prd-05-q-05-04-header-encryption-and-cleaned-state.md`. Two
+  feasibility items the Product Manager will not resolve technically: (i) whether
+  encrypting captured headers at rest (AC22a) disturbs any existing consumer of
+  captured headers — #3's capture path, ADR-008 header forwarding, a future #6
+  replay — or any need to filter/match on them; (ii) whether the AC21 cleaned-state
+  signal and in-place erasure (AC11) create any interaction with #4's dispatch state
+  or the AC8 in-flight holds that the previous delete-based design did not have. If
+  either is infeasible as stated, that returns to the Product Manager as a
+  requirement question, not a silent design change.
 
 ## Handoff
 - **Inputs:** `docs/product/roadmap.md` (#5 line + build-ahead note; Open Questions
@@ -355,11 +600,13 @@ only, not requirement approval.
   reference from the stored raw event — AC8),
   `docs/architecture/adr-009-proxy-permission-mechanism.md` (permission gate),
   `docs/standards/documentation.md`.
-- **Outputs:** this PRD;
+- **Outputs:** this PRD (incl. **Amendment A**, Owner ruling 2026-08-05);
   `docs/questions/prd-05-q-05-01-payload-inspection-surface.md` (RESOLVED, Owner
   2026-08-05 — Option B);
   `docs/questions/prd-05-q-05-02-retention-and-dispatched-output-scope.md`
-  (RESOLVED, Owner 2026-08-05 — both defaults confirmed).
+  (RESOLVED, Owner 2026-08-05 — both defaults confirmed);
+  `docs/questions/prd-05-q-05-04-header-encryption-and-cleaned-state.md` (OPEN,
+  Principal Engineer — raised by Amendment A).
 - **Dependencies:** Roadmap #1 (Done) — team-scoped proxies and payload-free attempt
   records. #3 (Done) — durable raw capture is the thing #5 puts a lifecycle on;
   without it there is nothing to retain. #4 (Done, merged) — queued/FIFO dispatch is
@@ -373,8 +620,12 @@ only, not requirement approval.
   confirmed; `docs/questions/prd-05-q-05-02-retention-and-dispatched-output-scope.md`).
   Roadmap V4, V5, V6 — **settled in this PRD** (see the dedicated section), not
   escalated; Owner approval ratifies them.
-- **Next Agent:** **Principal Engineer** (carrying Q-05-03). Settled by the Q-05-01
-  resolution: this PRD contains **no UX Direction section** and adds no UI, so under
-  the mechanical routing rule it goes to the Principal Engineer and **no Designer
-  gate applies** to Feature #5. This handoff is contingent only on the outstanding
-  Project Owner approval of this PRD itself, which is still pending.
+- **Next Agent:** **Principal Engineer** — now carrying **Amendment A** and
+  **Q-05-04** (Q-05-03 already answered, partly overtaken). Routing is unchanged by
+  the amendment: this PRD still contains **no UX Direction section** and adds no UI,
+  so under the mechanical routing rule it goes to the Principal Engineer and **no
+  Designer gate applies** to Feature #5. The PRD is **Approved** (Owner 2026-08-05)
+  and **amended** (Owner ruling, same date); no further requirement gate stands.
+  The Principal Engineer's next step is revising **ADR-012** and **ADR-013** (and
+  ADR-010's superseded constraints) against AC5–AC12, AC15, AC21, AC22 and D1 before
+  the Owner sign-off those ADRs already require.

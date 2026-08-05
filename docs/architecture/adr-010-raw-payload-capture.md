@@ -1,6 +1,17 @@
 # ADR-010: Durable raw-payload capture — storage entity and pre-dispatch placement
 
-- **Status:** Accepted (Owner, 2026-08-04)
+- **Status:** **Accepted** (Owner, 2026-08-04) — **two positions partially superseded by
+  [ADR-014](adr-014-captured-entity-erasure-and-header-encryption.md)** (Proposed, 2026-08-05).
+  The ADR is **not** superseded as a whole and remains operative: the capture entity, the
+  synchronous pre-dispatch placement, the shared `ingest_id` correlator, the `'body' => 'encrypted'`
+  cast, the `LONGBLOB` column type, and Amendment B's binding `APP_PREVIOUS_KEYS` guard all stand.
+  Superseded, by Project Owner ruling 2026-08-05 (PRD-05 § Amendment A), are exactly:
+  **P1** — the Impact/Constrained clause "never … mutate a captured row here" (**narrowed**: the
+  expiry pass may null `body`, `headers`, and set `payload_cleaned_at`; immutability still binds
+  absolutely while payload content is retained); and
+  **P2** — Amendment B's "inbound `headers` remain plaintext at rest until #10" (**reversed**:
+  headers are encrypted at rest at #5). Both are marked inline below. Nothing here is rewritten —
+  see ADR-014 § Positions superseded.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-03
 - **Feature:** prd-03-decoupled-upstream-response (pulls the capture half of #5 forward; serves #5, #6, #10, #11)
@@ -81,7 +92,18 @@ pipeline step (it is part of dispatch and need not precede the response).
 ## Impact
 - **Easier:** #5 = add a dispatched-output store + GC keyed on `webhook_events.created_at`; #6 = replay re-dispatches from the raw row (join on `ingest_id`), reading the decrypted body transparently via the cast; #10 = layer the remaining sensitive-data policy (headers, field-level obfuscation, per-team/tier key policy, verification-token V2) on top of the #3 body cast — no shape change; #11 = size/volume metrics already present (`byte_size`, captured pre-encryption).
 - **Constrained:** `webhook_events` is raw-only and immutable — never store dispatched/derived output or mutate a captured row here (that is #5's separate concern). The ingest handler must capture (committed) **before** dispatching `ProcessIngestedWebhook`; when #4 makes dispatch async, dispatch only after the capture transaction commits.
+  > **[P1 — PARTIALLY SUPERSEDED by ADR-014, Owner ruling 2026-08-05.]** "Never … mutate a
+  > captured row here" is **narrowed, not removed**: it binds absolutely while payload content is
+  > **retained**; the #5 expiry pass may null `body` and `headers` and set `payload_cleaned_at`
+  > (PRD-05 AC11/AC21/AC22b). "Never store dispatched/derived output here" is **not** superseded.
+  > No other writer or column is authorised. Read the clause above with that narrowing.
 - **Security-sensitive / Owner flag (updated by Amendment B):** raw request **bodies** are encrypted at rest at #3 via the `'body' => 'encrypted'` cast (Owner decision 2026-08-04). **Inbound `headers` remain plaintext at rest until #10** — the Owner accepts this: body is the priority; header handling (and the rest of the sensitive-data policy) is #10's scope. The at-rest encryption is bound by the operational key-rotation guard in Amendment B.
+  > **[P2 — SUPERSEDED by ADR-014, Owner ruling 2026-08-05.]** "Inbound `headers` remain plaintext
+  > at rest until #10" is **reversed**: captured headers are encrypted at rest at **#5**
+  > (`'encrypted:array'` cast, `MEDIUMTEXT` column) and erased by the expiry pass (PRD-05 AC22).
+  > Only this slice of #10 moves — #10 keeps field-level obfuscation, sensitive-**header policy**,
+  > V2 verification tokens, key policy, and rotation tooling. The Amendment B key guard below is
+  > unchanged and now spans three columns across two tables.
 - **Data-model change / Owner flag:** introduces a new table and (via the plan) two new `proxies` columns; requires Owner approval as a data-model change.
 - Supersedes the `CaptureRawStep // #5` placeholder comment in `PipelineFactory` for raw capture; the Senior Developer updates that comment to point at the handler-level capture.
 
@@ -113,6 +135,10 @@ Alternatives rejection) is superseded. This reverses the prior deferral to #10.
 - **#3 encrypts the `body` only.** This is the *floor*. **Inbound `headers` remain
   plaintext at rest until #10** — the Owner accepts this explicitly; it is not a silent
   gap. Body is the priority now.
+  > **[P2 — SUPERSEDED by ADR-014, Owner ruling 2026-08-05.]** The header deferral is
+  > reversed: headers are encrypted at rest at **#5** (PRD-05 AC22a) and erased on expiry
+  > (AC22b). The floor-not-ceiling framing, "#10 is NOT descoped", the lock-in position, and
+  > the key guard below all stand and now cover the header column too.
 - **#10 is NOT descoped.** #10 still owns the **full** sensitive-data policy:
   field-level obfuscation/redaction, sensitive-header handling, verification tokens V2,
   and per-plan/per-team key policy. #3's body cast is the *minimum*; #10 layers the rest
