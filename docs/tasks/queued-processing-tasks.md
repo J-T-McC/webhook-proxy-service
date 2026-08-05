@@ -518,7 +518,16 @@
 - **Testing:** the cases above — simulate concurrent advancer dispatch (e.g. two direct `::run()`
   calls against the same pre-seeded claim state) and a manually-expired lease row, then assert via
   `fifo_dispatches` row state and delivery outcome.
-- **Completion notes:** _pending_
+- **Completion notes:** New `FifoLivenessAcceptanceTest` (4 cases). Contention (ADR-005 (a)): (1) a
+  second advancer early-returns on an existing live claim without claiming the next row; (2) the
+  strong contention proof — a concurrent `AdvanceProxyFifoQueue::run` is fired from inside the
+  `Http::fake` closure (i.e. WHILE advancer #1's event is claimed and in flight, outside the claim
+  transaction); it asserts exactly one row is `claimed` at that instant and the concurrent run does
+  NOT claim row 2 (the atomic claim, not `WithoutOverlapping`, is what enforces this); (3) two runs
+  on a single pending row deliver it exactly once. Liveness (ADR-005 (b)): (4) an orphaned claim
+  (expired lease) is reaped to `pending` by `SweepStalledFifoDispatches`, the idle proxy is nudged,
+  and the next advancer settles the reaped row. The T16 tripwire (split rather than shrink) was not
+  needed — all cases fit one file cleanly. No production change. All three checks green.
 
 ## T17 — Idempotency acceptance tests (AC9)
 
