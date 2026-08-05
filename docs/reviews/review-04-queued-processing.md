@@ -94,6 +94,82 @@ placement, and attempt-record shape all unchanged.
   FIFO advancer's lock TTL and its interaction with the sweeper's liveness net.
 - **Project Owner decision / date:** _pending_
 
+## Re-review (2026-08-04)
+
+Focused re-review of the Senior Developer's rework on `feat/item-04-queued-processing`
+after the initial **Request changes** (Major #1 + Minors). Verified the fix, re-ran all
+gates, and confirmed the deferred Minors did not regress.
+
+### Major #1 (advancer lock TTL) — RESOLVED
+`AdvanceProxyFifoQueue::getJobMiddleware` (`app/Actions/AdvanceProxyFifoQueue.php:115-121`)
+now returns `(new WithoutOverlapping("proxy:{$proxyId}"))->expireAfter((int) config('ingest.fifo_lease_seconds'))`.
+Confirmed this closes the leaked-lock deadlock:
+- **TTL == lease is the correct upper bound.** The overlap lock is acquired by the
+  `WithoutOverlapping` middleware *before* the job handle runs; `lease_expires_at` is
+  stamped later, inside `claimNext` (`:87`). So with T0 = lock-acquire and T1 > T0 =
+  lease-stamp, the lock expires at `T0 + lease` ≤ `T1 + lease` = the claim-lease expiry.
+  `SweepStalledFifoDispatches` only reaps/re-drives once `lease_expires_at < now`
+  (`:31-33`), i.e. after `T1 + lease` — by which point the leaked lock (gone at
+  `T0 + lease`) has certainly expired, so the re-dispatched advancer can always
+  reacquire. A TTL longer than the lease would push lock-expiry past the reap point and
+  re-open the deadlock; equal is the right upper bound. SE reasoning confirmed correct.
+- Config key exists: `config/ingest.php:75` → `fifo_lease_seconds` default 90s (same
+  value the sweeper's reaper keys on), so lock TTL and claim lease are provably the
+  same quantity, not two drifting constants.
+
+### Recovery test — genuine, not a tautology
+`tests/Feature/Ingest/FifoLivenessAcceptanceTest.php:163`
+(`test_a_leaked_overlap_lock_self_heals_within_the_lease_and_the_line_advances`)
+drives the **real sync queue** (no `Queue::fake`), so the sweeper's dispatched advancer
+actually runs through the production `WithoutOverlapping` middleware. It:
+- resolves the leaked lock via the *exact* production key + TTL from
+  `getJobMiddleware($proxy->id)` (not a hand-rolled key), and asserts
+  `$overlap->expiresAfter === config('ingest.fifo_lease_seconds')` (`:184`);
+- proves the **stall while held**: sweep #1 reaps the stranded claim to `pending` and
+  dispatches the advancer, which is blocked by the held lock — row stays `pending`, `0`
+  delivery attempts (`:195-196`);
+- proves the **advance after expiry**: releases the lock, sweep #2 re-drives, the row
+  settles, `1` delivery attempt, `1` HTTP send (`:205-207`).
+  This is a real block-then-recover proof against the production lock, not a tautology.
+  One acceptable limitation: it uses `forceRelease()` to stand in for the TTL elapsing
+  rather than waiting `fifo_lease_seconds` of wall-clock — bridged by the explicit
+  `expiresAfter` assertion that ties the simulated release to the real TTL. Sound.
+
+### Minors
+- **createQuietly (was finding #3) — RESOLVED.** All three FIFO test files now use
+  `->createQuietly(` for `FifoDispatch`/`WebhookEvent`/`Proxy`/`Destination`:
+  `FifoLivenessAcceptanceTest.php:35-45`, `AdvanceProxyFifoQueueTest.php:29-39`,
+  `SweepStalledFifoDispatchesTest.php:20-36`. No bare `->create(` remains in them.
+- **Concurrency-proof limitation (finding #2) — deferred, no regression.** The
+  contention tests (`FifoLivenessAcceptanceTest` `test_a_second_advancer_...`,
+  `test_no_two_rows_are_ever_claimed_simultaneously_under_contention`) are intact;
+  carries to backlog as a real-concurrency integration test if a harness ever lands.
+- **T18-via-model (finding #4) — no action, no regression.** Endpoint persistence (T20)
+  and validation (T19) still cover the HTTP path.
+
+### Gate results (re-run by the Reviewer, 2026-08-04)
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `composer lint` | `{"tool":"pint","result":"passed"}` |
+| Static analysis | `composer types:check` | `{"tool":"phpstan","result":"passed","errors":0}` |
+| Backend tests | `./vendor/bin/sail test` | `{"tool":"phpunit","result":"passed","tests":354,"passed":354,"assertions":1355}` (+1 test, +7 assertions vs. initial review — the new recovery test) |
+| FE types | `pnpm types:check` (vue-tsc) | clean |
+| FE lint | `pnpm lint:check` (eslint) | clean |
+| FE format | `pnpm format:check` (prettier) | clean |
+
+`pnpm run build` not run — Node 21 < required 22 in this sandbox (documented env
+limitation, unchanged); SFCs validated by vue-tsc + eslint.
+
+### Re-review recommendation
+**Approve with follow-ups.** Major #1 is fully resolved — fix is correct, the TTL/lease
+relationship is provably the right upper bound, and the new recovery test genuinely
+exercises it end-to-end against the production lock. Minor #3 (createQuietly) resolved.
+No blockers remain. Two non-blocking follow-ups carry to backlog: (i) a real-concurrency
+integration test for the single-advancer window (finding #2), (ii) optionally a
+model→HTTP consolidation for T18 (finding #4). Final call rests with the Project Owner.
+
+- **Project Owner decision / date:** _pending_
+
 ## Handoff
 - **Inputs:** PRD-04, plan-04, ADR-011/ADR-005, design-04, tasks-04, `docs/standards/`,
   branch `feat/item-04-queued-processing`.
