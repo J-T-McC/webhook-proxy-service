@@ -615,7 +615,31 @@
 - **Testing:** the cases above — direct `FifoDispatch`/`DeliveryAttempt` factory states to construct
   each hold, `travel()` to age events, and a targeted test seam to reproduce the reappeared-hold
   race for the compare-and-set case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Retention/RetentionInFlightHoldsAcceptanceTest.php`
+  added (5 tests). **H2:** a `pending` then `claimed` `fifo_dispatches` row holds an otherwise-expired
+  event across two GC passes; once `settled`, a third pass cleans it. **H3:** a `dispatched`
+  (non-terminal) `DeliveryAttempt` holds the event; once resolved to `Succeeded`, the next pass
+  cleans it. **H4:** since the default horizon (60 min) is always far shorter than any past-cutoff
+  event's age, the test decouples the horizon from the retention window via
+  `Config::set('retention.dispatch_horizon_minutes', 35 * 24 * 60)` — an event 32 days old (past H1,
+  younger than the 35-day horizon) stays held with zero attempt rows; one 36 days old (past both) is
+  cleaned. **Compare-and-set:** `DB::listen()` detects the selection query (`select \`id\` from
+  \`webhook_events\``, matched once via a captured guard flag) and, inside the listener, inserts a
+  `pending` `fifo_dispatches` row for the already-selected event — reproducing a hold reappearing
+  between selection and the erase `UPDATE`. Asserts the erase affects the event not at all
+  (`payload_cleaned_at` still null, the row byte-for-byte unchanged) — proving `eraseOne()`'s
+  re-assertion of holds in the `UPDATE`'s own `WHERE` (T11) is what makes this safe, no production
+  code change needed. **FIFO liveness under GC:** a 3-row FIFO line (`evt-1` claimed/live,
+  `evt-2`/`evt-3` pending), all three events backdated 31 days (expired), proxied through a GC pass —
+  the claim, its `lease_expires_at`/`claimed_at`, and the pending set are all untouched (H2 holds all
+  three), and no event is cleaned; settling the frozen claim afterward and driving
+  `AdvanceProxyFifoQueue::run()` twice (mirrors the existing `FifoLivenessAcceptanceTest`
+  step-by-step-advance pattern — `Queue::fake()` prevents the internal self-dispatch from recursing
+  inline) settles `evt-2` then `evt-3` and delivers them in receive order (`Http::recorded()` bodies
+  `['evt-2', 'evt-3']`), proving the GC pass in between disturbed neither the claim nor delivery order
+  (ADR-011 composition). No production-code gap found. Verified: `composer lint`, `composer
+  types:check`, `./vendor/bin/sail test --filter RetentionInFlightHoldsAcceptanceTest` (5 tests) and
+  `./vendor/bin/sail test --parallel` (410 tests), all green.
 
 ## T16 — Cleaned-state & reader-guard acceptance tests (AC10, AC21)
 
