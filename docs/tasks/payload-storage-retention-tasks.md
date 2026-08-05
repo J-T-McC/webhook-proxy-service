@@ -301,7 +301,18 @@
 - **Testing:** `tests/Unit/Actions/CaptureDispatchedStepTest.php` (new) — identical case (`body`
   NULL), diverged case (stored + encrypted + decrypts), idempotent re-run (one row, updated),
   context-untouched assertion, `$next`-invocation assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Actions\CaptureDispatchedStep` added (`AsObject`, implements
+  `PipelineStep`): resolves the `WebhookEvent` by `$ctx->ingestId` via `firstOrFail()`, computes
+  `$diverged = $ctx->payload !== $ctx->rawBody`, and `updateOrCreate`s the
+  `dispatched_payloads` row keyed on `webhook_event_id`, storing `body` only when diverged and
+  `byte_size = strlen($ctx->payload)` (the dispatched length). Calls `$next($ctx)` unchanged; never
+  mutates `$ctx->payload`/`$ctx->rawBody`. The post-clean write guard is explicitly out of scope
+  here (T8). `tests/Unit/Actions/CaptureDispatchedStepTest.php` covers the identical case (`body`
+  NULL, raw byte size), the diverged case (stored, encrypted at rest, decrypts to the diverged
+  bytes, dispatched byte size), idempotent re-run (one row, updated not duplicated), the
+  context-untouched assertion, and the `$next`-invocation assertion. Verified: `composer lint`,
+  `composer types:check`, `./vendor/bin/sail test --filter CaptureDispatchedStepTest` green
+  (5 tests).
 
 ## T8 — `CaptureDispatchedStep`: post-clean write guard (plan §Architecture "Post-clean dispatched-output write" ruling; Risk 4)
 
