@@ -25,6 +25,7 @@ class ProxyStoreTest extends TestCase
         return array_merge([
             'name' => 'Stripe proxy',
             'mode' => 'simple',
+            'processing_mode' => 'async',
             'destinations' => [
                 ['url' => 'https://a.example.com/hook', 'http_method' => 'POST'],
                 ['url' => 'https://b.example.com/hook', 'http_method' => 'PUT'],

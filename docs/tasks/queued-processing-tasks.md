@@ -589,7 +589,14 @@
 - **Testing:** extend `tests/Feature/Proxies/ProxyRequestValidationTest.php` with data-provider
   cases for `processing_mode` on both Store and Update (invalid value rejected, both valid values
   accepted, absent rejected).
-- **Completion notes:** _pending_
+- **Completion notes:** Added `'processing_mode' => ['required', Rule::enum(ProcessingMode::class)]`
+  to both `StoreProxyRequest` and `UpdateProxyRequest` (mirrors the `mode` rule). Extended
+  `ProxyRequestValidationTest` (3 new methods ×2 request classes) — invalid value rejected (unknown
+  string / integer / empty string), both `async`/`fifo` accepted, absent rejected as required; also
+  added `processing_mode` to that test's `validData()` default. Ripple from the new required field:
+  updated the store/update payload builders in `ProxyStoreTest`, `ProxyUpdateTest`, and
+  `ProxyAuthorizationTest` to include `processing_mode` so their existing HTTP-level cases stay green.
+  Full Proxies suite (86) + all three checks green.
 
 ## T20 — `ProxyController` store/update: persist `processing_mode` (AC4, AC5)
 

@@ -60,6 +60,7 @@ class ProxyUpdateTest extends TestCase
             [
                 'name' => 'New name',
                 'mode' => 'enhanced',
+                'processing_mode' => 'async',
                 'destinations' => [
                     // update existing kept row (change method)
                     ['id' => $keep->id, 'url' => 'https://keep.example.com/hook', 'http_method' => 'PUT'],
@@ -95,6 +96,7 @@ class ProxyUpdateTest extends TestCase
             [
                 'name' => 'x',
                 'mode' => 'simple',
+                'processing_mode' => 'async',
                 'response_status' => 200,
                 'response_body' => 'thanks',
                 'destinations' => [
@@ -123,6 +125,7 @@ class ProxyUpdateTest extends TestCase
             [
                 'name' => 'x',
                 'mode' => 'simple',
+                'processing_mode' => 'async',
                 'response_status' => null,
                 'response_body' => null,
                 'destinations' => [
@@ -144,7 +147,7 @@ class ProxyUpdateTest extends TestCase
 
         $this->actingAs($user)->put(
             route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
-            ['name' => 'x', 'mode' => 'simple', 'destinations' => []],
+            ['name' => 'x', 'mode' => 'simple', 'processing_mode' => 'async', 'destinations' => []],
         )->assertInvalid(['destinations']);
 
         // Nothing committed: original destination remains live.

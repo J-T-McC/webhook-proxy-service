@@ -58,6 +58,7 @@ class ProxyAuthorizationTest extends TestCase
         return [
             'name' => 'Changed name',
             'mode' => 'enhanced',
+            'processing_mode' => 'async',
             'destinations' => [
                 ['url' => 'https://changed.example.com/hook', 'http_method' => 'POST'],
             ],
@@ -72,6 +73,7 @@ class ProxyAuthorizationTest extends TestCase
         return [
             'name' => 'New proxy',
             'mode' => 'simple',
+            'processing_mode' => 'async',
             'destinations' => [
                 ['url' => 'https://new.example.com/hook', 'http_method' => 'POST'],
             ],
