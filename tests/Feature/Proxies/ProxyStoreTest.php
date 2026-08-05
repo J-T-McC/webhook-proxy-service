@@ -25,6 +25,7 @@ class ProxyStoreTest extends TestCase
         return array_merge([
             'name' => 'Stripe proxy',
             'mode' => 'simple',
+            'processing_mode' => 'async',
             'destinations' => [
                 ['url' => 'https://a.example.com/hook', 'http_method' => 'POST'],
                 ['url' => 'https://b.example.com/hook', 'http_method' => 'PUT'],
@@ -117,5 +118,34 @@ class ProxyStoreTest extends TestCase
         $proxy = Proxy::firstOrFail();
         $this->assertNull($proxy->response_status);
         $this->assertNull($proxy->response_body);
+    }
+
+    public function test_creating_with_an_explicit_processing_mode_persists_it(): void
+    {
+        $user = $this->actingUser();
+
+        foreach (['async', 'fifo'] as $mode) {
+            $this->actingAs($user)->post(
+                route('proxies.store', ['current_team' => $user->currentTeam->slug]),
+                $this->payload(['name' => "proxy-{$mode}", 'processing_mode' => $mode]),
+            );
+
+            $proxy = Proxy::where('name', "proxy-{$mode}")->firstOrFail();
+            $this->assertSame($mode, $proxy->processing_mode->value);
+        }
+    }
+
+    public function test_creating_without_a_processing_mode_is_rejected(): void
+    {
+        $user = $this->actingUser();
+
+        $payload = $this->payload();
+        unset($payload['processing_mode']);
+
+        $this->actingAs($user)
+            ->post(route('proxies.store', ['current_team' => $user->currentTeam->slug]), $payload)
+            ->assertInvalid(['processing_mode']);
+
+        $this->assertSame(0, Proxy::count());
     }
 }

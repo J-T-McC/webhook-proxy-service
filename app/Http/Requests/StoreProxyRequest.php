@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\HttpMethod;
+use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -31,6 +32,9 @@ class StoreProxyRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'mode' => ['required', Rule::enum(ProxyMode::class)],
+            // Per-proxy processing mode (AC4, ADR-011). Always submitted by the form
+            // (defaults to async on create); an invalid/absent value is rejected.
+            'processing_mode' => ['required', Rule::enum(ProcessingMode::class)],
             // Optional user-defined upstream response (AC4). The status is restricted
             // to the fixed set {200, 202, 204}; anything else is rejected. NULL/absent
             // is allowed (unconfigured → resolver returns the 202 default).

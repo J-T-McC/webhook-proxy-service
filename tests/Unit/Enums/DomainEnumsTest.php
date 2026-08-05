@@ -3,7 +3,9 @@
 namespace Tests\Unit\Enums;
 
 use App\Enums\AttemptStatus;
+use App\Enums\FifoDispatchStatus;
 use App\Enums\HttpMethod;
+use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use PHPUnit\Framework\TestCase;
 
@@ -30,6 +32,22 @@ class DomainEnumsTest extends TestCase
         $this->assertSame(
             ['dispatched', 'succeeded', 'failed'],
             array_map(fn (AttemptStatus $c) => $c->value, AttemptStatus::cases()),
+        );
+    }
+
+    public function test_processing_mode_has_exactly_async_and_fifo(): void
+    {
+        $this->assertSame(
+            ['async', 'fifo'],
+            array_map(fn (ProcessingMode $c) => $c->value, ProcessingMode::cases()),
+        );
+    }
+
+    public function test_fifo_dispatch_status_has_exactly_pending_claimed_settled(): void
+    {
+        $this->assertSame(
+            ['pending', 'claimed', 'settled'],
+            array_map(fn (FifoDispatchStatus $c) => $c->value, FifoDispatchStatus::cases()),
         );
     }
 }

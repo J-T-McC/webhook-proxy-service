@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Concerns\BelongsToCurrentTeam;
 use App\Concerns\HasCreator;
+use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Services\IngestTokenService;
 use Database\Factories\ProxyFactory;
@@ -22,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $created_by
  * @property string $name
  * @property ProxyMode $mode
+ * @property ProcessingMode $processing_mode
  * @property int|null $response_status
  * @property string|null $response_body
  * @property string $ingest_token_hash
@@ -34,7 +36,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Destination> $destinations
  * @property-read Collection<int, DeliveryAttempt> $deliveryAttempts
  */
-#[Fillable(['team_id', 'name', 'mode', 'response_status', 'response_body'])]
+#[Fillable(['team_id', 'name', 'mode', 'processing_mode', 'response_status', 'response_body'])]
 class Proxy extends Model
 {
     /** @use HasFactory<ProxyFactory> */
@@ -98,6 +100,7 @@ class Proxy extends Model
     {
         return [
             'mode' => ProxyMode::class,
+            'processing_mode' => ProcessingMode::class,
             'response_status' => 'integer',
             'ingest_token' => 'encrypted',
         ];

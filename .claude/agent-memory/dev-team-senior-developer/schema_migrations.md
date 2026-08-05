@@ -25,6 +25,9 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   `INDEX_NAME`; `COLUMN_DEFAULT IS NULL` for no-default). The test DB is real MySQL, so
   `longblob`/`information_schema` assertions work; `migrate:fresh` runs per suite so new
   migrations are picked up automatically.
+- **`foreignId(...)->constrained()->unique()` fails PHPStan/runtime** — `constrained()` returns a
+  `ForeignKeyDefinition`, which has no `unique()`. Declare the unique separately:
+  `$table->foreignId('x')->constrained(); $table->unique('x');`.
 - **`BelongsToCurrentTeam` auto-assigns `team_id` on create only if empty** (no global read
   scope; team-read scoping is middleware on the team route group). On the team-unscoped ingest
   path, set `team_id`/`proxy_id` explicitly from the resolved proxy (mirrors `DeliverToDestination`).

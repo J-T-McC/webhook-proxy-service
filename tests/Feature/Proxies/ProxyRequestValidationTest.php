@@ -18,6 +18,7 @@ class ProxyRequestValidationTest extends TestCase
         return array_merge([
             'name' => 'My proxy',
             'mode' => 'simple',
+            'processing_mode' => 'async',
             'destinations' => [
                 ['url' => 'https://example.com/hook', 'http_method' => 'POST'],
             ],
@@ -114,6 +115,51 @@ class ProxyRequestValidationTest extends TestCase
 
         $this->assertTrue($validator->fails());
         $this->assertArrayHasKey('mode', $validator->errors()->messages());
+    }
+
+    /**
+     * @return array<string, array{0: mixed}>
+     */
+    public static function invalidProcessingModes(): array
+    {
+        return [
+            'unknown string' => ['random'],
+            'integer' => [1],
+            'empty string' => [''],
+        ];
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_invalid_processing_mode_rejected_under_processing_mode_key(string $requestClass): void
+    {
+        foreach (self::invalidProcessingModes() as [$value]) {
+            $validator = $this->validate($requestClass, $this->validData(['processing_mode' => $value]));
+
+            $this->assertTrue($validator->fails(), 'processing_mode value should be rejected.');
+            $this->assertArrayHasKey('processing_mode', $validator->errors()->messages());
+        }
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_both_valid_processing_modes_are_accepted(string $requestClass): void
+    {
+        foreach (['async', 'fifo'] as $value) {
+            $validator = $this->validate($requestClass, $this->validData(['processing_mode' => $value]));
+
+            $this->assertArrayNotHasKey('processing_mode', $validator->errors()->messages());
+        }
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_absent_processing_mode_is_rejected_as_required(string $requestClass): void
+    {
+        $data = $this->validData();
+        unset($data['processing_mode']);
+
+        $validator = $this->validate($requestClass, $data);
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('processing_mode', $validator->errors()->messages());
     }
 
     /**

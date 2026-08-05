@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Proxies;
 
+use App\Enums\ProcessingMode;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Models\User;
@@ -101,6 +102,42 @@ class ProxyIndexShowTest extends TestCase
                 ->where('proxy.response_status', null)
                 ->where('proxy.response_body', null)
             );
+    }
+
+    public function test_index_and_show_expose_processing_mode(): void
+    {
+        $user = $this->actingUser();
+        $async = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'processing_mode' => ProcessingMode::Async,
+        ]);
+        $fifo = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'processing_mode' => ProcessingMode::Fifo,
+        ]);
+        Destination::factory()->for($fifo)->createQuietly();
+
+        // Index: every row carries processing_mode (needed for the T25 column).
+        $this->actingAs($user)
+            ->get(route('proxies.index', ['current_team' => $this->teamSlug($user)]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('proxies.data', 2)
+                ->where('proxies.data.0.processing_mode', fn (string $mode) => in_array($mode, ['async', 'fifo'], true))
+                ->where('proxies.data.1.processing_mode', fn (string $mode) => in_array($mode, ['async', 'fifo'], true))
+            );
+
+        // Show: the fifo proxy's mode is exposed verbatim.
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $fifo->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('proxy.processing_mode', 'fifo'));
+
+        // Show: the async proxy's mode is exposed verbatim.
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $async->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('proxy.processing_mode', 'async'));
     }
 
     public function test_cross_team_show_returns_404(): void

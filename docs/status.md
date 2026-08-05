@@ -23,6 +23,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 | ADR-007 Laravel Actions adoption | Accepted | 2026-07-30 |
 | ADR-008 inbound header-forwarding policy | Accepted | 2026-07-30 |
 | ADR-010 raw-payload capture (durable pre-dispatch) | Accepted | 2026-08-04 |
+| ADR-011 per-proxy FIFO dispatch mechanism & `processing_mode` attribute | Accepted | 2026-08-04 |
 
 ## Feature status
 
@@ -31,7 +32,7 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 | 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | PRD/Design/Plan/Tasks Approved (2026-07-30); Review *Approve with follow-ups* (2026-07-31); PR #1 merged (`5aba84b`). Post-merge Index-delete bug **fixed** (`89cfd71`, merged `19e73c7`, 2026-07-31); Owner skipped re-review and merged. Frontend regression-test harness deferred to backlog (Option B) |
 | 2 | Role-based collaboration | Done | — | None | PRD-02 Approved by Owner 2026-08-03; ADR-009 Accepted by Owner 2026-08-03 (incl. Amendments A and B); Task Plan `docs/tasks/role-based-collaboration-tasks.md` Task-Planner-certified; Reviewer review-02 Approve-with-follow-ups (2026-08-03); Merged to main PR #3 2026-08-03; M1 fixed, M2 fixed via ADR-009 Amendment B (client-side affordance derivation); Owner-accepted |
 | 3 | Decoupled upstream response | Done | — | None | PRD-03 Approved (Owner 2026-08-03); Task plan `docs/tasks/decoupled-upstream-response-tasks.md` Task-Planner-certified (T1–T12); Reviewer review-03 *Approve with follow-ups* (2026-08-04)—M-1 (`response_body` `max:` char-vs-byte) + `ProxyResource` N+1 both Owner-accepted, non-blocking; R2 override—capture mode-independent (Owner 2026-08-04); ADR-010 Accepted (Owner 2026-08-04); proxies columns `response_status`/`response_body` approved (Owner 2026-08-04); security acknowledgements—headers plaintext until #10 + APP_PREVIOUS_KEYS guard binding (Owner 2026-08-04); **PR #4 review-driven additions (Owner 2026-08-04): `response_status` restricted to select {200,202,204} + 204⇒empty body (PRD-03 AC4/AC12), read-only Response card on Show page (design-03-show, PM-approved), status defs centralized to `data/` const + `DataOption` standard (coding.md); Owner waived delta re-review**; **PR #4 merged to main (`3221a1d`), branch deleted, 2026-08-04** |
-| 4 | Queued processing (FIFO & Async) | Backlog | — (Product Manager on start) | Not started; depends on #1. Open: V3, V8 | — |
+| 4 | Queued processing (FIFO & Async) | Review passed — awaiting Owner release/merge | — (Owner: mark PR #5 ready + merge) | M-1 fixed & verified (overlap-lock TTL==lease); all checks green (354 tests, lint/types/frontend-triad). No blockers. PR #5. V3/V8 Owner-deferred | PRD-04/design-04/plan-04/ADR-011/tasks-04 approved; implementation T1–T25 done; **review-04 Approve with follow-ups (2026-08-04)**; release approval pending Owner |
 | 5 | Payload storage & retention | Backlog | — (Product Manager on start) | Not started; depends on #1, benefits from #4. Open: V4, V5, V6 | — |
 | 6 | Retry & replay | Backlog | — (Product Manager on start) | Not started; depends on #4, #5 | — |
 | 7 | Enhanced-mode toggle | Backlog | — (Product Manager on start) | Not started; depends on #5, #6 | — |
@@ -93,6 +94,14 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
   fires / proxy removed), which no PHP/sail test can exercise. Until then the fix is guarded
   by the documented manual-verification step (T27 rework note). Does **not** run under
   `./vendor/bin/sail test` (PHPUnit); CI wiring to be updated when scheduled.
+
+- **Real-concurrency integration test for the FIFO single-advancer window (review-04 follow-up).**
+  Current PHPUnit (single connection) proves the committed-claim short-circuit but can't interleave
+  two live claim transactions; production ordering leans on `WithoutOverlapping` serialization. Write a
+  true-concurrency integration test if/when an integration harness lands. Non-blocking; M-1 fix holds the
+  liveness guarantee.
+- **Optional T18 mode-switch test consolidation (review-04 follow-up).** T18 exercises mode-switch via the
+  model; endpoint paths are covered by T19/T20. No action needed unless consolidating later.
 
 ## Open questions register (roadmap-level, deferred to their gating item)
 

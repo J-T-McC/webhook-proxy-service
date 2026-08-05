@@ -32,6 +32,26 @@ Per `CLAUDE.md`, a task is done only when it leaves the tree green:
   logical part of a large task) — small, working, checks-green commits, one
   Conventional Commit each. Push, PR, and merge remain Owner-gated.
 
+## Feature branch & artifact commits (active)
+One feature branch per roadmap item (`feat/item-NN-<slug>`), cut at the start of
+its first phase (Requirements). **All** artifacts for the feature — PRD, design,
+plan, tasks, question docs, and the eventual code + tests — live on that one
+branch and ship in a **single feature PR**. Push/PR/merge stay Owner-gated.
+
+Committing is automated, not manual — the Project Owner is never the committer:
+- **Planning agents** (Product Manager, Designer, Principal Engineer, Task
+  Planner) have no git access. When one returns an artifact, the **Orchestrator**
+  commits it to the feature branch immediately — one Conventional Commit per
+  artifact/phase (`docs(item-NN): …`), no prompt required.
+- **Senior Developer / Reviewer** have git access and commit their own work per
+  the Definition of done below.
+- `docs/status.md` is coordination state: the Orchestrator commits it on the
+  feature branch alongside the phase transition it records
+  (`chore(status): …` or folded into the phase's docs commit).
+
+Net: artifacts are committed as they are produced, by whoever produced or routed
+them — never accumulated as uncommitted files for someone to sweep up later.
+
 ## Estimation
 
 **No numeric time or point estimates (codifies observed).** `docs/tasks/walking-skeleton-tasks.md`

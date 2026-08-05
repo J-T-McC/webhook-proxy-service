@@ -145,6 +145,7 @@ class ProxyController extends Controller
             $proxy->update([
                 'name' => $data['name'],
                 'mode' => $data['mode'],
+                'processing_mode' => $data['processing_mode'],
                 'response_status' => $data['response_status'] ?? null,
                 'response_body' => $data['response_body'] ?? null,
             ]);

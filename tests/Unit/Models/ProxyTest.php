@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Models;
 
+use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Models\Proxy;
 use App\Models\Team;
@@ -174,5 +175,46 @@ class ProxyTest extends TestCase
         // Unset stays null through the cast.
         $unset = Proxy::factory()->createQuietly();
         $this->assertNull($unset->fresh()->response_status);
+    }
+
+    public function test_processing_mode_is_not_null_with_schema_default_async(): void
+    {
+        $column = DB::selectOne(
+            'SELECT IS_NULLABLE, COLUMN_DEFAULT
+             FROM information_schema.COLUMNS
+             WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+            ['proxies', 'processing_mode'],
+        );
+
+        $this->assertNotNull($column, 'Expected a processing_mode column on proxies.');
+        $this->assertSame('NO', strtoupper((string) $column->IS_NULLABLE), 'processing_mode must be NOT NULL.');
+        $this->assertSame('async', (string) $column->COLUMN_DEFAULT, 'processing_mode must default to async.');
+    }
+
+    public function test_existing_proxy_row_reads_async_with_no_backfill(): void
+    {
+        // A factory-made proxy that supplies no processing_mode simulates a pre-#4
+        // (#1/#3) row: the schema default applies, so it reads Async with no backfill.
+        $team = Team::factory()->createQuietly();
+        $token = random_bytes(8);
+        $id = DB::table('proxies')->insertGetId([
+            'team_id' => $team->id,
+            'name' => 'pre-existing',
+            'ingest_token' => 'x',
+            'ingest_token_hash' => hash('sha256', $token, binary: true),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertSame(ProcessingMode::Async, Proxy::findOrFail($id)->processing_mode);
+    }
+
+    public function test_processing_mode_round_trips_through_the_enum_cast(): void
+    {
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Fifo]);
+
+        $fresh = $proxy->fresh();
+        $this->assertInstanceOf(ProcessingMode::class, $fresh->processing_mode);
+        $this->assertSame(ProcessingMode::Fifo, $fresh->processing_mode);
     }
 }

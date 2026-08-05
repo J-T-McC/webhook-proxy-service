@@ -40,6 +40,7 @@ defineOptions({
             :initial="{
                 name: '',
                 mode: 'simple',
+                processingMode: 'async',
                 responseStatus: null,
                 responseBody: null,
                 destinations: [{ url: '', http_method: 'POST' }],

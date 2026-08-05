@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { proxyProcessingModeLabel } from '@/data/proxyProcessingModes';
 import {
     proxyResponseStatusLabel,
     proxyStatusForcesEmptyBody,
@@ -124,6 +125,9 @@ function confirmDeleteProxy(): void {
                     {{
                         props.proxy.mode === 'enhanced' ? 'Enhanced' : 'Simple'
                     }}
+                </Badge>
+                <Badge variant="secondary">
+                    {{ proxyProcessingModeLabel(props.proxy.processing_mode) }}
                 </Badge>
             </div>
             <div class="flex items-center gap-2">
