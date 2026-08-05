@@ -169,7 +169,16 @@
 - **Testing:** `tests/Unit/Models/FifoDispatchTest.php` (new) — schema assertions above (unique
   index, composite index, default status, no soft-delete column), enum cast round-trip, nullable
   timestamp casts, and the three `belongsTo` relations resolving to the correct records.
-- **Completion notes:** _pending_
+- **Completion notes:** Added migration `2026_08_04_000004_create_fifo_dispatches_table` (bigint PK,
+  `team_id`/`proxy_id`/`webhook_event_id` restrict FKs, `status` enum default `pending`, three
+  nullable timestamps, single-column `UNIQUE(webhook_event_id)` + `(proxy_id, status,
+  webhook_event_id)` composite, no soft delete). `FifoDispatch` model with `BelongsToCurrentTeam`,
+  `proxy`/`webhookEvent` relations, enum + datetime casts. `FifoDispatchFactory` anchors on the
+  webhook event and derives `proxy_id`/`team_id` from it (team-unscoped, mirroring
+  `WebhookEventFactory`) so all three references stay consistent. 8 `FifoDispatchTest` cases green.
+  Gotcha: `foreignId(...)->constrained()->unique()` isn't valid (ForeignKeyDefinition has no
+  `unique()`) — declared the unique separately via `$table->unique('webhook_event_id')`. All three
+  checks green.
 
 ## T6 — `delivery_attempts` idempotency unique index (AC9; ADR-011 Decision 4)
 
