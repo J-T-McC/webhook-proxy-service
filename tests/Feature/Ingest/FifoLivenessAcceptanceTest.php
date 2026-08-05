@@ -11,7 +11,9 @@ use App\Models\Destination;
 use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -146,5 +148,62 @@ class FifoLivenessAcceptanceTest extends TestCase
 
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
         $this->assertSame(1, DeliveryAttempt::count());
+    }
+
+    /**
+     * Review-04 finding #1 (Major): under an ungraceful worker crash (SIGKILL/OOM)
+     * the advancer's `WithoutOverlapping` lock leaks with no TTL, and the sweeper's
+     * re-dispatched advancer can never reacquire it — the FIFO line deadlocks. The
+     * fix gives the lock an explicit TTL equal to the FIFO lease so the leaked lock
+     * self-heals within the same window the sweeper waits on.
+     *
+     * This drives the real sync queue (no `Queue::fake`) so the sweeper's dispatched
+     * advancer actually runs through the production `WithoutOverlapping` middleware.
+     */
+    public function test_a_leaked_overlap_lock_self_heals_within_the_lease_and_the_line_advances(): void
+    {
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        [$proxy, $dispatches] = $this->fifoProxyWithPending(1);
+
+        // A worker was SIGKILLed mid-event: its DB claim is stranded (expired lease)
+        // AND its per-proxy overlap lock leaked (still held; TTL not yet elapsed).
+        $dispatches[0]->update([
+            'status' => FifoDispatchStatus::Claimed,
+            'claimed_at' => now()->subMinutes(5),
+            'lease_expires_at' => now()->subMinute(),
+        ]);
+
+        // Acquire the leaked lock via the *exact* production key + TTL the advancer's
+        // middleware uses, so the re-dispatched advancer contends against it for real.
+        /** @var WithoutOverlapping $overlap */
+        $overlap = (new AdvanceProxyFifoQueue)->getJobMiddleware($proxy->id)[0];
+
+        // The fix: the overlap lock carries an explicit TTL equal to the FIFO lease
+        // (without it the lock never expires and the deadlock below is permanent).
+        $this->assertSame((int) config('ingest.fifo_lease_seconds'), $overlap->expiresAfter);
+
+        $lockKey = $overlap->getLockKey(AdvanceProxyFifoQueue::makeJob($proxy->id));
+        $leaked = Cache::lock($lockKey, (int) config('ingest.fifo_lease_seconds'));
+        $this->assertTrue($leaked->get(), 'Precondition: the leaked lock is held.');
+
+        // Sweep #1: reaps the stranded claim to `pending` and dispatches the advancer,
+        // which runs through the middleware and is BLOCKED by the leaked lock. Without
+        // the TTL fix this is the permanent deadlock — the line cannot advance.
+        SweepStalledFifoDispatches::run();
+
+        $this->assertSame(FifoDispatchStatus::Pending, $dispatches[0]->fresh()->status);
+        $this->assertSame(0, DeliveryAttempt::count(), 'The leaked lock blocks the line.');
+
+        // The lock's TTL elapses and it self-heals — no manual key clear in production.
+        $leaked->forceRelease();
+
+        // Sweep #2: dispatches the advancer again; now it acquires the (expired) lock,
+        // claims the reaped row, delivers, and settles it — the FIFO line advances.
+        SweepStalledFifoDispatches::run();
+
+        $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
+        $this->assertSame(1, DeliveryAttempt::count());
+        Http::assertSentCount(1);
     }
 }

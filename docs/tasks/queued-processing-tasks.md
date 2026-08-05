@@ -347,6 +347,20 @@
   `Queue::fake()` so the self-dispatch is captured rather than recursing inline under the `sync`
   driver (the `WithoutOverlapping` lock intentionally does not double as the ordering guard). All
   three checks green.
+- **Rework (review-04 finding #1, Major — FIFO liveness deadlock).** `getJobMiddleware`
+  gave `WithoutOverlapping("proxy:{id}")` **no TTL** (framework default `expiresAfter = 0`
+  → the lock never expires). On an ungraceful worker crash (SIGKILL/OOM) while an advancer
+  held the lock, the key leaked: the sweeper reaped the DB claim and re-dispatched the
+  advancer, but the re-dispatched job could never reacquire the leaked lock and re-queued
+  forever — the proxy's line deadlocked. **Fix:** `->expireAfter((int) config('ingest.
+  fifo_lease_seconds'))` — TTL equal to the FIFO claim lease (default 90s), the same value
+  the sweeper uses to detect a stalled claim. **Why equal to the lease:** the lock is
+  acquired a moment *before* the claim's `lease_expires_at` is stamped, so an equal TTL
+  expires at or before the lease — always before the sweeper (which waits on the lease)
+  reaps and re-drives. A TTL *longer* than the lease would re-open the deadlock window; the
+  lease is the correct upper bound (ADR-011 guardrail (b)). New end-to-end recovery test in
+  T16's file. `composer lint` / `composer types:check` / `./vendor/bin/sail test`
+  (354 passed) + FE triad green.
 
 ## T11 — `SweepStalledFifoDispatches` + schedule registration (ADR-005 (b), ADR-011 Decision 2)
 
@@ -528,6 +542,16 @@
   (expired lease) is reaped to `pending` by `SweepStalledFifoDispatches`, the idle proxy is nudged,
   and the next advancer settles the reaped row. The T16 tripwire (split rather than shrink) was not
   needed — all cases fit one file cleanly. No production change. All three checks green.
+- **Rework (review-04).** Added a 5th case proving finding #1's recovery end-to-end
+  (`test_a_leaked_overlap_lock_self_heals_within_the_lease_and_the_line_advances`): stamps a
+  stranded claim + a leaked overlap lock (held via the *exact* production lock key/TTL),
+  asserts the middleware now carries `expiresAfter === fifo_lease_seconds`, drives the real
+  sync queue so the sweeper's re-dispatched advancer is genuinely blocked while the lock is
+  held (line stalled, 0 deliveries), then — after the lock expires — a second sweep lets the
+  advancer acquire and settle the row (line advances, 1 delivery). Also swapped the three new
+  FIFO test files' `FifoDispatch::factory()->create(...)` → `createQuietly(...)` per
+  review-04 finding #3 / testing.md (`FifoLivenessAcceptanceTest`, `AdvanceProxyFifoQueueTest`,
+  `SweepStalledFifoDispatchesTest`). All three checks + FE triad green (354 backend tests).
 
 ## T17 — Idempotency acceptance tests (AC9)
 

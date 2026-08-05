@@ -94,10 +94,29 @@ class AdvanceProxyFifoQueue
     /**
      * Thundering-herd reducer keyed per proxy — NOT the ordering guard (ADR-011).
      *
+     * The lock is given an explicit TTL equal to the FIFO claim lease
+     * (`ingest.fifo_lease_seconds`), the same value the sweeper uses to detect a
+     * stalled claim. Without a TTL (framework default `expiresAfter = 0` → no
+     * expiry) an ungraceful worker crash (SIGKILL/OOM) while an advancer holds the
+     * lock leaks the key permanently: `SweepStalledFifoDispatches` reaps the DB claim
+     * and re-dispatches the advancer, but the re-dispatched job can never reacquire
+     * the leaked lock and re-queues forever — the proxy's FIFO line never advances.
+     *
+     * Aligning the lock TTL to the lease makes the leaked lock self-heal no later
+     * than the claim it guarded: the lock is acquired a moment BEFORE the claim's
+     * `lease_expires_at` is stamped, so an equal TTL expires at or before the lease,
+     * i.e. always before the sweeper (which waits for the lease to expire) reaps and
+     * re-drives the line. A TTL longer than the lease would re-open the deadlock
+     * window; equal to the lease is the correct upper bound (ADR-011 liveness
+     * guardrail (b), plan-04 §Services).
+     *
      * @return array<int, object>
      */
     public function getJobMiddleware(int $proxyId): array
     {
-        return [new WithoutOverlapping("proxy:{$proxyId}")];
+        return [
+            (new WithoutOverlapping("proxy:{$proxyId}"))
+                ->expireAfter((int) config('ingest.fifo_lease_seconds')),
+        ];
     }
 }
