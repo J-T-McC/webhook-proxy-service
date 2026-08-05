@@ -400,7 +400,17 @@
   event (via T4's `cleaned()` factory state) → `run()` returns, zero `DeliveryAttempt` rows,
   `Http::assertNothingSent()`; confirm the existing unknown-`ingest_id` and normal-delivery cases
   still pass.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProcessIngestedWebhook::handle()` keeps `firstOrFail()` unchanged and
+  adds one guard immediately after it, before constructing the `PipelineContext`: if
+  `$event->payload_cleaned_at !== null`, logs `payload.expired` (`ingest_id` only) and returns
+  cleanly — no proxy load, no pipeline run. No other change: dispatch-by-reference, the
+  trashed-inclusive proxy load, and the pipeline run are untouched. `AdvanceProxyFifoQueue` received
+  no code change (its correctness under this guard is T16). `ProcessIngestedWebhookTest` extended
+  with a cleaned-event case (`cleaned()` factory state) asserting zero `DeliveryAttempt` rows and
+  `Http::assertNothingSent()`; the existing normal-delivery and unknown-`ingest_id` cases pass
+  unmodified. Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test --filter
+  ProcessIngestedWebhookTest` (4 tests) and `./vendor/bin/sail test --parallel` (390 tests), all
+  green.
 
 ## T11 — `PurgeExpiredPayloads` action: the garbage collector (AC5, AC6, AC9, AC12, AC22b; ADR-012 Decisions 1, 4, 6, 7)
 
