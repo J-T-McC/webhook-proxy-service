@@ -42,6 +42,12 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   in a test; advance step-by-step. To prove the atomic `FOR UPDATE` claim blocks a concurrent
   advancer, fire a nested `::run()` from inside an `Http::fake` closure (i.e. while the first row is
   claimed and mid-send) and assert no second row gets claimed.
+- **Asserting `Log::` calls:** `Log::spy();` then, after the code runs,
+  `Log::shouldHaveReceived('info')->once()->withArgs(fn (string $msg, array $ctx) => $msg ===
+  'x.y' && $ctx === ['id' => $id]);` — works even though `Log::` had zero prior usage in `app/`
+  before item #5 (first precedent: `CaptureDispatchedStep`'s post-clean guard and
+  `ProcessIngestedWebhook`'s cleaned-state guard, both logging `payload.expired` with identifiers
+  only per the never-log list in `docs/standards/coding.md`).
 - **Proving the ABSENCE of a per-row policy call (no N+1) during resource serialization**:
   same `partialMock(ProxyPolicy::class)` but `shouldReceive('update')->never()` /
   `->delete()->never()` over a multi-row index render. Unmocked `viewAny` runs real and

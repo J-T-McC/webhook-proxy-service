@@ -48,3 +48,12 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   skipping the test: `sail artisan migrate` → `migrate:rollback --step=1` → `migrate` against a
   fresh (empty) DB proves `up`/`down`/`up` all apply cleanly even when `down()` would fail against
   rows already mutated (documented caveat, not a defect).
+- **`foreignId(...)->constrained()->cascadeOnDelete()` IS valid** (unlike `->unique()` above) —
+  `ForeignKeyDefinition` has `cascadeOnDelete()`/`restrictOnDelete()`/etc. but no `unique()`; add a
+  separate `$table->unique('col')` line when both are needed on the same column.
+- **Compare-and-set write guard across two write paths racing the same parent row**: wrap the
+  read-check-write in `DB::transaction(fn () => ...)`, `lockForUpdate()` the parent row inside it,
+  re-check the guard column, then do the dependent write — the row lock serializes against any
+  other transaction doing the same (e.g. a GC pass's own compare-and-set `UPDATE ... WHERE
+  guard_col IS NULL`), closing the select→act race without a separate advisory lock. Used for
+  `CaptureDispatchedStep`'s post-clean guard (#5) racing `PurgeExpiredPayloads`.
