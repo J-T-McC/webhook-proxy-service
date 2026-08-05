@@ -371,7 +371,17 @@
   `AdvanceProxyFifoQueue::assertPushed(1, ...)`), and the already-claimed-no-dispatch case; a
   console/schedule test (or `Schedule::events()` inspection) confirming the `everyMinute()`
   registration.
-- **Completion notes:** _pending_
+- **Completion notes:** New `SweepStalledFifoDispatches` (`AsAction`): (a) mass-updates every
+  `claimed` row with `lease_expires_at < now()` back to `pending` (clearing `claimed_at`/
+  `lease_expires_at`); (b) selects distinct `proxy_id`s that have ≥1 `pending` row and no live claim
+  (`whereNotIn` subquery on `claimed` + unexpired lease) and dispatches one `AdvanceProxyFifoQueue`
+  per proxy. Registered in `routes/console.php` via `Schedule::call(fn () =>
+  SweepStalledFifoDispatches::run())->everyMinute()->description('Sweep stalled FIFO dispatches')`
+  (chose the scheduled-closure alternative over `AsCommand` — `::run()` is equally unit-testable and
+  avoids console-kernel command registration). New `SweepStalledFifoDispatchesTest` (5 cases): reap
+  expired claim, leave unexpired claim untouched, one-dispatch-per-idle-proxy (two pending rows → one
+  push), no dispatch when a live claim exists, and `Schedule::events()` inspection confirming the
+  `* * * * *` everyMinute registration. All three checks green.
 
 ## T12 — `IngestController`: dispatch-by-mode after capture commit (AC1–AC3, AC5, AC6; ADR-011)
 
