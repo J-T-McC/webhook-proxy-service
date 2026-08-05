@@ -75,7 +75,13 @@
   matching the existing `config/ingest.php` placeholder pattern.
 - **Testing:** `tests/Unit/Config/RetentionConfigTest.php` (new) — default + env-override cases for
   all three keys, mirroring `IngestConfigTest`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `config/retention.php` added with `days` (env `RETENTION_DAYS`,
+  default 30), `purge_batch` (env `RETENTION_PURGE_BATCH`, default 500), `dispatch_horizon_minutes`
+  (env `RETENTION_DISPATCH_HORIZON_MINUTES`, default 60), inline-doc'd mirroring
+  `config/ingest.php`. Commented placeholder lines added to `.env.example` alongside the existing
+  `INGEST_*` block. `tests/Unit/Config/RetentionConfigTest.php` covers default + env-override for
+  all three keys (mirrors `IngestConfigTest`). Verified: `composer lint`, `composer types:check`,
+  `./vendor/bin/sail test --filter RetentionConfigTest` green.
 
 ## T2 — `StoredPayloadState` enum (AC21; ADR-014 Decision 4)
 
