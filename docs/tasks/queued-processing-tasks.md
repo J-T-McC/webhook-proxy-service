@@ -134,7 +134,12 @@
 - **Testing:** extend `tests/Unit/Models/ProxyTest.php` — schema assertion for `NOT NULL`/default
   `'async'`; a factory-made proxy (no explicit `processing_mode`) reads `Async`; setting `fifo` and
   reloading round-trips through the cast.
-- **Completion notes:** _pending_
+- **Completion notes:** Added migration `2026_08_04_000003_add_processing_mode_to_proxies_table`
+  (`enum('async','fifo')` NOT NULL default `'async'`, `after('mode')`, mirroring `mode`). Proxy
+  model: added `processing_mode` cast to `ProcessingMode::class`, to `#[Fillable]`, and a
+  `@property` docblock line. Three new `ProxyTest` cases: schema NOT NULL/default assertion,
+  no-backfill factory row reads `Async`, `fifo` round-trips the cast. Verified up/down cleanly
+  (`migrate:rollback`/`migrate`, then `migrate:fresh`). All three checks green.
 
 ## T5 — `fifo_dispatches` table + `FifoDispatch` model + factory (AC6, AC7; ADR-011 Decision 2)
 
