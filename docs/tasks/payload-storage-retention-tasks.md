@@ -528,7 +528,20 @@
 - **Testing:** the cases above via `travel()`/`Carbon::setTestNow()` to age events,
   `Team::factory()`, `Proxy::factory()->enhanced()`/simple, and a bound test double of
   `RetentionPolicy`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Retention/RetentionExpiryAcceptanceTest.php` added,
+  ageing events via an explicit `created_at` (mirrors `RetentionPolicyTest`'s precedent — dirty
+  timestamp attributes bypass Eloquent's auto-stamp) rather than `travel()`, since only the
+  captured row's age needs to move, not the whole clock. Covers: a 31-day-old event cleaned, a
+  29-day-old one byte-for-byte untouched on the same run (AC1, AC2, AC7); a 31-day-old event with a
+  recent, terminal `DeliveryAttempt` still cleaned, proving the anchor is `created_at`, never
+  delivery activity (AC1); two teams on the default window both cleaned in one run, and a bound
+  anonymous `RetentionPolicy` subclass overriding `windowFor` for one team's id (a 1000-day window)
+  leaves only that team uncleaned while the other team (default window) is cleaned in the same run
+  — proving the window is team-keyed via container-injected `RetentionPolicy`, not global (AC3); a
+  simple-mode and an enhanced-mode proxy's raw payloads are both cleaned (AC4). No production-code
+  gap found; no new wiring needed. Verified: `composer lint`, `composer types:check`,
+  `./vendor/bin/sail test --filter RetentionExpiryAcceptanceTest` (5 tests) and `./vendor/bin/sail
+  test --parallel` (401 tests), all green.
 
 ## T14 — Erasure completeness & atomicity acceptance tests (AC5, AC6, AC9, AC12, AC22b)
 
