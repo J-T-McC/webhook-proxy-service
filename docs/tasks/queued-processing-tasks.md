@@ -692,7 +692,19 @@
   keyboard reachability confirmed (Tab/Enter/Arrow keys); light and dark palettes checked.
 - **Testing:** none automated; the manual walkthrough above is the acceptance gate, recorded in
   Completion notes. `pnpm types:check` / `lint:check` / `format:check` green.
-- **Completion notes:** _pending_
+- **Completion notes:** Added the `Processing` field to `ProxyForm.vue` between Mode and Response
+  status: two-option `Select` (`SelectTrigger id="processing_mode" class="w-full sm:w-64"`) sourced
+  from `PROXY_PROCESSING_MODES` (`async`→Async, `fifo`→FIFO), help text (`id="processing-help"`,
+  design-04 tradeoff copy verbatim), `InputError` in `<span id="processing-error">`,
+  `aria-describedby="processing-help processing-error"` + `:aria-invalid` on the trigger — mirroring
+  the response-status field's fully-wired pattern. No side effect on other fields (no 204/body
+  analogue). `Create.vue` `initial` defaults `processingMode: 'async'` (AC5); `Edit.vue` passes
+  `processingMode: props.proxy.processing_mode` and its `EditProxy` interface gained
+  `processing_mode: ProcessingMode`. Verification: field wiring confirmed by inspection against the
+  design-04 field spec (control/ids/aria/help copy), and `pnpm types:check` / `lint:check` /
+  `format:check` all green (Prettier reflowed the help paragraph; text unchanged). A live
+  keyboard/light-dark click-through was not run in this headless environment — flagged for the
+  Reviewer/Owner manual gate per the no-JS-test-framework precedent.
 
 ## T24 — `Show.vue`: Processing badge (design-04 Screen 3, PM Ruling 1)
 

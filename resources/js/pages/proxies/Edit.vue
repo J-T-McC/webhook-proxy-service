@@ -6,6 +6,7 @@ import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
 import type {
     DestinationRow,
+    ProcessingMode,
     ProxyMode,
     ProxyResponseStatus,
 } from '@/types/proxies';
@@ -14,6 +15,7 @@ interface EditProxy {
     id: number;
     name: string;
     mode: ProxyMode;
+    processing_mode: ProcessingMode;
     response_status: ProxyResponseStatus | null;
     response_body: string | null;
     destinations: DestinationRow[];
@@ -80,6 +82,7 @@ defineOptions({
             :initial="{
                 name: props.proxy.name,
                 mode: props.proxy.mode,
+                processingMode: props.proxy.processing_mode,
                 responseStatus: props.proxy.response_status,
                 responseBody: props.proxy.response_body,
                 destinations: props.proxy.destinations,

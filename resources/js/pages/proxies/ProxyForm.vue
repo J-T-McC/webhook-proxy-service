@@ -14,6 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { PROXY_PROCESSING_MODES } from '@/data/proxyProcessingModes';
 import {
     PROXY_RESPONSE_STATUS_DEFAULT_LABEL,
     PROXY_RESPONSE_STATUSES,
@@ -21,6 +22,7 @@ import {
 } from '@/data/proxyResponseStatuses';
 import type {
     DestinationRow,
+    ProcessingMode,
     ProxyMode,
     ProxyResponseStatus,
 } from '@/types/proxies';
@@ -33,6 +35,7 @@ const props = defineProps<{
     initial: {
         name: string;
         mode: ProxyMode;
+        processingMode: ProcessingMode;
         responseStatus: ProxyResponseStatus | null;
         responseBody: string | null;
         destinations: DestinationRow[];
@@ -45,6 +48,7 @@ const props = defineProps<{
 const form = useForm({
     name: props.initial.name,
     mode: props.initial.mode,
+    processing_mode: props.initial.processingMode,
     response_status: props.initial.responseStatus?.toString() ?? '',
     response_body: props.initial.responseBody ?? '',
     destinations: props.initial.destinations.map((row) => ({ ...row })),
@@ -149,6 +153,46 @@ function submit(): void {
                     destination.
                 </p>
                 <InputError :message="form.errors.mode" />
+            </div>
+
+            <div class="grid gap-2">
+                <Label for="processing_mode">Processing</Label>
+                <Select
+                    v-model="form.processing_mode"
+                    :disabled="form.processing"
+                >
+                    <SelectTrigger
+                        id="processing_mode"
+                        class="w-full sm:w-64"
+                        :aria-invalid="
+                            form.errors.processing_mode ? 'true' : undefined
+                        "
+                        aria-describedby="processing-help processing-error"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem
+                            v-for="option in PROXY_PROCESSING_MODES"
+                            :key="option.value"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </SelectItem>
+                    </SelectContent>
+                </Select>
+                <p id="processing-help" class="text-sm text-muted-foreground">
+                    Independent of the Mode setting above. Async (default)
+                    delivers this proxy's events to its destinations in
+                    parallel, with no guaranteed order — the right choice for
+                    most, higher-throughput traffic. FIFO delivers this proxy's
+                    events in the order they were received; it trades throughput
+                    for strict ordering, so FIFO is necessarily more serialized
+                    and slower than Async, not a free upgrade.
+                </p>
+                <span id="processing-error">
+                    <InputError :message="form.errors.processing_mode" />
+                </span>
             </div>
 
             <!-- Upstream response (acknowledgement, returned before delivery) -->
