@@ -121,7 +121,16 @@
   methods against the default window, plus a substituted non-default window via a test subclass or
   partial mock, proving `cutoffFor`/`expiresAt` derive from `windowFor` rather than duplicating the
   config read.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Services\RetentionPolicy` added with `windowFor(Team):
+  CarbonInterval`, `cutoffFor(Team): CarbonImmutable`, `expiresAt(WebhookEvent): CarbonImmutable` —
+  the latter two compose through `windowFor` rather than re-reading config. `WebhookEvent` carries
+  no `team()` relation (raw-only, ADR-010), so `expiresAt` resolves the owning team by id via
+  `Team::withTrashed()->findOrFail()` rather than adding a relation outside this task's file list.
+  Test uses an anonymous subclass overriding `windowFor` for one team id to prove
+  `cutoffFor`/`expiresAt` derive from the single seam. Note: `Carbon\CarbonInterval` /
+  `Carbon\CarbonImmutable` are the correct import paths (not `Illuminate\Support\*`, which do not
+  exist for these two classes). Verified: `composer lint`, `composer types:check`,
+  `./vendor/bin/sail test --filter RetentionPolicyTest` green.
 
 ## T4 — `webhook_events` schema change for erase-in-place + header encryption (AC6, AC11, AC15, AC21, AC22; ADR-014 Decisions 2–7) — destructive migration, Owner-approved shape
 
