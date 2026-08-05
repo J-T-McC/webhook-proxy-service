@@ -444,7 +444,32 @@
   unexpired event untouched; second-run idempotence; soft-deleted team's payload still cleaned.
   Per-hold behaviour (H1–H4), atomicity-under-failure, and FIFO composition are dedicated
   acceptance-test tasks (T14/T15) — not duplicated here.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Actions\PurgeExpiredPayloads` added (`AsAction`, `commandSignature
+  = 'payloads:purge-expired'` — `AsAction` already composes `AsCommand`, so no separate trait is
+  used). `handle()` iterates `Team::query()->withTrashed()->chunkById(100, ...)`; per team,
+  `RetentionPolicy::cutoffFor($team)` is computed **once** from the `Team` already in hand (never
+  per-row via `expiresAt()`'s per-event resolver, per the carry-forward note) alongside a
+  `dispatch_horizon_minutes`-derived horizon. A private `applyHolds(Builder, cutoff, horizon)`
+  expresses H0-H4 once (`whereNull('payload_cleaned_at')`; `created_at <= cutoff`;
+  `whereNotExists` against non-`settled` `fifo_dispatches` rows; `whereNotExists` against
+  `dispatched`-status `delivery_attempts` rows; a `whereExists(...)->orWhere('created_at', '<=',
+  $horizon)` group for H4) and is applied **identically** to the selection query
+  (`DB::table('webhook_events')->where('team_id', ...)`, `orderBy('id')->limit($batchSize)`) and to
+  the erase `UPDATE`'s own `WHERE` (`DB::table('webhook_events')->where('id', $id)`) — the
+  compare-and-set. Each event is erased in its own `DB::transaction()`: the conditional `UPDATE`
+  nulls `body`/`headers` and stamps `payload_cleaned_at` via the query builder (never a model
+  `save()`); only if it affected exactly one row does a second `UPDATE` null
+  `dispatched_payloads.body` for that `webhook_event_id`, in the same transaction. Zero rows
+  affected on the first `UPDATE` skips the event without the second. Per-team batches loop until one
+  comes back short of `purge_batch`. Logs `payload.purged` with `team_id`/`count` only (identifiers
+  and counts, no payload content). `tests/Unit/Actions/PurgeExpiredPayloadsTest.php` covers: no-op
+  on empty/unexpired state; a single expired event with no holds erased in both stores (raw column
+  assertions); an unexpired event byte-for-byte untouched including `updated_at`; a second run over
+  an already-cleaned event is a no-op (H0 idempotence); a soft-deleted team's expired payload still
+  cleaned. Per-hold behaviour, atomicity-under-failure, and FIFO composition are T14/T15, not
+  duplicated here. Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test
+  --filter PurgeExpiredPayloadsTest` (6 tests, including T12's schedule-registration case written
+  ahead as part of the same file) and `./vendor/bin/sail test --parallel` (396 tests), all green.
 
 ## T12 — Scheduler wiring: `PurgeExpiredPayloads` in `routes/console.php` (AC5; ADR-012 Decision 7)
 
@@ -464,7 +489,22 @@
   **Not verifiable by `./vendor/bin/sail test`:** that the deployed environment actually invokes
   `schedule:run` via cron. This is the same operational precondition #4's sweeper already carries
   (plan §Dependencies) — an ops/runbook item, not new to #5 and not a code task here.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `routes/console.php` gains
+  `Schedule::command('payloads:purge-expired')->daily()->at('02:00')->withoutOverlapping()
+  ->description('Erase expired stored payloads')` — daily, off-peak, matching the #4 sweeper's
+  fixed-cadence posture (not a tunable). `Schedule::command(...)` (T11's `AsCommand` signature) was
+  chosen over an equivalent `Schedule::call(fn () => PurgeExpiredPayloads::run())` closure since T11
+  already exposes a console signature and the command form is the more direct registration for it.
+  This required one addition with no prior precedent (`docs/standards/planning.md`/laravel-actions
+  gotcha, confirmed in this codebase by `grep`): `Lorisleiva\Actions\Facades\Actions::
+  registerCommands();` at the top of `routes/console.php` — without it `Schedule::command(...)`
+  cannot resolve the signature to an Artisan command (`AsCommand` classes are not auto-registered).
+  Extended `tests/Unit/Actions/PurgeExpiredPayloadsTest.php` (rather than a dedicated file, per the
+  task's explicit "or a dedicated schedule test alongside it") with a `Schedule::events()`
+  inspection mirroring `SweepStalledFifoDispatchesTest`'s `everyMinute()` check, asserting the
+  `0 2 * * *` cron expression and `withoutOverlapping === true`. Verified: `composer lint`,
+  `composer types:check`, `./vendor/bin/sail test --filter PurgeExpiredPayloadsTest` (6 tests) and
+  `./vendor/bin/sail test --parallel` (396 tests), all green.
 
 ---
 
