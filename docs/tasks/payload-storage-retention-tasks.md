@@ -698,7 +698,23 @@
     coverage added here).
 - **Testing:** the cases above via a real ingest through `IngestController`, `Http::fake()` for the
   destination call, and raw `DB::table('webhook_events')` column assertions.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Retention/HeaderEncryptionAcceptanceTest.php` added
+  (2 tests). **Encrypted at rest over the real capture path:** a real ingest with a custom header —
+  the raw `headers` column value is a string that contains neither the header name, its value, nor
+  `content-type` in plaintext, while the model attribute round-trips to the exact captured array.
+  **`content_type` survives erasure, headers do not:** the same real-ingested event is backdated past
+  the retention window and run through a real `PurgeExpiredPayloads` pass; the raw `headers` column
+  is `NULL` post-erase while `content_type` — a retained descriptor, not part of the erased header
+  collection (ADR-014 Decision 6) — stays exactly `application/json`. **ADR-008 forwarding
+  transparency** (same header set reaches every destination after the cast change, `STRIPPED_HEADERS`
+  still filtered) is per the task's own instruction *not* re-tested here — confirmed instead by
+  running the existing `IngestFanOutTest::test_header_forwarding_end_to_end` and the full
+  `WebhookEventCaptureAcceptanceTest` suite unmodified (12 tests, both files, all green), proving the
+  `'headers' => 'encrypted:array'` cast change (T4) is transparent to the delivery path. No
+  production-code gap found. Verified: `composer lint`, `composer types:check`,
+  `./vendor/bin/sail test --filter HeaderEncryptionAcceptanceTest` (2 tests),
+  `./vendor/bin/sail test --filter "IngestFanOutTest|WebhookEventCaptureAcceptanceTest"` (12 tests),
+  and `./vendor/bin/sail test --parallel` (416 tests), all green.
 
 ## T18 — Dispatched-output store acceptance tests (AC12–AC15, AC19)
 
