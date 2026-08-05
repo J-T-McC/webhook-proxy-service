@@ -292,7 +292,15 @@
   insert at the DB level.
 - **Testing:** extend `tests/Unit/Actions/DeliverToDestinationTest.php` (or equivalent existing
   test) with the four cases above, using `Http::fake()`/`Event::fake()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Refactored `DeliverToDestination::handle()`: look up the existing attempt by
+  `(ingest_id, destination_id, attempt_number)` first; a terminal row → skip (no send/row/event); a
+  `dispatched` row → re-drive the SAME row via a private `send()` helper; otherwise create the
+  `dispatched` row and send. A `QueryException` on create (concurrent-redelivery race on the unique
+  index) is caught, re-queried, and routed through the same skip/re-drive rule; a non-unique query
+  error re-throws. `$tries = 1` made explicit (no retry/backoff — that is #6). Four new
+  `DeliverToDestinationTest` cases (redelivery-after-success no-op, redelivery-after-failure no-op,
+  dispatched-row re-driven on same id, raw-duplicate rejected) plus the four pre-existing cases stay
+  green (8 total). All three checks green.
 
 ## T10 — `AdvanceProxyFifoQueue` action (AC6, AC7; ADR-011 Decision 2, ADR-005 (a))
 

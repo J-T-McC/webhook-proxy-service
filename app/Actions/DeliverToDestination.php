@@ -8,15 +8,22 @@ use App\Events\DeliveryFailed;
 use App\Events\DeliverySucceeded;
 use App\Models\DeliveryAttempt;
 use App\Pipeline\DeliveryUnit;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Throwable;
 
 /**
- * The delivery-level run-sync-or-queue action (ADR-003/005). Delivers ONE unit to
- * ONE destination, recording only outcome metadata — never the payload (ADR-003).
- * At item #1 it is invoked with `::run` (inline); #4 flips to `::dispatch`.
+ * The delivery-level run-sync-or-queue action (ADR-003/005/011). Delivers ONE unit
+ * to ONE destination, recording only outcome metadata — never the payload (ADR-003).
+ * Invoked with `::run` inline (FIFO) or `::dispatch` onto the webhooks queue (Async).
+ *
+ * Idempotent against the queue's inherent at-least-once redelivery (ADR-011 Decision
+ * 4, AC9), guarded by the `UNIQUE(ingest_id, destination_id, attempt_number)` index:
+ * a redelivery of an already-settled unit is a no-op (no send, no duplicate row/event);
+ * a unit left `dispatched` by a crashed worker is re-driven on the SAME row. No retry/
+ * backoff is added here (`$tries = 1` unchanged) — that is #6.
  */
 class DeliverToDestination
 {
@@ -27,23 +34,80 @@ class DeliverToDestination
      */
     private const TIMEOUT_SECONDS = 15;
 
+    public int $tries = 1;
+
     public function handle(DeliveryUnit $unit): void
     {
-        $startedAt = now();
+        $existing = $this->existingAttempt($unit);
 
-        // Durable source of truth — written BEFORE the outcome is known so a crash
-        // still leaves a 'dispatched' row (crash safety, ADR-003). Payload-free.
-        $attempt = DeliveryAttempt::create([
-            'team_id' => $unit->teamId,
-            'proxy_id' => $unit->proxyId,
-            'destination_id' => $unit->destination->id,
-            'ingest_id' => $unit->ingestId,
-            'status' => AttemptStatus::Dispatched,
-            'attempt_number' => $unit->attemptNumber,
-            'started_at' => $startedAt,
-        ]);
+        if ($existing !== null) {
+            $this->resume($existing, $unit);
+
+            return;
+        }
+
+        // Create the durable 'dispatched' row (payload-free) BEFORE the outcome is
+        // known, so a crash still leaves a re-drivable row (ADR-003). A concurrent
+        // redelivery may race us on the unique index — treat that as "already exists".
+        try {
+            $attempt = DeliveryAttempt::create([
+                'team_id' => $unit->teamId,
+                'proxy_id' => $unit->proxyId,
+                'destination_id' => $unit->destination->id,
+                'ingest_id' => $unit->ingestId,
+                'status' => AttemptStatus::Dispatched,
+                'attempt_number' => $unit->attemptNumber,
+                'started_at' => now(),
+            ]);
+        } catch (QueryException $e) {
+            $raced = $this->existingAttempt($unit);
+
+            if ($raced === null) {
+                throw $e;
+            }
+
+            $this->resume($raced, $unit);
+
+            return;
+        }
 
         event(new DeliveryAttempted($attempt));
+
+        $this->send($unit, $attempt);
+    }
+
+    /**
+     * The existing attempt for this idempotency key, if any.
+     */
+    private function existingAttempt(DeliveryUnit $unit): ?DeliveryAttempt
+    {
+        return DeliveryAttempt::query()
+            ->where('ingest_id', $unit->ingestId)
+            ->where('destination_id', $unit->destination->id)
+            ->where('attempt_number', $unit->attemptNumber)
+            ->first();
+    }
+
+    /**
+     * Apply the redelivery rule to a pre-existing attempt: a terminal row is a
+     * settled unit and is skipped; a still-`dispatched` row (crashed mid-flight) is
+     * re-driven to settlement on the SAME row (never a duplicate).
+     */
+    private function resume(DeliveryAttempt $attempt, DeliveryUnit $unit): void
+    {
+        if ($attempt->status !== AttemptStatus::Dispatched) {
+            return;
+        }
+
+        $this->send($unit, $attempt);
+    }
+
+    /**
+     * Perform the outbound send and settle the given attempt row in place.
+     */
+    private function send(DeliveryUnit $unit, DeliveryAttempt $attempt): void
+    {
+        $startedAt = now();
 
         try {
             $response = Http::withHeaders($unit->forwardHeaders())
