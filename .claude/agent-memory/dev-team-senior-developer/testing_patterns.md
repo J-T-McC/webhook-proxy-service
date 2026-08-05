@@ -42,6 +42,26 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   in a test; advance step-by-step. To prove the atomic `FOR UPDATE` claim blocks a concurrent
   advancer, fire a nested `::run()` from inside an `Http::fake` closure (i.e. while the first row is
   claimed and mid-send) and assert no second row gets claimed.
+- **Asserting `Log::` calls:** `Log::spy();` then, after the code runs,
+  `Log::shouldHaveReceived('info')->once()->withArgs(fn (string $msg, array $ctx) => $msg ===
+  'x.y' && $ctx === ['id' => $id]);` — works even though `Log::` had zero prior usage in `app/`
+  before item #5 (first precedent: `CaptureDispatchedStep`'s post-clean guard and
+  `ProcessIngestedWebhook`'s cleaned-state guard, both logging `payload.expired` with identifiers
+  only per the never-log list in `docs/standards/coding.md`).
+- **Fault-injecting a mid-transaction failure to prove atomicity/rollback, without DDL:**
+  `DB::listen(function ($query) { if (str_contains($query->sql, 'update `table_name`')) { throw new
+  RuntimeException('...'); } });` before calling the code under test. `Connection::logQuery()` fires
+  the `QueryExecuted` event synchronously right after a statement executes but still inside the open
+  transaction, so the exception propagates out through the real `DB::transaction()` wrapper, which
+  rolls back everything already run in that transaction (including an earlier statement in the same
+  closure) before rethrowing — a real rollback through real transaction machinery, no mock of the
+  query builder. **Do NOT use a schema-altering fault (e.g. `CREATE TRIGGER`/`dropColumn` mid-test)**
+  to force a query to fail — DDL causes an implicit `COMMIT` in MySQL/InnoDB, which silently commits
+  the `RefreshDatabase`/`FasterRefreshDatabase`-managed test transaction and leaks fixture rows past
+  the test. Registering `DB::listen` is test-scoped (Laravel boots a fresh `Application` per test
+  method), so it never needs manual teardown. Used for `PurgeExpiredPayloads`'s AC12 atomicity test
+  (#5): failing the `dispatched_payloads` `UPDATE` rolls back the already-executed `webhook_events`
+  `UPDATE` in the same transaction.
 - **Proving the ABSENCE of a per-row policy call (no N+1) during resource serialization**:
   same `partialMock(ProxyPolicy::class)` but `shouldReceive('update')->never()` /
   `->delete()->never()` over a multi-row index render. Unmocked `viewAny` runs real and
@@ -49,3 +69,25 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   count. Cleaner than `Gate::spy()`, which would also intercept the required `viewAny`.
   (Used for ADR-009 Amendment B: affordance display derives client-side from
   `ProxyResource.is_creator` + page-level `ProxyPermissions`, not a per-row `$user->can()`.)
+- **Reproducing a select-then-act race (a hold reappearing between selection and a
+  compare-and-set `UPDATE`) without real concurrency:** `DB::listen()`, guarded by a
+  captured `bool` so it fires only once, matching the SELECT's SQL substring (e.g.
+  `select \`id\` from \`webhook_events\``); inside the callback, `DB::table(...)->insert(...)`
+  the row that "reappears" (e.g. a `pending` `fifo_dispatches` row) before the code under
+  test's next statement (the erase `UPDATE`, which re-asserts the hold in its own `WHERE`)
+  runs. Proves the CAS affects zero rows and the target is skipped — no mock, no production
+  code change. Used for `PurgeExpiredPayloads`'s reappeared-hold race (#5, T15).
+- **Testing a pipeline step in isolation with a test-only step ahead of it:** build an
+  anonymous class `implements PipelineStep` (mutate `$ctx->payload` or similar in `handle()`,
+  call `$next($ctx)`), then `app(Illuminate\Pipeline\Pipeline::class)->send($ctx)->through([$testStep,
+  RealStep::make()])->thenReturn();` — a test-local pipeline composition, not the wired
+  `PipelineFactory`. Lets an acceptance test exercise a divergence/mutation case the real
+  pipeline doesn't yet produce (e.g. `CaptureDispatchedStep`'s diverged-payload branch, #5 T18)
+  without a second production step existing yet.
+- **Driving a FIFO line across a mid-line state change** (e.g. the claimed event's parent
+  becoming cleaned before the advancer processes it): mutate the target row directly with
+  `$model->forceFill([...])->saveQuietly()` (bypasses `#[Fillable]` + suppresses model events;
+  precedent: `TeamScopingTest`), then call `AdvanceProxyFifoQueue::run($proxyId)` under
+  `Queue::fake()` and assert step-by-step (one `::run()` call settles/claims one row — the
+  self-dispatch is captured, not recursed; see the existing note above on testing a
+  self-dispatching queue action).

@@ -7,6 +7,7 @@ use App\Models\WebhookEvent;
 use App\Pipeline\PipelineContext;
 use App\Pipeline\PipelineFactory;
 use Illuminate\Pipeline\Pipeline;
+use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 /**
@@ -17,6 +18,11 @@ use Lorisleiva\Actions\Concerns\AsAction;
  * the native `Illuminate\Pipeline\Pipeline`. The proxy is loaded trashed-inclusive
  * so an event accepted before a later soft-delete still delivers. The raw body and
  * token are never logged on this path.
+ *
+ * Guards on `payload_cleaned_at` (AC10, AC21; ADR-014 Decision 7, binding): an
+ * event whose payload has already expired is never delivered — nothing is
+ * dispatched, no pipeline runs. An absent row (`firstOrFail()`) is a genuine
+ * bug, never an expiry signal.
  */
 class ProcessIngestedWebhook
 {
@@ -27,6 +33,12 @@ class ProcessIngestedWebhook
     public function handle(string $ingestId): void
     {
         $event = WebhookEvent::query()->where('ingest_id', $ingestId)->firstOrFail();
+
+        if ($event->payload_cleaned_at !== null) {
+            Log::info('payload.expired', ['ingest_id' => $ingestId]);
+
+            return;
+        }
 
         // Load the proxy trashed-inclusive: an event captured before a later
         // soft-delete of its proxy must still deliver (ADR-011 Decision 3).

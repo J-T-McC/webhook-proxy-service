@@ -21,6 +21,49 @@ metadata:
   built from a `*_max_bytes` config (e.g. `response_body` → `max:config('ingest.response_body_max_bytes')`)
   lets a UTF-8 value exceed the intended byte cap by up to ~4×. Flag as a Minor whenever a byte-named
   cap feeds a string `max:` rule; a byte-exact check needs a custom rule.
+- **`WithoutOverlapping` job middleware defaults to no TTL** (`expiresAfter = 0`) — on an ungraceful
+  worker crash (SIGKILL/OOM) the Redis lock leaks forever. In the FIFO advancer (`AdvanceProxyFifoQueue`)
+  this permanently stalls a proxy's line: the sweeper reaps the DB claim but its re-dispatched advancer
+  is gated by the same leaked lock. Whenever `WithoutOverlapping` guards a self-dispatching/scheduled
+  job, require an explicit `->expireAfter(...)` (align to the claim lease). Raised as Major in review-04.
+- **`(int) env('SOME_KEY', $default)` in a config file has NO lower bound** — a blank line
+  (`KEY=`) or a non-numeric value casts to `0`, silently replacing the default (verified in this
+  repo: both blank and non-numeric resolve to `0`). Wherever a config int drives a destructive or
+  looping operation, check for a clamp/reject at the resolution point. Two concrete shapes in
+  `config/retention.php`: a `days` value of 0 makes a retention cutoff equal `now()` (mass
+  irreversible erasure), and a batch-size of 0 makes Laravel emit a literal `LIMIT 0` (0 rows),
+  which hangs any `do { … } while (count($ids) === $batchSize)` loop forever. Raised as Major in
+  review-05; the house remedy adopted there is the pattern to expect elsewhere — a fail-loud
+  `RuntimeException` naming key + value at the *single* seam that reads the key, plus threading
+  the validated value in as a parameter so the loop body is structurally unreachable rather than
+  guarded from inside. When checking such a guard is total, grep the key repo-wide (must have one
+  read site) and confirm no callee re-reads config.
+- **A guard test whose failure mode is an infinite loop HANGS instead of failing.** Tests that
+  prove a loop is never entered (`DB::listen` query-count === 0) are genuine, but if the guard
+  regresses the suite spins forever rather than reporting red. Worth a Nit whenever you see one.
+- **Laravel releases the `withoutOverlapping()` scheduler mutex in a `finally`**
+  (`Event::runCommandInForeground()`), and `Schedule::command()` runs in a child process — so a
+  scheduled command that throws does NOT leave a stuck lock blocking later runs. Check this before
+  objecting to a "fail loudly" posture in a scheduled job.
+- **`DB::listen()` is a legitimate fault-injection / race seam and is NOT tautological.**
+  `Connection::run()` dispatches `QueryExecuted` synchronously *after* the statement executes but
+  *before* the caller returns, so a listener can (a) throw to fail a specific statement mid-transaction
+  and prove real rollback, or (b) mutate state in the exact window between a `SELECT` and a following
+  `UPDATE` to prove a compare-and-set. Match on `$query->sql`. Caveat to record: under the suite's
+  `FasterRefreshDatabase` the inner transaction is a savepoint, so it proves `ROLLBACK TO SAVEPOINT`.
+- **`ApplyTeamScope` registers `TeamScope` on only three models** (`Proxy`, `Destination`,
+  `DeliveryAttempt`) and only for the duration of a team-scoped request — it is NOT a global model
+  scope. `WebhookEvent`/`DispatchedPayload` are never scoped, so worker-path Eloquent queries on
+  them need no `withoutGlobalScope()`; a factory that adds one is defensive, not required.
+- **`Actions::registerCommands()` (laravel-actions) registers only classes declaring a
+  `commandSignature` property** — adding it to `routes/console.php` to make `Schedule::command()`
+  resolve does not accidentally expose other `AsAction` classes as Artisan commands. Verify with
+  `artisan list` when it first appears.
+- **`ORDER BY id LIMIT n` on a GC/batch selection adds `Using filesort`** even when the intended
+  composite index is chosen — MySQL materialises and sorts the whole candidate set before the LIMIT.
+  Ordering by the index's trailing column instead keeps the same plan without the filesort. Verify
+  optimizer claims with a populated scratch table + `ANALYZE`; an EXPLAIN on an empty table picks
+  `PRIMARY` and is worthless evidence.
 - **Authorization idiom:** every proxy/team decision is a Policy gating on `TeamPermission` via
   `$user->hasTeamPermission($team, …)`; a role literal (`role === Member`) in a policy/controller
   is a standards violation (permission-based, never role-based). Ownership is a second axis modeled

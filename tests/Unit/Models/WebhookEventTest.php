@@ -22,6 +22,59 @@ class WebhookEventTest extends TestCase
         $this->assertSame('longblob', strtolower((string) $column->DATA_TYPE));
     }
 
+    public function test_body_and_headers_are_nullable_at_the_schema_level(): void
+    {
+        $columns = collect(DB::select(
+            'SELECT COLUMN_NAME, IS_NULLABLE
+             FROM information_schema.COLUMNS
+             WHERE TABLE_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+            ['webhook_events'],
+        ))->keyBy(fn ($c) => strtolower((string) $c->COLUMN_NAME));
+
+        $this->assertSame('YES', $columns->get('body')->IS_NULLABLE ?? null);
+        $this->assertSame('YES', $columns->get('headers')->IS_NULLABLE ?? null);
+    }
+
+    public function test_headers_column_is_mediumtext(): void
+    {
+        $column = DB::selectOne(
+            'SELECT DATA_TYPE
+             FROM information_schema.COLUMNS
+             WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+            ['webhook_events', 'headers'],
+        );
+
+        $this->assertNotNull($column, 'Expected a headers column on webhook_events.');
+        $this->assertSame('mediumtext', strtolower((string) $column->DATA_TYPE));
+    }
+
+    public function test_payload_cleaned_at_column_exists_and_is_nullable_timestamp(): void
+    {
+        $column = DB::selectOne(
+            'SELECT DATA_TYPE, IS_NULLABLE
+             FROM information_schema.COLUMNS
+             WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+            ['webhook_events', 'payload_cleaned_at'],
+        );
+
+        $this->assertNotNull($column, 'Expected a payload_cleaned_at column on webhook_events.');
+        $this->assertSame('timestamp', strtolower((string) $column->DATA_TYPE));
+        $this->assertSame('YES', $column->IS_NULLABLE);
+    }
+
+    public function test_the_cleaned_state_composite_index_exists(): void
+    {
+        $indexColumns = collect(DB::select(
+            'SELECT INDEX_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS cols
+             FROM information_schema.STATISTICS
+             WHERE TABLE_NAME = ? AND TABLE_SCHEMA = DATABASE()
+             GROUP BY INDEX_NAME',
+            ['webhook_events'],
+        ))->pluck('cols')->map(fn ($c) => strtolower((string) $c))->all();
+
+        $this->assertContains('team_id,payload_cleaned_at,created_at', $indexColumns);
+    }
+
     public function test_ingest_id_has_a_single_column_unique_index(): void
     {
         $indexes = DB::select(
@@ -76,6 +129,20 @@ class WebhookEventTest extends TestCase
         // Ciphertext at rest is not the plaintext.
         $stored = DB::table('webhook_events')->where('id', $event->id)->value('body');
         $this->assertNotSame($raw, $stored);
+    }
+
+    public function test_headers_round_trip_through_the_encrypted_cast(): void
+    {
+        $headers = ['content-type' => ['application/json'], 'x-signature' => ['abc123']];
+        $event = WebhookEvent::factory()->createQuietly(['headers' => $headers]);
+
+        // Ciphertext at rest is not the plaintext JSON.
+        $stored = DB::table('webhook_events')->where('id', $event->id)->value('headers');
+        $this->assertIsString($stored);
+        $this->assertStringNotContainsString('content-type', $stored);
+
+        // Decrypts back to the exact original array on read.
+        $this->assertEquals($headers, $event->fresh()->headers);
     }
 
     public function test_headers_round_trip_as_an_array(): void

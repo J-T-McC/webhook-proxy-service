@@ -71,4 +71,22 @@ class ProcessIngestedWebhookTest extends TestCase
 
         ProcessIngestedWebhook::run('does-not-exist');
     }
+
+    public function test_a_cleaned_event_returns_cleanly_and_dispatches_nothing(): void
+    {
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->count(2)->createQuietly();
+
+        $event = WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id);
+
+        $this->assertSame(0, DeliveryAttempt::count());
+        Http::assertNothingSent();
+    }
 }
