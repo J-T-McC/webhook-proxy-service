@@ -197,7 +197,13 @@
 - **Testing:** extend `tests/Unit/Models/DeliveryAttemptTest.php` — schema assertion the composite
   unique index exists; a duplicate-triple insert throws a DB-level unique-constraint exception; the
   three pre-existing indexes are still present.
-- **Completion notes:** _pending_
+- **Completion notes:** Added migration
+  `2026_08_04_000005_add_idempotency_unique_to_delivery_attempts_table` adding
+  `UNIQUE(ingest_id, destination_id, attempt_number)`, keeping all three existing indexes. Two new
+  `DeliveryAttemptTest` cases: composite-unique-alongside-existing schema assertion, and a
+  duplicate-triple insert rejected at the DB level (`QueryException`). Migration comment records the
+  safe-on-existing-data reasoning (pre-#4 `attempt_number` always 1, ≤1 attempt per pair). All three
+  checks green.
 
 ## T7 — `ProcessIngestedWebhook`: dispatch-by-reference rebuild (ADR-011 Decision 3)
 
