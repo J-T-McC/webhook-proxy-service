@@ -740,7 +740,25 @@
     produces no `dispatched_payloads` write and no delivery.
 - **Testing:** the cases above via real ingests to enhanced/simple proxies, `Http::fake()`, and
   direct re-invocation of `ProcessIngestedWebhook::run()` to simulate redelivery.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Retention/DispatchedOutputAcceptanceTest.php` added
+  (7 tests), driving the real, wired pipeline (T9) end to end. Covers: an enhanced-mode proxy produces
+  exactly one `dispatched_payloads` row associated to the event (AC12, AC13); a simple-mode proxy
+  produces none (AC12, AC14); three destinations on one enhanced-mode event still fan out three
+  deliveries but produce exactly one output row (AC13, R3 — `CaptureDispatchedStep` runs once,
+  before `DeliverStep`'s per-destination loop); the identical-payload case over a real ingest stores
+  `body IS NULL`, the raw byte size, and `dispatched_at` set (AC19, ADR-013 Decision 2); the diverged
+  case, via a test-local pipeline (`app(Pipeline::class)->send($ctx)->through([$mutateStep,
+  CaptureDispatchedStep::make()])`, an anonymous `PipelineStep` mutating `$ctx->payload` ahead of the
+  step under test — mirroring the unit-level test's own test-only-step approach, T7's testing note),
+  stores the diverged bytes, encrypted at rest (AC15); re-invoking `ProcessIngestedWebhook::run()` for
+  the same event (simulated queue redelivery) leaves the raw `webhook_events` row byte-for-byte
+  unchanged (including `updated_at`, AC11) and the output row count still exactly one, updated not
+  duplicated (AC13, idempotency) — combined into a single test since both assertions compose over the
+  same redelivery call; re-processing an event whose parent is already cleaned (via T4's `cleaned()`
+  factory state) produces no `dispatched_payloads` write and no delivery (the post-clean guard, T8,
+  end to end). No production-code gap found. Verified: `composer lint`, `composer types:check`,
+  `./vendor/bin/sail test --filter DispatchedOutputAcceptanceTest` (7 tests) and `./vendor/bin/sail
+  test --parallel` (423 tests), all green.
 
 ---
 
