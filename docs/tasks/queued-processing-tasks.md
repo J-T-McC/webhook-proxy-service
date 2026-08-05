@@ -615,7 +615,12 @@
 - **Testing:** extend `tests/Feature/Proxies/ProxyStoreTest.php` and
   `tests/Feature/Proxies/ProxyUpdateTest.php` with cases for `async`, `fifo`, and the `async ↔ fifo`
   switch on update.
-- **Completion notes:** _pending_
+- **Completion notes:** `store()` unchanged — `Proxy::make($data)` already mass-assigns
+  `processing_mode` now that it is `#[Fillable]` (T4) + validated (T19); verified explicitly by test.
+  `update()` gained `'processing_mode' => $data['processing_mode']` in its explicit update array.
+  New `ProxyStoreTest` cases: explicit `async`/`fifo` persists; absent value rejected (`assertInvalid`
+  + no row). New `ProxyUpdateTest` case: `async -> fifo -> async` switch persists across two updates.
+  14 store+update tests + all three checks green.
 
 ## T21 — `proxyProcessingModes.ts` data const (design-04 recommendation)
 

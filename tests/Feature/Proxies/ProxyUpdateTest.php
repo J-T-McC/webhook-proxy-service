@@ -3,6 +3,7 @@
 namespace Tests\Feature\Proxies;
 
 use App\Enums\HttpMethod;
+use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Models\Destination;
 use App\Models\Proxy;
@@ -137,6 +138,35 @@ class ProxyUpdateTest extends TestCase
         $proxy->refresh();
         $this->assertNull($proxy->response_status);
         $this->assertNull($proxy->response_body);
+    }
+
+    public function test_update_persists_a_processing_mode_switch(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'processing_mode' => ProcessingMode::Async,
+        ]);
+        $keep = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
+
+        $update = fn (string $mode) => $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            [
+                'name' => 'x',
+                'mode' => 'simple',
+                'processing_mode' => $mode,
+                'destinations' => [
+                    ['id' => $keep->id, 'url' => 'https://keep.example.com/hook', 'http_method' => 'POST'],
+                ],
+            ],
+        )->assertRedirect(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]));
+
+        // async -> fifo, then fifo -> async both persist.
+        $update('fifo');
+        $this->assertSame(ProcessingMode::Fifo, $proxy->fresh()->processing_mode);
+
+        $update('async');
+        $this->assertSame(ProcessingMode::Async, $proxy->fresh()->processing_mode);
     }
 
     public function test_update_that_would_leave_zero_live_destinations_is_rejected(): void
