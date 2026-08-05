@@ -90,4 +90,32 @@ class ProxyStoreTest extends TestCase
 
         $this->assertSame(0, Proxy::count());
     }
+
+    public function test_creating_with_response_config_persists_both_values(): void
+    {
+        $user = $this->actingUser();
+
+        $this->actingAs($user)->post(
+            route('proxies.store', ['current_team' => $user->currentTeam->slug]),
+            $this->payload(['response_status' => 200, 'response_body' => '{"ok":true}']),
+        );
+
+        $proxy = Proxy::firstOrFail();
+        $this->assertSame(200, $proxy->response_status);
+        $this->assertSame('{"ok":true}', $proxy->response_body);
+    }
+
+    public function test_creating_without_response_config_leaves_both_null(): void
+    {
+        $user = $this->actingUser();
+
+        $this->actingAs($user)->post(
+            route('proxies.store', ['current_team' => $user->currentTeam->slug]),
+            $this->payload(),
+        );
+
+        $proxy = Proxy::firstOrFail();
+        $this->assertNull($proxy->response_status);
+        $this->assertNull($proxy->response_body);
+    }
 }

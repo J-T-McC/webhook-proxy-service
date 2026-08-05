@@ -25,7 +25,9 @@ class PipelineFactory
         if ($proxy->mode === ProxyMode::Enhanced) {
             // $steps[] = VerifyStep::make();            // #10 — verification token (front)
             // $steps[] = NormalizeStep::make();         // #9  — any format -> JSON
-            // $steps[] = CaptureRawStep::make();        // #5  — persist raw input
+            // CaptureRawStep — SUPERSEDED for raw capture by IngestController +
+            // WebhookEventCapture (ADR-010): raw capture is a synchronous pre-dispatch
+            // step in the handler, not a pipeline step (mode-independent, AC5/AC7).
             // $steps[] = MapStep::make();               // #8  — reshape
             // $steps[] = CaptureDispatchedStep::make(); // #5  — persist dispatched output
         }

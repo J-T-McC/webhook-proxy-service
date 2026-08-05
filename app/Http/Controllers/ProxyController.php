@@ -140,7 +140,14 @@ class ProxyController extends Controller
         $data = $request->validated();
 
         DB::transaction(function () use ($data, $proxy): void {
-            $proxy->update(['name' => $data['name'], 'mode' => $data['mode']]);
+            // Persist response config alongside name/mode. `?? null` lets an
+            // omitted/explicit-null field clear a previously configured value (AC3).
+            $proxy->update([
+                'name' => $data['name'],
+                'mode' => $data['mode'],
+                'response_status' => $data['response_status'] ?? null,
+                'response_body' => $data['response_body'] ?? null,
+            ]);
 
             $keptIds = [];
 

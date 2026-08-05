@@ -84,6 +84,58 @@ class ProxyUpdateTest extends TestCase
         $this->assertSame($ingestUrlBefore, $proxy->fresh()->ingestUrl());
     }
 
+    public function test_update_sets_response_config(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $keep = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            [
+                'name' => 'x',
+                'mode' => 'simple',
+                'response_status' => 200,
+                'response_body' => 'thanks',
+                'destinations' => [
+                    ['id' => $keep->id, 'url' => 'https://keep.example.com/hook', 'http_method' => 'POST'],
+                ],
+            ],
+        )->assertRedirect(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]));
+
+        $proxy->refresh();
+        $this->assertSame(200, $proxy->response_status);
+        $this->assertSame('thanks', $proxy->response_body);
+    }
+
+    public function test_update_clears_previously_configured_response_config_to_null(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'response_status' => 201,
+            'response_body' => 'previously set',
+        ]);
+        $keep = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            [
+                'name' => 'x',
+                'mode' => 'simple',
+                'response_status' => null,
+                'response_body' => null,
+                'destinations' => [
+                    ['id' => $keep->id, 'url' => 'https://keep.example.com/hook', 'http_method' => 'POST'],
+                ],
+            ],
+        )->assertRedirect(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]));
+
+        $proxy->refresh();
+        $this->assertNull($proxy->response_status);
+        $this->assertNull($proxy->response_body);
+    }
+
     public function test_update_that_would_leave_zero_live_destinations_is_rejected(): void
     {
         $user = $this->actingUser();

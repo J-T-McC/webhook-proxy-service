@@ -6,9 +6,11 @@ use App\Actions\ProcessIngestedWebhook;
 use App\Models\Proxy;
 use App\Pipeline\PipelineContext;
 use App\Services\ResponseResolver;
+use App\Services\WebhookEventCapture;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 /**
  * Public, token-authenticated ingest entry point (ADR-004/006).
@@ -21,7 +23,10 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class IngestController extends Controller
 {
-    public function __construct(private ResponseResolver $responseResolver) {}
+    public function __construct(
+        private ResponseResolver $responseResolver,
+        private WebhookEventCapture $capture,
+    ) {}
 
     public function __invoke(Request $request, string $token): Response
     {
@@ -35,21 +40,41 @@ class IngestController extends Controller
 
         abort_if($proxy === null, Response::HTTP_NOT_FOUND);
 
+        // Read the raw request facts up front and mint the single ingest_id — the one
+        // correlator shared by the capture row and the fan-out delivery_attempts
+        // (ADR-003). Do not introduce a second key.
+        $ingestId = (string) Str::uuid();
+        $method = $request->method();
+        $headers = $request->headers->all();
         $rawBody = $request->getContent();
 
+        // ADR-010: durably capture the raw payload SYNCHRONOUSLY — before the response
+        // is resolved and before pipeline dispatch — unconditionally on mode (AC5/AC7,
+        // R2 override). A capture-write failure returns HTTP 500 and dispatches nothing
+        // (AC6): success is never acknowledged for an uncaptured event. Report the
+        // exception but never log the raw body or token on this path.
+        try {
+            $this->capture->capture($proxy, $ingestId, $method, $headers, $rawBody);
+        } catch (Throwable $e) {
+            report($e);
+            abort(Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
         $ctx = new PipelineContext(
-            ingestId: (string) Str::uuid(),
+            ingestId: $ingestId,
             proxy: $proxy,
-            method: $request->method(),
-            headers: $request->headers->all(),
+            method: $method,
+            headers: $headers,
             rawBody: $rawBody,
             payload: $rawBody,
         );
 
         // Resolve the upstream response BEFORE and INDEPENDENT of delivery (ADR-004).
+        // Only reachable after a committed capture (AC5).
         $response = $this->responseResolver->resolve($proxy);
 
-        // ADR-005 timing seam (PIPELINE level): ::run inline at #1.
+        // ADR-005 timing seam (PIPELINE level): ::run inline at #1; capture already
+        // committed before this dispatch.
         ProcessIngestedWebhook::run($ctx);
 
         return $response;

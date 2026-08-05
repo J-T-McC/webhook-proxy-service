@@ -115,4 +115,120 @@ class ProxyRequestValidationTest extends TestCase
         $this->assertTrue($validator->fails());
         $this->assertArrayHasKey('mode', $validator->errors()->messages());
     }
+
+    /**
+     * Values outside the fixed set {200, 202, 204} — including 2xx codes that are
+     * no longer allowed (201, 203, 299) and non-2xx codes (AC4, refined 2026-08-04).
+     *
+     * @return array<string, array{0: int}>
+     */
+    public static function outOfSetStatuses(): array
+    {
+        return [
+            'below range 199' => [199],
+            'above range 300' => [300],
+            'client error 404' => [404],
+            '2xx not in set 201' => [201],
+            '2xx not in set 203' => [203],
+            '2xx not in set 299' => [299],
+        ];
+    }
+
+    /**
+     * @param  class-string  $requestClass
+     */
+    #[DataProvider('requestClasses')]
+    public function test_response_status_null_or_absent_is_accepted(string $requestClass): void
+    {
+        // Explicit null.
+        $validator = $this->validate($requestClass, $this->validData(['response_status' => null]));
+        $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+
+        // Absent entirely.
+        $validator = $this->validate($requestClass, $this->validData());
+        $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_out_of_set_response_status_is_rejected_under_response_status_key(string $requestClass): void
+    {
+        foreach (self::outOfSetStatuses() as [$status]) {
+            $validator = $this->validate($requestClass, $this->validData(['response_status' => $status]));
+
+            $this->assertTrue($validator->fails(), "Status {$status} should be rejected.");
+            $this->assertArrayHasKey('response_status', $validator->errors()->messages());
+        }
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_allowed_statuses_200_202_204_are_accepted(string $requestClass): void
+    {
+        // 204 must pair with an empty body (asserted separately); pass no body here.
+        foreach ([200, 202] as $status) {
+            $validator = $this->validate($requestClass, $this->validData(['response_status' => $status]));
+            $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+        }
+
+        $validator = $this->validate($requestClass, $this->validData(['response_status' => 204]));
+        $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_204_with_non_empty_body_is_rejected_under_response_body_key(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 204,
+            'response_body' => 'not empty',
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('response_body', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_204_with_empty_or_absent_body_is_accepted(string $requestClass): void
+    {
+        // Empty string body.
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 204,
+            'response_body' => '',
+        ]));
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
+
+        // Null body.
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 204,
+            'response_body' => null,
+        ]));
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
+
+        // Absent body.
+        $validator = $this->validate($requestClass, $this->validData(['response_status' => 204]));
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_200_with_non_empty_body_is_accepted(string $requestClass): void
+    {
+        // The 204-only body coupling must not reject bodies for 200/202.
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 200,
+            'response_body' => '{"ok":true}',
+        ]));
+
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_response_body_at_cap_is_accepted_and_over_cap_is_rejected(string $requestClass): void
+    {
+        $cap = (int) config('ingest.response_body_max_bytes');
+
+        $atCap = $this->validate($requestClass, $this->validData(['response_body' => str_repeat('a', $cap)]));
+        $this->assertArrayNotHasKey('response_body', $atCap->errors()->messages());
+
+        $overCap = $this->validate($requestClass, $this->validData(['response_body' => str_repeat('a', $cap + 1)]));
+        $this->assertTrue($overCap->fails());
+        $this->assertArrayHasKey('response_body', $overCap->errors()->messages());
+    }
 }

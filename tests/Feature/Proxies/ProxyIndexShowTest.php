@@ -71,6 +71,38 @@ class ProxyIndexShowTest extends TestCase
             );
     }
 
+    public function test_show_exposes_response_config_for_a_configured_proxy(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'response_status' => 201,
+            'response_body' => '{"ok":true}',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('proxy.response_status', 201)
+                ->where('proxy.response_body', '{"ok":true}')
+            );
+    }
+
+    public function test_show_exposes_null_response_config_for_an_unconfigured_proxy(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('proxy.response_status', null)
+                ->where('proxy.response_body', null)
+            );
+    }
+
     public function test_cross_team_show_returns_404(): void
     {
         $user = $this->actingUser();

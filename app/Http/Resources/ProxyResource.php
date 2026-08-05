@@ -34,6 +34,11 @@ class ProxyResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'mode' => $this->mode->value,
+            // User-defined upstream response config (nullable = unconfigured → the
+            // resolver returns 202). Exposed so the shared Create/Edit form pre-fills
+            // them; the index doesn't render them but the shape stays consistent.
+            'response_status' => $this->response_status,
+            'response_body' => $this->response_body,
             // Built server-side from config, never the request Host header (ADR-006).
             'ingest_url' => $this->ingestUrl(),
             'destinations' => DestinationResource::collection($this->whenLoaded('destinations')),

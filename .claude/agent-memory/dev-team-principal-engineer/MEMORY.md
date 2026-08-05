@@ -1,0 +1,1 @@
+- [Project structure](project_structure.md) — ADRs live in docs/architecture/ (not docs/adr/); native TeamRole/TeamPermission/HasTeams authorization seam
