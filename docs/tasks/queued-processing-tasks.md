@@ -720,7 +720,12 @@
   palettes checked.
 - **Testing:** none automated; manual walkthrough recorded in Completion notes. `pnpm types:check` /
   `lint:check` / `format:check` green.
-- **Completion notes:** _pending_
+- **Completion notes:** Added a second `Badge variant="secondary"` immediately after the Mode badge
+  in `Show.vue`'s header row, showing `proxyProcessingModeLabel(props.proxy.processing_mode)` (Async
+  or FIFO). Read-only, no new helper paragraph, no click behaviour — matches the Mode-badge pattern
+  and wraps with it on narrow viewports. Verified by inspection against design-04 Screen 3 / PM
+  Ruling 1 and `pnpm types:check`/`lint:check`/`format:check` green; live light/dark visual pass
+  deferred to the Reviewer/Owner manual gate (no JS test framework / headless env).
 
 ## T25 — `Index.vue`: Processing column (design-04 Screen 1, PM Ruling 2)
 
@@ -738,7 +743,13 @@
   only adds a `TableCell`; light/dark palettes checked.
 - **Testing:** none automated; manual walkthrough recorded in Completion notes. `pnpm types:check` /
   `lint:check` / `format:check` green.
-- **Completion notes:** _pending_
+- **Completion notes:** Added a `Processing` `TableHead` + `TableCell` to `Index.vue` between Mode
+  and Ingest URL (`Name | Mode | Processing | Ingest URL | Actions`), rendering the same
+  `Badge variant="secondary"` pattern as the Mode column via `proxyProcessingModeLabel(
+  proxy.processing_mode)`. Purely additive (one head + one cell) — the horizontally-scrollable table
+  and the existing Delete-confirmation flow are untouched. Verified by inspection against design-04
+  Screen 1 / PM Ruling 2 and `pnpm types:check`/`lint:check`/`format:check` green; live visual/light-
+  dark pass deferred to the Reviewer/Owner manual gate.
 
 ---
 

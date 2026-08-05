@@ -23,6 +23,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { proxyProcessingModeLabel } from '@/data/proxyProcessingModes';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
 import type {
@@ -141,6 +142,7 @@ function confirmDelete(): void {
                     <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>Mode</TableHead>
+                        <TableHead>Processing</TableHead>
                         <TableHead>Ingest URL</TableHead>
                         <TableHead class="text-right">Actions</TableHead>
                     </TableRow>
@@ -166,6 +168,15 @@ function confirmDelete(): void {
                                     proxy.mode === 'enhanced'
                                         ? 'Enhanced'
                                         : 'Simple'
+                                }}
+                            </Badge>
+                        </TableCell>
+                        <TableCell>
+                            <Badge variant="secondary">
+                                {{
+                                    proxyProcessingModeLabel(
+                                        proxy.processing_mode,
+                                    )
                                 }}
                             </Badge>
                         </TableCell>
