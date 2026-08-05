@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\ProcessingMode;
 use App\Models\Destination;
 use App\Pipeline\DeliveryUnit;
 use App\Pipeline\PipelineContext;
@@ -10,13 +11,18 @@ use Closure;
 use Lorisleiva\Actions\Concerns\AsObject;
 
 /**
- * The terminal fan-out step (ADR-001). Iterates the proxy's LIVE destinations
+ * The terminal fan-out step (ADR-001/011). Iterates the proxy's LIVE destinations
  * (the relation carries the SoftDeletes scope, so trashed destinations are never
- * delivered to), builds one {@see DeliveryUnit} per destination and runs
- * {@see DeliverToDestination} inline for each, then continues the chain.
+ * delivered to) and builds one {@see DeliveryUnit} per destination, then dispatches
+ * each per the proxy's processing mode (ADR-011):
+ *  - **Async** — `DeliverToDestination::dispatch(...)` onto the dedicated webhooks
+ *    queue, `afterCommit()`, so destinations fan out in parallel.
+ *  - **FIFO** — `DeliverToDestination::run(...)` inline, so the advancing job settles
+ *    the whole event before advancing the proxy's line.
  *
- * One destination failing does not abort the loop (AC9) — DeliverToDestination
- * catches its own transport errors. This step only READS `$ctx->payload`.
+ * One destination failing/erroring never aborts the loop in either mode (AC10) —
+ * DeliverToDestination catches its own transport errors, and a dispatch is fire-and-
+ * forget. This step only READS `$ctx->payload`.
  */
 class DeliverStep implements PipelineStep
 {
@@ -28,8 +34,9 @@ class DeliverStep implements PipelineStep
     public function handle(PipelineContext $ctx, Closure $next): PipelineContext
     {
         $proxy = $ctx->proxy;
+        $async = $proxy->processing_mode === ProcessingMode::Async;
 
-        $proxy->destinations->each(function (Destination $destination) use ($ctx, $proxy): void {
+        $proxy->destinations->each(function (Destination $destination) use ($ctx, $proxy, $async): void {
             $unit = new DeliveryUnit(
                 ingestId: $ctx->ingestId,
                 teamId: $proxy->team_id,
@@ -41,6 +48,16 @@ class DeliverStep implements PipelineStep
                 attemptNumber: 1,
             );
 
+            if ($async) {
+                // Parallel, queued fan-out on the dedicated webhooks queue (ADR-011).
+                DeliverToDestination::dispatch($unit)
+                    ->onQueue(config('ingest.webhooks_queue'))
+                    ->afterCommit();
+
+                return;
+            }
+
+            // FIFO: inline, so the advancer settles the whole event before advancing.
             DeliverToDestination::run($unit);
         });
 

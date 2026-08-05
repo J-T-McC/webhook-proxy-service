@@ -256,7 +256,15 @@
   next destination in either mode.
 - **Testing:** `tests/Unit/Actions/DeliverStepTest.php` (new or extend) — the two branches above,
   plus the one-destination-fails-others-still-run case for each mode.
-- **Completion notes:** _pending_
+- **Completion notes:** `DeliverStep::handle()` now branches on `$ctx->proxy->processing_mode`:
+  Async → `DeliverToDestination::dispatch($unit)->onQueue(config('ingest.webhooks_queue'))
+  ->afterCommit()`; FIFO → `DeliverToDestination::run($unit)` inline. Loop still never aborts on a
+  single failure (Async dispatch is fire-and-forget; FIFO relies on `DeliverToDestination`'s own
+  try/catch). New `DeliverStepTest` (4 cases: async pushes 3 onto the webhooks queue via
+  `assertPushedOn`, fifo runs inline with `assertNotPushed` + `Http::assertSentCount`, plus the
+  one-fails-others-run case per mode). Default (async) proxies now dispatch rather than run inline;
+  under the `sync` test driver they still execute, so all 30 ingest feature tests stay green. All
+  three checks green.
 
 ## T9 — `DeliverToDestination`: idempotency guard (AC9; ADR-011 Decision 4)
 
