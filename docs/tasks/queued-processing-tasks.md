@@ -332,7 +332,21 @@
   `webhook_event_id` order for 3+ pending rows; no-op on an empty/already-claimed queue; the
   claim-commits-before-delivery ordering (e.g. asserting via a spy/mock boundary or by checking the
   row's `status` is already `claimed` and its transaction closed before the fake HTTP call fires).
-- **Completion notes:** _pending_
+- **Completion notes:** New `AdvanceProxyFifoQueue` (`AsAction`/`AsJob`). Private `claimNext()` runs
+  the atomic claim in one short `DB::transaction`: `lockForUpdate` live-claim check (`claimed` +
+  `lease_expires_at > now()`) → early-return if held; else `lockForUpdate()->orderBy('webhook_event_id')
+  ->first()` the lowest `pending` row → early-return if none; else flip to `claimed` with `claimed_at`
+  + `lease_expires_at = now()+config('ingest.fifo_lease_seconds')`. Delivery
+  (`ProcessIngestedWebhook::run`) runs OUTSIDE the transaction (row lock never held across the send),
+  then the row is settled and `static::dispatch($proxyId)` advances the line. `getJobMiddleware(int
+  $proxyId)` adds `WithoutOverlapping("proxy:{$proxyId}")` (thundering-herd reducer only). New
+  `AdvanceProxyFifoQueueTest` (4 cases): sequential settlement in webhook_event_id order for 3 rows
+  (each delivered before the next is claimed, self-dispatch asserted 3×), no-op on empty queue, no-op
+  on an already-live claim, and claim-commits-before-delivery (`DB::transactionLevel()===0` + row
+  already `claimed` inside the `Http::fake` closure). Testing note: exercised via `::run` +
+  `Queue::fake()` so the self-dispatch is captured rather than recursing inline under the `sync`
+  driver (the `WithoutOverlapping` lock intentionally does not double as the ordering guard). All
+  three checks green.
 
 ## T11 — `SweepStalledFifoDispatches` + schedule registration (ADR-005 (b), ADR-011 Decision 2)
 
