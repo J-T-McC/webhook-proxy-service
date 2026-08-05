@@ -662,7 +662,24 @@
 - **Testing:** the cases above; the last one constructs a FIFO proxy with a pending line, marks the
   claimed event's parent cleaned before the advancer processes it, and asserts the claim settles and
   the line advances to the next row exactly as it would for a normal delivery.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Retention/CleanedStateReaderGuardAcceptanceTest.php`
+  added (4 tests), composing the real `StoredPayloadLookup`/`ProcessIngestedWebhook`/
+  `AdvanceProxyFifoQueue` rather than duplicating their unit-level cases. **`StoredPayloadLookup`:**
+  `Retained`/`Cleaned`/`NeverCaptured` all asserted in one pass, including a `DeliveryAttempt` row
+  existing for an `ingest_id` with no captured row — resolves `NeverCaptured`, proving the state
+  reads from the captured row, never delivery history. **`ProcessIngestedWebhook`:** a cleaned event
+  returns cleanly with zero `DeliveryAttempt` rows and `Http::assertNothingSent()`; a genuinely
+  missing `ingest_id` still throws `ModelNotFoundException`. **`AdvanceProxyFifoQueue` (unmodified —
+  no code touched):** a two-row FIFO line where the first event's parent is marked cleaned (via
+  `forceFill(...)->saveQuietly()`, mirroring the existing `TeamScopingTest` precedent for a raw
+  attribute write outside mass assignment) *before* the advancer claims it — the advancer settles the
+  claim, delivers nothing for it (`ProcessIngestedWebhook`'s entry guard fires mid-advance), and no
+  exception propagates; a second explicit `::run()` (self-dispatch captured by `Queue::fake()`,
+  mirroring `FifoLivenessAcceptanceTest`'s step-by-step-advance pattern) then claims and delivers the
+  next pending row exactly as it would for a normal delivery. No production-code gap found; T16's own
+  requirement that `AdvanceProxyFifoQueue` stay unmodified holds. Verified: `composer lint`,
+  `composer types:check`, `./vendor/bin/sail test --filter CleanedStateReaderGuardAcceptanceTest`
+  (4 tests) and `./vendor/bin/sail test --parallel` (414 tests), all green.
 
 ## T17 — Header encryption acceptance tests (AC15, AC22a)
 
