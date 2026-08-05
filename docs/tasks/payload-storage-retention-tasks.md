@@ -568,7 +568,29 @@
     re-stamp `payload_cleaned_at` and touches no row.
 - **Testing:** the cases above; raw `DB::table(...)->value(...)` assertions for the raw-column
   checks; a test-only fault-injection point for the atomicity case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `tests/Feature/Retention/RetentionErasureCompletenessAcceptanceTest.php`
+  added. **Fault-injection mechanism chosen (the task's open implementation choice):** `DB::listen()`
+  registering a closure that throws a `RuntimeException` when it sees a query whose SQL contains
+  `` update `dispatched_payloads` `` — `Connection::logQuery()` dispatches the `QueryExecuted` event
+  synchronously, after the UPDATE has already executed against the open transaction but before
+  `DB::transaction()`'s wrapper returns, so the thrown exception propagates out of `eraseOne()`'s
+  closure exactly as a genuine failure would, and Laravel's transaction wrapper rolls back
+  everything executed so far in that transaction — including the already-run `webhook_events`
+  UPDATE — before rethrowing. No DDL, no mock of the query builder, no change to production code:
+  the seam is a real exception surfacing through the real transaction machinery. (Considered and
+  rejected: a `CREATE TRIGGER`/schema-altering fault, which would implicitly commit the
+  `RefreshDatabase`-managed test transaction in MySQL and leak fixture rows past the test.)
+  Covers: the command is registered and callable (`$this->artisan('payloads:purge-expired')
+  ->assertExitCode(0)`, AC5); a full pass nulls `body`/`headers` in both stores at the raw-column
+  level while every retained descriptor (`method`, `content_type`, `byte_size`, `received_at`,
+  `ingest_id`, `team_id`, `proxy_id`, `created_at`) and `updated_at` stay byte-for-byte identical,
+  and a sibling `settled` `fifo_dispatches` row and a `succeeded` `delivery_attempts` row are both
+  still present and byte-identical afterward (AC6, AC9, AC10, AC22b); the fault-injection case
+  proves neither `UPDATE` survives when the second fails (AC12); a second `artisan` run over an
+  already-cleaned row is a no-op end to end (H0 idempotence). No production-code gap found.
+  Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test --filter
+  RetentionErasureCompletenessAcceptanceTest` (4 tests) and `./vendor/bin/sail test --parallel`
+  (405 tests), all green.
 
 ## T15 — In-flight holds acceptance tests (AC8) — one test per hold + compare-and-set + FIFO liveness under GC
 
