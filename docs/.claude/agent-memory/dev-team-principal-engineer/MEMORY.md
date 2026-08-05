@@ -1,0 +1,1 @@
+- [Ingest pipeline seams](ingest-pipeline-seams.md) — where the ingest→response→dispatch seams live (ResponseResolver, ProcessIngestedWebhook, PipelineFactory) and the ADR-005 async gotcha
