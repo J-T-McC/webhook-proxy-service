@@ -1,12 +1,14 @@
+import type { ProcessingMode } from '@/data/proxyProcessingModes';
 import type { ProxyResponseStatus } from '@/data/proxyResponseStatuses';
 
 export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
 
-// Re-exported so existing `@/types/proxies` imports keep working; the union is
-// derived from the shared response-status const (single source of truth) in
-// `@/data/proxyResponseStatuses`, not hand-maintained here.
-export type { ProxyResponseStatus };
+// Re-exported so existing `@/types/proxies` imports keep working; each union is
+// derived from its shared data const (single source of truth) — `ProcessingMode`
+// from `@/data/proxyProcessingModes`, `ProxyResponseStatus` from
+// `@/data/proxyResponseStatuses` — not hand-maintained here.
+export type { ProcessingMode, ProxyResponseStatus };
 
 /**
  * Page-level proxy affordances for the acting user (camelCase — a DTO share, not a
@@ -27,6 +29,8 @@ export interface ProxyListItem {
     id: number;
     name: string;
     mode: ProxyMode;
+    /** Per-proxy processing mode (ADR-011). */
+    processing_mode: ProcessingMode;
     ingest_url: string;
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;
@@ -52,6 +56,8 @@ export interface ProxyDetail {
     id: number;
     name: string;
     mode: ProxyMode;
+    /** Per-proxy processing mode (ADR-011). */
+    processing_mode: ProcessingMode;
     ingest_url: string;
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;

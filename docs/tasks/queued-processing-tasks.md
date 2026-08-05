@@ -640,7 +640,11 @@
 - **Testing:** none automated (no JS test framework, per `docs/standards/coding.md` /
   role-based-collaboration precedent) — `pnpm types:check` verifies the derived type/shape compiles;
   covered indirectly by T23–T25's manual verification.
-- **Completion notes:** _pending_
+- **Completion notes:** New `resources/js/data/proxyProcessingModes.ts`: `PROXY_PROCESSING_MODES`
+  as `const satisfies readonly DataOption<string>[]` with exactly `{async, Async}` and `{fifo, FIFO}`;
+  derived `ProcessingMode` union (`'async' | 'fifo'`); `proxyProcessingModeLabel()` helper. Mirrors
+  the `proxyResponseStatuses.ts` precedent, with the backend-authoritative sync note. `pnpm
+  types:check` / `lint:check` / `format:check` green.
 
 ## T22 — `ProxyResource` + `types/proxies.ts`: expose `processing_mode` (design-04 §API)
 
@@ -656,7 +660,12 @@
   column); `pnpm types:check` green.
 - **Testing:** extend `tests/Feature/Proxies/ProxyIndexShowTest.php` asserting `processing_mode`
   appears with the correct value on index/show for an `async` and a `fifo` proxy.
-- **Completion notes:** _pending_
+- **Completion notes:** `ProxyResource::toArray()` now emits `'processing_mode' =>
+  $this->processing_mode->value`. `types/proxies.ts` imports+re-exports the `ProcessingMode` union
+  from `@/data/proxyProcessingModes` (same pattern `ProxyResponseStatus` uses) and adds
+  `processing_mode: ProcessingMode` to both `ProxyListItem` and `ProxyDetail`. New
+  `ProxyIndexShowTest` case asserts `processing_mode` on every index row and verbatim on show for both
+  an async and a fifo proxy. `pnpm types:check`/`lint:check`/`format:check` + PHP checks green.
 
 ## T23 — `ProxyForm.vue` + `Create.vue` + `Edit.vue`: Processing select field (design-04 Screen 2, AC4)
 
