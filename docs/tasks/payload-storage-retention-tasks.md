@@ -370,7 +370,15 @@
 - **Testing:** extend `tests/Unit/Pipeline/PipelineFactoryTest.php` — enhanced-mode case asserting
   the two-step list and order; simple-mode case asserting the existing single-step list is
   unaffected.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Replaced the reserved comment at `PipelineFactory.php` with
+  `$steps[] = CaptureDispatchedStep::make(); // #5`, in place, still inside the `ProxyMode::Enhanced`
+  branch, after both still-commented transform seams and immediately before the always-present
+  `DeliverStep::make()`. Simple-mode branch untouched. Updated the class docblock (stale after this
+  change) to state the enhanced-mode two-step composition instead of the old "`[DeliverStep]` for
+  BOTH modes" claim. `PipelineFactoryTest`'s enhanced-mode case updated to assert the two-step list
+  `[CaptureDispatchedStep, DeliverStep]` in order; the simple-mode case is unchanged. Verified:
+  `composer lint`, `composer types:check`, `./vendor/bin/sail test --parallel` (389 tests, all
+  green — confirms the change is transparent to every existing enhanced-mode ingest/delivery test).
 
 ## T10 — `ProcessIngestedWebhook`: cleaned-state entry guard (AC10, AC21; ADR-014 Decision 7, plan §Architecture C)
 
