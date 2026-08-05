@@ -470,6 +470,40 @@
   duplicated here. Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test
   --filter PurgeExpiredPayloadsTest` (6 tests, including T12's schedule-registration case written
   ahead as part of the same file) and `./vendor/bin/sail test --parallel` (396 tests), all green.
+- **Rework (review-05 finding 1, Major — plan §Validation's Config sanity invariant was not
+  implemented).** The `(int)` casts and defaults existed but no lower bound did, leaving two
+  reachable failure modes: **(a)** `RETENTION_DAYS=` (blank) or any non-numeric value casts to `0`
+  → `cutoffFor()` returns `now()` → H1 admits every captured event → the next pass permanently
+  erases every payload body, header collection, and dispatched output in the system, with no
+  recovery path; **(b)** `RETENTION_PURGE_BATCH=0` → `limit(0)` → the terminator
+  `while (count($ids) === $batchSize)` evaluates `0 === 0` and never exits, hanging the scheduled
+  command forever on the first team. **Fix, placed at two seams, deliberately not one:**
+  `retention.days` is guarded inside `RetentionPolicy::windowFor()` (`app/Services/RetentionPolicy.php`)
+  — the plan's own designated sole seam for that value (T3), and the value is inherently
+  team-keyed (V5/V6), so the guard belongs where every consumer already converges, not duplicated
+  at each call site. `retention.purge_batch` and `retention.dispatch_horizon_minutes` are neither
+  team-keyed nor read anywhere but here, so they are guarded once at **command entry** in
+  `PurgeExpiredPayloads::handle()` (two new private methods, `requirePositiveBatchSize()` /
+  `requireNonNegativeHorizonMinutes()`), *before* `Team::withTrashed()->chunkById(...)` runs and
+  before either value is threaded as a parameter into `purgeForTeam()` — this makes the do/while
+  loop body structurally unreachable with an invalid batch size, not merely guarded inside it. Both
+  guards throw a plain `RuntimeException` with a message naming the offending config key and value:
+  **fails loudly** rather than silently substituting the documented default, because a silent
+  30-day fallback could mask an operator's genuinely different intended value on the one operation
+  in the system with no recovery path. Zero is accepted for `dispatch_horizon_minutes` (only
+  negative is rejected, per the plan's "non-negative integer" wording — unlike the other two
+  knobs, which the plan states must be strictly positive). New tests: `RetentionPolicyTest` gained
+  4 cases (`windowFor()` throws for `days` = 0, −1, and reproduced blank/non-numeric
+  `RETENTION_DAYS` env values via the same `require base_path('config/retention.php')` pattern
+  `RetentionConfigTest` already uses); `PurgeExpiredPayloadsTest` gained 7 cases (`run()` throws for
+  `purge_batch` = 0, −5, and reproduced blank/non-numeric `RETENTION_PURGE_BATCH` env values; throws
+  for `dispatch_horizon_minutes` = −1; does **not** throw for `dispatch_horizon_minutes` = 0; and a
+  dedicated proof that an invalid batch size never reaches the batch terminator —
+  seeds a real collectable event, sets `purge_batch` to 0, and asserts via `DB::listen()` that
+  **zero** queries touching `webhook_events` are ever issued before the `RuntimeException`
+  propagates, proving the do/while loop is never entered rather than merely exited early).
+  `composer lint`, `composer types:check`, `./vendor/bin/sail test` (434 passed / 1549 assertions,
+  up from the reviewed baseline of 423/1537), all green.
 
 ## T12 — Scheduler wiring: `PurgeExpiredPayloads` in `routes/console.php` (AC5; ADR-012 Decision 7)
 

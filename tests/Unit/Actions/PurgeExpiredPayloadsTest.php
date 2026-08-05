@@ -8,7 +8,9 @@ use App\Models\Proxy;
 use App\Models\Team;
 use App\Models\WebhookEvent;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 use Tests\TestCase;
 
 class PurgeExpiredPayloadsTest extends TestCase
@@ -115,5 +117,118 @@ class PurgeExpiredPayloadsTest extends TestCase
         $this->assertNotNull($event, 'Expected the payload purge to be scheduled.');
         $this->assertSame('0 2 * * *', $event->expression, 'The purge must run daily().');
         $this->assertTrue($event->withoutOverlapping);
+    }
+
+    // Review-05 finding 1 (Major) — plan §Validation's Config sanity invariant:
+    // `retention.purge_batch` must be a positive integer and
+    // `retention.dispatch_horizon_minutes` a non-negative integer, enforced at
+    // command entry, before any team is touched.
+
+    public function test_run_throws_when_purge_batch_is_zero(): void
+    {
+        Config::set('retention.purge_batch', 0);
+
+        $this->expectException(RuntimeException::class);
+
+        PurgeExpiredPayloads::run();
+    }
+
+    public function test_run_throws_when_purge_batch_is_negative(): void
+    {
+        Config::set('retention.purge_batch', -5);
+
+        $this->expectException(RuntimeException::class);
+
+        PurgeExpiredPayloads::run();
+    }
+
+    public function test_run_throws_when_purge_batch_env_value_is_blank(): void
+    {
+        // Reproduces review-05 finding 1(b): `RETENTION_PURGE_BATCH=` (blank)
+        // casts to 0 at config resolution.
+        putenv('RETENTION_PURGE_BATCH=');
+
+        try {
+            $resolved = require base_path('config/retention.php');
+        } finally {
+            putenv('RETENTION_PURGE_BATCH');
+        }
+
+        Config::set('retention.purge_batch', $resolved['purge_batch']);
+
+        $this->expectException(RuntimeException::class);
+
+        PurgeExpiredPayloads::run();
+    }
+
+    public function test_run_throws_when_purge_batch_env_value_is_non_numeric(): void
+    {
+        // Reproduces review-05 finding 1(b): a non-numeric
+        // `RETENTION_PURGE_BATCH` also casts to 0 at config resolution.
+        putenv('RETENTION_PURGE_BATCH=not-a-number');
+
+        try {
+            $resolved = require base_path('config/retention.php');
+        } finally {
+            putenv('RETENTION_PURGE_BATCH');
+        }
+
+        Config::set('retention.purge_batch', $resolved['purge_batch']);
+
+        $this->expectException(RuntimeException::class);
+
+        PurgeExpiredPayloads::run();
+    }
+
+    public function test_run_throws_when_dispatch_horizon_minutes_is_negative(): void
+    {
+        Config::set('retention.dispatch_horizon_minutes', -1);
+
+        $this->expectException(RuntimeException::class);
+
+        PurgeExpiredPayloads::run();
+    }
+
+    public function test_a_zero_dispatch_horizon_minutes_is_allowed(): void
+    {
+        // Zero is a valid (if degenerate) non-negative horizon and must not
+        // be rejected — only negative values are.
+        Config::set('retention.dispatch_horizon_minutes', 0);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertTrue(true, 'PurgeExpiredPayloads::run() must not throw for a zero horizon.');
+    }
+
+    public function test_an_invalid_purge_batch_never_reaches_the_batch_terminator(): void
+    {
+        // Proves review-05 finding 1(b)'s infinite loop cannot occur: seed
+        // real, collectable data so the do/while loop at purgeForTeam() would
+        // spin forever on a `LIMIT 0` selection if the guard were absent, then
+        // assert the guard rejects the config before any team's
+        // `webhook_events` selection query is ever issued — the loop body is
+        // unreachable, not merely safe once entered.
+        $proxy = Proxy::factory()->createQuietly();
+        $this->expiredEventFor($proxy);
+
+        Config::set('retention.purge_batch', 0);
+
+        $webhookEventSelects = 0;
+        DB::listen(function ($query) use (&$webhookEventSelects): void {
+            if (str_contains($query->sql, 'webhook_events')) {
+                $webhookEventSelects++;
+            }
+        });
+
+        $thrown = null;
+
+        try {
+            PurgeExpiredPayloads::run();
+        } catch (RuntimeException $e) {
+            $thrown = $e;
+        }
+
+        $this->assertNotNull($thrown, 'Expected a RuntimeException before the batch terminator could be reached.');
+        $this->assertSame(0, $webhookEventSelects, 'No webhook_events query may execute with an invalid batch size.');
     }
 }

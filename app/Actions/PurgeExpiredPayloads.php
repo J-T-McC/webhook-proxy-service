@@ -11,6 +11,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsAction;
+use RuntimeException;
 
 /**
  * The garbage collector (AC5, AC6, AC9, AC12, AC22b; ADR-012 Decisions 1, 4, 6,
@@ -39,6 +40,17 @@ use Lorisleiva\Actions\Concerns\AsAction;
  *
  * Logs counts and identifiers only — never payload content
  * (docs/standards/coding.md's never-log list, binding).
+ *
+ * Enforces plan-05 §Validation's *Config sanity* invariant for
+ * `retention.purge_batch` (must be a positive integer) and
+ * `retention.dispatch_horizon_minutes` (must be a non-negative integer) once,
+ * at command entry, before any team is touched — never per team. A batch
+ * size of zero or less would make the per-team selection `LIMIT` return zero
+ * rows forever, so `while (count($ids) === $batchSize)` never terminates
+ * (review-05 finding 1(b)); resolving it up front means the do/while loop
+ * body is unreachable with an invalid value, not merely guarded inside it.
+ * `retention.days` is guarded at its own single seam, `RetentionPolicy::
+ * windowFor()`, per plan-05's designated resolver for that value.
  */
 class PurgeExpiredPayloads
 {
@@ -50,21 +62,63 @@ class PurgeExpiredPayloads
 
     public function handle(): void
     {
-        Team::query()->withTrashed()->chunkById(100, function ($teams): void {
+        $batchSize = $this->requirePositiveBatchSize();
+        $horizonMinutes = $this->requireNonNegativeHorizonMinutes();
+
+        Team::query()->withTrashed()->chunkById(100, function ($teams) use ($batchSize, $horizonMinutes): void {
             foreach ($teams as $team) {
-                $this->purgeForTeam($team);
+                $this->purgeForTeam($team, $batchSize, $horizonMinutes);
             }
         });
     }
 
     /**
+     * @throws RuntimeException if `retention.purge_batch` does not resolve
+     *                          to a positive integer.
+     */
+    private function requirePositiveBatchSize(): int
+    {
+        $batchSize = (int) config('retention.purge_batch');
+
+        if ($batchSize < 1) {
+            throw new RuntimeException(sprintf(
+                "config('retention.purge_batch') must resolve to a positive integer; got %d. Refusing ".
+                'to silently substitute a default — a batch size of zero or less makes the selection '.
+                "LIMIT return zero rows forever, hanging the scheduled command's batch terminator in ".
+                'an infinite loop on the first team.',
+                $batchSize,
+            ));
+        }
+
+        return $batchSize;
+    }
+
+    /**
+     * @throws RuntimeException if `retention.dispatch_horizon_minutes` does
+     *                          not resolve to a non-negative integer.
+     */
+    private function requireNonNegativeHorizonMinutes(): int
+    {
+        $horizonMinutes = (int) config('retention.dispatch_horizon_minutes');
+
+        if ($horizonMinutes < 0) {
+            throw new RuntimeException(sprintf(
+                "config('retention.dispatch_horizon_minutes') must resolve to a non-negative integer; ".
+                'got %d. Refusing to silently substitute a default.',
+                $horizonMinutes,
+            ));
+        }
+
+        return $horizonMinutes;
+    }
+
+    /**
      * Loop a single team's batches until one comes back short of the limit.
      */
-    private function purgeForTeam(Team $team): void
+    private function purgeForTeam(Team $team, int $batchSize, int $horizonMinutes): void
     {
         $cutoff = $this->policy->cutoffFor($team);
-        $horizon = CarbonImmutable::now()->subMinutes((int) config('retention.dispatch_horizon_minutes'));
-        $batchSize = (int) config('retention.purge_batch');
+        $horizon = CarbonImmutable::now()->subMinutes($horizonMinutes);
 
         do {
             $ids = $this->selectCollectableIds($team, $cutoff, $horizon, $batchSize);

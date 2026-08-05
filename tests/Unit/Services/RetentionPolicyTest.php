@@ -7,6 +7,8 @@ use App\Models\WebhookEvent;
 use App\Services\RetentionPolicy;
 use Carbon\CarbonInterval;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Config;
+use RuntimeException;
 use Tests\TestCase;
 
 class RetentionPolicyTest extends TestCase
@@ -78,5 +80,64 @@ class RetentionPolicyTest extends TestCase
         // time than the default team's (30-day window) — proving cutoffFor
         // composes through windowFor rather than duplicating the config read.
         $this->assertTrue($overriddenCutoff->greaterThan($defaultCutoff));
+    }
+
+    // Review-05 finding 1 (Major) — plan §Validation's Config sanity invariant:
+    // `retention.days` must never resolve to a window of zero or less.
+
+    public function test_window_for_throws_when_days_is_zero(): void
+    {
+        Config::set('retention.days', 0);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetentionPolicy)->windowFor(Team::factory()->createQuietly());
+    }
+
+    public function test_window_for_throws_when_days_is_negative(): void
+    {
+        Config::set('retention.days', -1);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetentionPolicy)->windowFor(Team::factory()->createQuietly());
+    }
+
+    public function test_window_for_throws_when_days_env_value_is_blank(): void
+    {
+        // Reproduces review-05 finding 1(a): `RETENTION_DAYS=` (blank) casts
+        // to 0 at config resolution.
+        putenv('RETENTION_DAYS=');
+
+        try {
+            $resolved = require base_path('config/retention.php');
+        } finally {
+            putenv('RETENTION_DAYS');
+        }
+
+        Config::set('retention.days', $resolved['days']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetentionPolicy)->windowFor(Team::factory()->createQuietly());
+    }
+
+    public function test_window_for_throws_when_days_env_value_is_non_numeric(): void
+    {
+        // Reproduces review-05 finding 1(a): a non-numeric `RETENTION_DAYS`
+        // also casts to 0 at config resolution.
+        putenv('RETENTION_DAYS=not-a-number');
+
+        try {
+            $resolved = require base_path('config/retention.php');
+        } finally {
+            putenv('RETENTION_DAYS');
+        }
+
+        Config::set('retention.days', $resolved['days']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetentionPolicy)->windowFor(Team::factory()->createQuietly());
     }
 }
