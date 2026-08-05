@@ -181,7 +181,25 @@
   round-trips); confirm the existing `test_headers_round_trip_as_an_array` and
   `test_table_is_raw_only_with_no_soft_delete_or_dispatched_output_columns` still pass unmodified.
   Run the full existing capture/ingest suites to confirm green (no new test needed there).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New migration
+  `2026_08_05_000001_alter_webhook_events_for_payload_erasure.php`: `body` `MODIFY`'d to `LONGBLOB
+  NULL` (value-preserving raw `ALTER`); `headers` dropped and re-added as `MEDIUMTEXT NULL AFTER
+  method` (destructive to existing captured headers, documented in the docblock per the Owner's
+  no-production-data basis); `payload_cleaned_at TIMESTAMP NULL AFTER byte_size` added; composite
+  index `(team_id, payload_cleaned_at, created_at)` added. `down()` is best-effort only (documented
+  as not round-tripping) — verified by an explicit `migrate` → `migrate:rollback --step=1` →
+  `migrate` cycle against a fresh (empty) database, which completed cleanly. `WebhookEvent` casts
+  updated to `'headers' => 'encrypted:array'` and `'payload_cleaned_at' => 'datetime'` (not added to
+  `#[Fillable]`); docblock updated to point at ADR-014 and mark `body`/`headers` nullable.
+  `WebhookEventFactory::cleaned()` state added (`payload_cleaned_at => now(), body => null, headers
+  => null`). `WebhookEventTest` extended with schema assertions (nullable body/headers, `mediumtext`
+  DATA_TYPE, `payload_cleaned_at` presence/type, the new composite index) and a new
+  `test_headers_round_trip_through_the_encrypted_cast`; the pre-existing
+  `test_headers_round_trip_as_an_array` and `test_table_is_raw_only_with_no_soft_delete_or_dispatched_output_columns`
+  pass unmodified. `WebhookEventCaptureTest`, `WebhookEventCaptureAcceptanceTest`, and
+  `ProcessIngestedWebhookTest` all pass unmodified, confirming the cast change is transparent
+  (Q-05-04(i)). Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test
+  --parallel` (370 tests, all green).
 
 ## T5 — `dispatched_payloads` table + `DispatchedPayload` model + factory (AC12, AC13, AC15; ADR-013 Decision 1) — new table, Owner-approved shape
 

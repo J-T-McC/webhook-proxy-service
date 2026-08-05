@@ -11,23 +11,29 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * A durable, raw-only, immutable capture of one received webhook (ADR-010).
- * Holds the raw payload (bytes + method + inbound headers + content-type + byte
- * size), keyed by the same `ingest_id` the fan-out `delivery_attempts` carry
- * (ADR-003). No dispatched/derived output, no retention/GC state, no soft delete —
- * raw-only and immutable by construction. `body` is encrypted at rest (ADR-010
- * Amendment B); `headers` stay plaintext until #10.
+ * A durable capture of one received webhook (ADR-010), keyed by the same
+ * `ingest_id` the fan-out `delivery_attempts` carry (ADR-003). Immutable WHILE
+ * its payload content is retained — the only authorised mutator is the
+ * retention expiry pass (`PurgeExpiredPayloads`), which erases `body` and
+ * `headers` in place and stamps `payload_cleaned_at` (AC11, AC21; ADR-014
+ * Decisions 2, 4, 7). `body` and `headers` are both encrypted at rest (ADR-010
+ * Amendment B; ADR-014 Decision 2 raises the floor to cover headers too).
+ *
+ * Guard on `payload_cleaned_at`, NEVER on `body === null`/`headers === null`
+ * (ADR-014 Decision 7, binding) — `App\Services\StoredPayloadLookup` is the
+ * only resolver of the cleaned state.
  *
  * @property int $id
  * @property int $team_id
  * @property int $proxy_id
  * @property string $ingest_id
  * @property string $method
- * @property array<string, mixed> $headers
+ * @property array<string, mixed>|null $headers
  * @property string|null $content_type
- * @property string $body
+ * @property string|null $body
  * @property int $byte_size
  * @property Carbon $received_at
+ * @property Carbon|null $payload_cleaned_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Proxy $proxy
@@ -69,9 +75,15 @@ class WebhookEvent extends Model
             // Encrypt the raw body at rest (ADR-010 Amendment B). byte_size records the
             // PLAINTEXT size, set before this cast encrypts.
             'body' => 'encrypted',
-            'headers' => 'array',
+            // Encrypted at rest (ADR-014 Decision 2/AC22a) — MEDIUMTEXT NULL, not JSON,
+            // because MySQL validates `json` on write and the encrypted envelope is not
+            // valid JSON.
+            'headers' => 'encrypted:array',
             'received_at' => 'datetime',
             'byte_size' => 'integer',
+            // The AC21 cleaned-state signal. NOT added to #[Fillable] — the expiry pass
+            // writes it through the query builder only, never mass assignment.
+            'payload_cleaned_at' => 'datetime',
         ];
     }
 }

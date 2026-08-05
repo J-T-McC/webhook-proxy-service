@@ -36,4 +36,18 @@ class WebhookEventFactory extends Factory
             'received_at' => now(),
         ];
     }
+
+    /**
+     * A payload already erased by the retention expiry pass (AC21) — test
+     * support so later tasks can construct a cleaned event without running the
+     * garbage collector.
+     */
+    public function cleaned(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'payload_cleaned_at' => now(),
+            'body' => null,
+            'headers' => null,
+        ]);
+    }
 }
