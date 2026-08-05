@@ -542,7 +542,12 @@
   run); the `UNIQUE` index rejects a duplicate raw insert.
 - **Testing:** the case above via `Http::fake()`/`Event::fake()`, driving the job's `handle()` (or
   its queued dispatch) twice for the same unit.
-- **Completion notes:** _pending_
+- **Completion notes:** New `DeliveryIdempotencyAcceptanceTest` (2 cases): a real async ingest drains
+  one successful delivery, then a reconstructed `DeliveryUnit` with the SAME `(ingest_id,
+  destination_id, attempt_number)` is re-run to simulate at-least-once redelivery — asserts still one
+  row, one `Http` send, one `DeliverySucceeded` event, row still `Succeeded` (AC9); plus a raw
+  duplicate insert rejected by the unique index. No production change (T9's guard already handles it).
+  All three checks green.
 
 ## T18 — Mid-flight mode-change acceptance test (plan §Mid-flight mode change ruling)
 
