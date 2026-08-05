@@ -31,3 +31,20 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
 - **`BelongsToCurrentTeam` auto-assigns `team_id` on create only if empty** (no global read
   scope; team-read scoping is middleware on the team route group). On the team-unscoped ingest
   path, set `team_id`/`proxy_id` explicitly from the resolved proxy (mirrors `DeliverToDestination`).
+- **`encrypted`/`encrypted:array` casts pass NULL straight through** (both types are in Eloquent's
+  `$primitiveCastTypes`, so `castAttribute`/`setAttribute` short-circuit before
+  encrypting/decrypting). Safe to make an already-`encrypted`-cast column nullable and set it to
+  `null` — no double-encryption of "empty", no decrypt-of-null error. Used for
+  `webhook_events.body`/`headers` and `dispatched_payloads.body` going NULL on erase (#5).
+- **Column-type change that a JSON-validated MySQL column can't survive under a new
+  `encrypted:*` cast: drop-and-re-add, not `MODIFY`.** MySQL validates `json NOT NULL` on write;
+  an `encrypted` envelope is not valid JSON (error 3140), so `MODIFY ... JSON` fails once any row
+  holds encrypted plaintext-turned-ciphertext. Use `Schema::table()->dropColumn()` then a raw
+  `ALTER TABLE ... ADD col MEDIUMTEXT NULL AFTER prior_col` to preserve column order — this is
+  destructive to existing rows' plaintext values in that column (used for `webhook_events.headers`
+  json→`encrypted:array` in #5; document the data loss explicitly in the migration docblock, don't
+  silently drop it).
+- **Verify a documented-as-non-round-tripping `down()` by actually running the cycle**, not by
+  skipping the test: `sail artisan migrate` → `migrate:rollback --step=1` → `migrate` against a
+  fresh (empty) DB proves `up`/`down`/`up` all apply cleanly even when `down()` would fail against
+  rows already mutated (documented caveat, not a defect).
