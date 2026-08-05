@@ -491,7 +491,16 @@
     delivery (AC7).
 - **Testing:** the cases above, draining both proxies' queued work and asserting order/isolation via
   `Http::fake()` call sequencing and `fifo_dispatches`/`DeliveryAttempt` timestamps.
-- **Completion notes:** _pending_
+- **Completion notes:** New `FifoOrderingAcceptanceTest` (3 cases): (1) three sequentially-ingested
+  raw bodies (`evt-1..3`) settle and are delivered in receive order — asserted via `Http::recorded()`
+  body sequence + 3 `settled` rows (AC6); (2) per-proxy isolation — proxy A's line frozen at a live
+  claim still lets proxy B ingest and deliver immediately, and A's claim is left untouched (AC7); (3)
+  two FIFO proxies with interleaved ingests each deliver only their own events, each in order. Under
+  the sync driver each ingest drains its own advance inline, and the `WithoutOverlapping` reducer
+  intentionally drops the (redundant) self-dispatch — sequential ingests still yield in-order
+  delivery because each advancer claims its proxy's lowest-pending row. Raw bodies posted via
+  `$this->call(...)` so the forwarded request body equals what was sent. No production change. All
+  three checks green.
 
 ## T16 — FIFO claim contention + liveness/sweeper acceptance tests (ADR-005 (a)/(b))
 
