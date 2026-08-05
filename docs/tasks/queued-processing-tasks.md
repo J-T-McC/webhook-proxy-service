@@ -442,7 +442,13 @@
     500 and dispatches nothing for both modes (`Queue::assertNothingPushed()`) (AC3, ADR-010).
 - **Testing:** the cases above using `Queue::fake()` for dispatch assertions and `Http::fake()` for
   destination outcomes.
-- **Completion notes:** _pending_
+- **Completion notes:** New `QueuedDispatchAcceptanceTest`, `#[DataProvider('modes')]` over
+  async+fifo (repo uses the PHPUnit attribute, not the `@dataProvider` docblock). Four ×2 = 8 cases:
+  ingest dispatches processing + zero `DeliveryAttempt` at return (AC1); response is the configured
+  `200/ACK` independent of a 500-faking destination and of a throwing destination, drained inline
+  under the sync driver (AC2, ADR-004); capture failure returns 500 + `Queue::assertNothingPushed()`
+  for both modes (AC3, ADR-010). No production change needed — wiring already correct from T12. All
+  three checks green.
 
 ## T14 — Async fan-out acceptance tests (AC5, AC8, AC10)
 
