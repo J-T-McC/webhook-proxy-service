@@ -17,6 +17,13 @@ validated by vue-tsc + eslint instead; note this env limitation rather than trea
 
 No JS test framework exists (deferred backlog item T31) — Vue/a11y is inspection-only.
 
+Useful sandbox probes when verifying a claim rather than trusting it:
+`git diff main..HEAD -- <path>` + `md5 <file>` vs `git show main:<file> | md5` proves a file is
+byte-identical to main; `./vendor/bin/sail exec -T mysql sh -c 'mysql -uroot -ppassword <db> -e "…"'`
+reaches MySQL directly (databases: `laravel` dev, `testing` + `testing_test_1..14` parallel);
+`./vendor/bin/sail artisan tinker --execute="…"` checks builder/SQL semantics. `timeout` is not
+available in this shell — never probe a suspected infinite loop by running it.
+
 Review docs live in `docs/reviews/`, named `review-<NN>-<feature-slug>.md` (e.g.
 `review-02-role-based-collaboration.md`). Format: header (Reviewer/date, Scope, Inputs,
 Gates-with-actual-numbers), Summary+recommendation, AC-coverage table, standards checklist,

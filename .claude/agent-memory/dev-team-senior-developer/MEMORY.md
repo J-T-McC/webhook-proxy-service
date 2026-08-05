@@ -2,3 +2,4 @@
 - [Frontend checks](frontend_checks.md) — pnpm types:check/lint:check/format:check triad + Prettier-on-Vue gotcha
 - [Schema & migrations](schema_migrations.md) — LONGBLOB via raw ALTER (binary()→blob), MySQL JSON key order, information_schema tests, team_id on ingest, encrypted-cast NULL passthrough, drop-and-readd for json→encrypted
 - [Laravel Actions gotchas](laravel_actions_gotchas.md) — AsCommand needs explicit Actions::registerCommands(), Carbon\Carbon* import paths
+- [Config sanity guards](config_sanity_guards.md) — guard at the value's resolver seam or at action entry; fail loudly; test blank/non-numeric env via putenv+require

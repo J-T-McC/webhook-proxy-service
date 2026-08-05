@@ -26,6 +26,32 @@ metadata:
   this permanently stalls a proxy's line: the sweeper reaps the DB claim but its re-dispatched advancer
   is gated by the same leaked lock. Whenever `WithoutOverlapping` guards a self-dispatching/scheduled
   job, require an explicit `->expireAfter(...)` (align to the claim lease). Raised as Major in review-04.
+- **`(int) env('SOME_KEY', $default)` in a config file has NO lower bound** — a blank line
+  (`KEY=`) or a non-numeric value casts to `0`, silently replacing the default. Wherever a config
+  int drives a destructive or looping operation, check for a clamp/reject at the resolution point.
+  Two concrete shapes found in `config/retention.php`: a `days` value of 0 makes a retention cutoff
+  equal `now()` (mass irreversible erasure), and a batch-size of 0 makes Laravel emit a literal
+  `LIMIT 0` (0 rows), which hangs any `do { … } while (count($ids) === $batchSize)` loop forever.
+  Raised as Major in review-05.
+- **`DB::listen()` is a legitimate fault-injection / race seam and is NOT tautological.**
+  `Connection::run()` dispatches `QueryExecuted` synchronously *after* the statement executes but
+  *before* the caller returns, so a listener can (a) throw to fail a specific statement mid-transaction
+  and prove real rollback, or (b) mutate state in the exact window between a `SELECT` and a following
+  `UPDATE` to prove a compare-and-set. Match on `$query->sql`. Caveat to record: under the suite's
+  `FasterRefreshDatabase` the inner transaction is a savepoint, so it proves `ROLLBACK TO SAVEPOINT`.
+- **`ApplyTeamScope` registers `TeamScope` on only three models** (`Proxy`, `Destination`,
+  `DeliveryAttempt`) and only for the duration of a team-scoped request — it is NOT a global model
+  scope. `WebhookEvent`/`DispatchedPayload` are never scoped, so worker-path Eloquent queries on
+  them need no `withoutGlobalScope()`; a factory that adds one is defensive, not required.
+- **`Actions::registerCommands()` (laravel-actions) registers only classes declaring a
+  `commandSignature` property** — adding it to `routes/console.php` to make `Schedule::command()`
+  resolve does not accidentally expose other `AsAction` classes as Artisan commands. Verify with
+  `artisan list` when it first appears.
+- **`ORDER BY id LIMIT n` on a GC/batch selection adds `Using filesort`** even when the intended
+  composite index is chosen — MySQL materialises and sorts the whole candidate set before the LIMIT.
+  Ordering by the index's trailing column instead keeps the same plan without the filesort. Verify
+  optimizer claims with a populated scratch table + `ANALYZE`; an EXPLAIN on an empty table picks
+  `PRIMARY` and is worthless evidence.
 - **Authorization idiom:** every proxy/team decision is a Policy gating on `TeamPermission` via
   `$user->hasTeamPermission($team, …)`; a role literal (`role === Member`) in a policy/controller
   is a standards violation (permission-based, never role-based). Ownership is a second axis modeled
