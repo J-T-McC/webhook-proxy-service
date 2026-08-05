@@ -467,7 +467,14 @@
 - **Testing:** the cases above using `Queue::fake()` to assert per-destination dispatch, then
   `Queue::assertPushed(...)`-driven manual `handle()` invocation or draining under the `sync` queue
   driver, plus `Http::fake()` for outcomes.
-- **Completion notes:** _pending_
+- **Completion notes:** New `AsyncDispatchAcceptanceTest` (4 cases): a factory proxy (reloaded)
+  reads `Async` (AC5); `ProcessIngestedWebhook::run` under `Queue::fake` pushes one
+  `DeliverToDestination` per destination onto the webhooks queue (`assertPushedOn(..., 3)`); draining
+  inline (sync) yields exactly one payload-free `DeliveryAttempt` + `DeliverySucceeded` per
+  destination, with a schema check that no payload/body column exists (AC5/AC8, ADR-003); one
+  destination faked to 500 leaves the other two succeeded, 1 failed (AC10). Gotcha recorded: the
+  schema-default `processing_mode` only materialises after a model reload (`fresh()`). No production
+  change. All three checks green.
 
 ## T15 — FIFO ordering + per-proxy isolation acceptance tests (AC6, AC7)
 
