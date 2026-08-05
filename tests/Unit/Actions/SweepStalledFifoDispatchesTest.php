@@ -22,7 +22,7 @@ class SweepStalledFifoDispatchesTest extends TestCase
             'team_id' => $proxy->team_id,
         ]);
 
-        return FifoDispatch::factory()->create([
+        return FifoDispatch::factory()->createQuietly([
             'proxy_id' => $proxy->id,
             'team_id' => $proxy->team_id,
             'webhook_event_id' => $event->id,
