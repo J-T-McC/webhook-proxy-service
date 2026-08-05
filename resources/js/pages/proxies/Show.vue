@@ -63,6 +63,32 @@ defineOptions({
 const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
+// Response card — read-only view of the upstream acknowledgement contract.
+// Status labels copied verbatim from ProxyForm.vue's SelectItem labels so the
+// same status reads identically on the edit form and the detail page.
+const responseStatusLabel = computed(() => {
+    switch (props.proxy.response_status) {
+        case 200:
+            return '200 OK';
+        case 202:
+            return '202 Accepted';
+        case 204:
+            return '204 No Content';
+        default:
+            return 'Default (202 Accepted)';
+    }
+});
+
+// A real body block renders only for 200/202 with a non-empty string; every
+// other case (unconfigured, 204, or an empty/null body) shows muted text.
+const hasResponseBody = computed(
+    () =>
+        (props.proxy.response_status === 200 ||
+            props.proxy.response_status === 202) &&
+        props.proxy.response_body !== null &&
+        props.proxy.response_body !== '',
+);
+
 const proxyDeleteOpen = ref(false);
 const busy = ref(false);
 
@@ -129,6 +155,58 @@ function confirmDeleteProxy(): void {
                 Anyone with this URL can post webhooks to this proxy. Keep it
                 secret.
             </p>
+        </Card>
+
+        <!-- Response card -->
+        <Card class="gap-3 p-6">
+            <h2 class="text-sm font-medium">Response</h2>
+            <p class="text-sm text-muted-foreground">
+                Returned to the sender immediately when the webhook is received
+                — independent of whether delivery to your destinations succeeds.
+            </p>
+            <dl class="flex flex-col gap-3">
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">Status</dt>
+                    <dd>
+                        <Badge variant="secondary">{{
+                            responseStatusLabel
+                        }}</Badge>
+                    </dd>
+                </div>
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">Body</dt>
+                    <dd class="min-w-0 flex-1">
+                        <span
+                            v-if="props.proxy.response_status === null"
+                            class="text-sm text-muted-foreground italic"
+                        >
+                            No custom body configured — the default response has
+                            no body.
+                        </span>
+                        <span
+                            v-else-if="props.proxy.response_status === 204"
+                            class="text-sm text-muted-foreground italic"
+                        >
+                            No content (204)
+                        </span>
+                        <div
+                            v-else-if="hasResponseBody"
+                            class="max-h-48 overflow-y-auto rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm break-words whitespace-pre-wrap dark:bg-input/30"
+                            v-text="props.proxy.response_body"
+                        />
+                        <span
+                            v-else
+                            class="text-sm text-muted-foreground italic"
+                        >
+                            (empty)
+                        </span>
+                    </dd>
+                </div>
+            </dl>
         </Card>
 
         <!-- Destinations card -->
