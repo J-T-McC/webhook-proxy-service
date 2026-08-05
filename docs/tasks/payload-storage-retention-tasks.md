@@ -267,7 +267,16 @@
   (proving the state is read from the captured row, never inferred from delivery history).
 - **Testing:** `tests/Unit/Services/StoredPayloadLookupTest.php` (new) — the three cases above,
   including the delivery-attempts-without-a-captured-row case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Services\StoredPayloadLookup::for(string $ingestId):
+  StoredPayloadState` added — reads only `webhook_events.payload_cleaned_at` via
+  `WebhookEvent::query()->where('ingest_id', ...)->first()`, mapping no row to `NeverCaptured`, a
+  `null` `payload_cleaned_at` to `Retained`, and a set one to `Cleaned`. Docblock records it as the
+  only place `dispatched_payloads.body IS NULL` may ever be interpreted (ADR-013 Decision 3), per
+  the task description. `tests/Unit/Services/StoredPayloadLookupTest.php` covers all four cases,
+  including a `DeliveryAttempt` row existing for an `ingest_id` with no `webhook_events` row,
+  proving the state is read from the captured row and never inferred from delivery history.
+  Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test --filter
+  StoredPayloadLookupTest` green (4 tests).
 
 ## T7 — `CaptureDispatchedStep`: divergence-gated dispatched-output write (AC12, AC13, AC19; ADR-013 Decisions 1, 2, 4, 5)
 
