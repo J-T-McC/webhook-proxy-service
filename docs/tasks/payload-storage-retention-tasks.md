@@ -230,7 +230,25 @@
 - **Testing:** `tests/Unit/Models/DispatchedPayloadTest.php` (new) — the schema assertions above,
   the encrypted-cast round-trip test mirroring `WebhookEventTest::test_body_round_trips_through_the_encrypted_cast`,
   the NULL-body case, and the relation-resolution cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New migration `2026_08_05_000002_create_dispatched_payloads_table.php`
+  creates `dispatched_payloads`: `team_id`/`proxy_id` restrict `constrained()`; `webhook_event_id`
+  `constrained()->cascadeOnDelete()` plus a separate single-column `unique()` (the
+  `constrained()->unique()` chain doesn't exist on `ForeignKeyDefinition`); `body` added via raw
+  `ALTER … LONGBLOB NULL` (same treatment as `webhook_events.body` — Blueprint's `binary()` maps to
+  a too-small 64 KiB `BLOB`); `byte_size unsignedInteger`, `dispatched_at timestamp`, `timestamps()`;
+  indexes `UNIQUE(webhook_event_id)` and `(team_id, created_at)`. No `headers`/`method`/soft-delete
+  column. `App\Models\DispatchedPayload` added with `BelongsToCurrentTeam`, `belongsTo(WebhookEvent)`
+  as `webhookEvent()`, `belongsTo(Proxy)`, casts `body => encrypted`, `byte_size => integer`,
+  `dispatched_at => datetime`, `#[Fillable(...)]` per the plan. `DispatchedPayloadFactory` anchors on
+  a `WebhookEvent::factory()` and derives `team_id`/`proxy_id` from it via
+  `WebhookEvent::withoutGlobalScope(TeamScope::class)`, mirroring `WebhookEventFactory`'s pattern;
+  default state has `body => null` (the identical-payload case) and a random `byte_size`.
+  `tests/Unit/Models/DispatchedPayloadTest.php` covers the schema assertions (LONGBLOB nullable body,
+  byte_size/dispatched_at types, the single-column UNIQUE on `webhook_event_id`, the
+  `(team_id, created_at)` index, absence of `headers`/`method`/`deleted_at`), the encrypted-cast
+  round-trip, the genuinely-NULL-when-unset case (raw column and cast level), and relation
+  resolution. Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test --parallel`
+  (378 tests, all green).
 
 ## T6 — `StoredPayloadLookup` service (AC10, AC21; ADR-012 Decision 3, ADR-013 Decision 3, ADR-014 Decision 4)
 
