@@ -71,7 +71,9 @@
   (`'fifo'`); no other cases.
 - **Testing:** extend `tests/Unit/Enums/DomainEnumsTest.php` with a case asserting the exact case
   set and backing values, mirroring the existing `ProxyMode`/`HttpMethod`/`AttemptStatus` cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `app/Enums/ProcessingMode.php` (cases `Async='async'`, `Fifo='fifo'`),
+  mirroring `ProxyMode`. Extended `DomainEnumsTest` with an exact case-set assertion. `composer
+  lint`, `composer types:check`, `sail test --filter DomainEnumsTest` green.
 
 ## T2 — `FifoDispatchStatus` enum (ADR-011 Decision 2)
 
@@ -85,7 +87,9 @@
   no `dead_lettered` or other case.
 - **Testing:** extend `tests/Unit/Enums/DomainEnumsTest.php` with a case asserting the exact case
   set and backing values.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `app/Enums/FifoDispatchStatus.php` (cases `Pending`/`Claimed`/`Settled`);
+  no `dead_lettered` (deferred to #6, noted in the class docblock). Extended `DomainEnumsTest` with an
+  exact case-set assertion. All three checks green.
 
 ## T3 — FIFO lease + webhooks-queue config keys (plan §Implementation Notes, §Risks 1)
 
