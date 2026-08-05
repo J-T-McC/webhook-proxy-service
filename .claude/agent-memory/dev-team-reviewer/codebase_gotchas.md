@@ -27,12 +27,24 @@ metadata:
   is gated by the same leaked lock. Whenever `WithoutOverlapping` guards a self-dispatching/scheduled
   job, require an explicit `->expireAfter(...)` (align to the claim lease). Raised as Major in review-04.
 - **`(int) env('SOME_KEY', $default)` in a config file has NO lower bound** — a blank line
-  (`KEY=`) or a non-numeric value casts to `0`, silently replacing the default. Wherever a config
-  int drives a destructive or looping operation, check for a clamp/reject at the resolution point.
-  Two concrete shapes found in `config/retention.php`: a `days` value of 0 makes a retention cutoff
-  equal `now()` (mass irreversible erasure), and a batch-size of 0 makes Laravel emit a literal
-  `LIMIT 0` (0 rows), which hangs any `do { … } while (count($ids) === $batchSize)` loop forever.
-  Raised as Major in review-05.
+  (`KEY=`) or a non-numeric value casts to `0`, silently replacing the default (verified in this
+  repo: both blank and non-numeric resolve to `0`). Wherever a config int drives a destructive or
+  looping operation, check for a clamp/reject at the resolution point. Two concrete shapes in
+  `config/retention.php`: a `days` value of 0 makes a retention cutoff equal `now()` (mass
+  irreversible erasure), and a batch-size of 0 makes Laravel emit a literal `LIMIT 0` (0 rows),
+  which hangs any `do { … } while (count($ids) === $batchSize)` loop forever. Raised as Major in
+  review-05; the house remedy adopted there is the pattern to expect elsewhere — a fail-loud
+  `RuntimeException` naming key + value at the *single* seam that reads the key, plus threading
+  the validated value in as a parameter so the loop body is structurally unreachable rather than
+  guarded from inside. When checking such a guard is total, grep the key repo-wide (must have one
+  read site) and confirm no callee re-reads config.
+- **A guard test whose failure mode is an infinite loop HANGS instead of failing.** Tests that
+  prove a loop is never entered (`DB::listen` query-count === 0) are genuine, but if the guard
+  regresses the suite spins forever rather than reporting red. Worth a Nit whenever you see one.
+- **Laravel releases the `withoutOverlapping()` scheduler mutex in a `finally`**
+  (`Event::runCommandInForeground()`), and `Schedule::command()` runs in a child process — so a
+  scheduled command that throws does NOT leave a stuck lock blocking later runs. Check this before
+  objecting to a "fail loudly" posture in a scheduled job.
 - **`DB::listen()` is a legitimate fault-injection / race seam and is NOT tautological.**
   `Connection::run()` dispatches `QueryExecuted` synchronously *after* the statement executes but
   *before* the caller returns, so a listener can (a) throw to fail a specific statement mid-transaction
