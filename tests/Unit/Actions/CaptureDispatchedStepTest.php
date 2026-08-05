@@ -8,6 +8,7 @@ use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use App\Pipeline\PipelineContext;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class CaptureDispatchedStepTest extends TestCase
@@ -124,5 +125,54 @@ class CaptureDispatchedStepTest extends TestCase
 
         $this->assertTrue($nextCalled);
         $this->assertSame($ctx, $result);
+    }
+
+    public function test_a_cleaned_parent_prevents_the_write_and_the_next_call(): void
+    {
+        Log::spy();
+
+        $proxy = Proxy::factory()->enhanced()->createQuietly();
+        $rawBody = '{"hello":"world"}';
+        $ingestId = 'ingest-'.$proxy->id;
+        WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'ingest_id' => $ingestId,
+        ]);
+        $ctx = $this->contextFor($proxy, $ingestId, $rawBody);
+
+        $nextCalled = false;
+        CaptureDispatchedStep::make()->handle($ctx, function (PipelineContext $c) use (&$nextCalled) {
+            $nextCalled = true;
+
+            return $c;
+        });
+
+        $this->assertFalse($nextCalled);
+        $this->assertSame(0, DispatchedPayload::count());
+
+        Log::shouldHaveReceived('info')
+            ->once()
+            ->withArgs(fn (string $message, array $context) => $message === 'payload.expired'
+                && $context === ['ingest_id' => $ingestId]);
+    }
+
+    public function test_an_uncleaned_parent_behaves_as_in_t7(): void
+    {
+        $proxy = Proxy::factory()->enhanced()->createQuietly();
+        $rawBody = '{"hello":"world"}';
+        $ingestId = 'ingest-'.$proxy->id;
+        $this->eventFor($proxy, $ingestId, $rawBody);
+        $ctx = $this->contextFor($proxy, $ingestId, $rawBody);
+
+        $nextCalled = false;
+        CaptureDispatchedStep::make()->handle($ctx, function (PipelineContext $c) use (&$nextCalled) {
+            $nextCalled = true;
+
+            return $c;
+        });
+
+        $this->assertTrue($nextCalled);
+        $this->assertSame(1, DispatchedPayload::count());
     }
 }

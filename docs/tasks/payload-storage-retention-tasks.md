@@ -336,7 +336,21 @@
   `payload_cleaned_at` pre-set on the parent (use T4's `cleaned()` factory state) asserts no
   `dispatched_payloads` row is created/updated and `$next` is never invoked (e.g. via a mutable flag
   on a downstream test double); assert the log entry carries no payload bytes.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `CaptureDispatchedStep::handle()` now wraps the parent lookup and the
+  `dispatched_payloads` write in one `DB::transaction()`: the parent `WebhookEvent` row is locked
+  (`lockForUpdate()`) and its `payload_cleaned_at` re-checked inside that same transaction — a
+  compare-and-set on the parent, not a separate read-then-write — closing the race against the GC's
+  own compare-and-set `UPDATE` (T11), which takes the same row lock. If already cleaned, the
+  transaction does nothing, `Log::info('payload.expired', ['ingest_id' => ...])` fires (identifiers
+  only), and the method returns `$ctx` **before** calling `$next` — mirroring the
+  `ProcessIngestedWebhook` entry guard (T10) so `DeliverStep` never runs. This is the first
+  `Log::` usage in `app/` (no prior precedent; `info` level per `docs/standards/coding.md`'s
+  proposed default for a significant domain event). `tests/Unit/Actions/CaptureDispatchedStepTest.php`
+  extended with a cleaned-parent case (`Log::spy()`; asserts no `dispatched_payloads` row, `$next`
+  never invoked, exactly one `payload.expired` log call with only `ingest_id` in context) and an
+  uncleaned-parent case confirming T7 behaviour is unchanged. Verified: `composer lint`, `composer
+  types:check`, `./vendor/bin/sail test --filter CaptureDispatchedStepTest` (7 tests) and
+  `./vendor/bin/sail test --parallel` (389 tests), all green.
 
 ## T9 — Wire `CaptureDispatchedStep` into `PipelineFactory` (AC12, AC14, AC19; ADR-013 Decision 4)
 

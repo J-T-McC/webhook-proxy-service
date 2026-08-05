@@ -7,6 +7,8 @@ use App\Models\WebhookEvent;
 use App\Pipeline\PipelineContext;
 use App\Pipeline\PipelineStep;
 use Closure;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsObject;
 
 /**
@@ -18,8 +20,17 @@ use Lorisleiva\Actions\Concerns\AsObject;
  * rather than duplicating it. Only READS `$ctx->payload`/`$ctx->rawBody` —
  * never mutates either.
  *
- * The post-clean write guard (plan §Architecture, Risk 4) is deliberately OUT
- * OF SCOPE here — see the dedicated guard added on top of this step.
+ * **Post-clean write guard (plan §Architecture "Post-clean dispatched-output
+ * write" ruling; Risk 4).** Under erase-in-place the parent `webhook_events`
+ * row survives its own erasure, so an unconditioned write here could
+ * create/update a `dispatched_payloads` row for an event already marked
+ * cleaned. The parent row is locked (`lockForUpdate()`) and its
+ * `payload_cleaned_at` re-checked inside the SAME transaction as the write —
+ * a compare-and-set on the parent, not a separate read-then-write — closing
+ * the race against the GC's own compare-and-set `UPDATE` (T11), which takes
+ * the same row lock. If the parent is already cleaned, this step logs
+ * `payload.expired` (identifiers only — never payload content) and returns
+ * BEFORE calling `$next`, so `DeliverStep` never runs for a cleaned event.
  */
 class CaptureDispatchedStep implements PipelineStep
 {
@@ -30,20 +41,37 @@ class CaptureDispatchedStep implements PipelineStep
      */
     public function handle(PipelineContext $ctx, Closure $next): PipelineContext
     {
-        $event = WebhookEvent::query()->where('ingest_id', $ctx->ingestId)->firstOrFail();
+        $alreadyCleaned = DB::transaction(function () use ($ctx): bool {
+            $event = WebhookEvent::query()
+                ->where('ingest_id', $ctx->ingestId)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $diverged = $ctx->payload !== $ctx->rawBody;
+            if ($event->payload_cleaned_at !== null) {
+                return true;
+            }
 
-        DispatchedPayload::query()->updateOrCreate(
-            ['webhook_event_id' => $event->id],
-            [
-                'team_id' => $ctx->proxy->team_id,
-                'proxy_id' => $ctx->proxy->id,
-                'body' => $diverged ? $ctx->payload : null,
-                'byte_size' => strlen($ctx->payload),
-                'dispatched_at' => now(),
-            ],
-        );
+            $diverged = $ctx->payload !== $ctx->rawBody;
+
+            DispatchedPayload::query()->updateOrCreate(
+                ['webhook_event_id' => $event->id],
+                [
+                    'team_id' => $ctx->proxy->team_id,
+                    'proxy_id' => $ctx->proxy->id,
+                    'body' => $diverged ? $ctx->payload : null,
+                    'byte_size' => strlen($ctx->payload),
+                    'dispatched_at' => now(),
+                ],
+            );
+
+            return false;
+        });
+
+        if ($alreadyCleaned) {
+            Log::info('payload.expired', ['ingest_id' => $ctx->ingestId]);
+
+            return $ctx;
+        }
 
         return $next($ctx);
     }
