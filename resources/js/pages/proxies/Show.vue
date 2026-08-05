@@ -15,6 +15,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+    proxyResponseStatusLabel,
+    proxyStatusForcesEmptyBody,
+} from '@/data/proxyResponseStatuses';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
 import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
@@ -63,28 +67,27 @@ defineOptions({
 const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
-// Response card — read-only view of the upstream acknowledgement contract.
-// Status labels copied verbatim from ProxyForm.vue's SelectItem labels so the
-// same status reads identically on the edit form and the detail page.
-const responseStatusLabel = computed(() => {
-    switch (props.proxy.response_status) {
-        case 200:
-            return '200 OK';
-        case 202:
-            return '202 Accepted';
-        case 204:
-            return '204 No Content';
-        default:
-            return 'Default (202 Accepted)';
-    }
-});
+// Response card — read-only view of the upstream acknowledgement contract. The
+// status label and the 204 empty-body coupling come from the shared
+// response-status const (@/data/proxyResponseStatuses), the same source the edit
+// form's select options derive from, so a status reads identically in both.
+const responseStatusLabel = computed(() =>
+    proxyResponseStatusLabel(props.proxy.response_status),
+);
 
-// A real body block renders only for 200/202 with a non-empty string; every
-// other case (unconfigured, 204, or an empty/null body) shows muted text.
+// Whether the stored status forces an empty body (204 No Content) — drives the
+// "No content" branch below without a bare 204 literal.
+const statusForcesEmptyBody = computed(() =>
+    proxyStatusForcesEmptyBody(props.proxy.response_status),
+);
+
+// A real body block renders only for a body-allowing status (not unconfigured,
+// not empty-body) with a non-empty string; every other case (unconfigured, 204,
+// or an empty/null body) shows muted text.
 const hasResponseBody = computed(
     () =>
-        (props.proxy.response_status === 200 ||
-            props.proxy.response_status === 202) &&
+        props.proxy.response_status !== null &&
+        !statusForcesEmptyBody.value &&
         props.proxy.response_body !== null &&
         props.proxy.response_body !== '',
 );
@@ -188,7 +191,7 @@ function confirmDeleteProxy(): void {
                             no body.
                         </span>
                         <span
-                            v-else-if="props.proxy.response_status === 204"
+                            v-else-if="statusForcesEmptyBody"
                             class="text-sm text-muted-foreground italic"
                         >
                             No content (204)

@@ -85,7 +85,21 @@ is laid out and named within that directory.
   wrapper primitives.
 - `composables/` — `useX` composition functions. `lib/` — framework-agnostic
   helpers. `types/` — shared TypeScript types/DTO shapes. `layouts/` — Inertia
-  persistent layouts.
+  persistent layouts. `data/` — structured data consts (see convention below).
+- **Structured data const + standard type; no UI magic numbers (codifies observed
+  — `data/proxyResponseStatuses.ts`):** a value/label set reused across components
+  (select options, status/badge label maps, closed enum-like sets) lives once as a
+  single source of truth in `resources/js/data/<camelCase>.ts`, not re-declared per
+  component. Type each entry against the standard `DataOption<TValue>` shape
+  (`types/data.ts`: required `value` + `label`, optional `description`), extending
+  it per set for extra fields; declare the array `as const satisfies readonly
+  <Option>[]` and **derive** the value union from it
+  (`type X = (typeof CONST)[number]['value']`) rather than hand-maintaining a
+  parallel union. Components import the const, derived type, and any label/predicate
+  helpers from that module — **no bare literals in UI conditionals** (`=== '204'`);
+  reference a named/derived value (a helper over an option flag, e.g.
+  `emptyBody`) instead. Where the values mirror a server contract, note the coupling
+  in a comment; the backend rule stays authoritative.
 - **Generated code is never hand-edited.** `resources/js/actions/**`,
   `resources/js/routes/**`, `resources/js/wayfinder/**`, and
   `resources/js/components/ui/*` are ESLint-`ignores` entries produced by

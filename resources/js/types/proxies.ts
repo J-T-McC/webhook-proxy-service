@@ -1,12 +1,12 @@
+import type { ProxyResponseStatus } from '@/data/proxyResponseStatuses';
+
 export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
 
-/**
- * User-configurable upstream response status — a closed set of {200, 202, 204}
- * (204 = No Content couples to an empty body). null = unconfigured (the resolver
- * returns the 202 Accepted default).
- */
-export type ProxyResponseStatus = 200 | 202 | 204;
+// Re-exported so existing `@/types/proxies` imports keep working; the union is
+// derived from the shared response-status const (single source of truth) in
+// `@/data/proxyResponseStatuses`, not hand-maintained here.
+export type { ProxyResponseStatus };
 
 /**
  * Page-level proxy affordances for the acting user (camelCase — a DTO share, not a

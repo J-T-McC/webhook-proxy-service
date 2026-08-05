@@ -14,6 +14,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    PROXY_RESPONSE_STATUS_DEFAULT_LABEL,
+    PROXY_RESPONSE_STATUSES,
+    proxyStatusForcesEmptyBody,
+} from '@/data/proxyResponseStatuses';
 import type {
     DestinationRow,
     ProxyMode,
@@ -45,8 +50,9 @@ const form = useForm({
     destinations: props.initial.destinations.map((row) => ({ ...row })),
 });
 
-// Status is a closed select of {200, 202, 204} plus a "default" sentinel (the
-// unconfigured state → 202). The sentinel maps to '' so submit still sends null.
+// Status is the closed set from PROXY_RESPONSE_STATUSES plus a "default" sentinel
+// (the unconfigured state → 202). The sentinel maps to '' so submit still sends
+// null.
 const STATUS_DEFAULT = 'default';
 const statusSelect = computed({
     get: () =>
@@ -56,17 +62,24 @@ const statusSelect = computed({
     },
 });
 
-// 204 = No Content couples to an empty body (AC12): selecting 204 disables the
-// body field and clears any previously entered body.
-const bodyDisabled = computed(() => form.response_status === '204');
-watch(
-    () => form.response_status,
-    (status) => {
-        if (status === '204') {
-            form.response_body = '';
-        }
-    },
+// The selected status as its typed value (null when unconfigured); the select is
+// closed to the shared set + the '' sentinel, so the numeric coercion is exact.
+const selectedStatus = computed<ProxyResponseStatus | null>(() =>
+    form.response_status === ''
+        ? null
+        : (Number(form.response_status) as ProxyResponseStatus),
 );
+
+// 204 = No Content couples to an empty body (AC12): selecting a status flagged
+// emptyBody disables the body field and clears any previously entered body.
+const bodyDisabled = computed(() =>
+    proxyStatusForcesEmptyBody(selectedStatus.value),
+);
+watch(selectedStatus, (status) => {
+    if (proxyStatusForcesEmptyBody(status)) {
+        form.response_body = '';
+    }
+});
 
 const formEl = ref<HTMLFormElement | null>(null);
 
@@ -154,11 +167,15 @@ function submit(): void {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem :value="STATUS_DEFAULT">
-                            Default (202 Accepted)
+                            {{ PROXY_RESPONSE_STATUS_DEFAULT_LABEL }}
                         </SelectItem>
-                        <SelectItem value="200">200 OK</SelectItem>
-                        <SelectItem value="202">202 Accepted</SelectItem>
-                        <SelectItem value="204">204 No Content</SelectItem>
+                        <SelectItem
+                            v-for="status in PROXY_RESPONSE_STATUSES"
+                            :key="status.value"
+                            :value="status.value.toString()"
+                        >
+                            {{ status.label }}
+                        </SelectItem>
                     </SelectContent>
                 </Select>
                 <p
