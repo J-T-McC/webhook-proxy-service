@@ -564,7 +564,14 @@
 - **Testing:** the case above — ingest events under one mode, switch the proxy's mode via the
   update endpoint, ingest more events, drain, and assert the pre-switch events settle per their
   original mode's semantics while post-switch events follow the new mode.
-- **Completion notes:** _pending_
+- **Completion notes:** New `ProcessingModeSwitchAcceptanceTest` (4 cases): switch persists both
+  directions; pre-switch FIFO ordering rows still drain in receive order via the advancer after a
+  `fifo → async` switch (asserted via `settled_at` order + delivery now dispatched, not inline);
+  post-switch ingests follow the new mode (`fifo → async` → no new fifo row, `ProcessIngestedWebhook`
+  dispatched; `async → fifo` → fresh pending ordering row + advancer dispatched). The switch is
+  applied at the model level (`$proxy->update([...])`) — T18's dependency list is T12/T15 only, and
+  endpoint-level persistence/validation is T19/T20; noted in the class docblock. No production
+  change. All three checks green.
 
 ---
 
