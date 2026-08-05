@@ -213,15 +213,176 @@ sets, and index shapes match ADR-013/ADR-014 verbatim.
   plan-mandated config guard on the one operation that cannot be undone.
 - **Project Owner decision / date:** _pending_
 
+## Re-review (2026-08-05)
+
+Focused re-review of the Senior Developer's rework on
+`feat/item-05-payload-storage-retention` (HEAD `0ae3219`, working tree clean) after the
+initial **Request changes**. Scope: commit `33f4884` *"fix(item-05): enforce retention
+config-sanity invariant (review-05 M-1)"* — `app/Services/RetentionPolicy.php`,
+`app/Actions/PurgeExpiredPayloads.php`, two unit test files, and the T11 rework note in
+tasks-05. All three gates re-run, both failure modes re-probed independently, and the
+eight areas cleared in the first pass re-checked for regression.
+
+### Major 1 (config-sanity invariant) — RESOLVED
+
+**(a) Mass-erasure mode — closed at the plan's designated seam.**
+`RetentionPolicy::windowFor()` (`app/Services/RetentionPolicy.php:36-50`) now reads
+`(int) config('retention.days')` and throws `RuntimeException` when `$days < 1`, before
+`CarbonInterval::days()` is ever constructed. This is the correct placement, and it is
+provably total: a repository-wide grep finds `retention.days` read in **exactly one**
+place (`RetentionPolicy.php:38`), `cutoffFor()` (`:58`) and `expiresAt()` (`:75`) both
+compose through `windowFor()` rather than re-reading, and there is no hard-coded day count
+anywhere in `app/` (`grep subDays|addDays|CarbonInterval` over `app/` returns only
+`TeamInvitation`'s unrelated 3-day invite expiry). There is therefore **no path to a
+resolved window of ≤ 0** — including the #6 consumer `expiresAt()`, which inherits the
+guard for free.
+
+The blank/non-numeric env cases are genuinely covered, not assumed. Verified independently
+in this sandbox rather than taken from the test: with `putenv('RETENTION_DAYS=')` and with
+`putenv('RETENTION_DAYS=not-a-number')`, re-resolving `config/retention.php` yields
+`days = 0` in both cases (`blank=0 nonnumeric=0`), and `0 < 1` trips the guard. `-1` is
+caught by the same comparison. The guard is `< 1`, not `=== 0`, so no negative value slips
+past.
+
+**(b) Infinite-loop mode — closed, and the structural-unreachability claim holds.** I
+checked this claim specifically rather than accepting it. `handle()`
+(`PurgeExpiredPayloads.php:63-73`) resolves and validates both values *before*
+`Team::query()->withTrashed()->chunkById(...)` is called, then threads them into
+`purgeForTeam(Team, int $batchSize, int $horizonMinutes)` as parameters. Verified there is
+no residual re-read: `config(` appears in that file at exactly two lines (`:81`, `:102`),
+both inside the two guards; `purgeForTeam()`, `selectCollectableIds()`, `eraseOne()` and
+`applyHolds()` read no config at all. `purgeForTeam()` is `private` and has exactly one
+call site (`:70`), so it cannot be invoked directly — including from a subclass, since
+`private` is not overridable. `handle()` takes no arguments and is the sole entry for every
+laravel-actions surface (`::run()`, the `payloads:purge-expired` command decorator — no
+`asCommand()` override exists). With `$batchSize ≥ 1` guaranteed by type and by guard,
+`count($ids) === $batchSize` cannot evaluate `0 === 0`, and `limit($batchSize)` cannot
+return more than `$batchSize`. The terminator is genuinely unreachable with an invalid
+value, not defended inside the loop. Claim verified.
+
+**Fail-loud rather than substitute — correct call.** `RuntimeException` naming the key and
+the offending value is the right posture for `retention.days` (a silent 30-day fallback
+would mask an operator's genuinely different intent on the one operation with no recovery
+path — plan Risk 1, PRD flag 6) and costs nothing for the other two. I checked the blast
+radius of the new throw and it is contained: `RetentionPolicy` is injected in exactly one
+production class (`PurgeExpiredPayloads`), so the ingest/dispatch hot path cannot be broken
+by a bad retention config. Under `Schedule::command('payloads:purge-expired')` the throw
+becomes a non-zero exit in a child process, and Laravel's `Event::runCommandInForeground()`
+releases the `withoutOverlapping()` mutex in a `finally`, so failing loudly does **not**
+leave a stuck lock that blocks subsequent runs — a regression I looked for and did not find.
+
+**Plan conformance on the zero/negative distinction — correct as worded.** plan-05
+§Validation → *Config sanity* reads: "`retention.days` must be a positive integer;
+`purge_batch` a positive integer; `dispatch_horizon_minutes` a **non-negative** integer."
+The implementation is `days < 1` reject, `purge_batch < 1` reject,
+`dispatch_horizon_minutes < 0` reject — i.e. zero accepted for the horizon only. That is the
+plan's wording exactly, and it is also semantically right: a zero horizon is degenerate but
+well-defined (H4 collapses to "any age"), whereas a zero window or a zero batch is a defect.
+No deviation.
+
+### The 11 new tests — genuine proofs, with two noted limits
+
+Counted and run in isolation: `RetentionPolicyTest` 4 new (8 total),
+`PurgeExpiredPayloadsTest` 7 new (13 total) — `./vendor/bin/sail test --filter
+"RetentionPolicyTest|PurgeExpiredPayloadsTest"` → 21 tests / 31 assertions, all green. The
+claimed count of 11 is accurate.
+
+- **The four env-reproduction cases are not tautologies.** Each does
+  `putenv(...)` → `require base_path('config/retention.php')` (a `require`, not
+  `require_once`, so the file re-executes) →
+  `Config::set('retention.days', $resolved['days'])` → expect throw. If Laravel's `env()`
+  did **not** pick up the `putenv` value, `$resolved` would be the documented default (30 /
+  500), no exception would be thrown, and the test would **fail**. Passing is therefore
+  positive evidence that the real config file resolves a blank/non-numeric env to `0` —
+  which I also confirmed directly out-of-band (above). `putenv` is restored in a `finally`,
+  so no state leaks between tests.
+- **The `DB::listen()` batch-terminator proof is genuine.**
+  `PurgeExpiredPayloadsTest.php:203-233` seeds a *real* collectable 31-day-old event (so the
+  loop would have live data to spin on), sets `purge_batch` to 0, counts every executed query
+  whose SQL contains `webhook_events`, and asserts both that the `RuntimeException`
+  propagated **and** that the count is `0`. Because `Connection::run()` dispatches
+  `QueryExecuted` synchronously after each statement, a single entry into the loop body would
+  register at least one selection and fail the count. It proves the loop is never entered, not
+  merely that it exits — which is exactly the claim under test, and it is falsifiable in the
+  direction that matters. Limit worth recording: if the guard were later removed, this test
+  would **hang** rather than fail (the un-guarded loop is genuinely infinite), so it protects
+  the invariant but degrades badly as a regression signal. Nit 7 below.
+- `test_a_zero_dispatch_horizon_minutes_is_allowed` is an absence-of-throw test carrying a
+  placeholder `assertTrue(true)`; its real content is that `run()` completes. Legitimate for
+  the claim ("zero must not be rejected") but assertion-free by construction. Nit 8 below.
+
+### Regression check — the eight cleared areas
+
+The rework touches two production files and adds only guards and parameter threading; I
+re-verified each cleared area rather than inferring.
+- **`AdvanceProxyFifoQueue` still byte-identical to `main`** — `git diff --stat main..HEAD
+  -- app/` lists nine files and `app/Actions/AdvanceProxyFifoQueue.php` is **not** among
+  them; MD5 still `7aa3c7c350d04048c3900c4ebff64e67`. #4's machinery is untouched (AC8).
+- **No new `Log::` call, and none carries payload content** — `grep -rn "Log::" app/`
+  returns the same **three** calls as the first pass (`payload.expired` ×2 with `ingest_id`;
+  `payload.purged` with `team_id` + `count`). The fix adds none; the two `RuntimeException`
+  messages carry a config key and an integer, nothing from a payload (AC6,
+  `coding.md` *Never log*).
+- **AC12 / compare-and-set / AC21 / AC15+AC22 / T4 migration** — `eraseOne()`,
+  `applyHolds()`, the transaction, the reader guards, the casts, and the migration are
+  unchanged in the diff; their acceptance tests all pass unmodified in the full run.
+- **N+1 posture unchanged or slightly better** — `cutoffFor($team)` is still resolved once
+  per team (`:120`); the two config reads moved from once-per-team to once-per-run.
+- Findings 4, 5 and 6 (Nits) were not addressed and were not required to be:
+  `->orderBy('id')` is unchanged at `:149`, the per-batch `Log::info` at `:134`, and the
+  savepoint limitation of the AC12 proof all stand as recorded.
+
+### Additional findings introduced by the fix
+| # | Severity | Location | Finding |
+|---|---|---|---|
+| 7 | Nit | `tests/Unit/Actions/PurgeExpiredPayloadsTest.php:203-233` | The batch-terminator proof would **hang** rather than fail if the guard regressed, because the un-guarded `do/while` is genuinely infinite. It is a correct proof of the current invariant but a poor regression alarm. A bounded variant (e.g. asserting on the guard's own return before any DB work) would fail fast. Non-blocking; no AC or standard binds this. |
+| 8 | Nit | `tests/Unit/Actions/PurgeExpiredPayloadsTest.php:192-201` | `test_a_zero_dispatch_horizon_minutes_is_allowed` carries a placeholder `assertTrue(true)`; the meaningful outcome is that `run()` does not throw. Correct for its claim, but it exercises a pass over an empty data set, so it does not also show that a zero horizon *behaves* (H4 collapsing to "any age"). Optional strengthening only. |
+| 9 | Nit | `app/Services/RetentionPolicy.php:36-50` | The `days` guard is on the **config read**, not on the returned `CarbonInterval`. `windowFor()` is `public` and is explicitly the V5/V6 per-team extension point (and is already overridden by anonymous subclasses in two test files), so a future per-team override that computes a window without calling `parent::windowFor()` would bypass the invariant. Not a defect at #5 — there is exactly one implementation and the plan designates this seam — but the V5 lever should either validate its own return or the guard should move onto the returned interval when that lever lands. Forward-looking note for the Principal Engineer, no action now. |
+
+### Gate results (re-run by the Reviewer, 2026-08-05)
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `composer lint` | `{"tool":"pint","result":"passed"}` |
+| Static analysis | `composer types:check` | `{"tool":"phpstan","result":"passed","errors":0}` (L7, no baseline file) |
+| Backend tests | `./vendor/bin/sail test` | `{"tool":"phpunit","result":"passed","tests":434,"passed":434,"assertions":1549,"duration_ms":9469}` (+11 tests, +12 assertions vs. the initial review's 423/1537 — exactly the 11 new cases) |
+| Targeted | `./vendor/bin/sail test --filter "RetentionPolicyTest\|PurgeExpiredPayloadsTest"` | 21 tests / 31 assertions, passed |
+
+No frontend gates — #5 still ships no `resources/` change; the fix commit touches only
+`app/`, `tests/` and `docs/tasks/`. The Senior Developer's reported numbers reproduce
+exactly.
+
+### Re-review recommendation
+**Approve with follow-ups.** Major 1 is **fully closed**. Both failure modes are shut at the
+right seams: `retention.days` where every consumer already converges, and `purge_batch` /
+`dispatch_horizon_minutes` at command entry, which makes the infinite-loop terminator
+structurally unreachable rather than defended in place — a claim I verified against the call
+graph, not just the commit message. Blank and non-numeric env values are covered and were
+re-proved independently. The zero/negative split matches plan-05 §Validation word for word.
+Failing loudly is the right posture on an irreversible operation and introduces no stuck
+scheduler lock. The 11 tests are genuine, falsifiable proofs. No regression in any of the
+eight areas cleared in the first pass. No new Blocker or Major.
+
+Carried forward as non-blocking follow-ups, unchanged and still upstream — **not** Senior
+Developer work and **not** re-litigated here: **finding 2** (Minor, partial-fan-out Async
+hold-set gap → question doc to the **Principal Engineer** against plan-05 / ADR-012
+Decision 4) and **finding 3** (Minor, `failed_jobs` plaintext `DeliveryUnit` vs AC6's reach
+→ question doc to the **Product Manager**, then the Principal Engineer if in scope; pre-existing
+from #4, do not widen #5). Both await an Owner decision. Nits 4–9 are optional. The final
+call rests with the Project Owner.
+
+- **Project Owner decision / date:** _pending_
+
 ## Handoff
 - **Inputs:** PRD-05 (Approved + Amendment A), plan-05 (re-certified; § Revision A),
-  ADR-012 / ADR-013 / ADR-014, ADR-010/011/008/003/002, tasks-05 (T1–T18),
-  `docs/standards/`, branch `feat/item-05-payload-storage-retention` @ `e544dce`.
-- **Outputs:** this review.
-- **Dependencies:** finding 1's fix must precede merge. Findings 2 and 3 are upstream
-  questions and do not gate this branch.
-- **Outstanding Questions:** two raised by this review — finding 2 (Principal Engineer,
-  AC8 hold completeness) and finding 3 (Product Manager, AC6 reach over `failed_jobs`).
-  Neither blocks the Major fix.
-- **Next Agent:** Senior Developer (finding 1 rework), then Reviewer (re-review), then
-  Project Owner (approval / merge).
+  ADR-012 / ADR-013 / ADR-014, ADR-010/011/008/003/002, tasks-05 (T1–T18 + T11 rework note),
+  `docs/standards/`, branch `feat/item-05-payload-storage-retention` @ `e544dce` (initial
+  review) and @ `0ae3219` / fix commit `33f4884` (re-review).
+- **Outputs:** this review, including the re-review section.
+- **Dependencies:** none remaining on this branch — finding 1 is closed. Findings 2 and 3
+  are upstream questions and do not gate the merge.
+- **Outstanding Questions:** two raised by this review, both still open — finding 2
+  (Principal Engineer, AC8 hold completeness over the partial-fan-out window) and finding 3
+  (Product Manager, AC6's reach over `failed_jobs`). Neither gates this branch. Nit 9 adds a
+  forward-looking note for the Principal Engineer when the V5 per-team retention lever lands.
+- **Next Agent:** Project Owner (approval / merge), then Principal Engineer and Product
+  Manager for findings 2 and 3.
