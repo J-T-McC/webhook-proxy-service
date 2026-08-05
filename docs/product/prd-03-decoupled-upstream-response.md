@@ -43,9 +43,11 @@ guarantees the raw payload is durably captured **before** that response is sent,
 so a later replay (#6) is always possible and no accepted event is lost.
 
 ## Goals
-- A team member can configure the status code (restricted to 2xx) and response body
-  a proxy returns to upstream senders. Configuration is optional; an unconfigured
-  proxy returns a `202 Accepted` default (inherited by existing #1 proxies).
+- A team member can configure the status code (restricted to the fixed set
+  **200, 202, or 204**, chosen from a closed control — no free-form entry) and
+  response body a proxy returns to upstream senders. Configuration is optional; an
+  unconfigured proxy returns a `202 Accepted` default (inherited by existing #1
+  proxies). Selecting `204` means an empty response body (204 = No Content).
 - The configured response is returned immediately, resolved from proxy
   configuration, and is never derived from — and never waits on — downstream
   delivery outcome (ADR-004).
@@ -85,6 +87,29 @@ refinement of roadmap item #3.
   queue, #4). #3 only guarantees the payload is durably stored so a **later** #6
   replay is possible.
 
+## Owner-approved decision (2026-08-04): `response_status` restricted to {200, 202, 204}; 204 ⇒ empty body
+Recorded here so the decision is not lost. **Owner:** J-T-McC. **Date:**
+2026-08-04. **Source:** Owner inline review comment on **PR #4**
+(`resources/js/pages/proxies/ProxyForm.vue:129`, 2026-08-04). **Type:**
+Owner-approved, review-driven refinement of an already-approved requirement (not a
+new open question). This narrows AC4's earlier "any 2xx" answer (Q-03-04, resolved
+2026-08-03) to a fixed, closed set and adds the 204/empty-body coupling.
+
+- **Allowed status set is a fixed list: `200`, `202`, `204` — nothing else.** The
+  configured `response_status` is no longer free-form 2xx entry; it is chosen from
+  a closed set of exactly these three values.
+- **The status control becomes a select/dropdown** limited to those three values
+  (no free-form text field).
+- **Selecting `204` means an empty response body** (204 = No Content). In the UI,
+  selecting 204 **disables and clears** the response-body field; on the backend, a
+  204 response carries **no body**.
+- **Backend implications the Owner named:** request validation enforces the
+  `{200, 202, 204}` set and the 204→empty-body coupling; proxy response handling
+  treats 204 differently from 200/202 (no body sent for 204).
+- **What did not change:** the default when unconfigured remains `202 Accepted`
+  (AC3); response configuration remains optional; the decoupled-from-delivery and
+  capture-before-response guarantees are untouched.
+
 ## Users
 - **Team member** — configures a proxy's upstream response (status + body) and
   benefits from durable capture of every incoming webhook.
@@ -107,11 +132,14 @@ refinement of roadmap item #3.
 
 ## UX Direction *(minor UI on existing forms)*
 The only user-facing addition is response configuration on the **existing proxy
-create/edit form**: a status-code input and a response-body input. The experience
-must make clear that this response is returned **immediately and independently of
-delivery success** — it is an acknowledgement contract for the upstream sender,
-not a report of downstream results. Direction only; field layout, states, and
-components are the Designer's if a Designer handoff is warranted (see Handoff).
+create/edit form**: a status-code **select limited to `200`, `202`, or `204`** (a
+closed dropdown, not free-form entry) and a response-body input. Selecting **`204`
+disables and clears the response-body field** (204 = No Content), making the
+status/body coupling visible in the UI. The experience must make clear that this
+response is returned **immediately and independently of delivery success** — it is
+an acknowledgement contract for the upstream sender, not a report of downstream
+results. Direction only; field layout, states, and components are the Designer's
+if a Designer handoff is warranted (see Handoff).
 Durable capture is a system behavior with no direct UI in this item.
 
 ## Acceptance Criteria
@@ -130,13 +158,19 @@ Durable capture is a system behavior with no direct UI in this item.
    to proxies created under #1 that carry no response configuration — they inherit
    the `202 Accepted` default, matching ADR-004's current default, so there is no
    migration surprise. (`202` = "accepted, outcome not yet known", the correct
-   semantic for decoupled/async delivery; `204` is deliberately not used because it
-   implies a completed success the proxy does not guarantee.)
-4. **Configured status must be 2xx (Q-03-04).** A user-configurable response status
-   code is restricted to the **2xx** range. A non-2xx configured status is rejected
-   (or ignored) and never returned upstream. Body constraints (size / content-type)
-   are deferred to the Principal Engineer at design (Q-03-04) and are not asserted
-   here.
+   semantic for decoupled/async delivery, so it remains the **default**; `204` is
+   available as an explicit user selection — see AC4/AC12 — but is deliberately not
+   the default, since as a default it would imply a completed success the proxy does
+   not guarantee.)
+4. **Configured status restricted to the fixed set {200, 202, 204} (Q-03-04;
+   refined 2026-08-04).** A user-configurable response status code is restricted to
+   the **fixed set `200`, `202`, or `204`** — chosen from a closed control, not
+   free-form entry. Request validation **rejects** any value outside
+   `{200, 202, 204}`; such a value is never returned upstream. In the UI the status
+   control is a **select/dropdown** limited to those three values. Body constraints
+   (size / content-type) for the `200`/`202` cases are deferred to the Principal
+   Engineer at design and are not asserted here; the `204` body rule is asserted in
+   AC12.
 5. **Capture-before-response ordering.** The raw incoming payload is durably
    persisted **before** the upstream response is returned. The response is
    returned to the upstream sender only after the raw payload has been committed to
@@ -171,6 +205,14 @@ Durable capture is a system behavior with no direct UI in this item.
     adjustable by plan type). Until #5's GC ships, captured payloads accumulate
     unbounded; this interim unbounded-growth trade-off is an accepted, known
     follow-up (see Open Questions Q-03-02) and is **not** a #3 blocker.
+12. **204 implies an empty response body (2026-08-04).** When the configured
+    response status is **`204`**, the upstream response carries **no body** (204 =
+    No Content). Status and body are coupled in two places: **(a) UI** — selecting
+    `204` disables the response-body field and clears any previously entered body;
+    **(b) backend** — request validation enforces that a `204` configuration has an
+    empty body (a `204` submitted with a non-empty body is rejected), and proxy
+    response handling sends **no body** for `204`, distinct from `200`/`202` which
+    return the configured body.
 
 ## Out of Scope
 Each points to the roadmap item that owns it.
@@ -217,7 +259,10 @@ the start of technical design.
   (2026-08-03).** User-configurable status codes are restricted to the **2xx** range;
   a non-2xx configured status is rejected/ignored and never returned. Body
   constraints (size / content-type) are **deferred to the Principal Engineer** at
-  design. Reflected in AC4.
+  design. Reflected in AC4. **Refined 2026-08-04 (PR #4 review):** the allowed set
+  is narrowed from "any 2xx" to the fixed closed list `{200, 202, 204}`, and `204`
+  couples to an empty body — see the *Owner-approved decision (2026-08-04)* section
+  and AC4/AC12.
 - **Q-03-05 (Principal Engineer, technical) — Storage-shape ownership vs #5 and
   ingest-path composition.** Does #3 define the raw-payload storage entity now
   (pulling #5's capture half forward), and if so how does it stay consistent with
@@ -254,7 +299,9 @@ the start of technical design.
 - **Next Agent:** Principal Engineer. The substance is backend — the decoupled
   response wiring (ADR-004) and durable capture-before-response — and it carries
   the technical open question (Q-03-05). The only user-facing change is adding a
-  status-code field and a response-body field to the existing proxy create/edit
-  form using existing form patterns; if the technical design or the Owner surfaces
+  status-code **select (`200`/`202`/`204`, closed list)** and a response-body field
+  to the existing proxy create/edit form using existing form patterns, with the
+  `204`-disables-and-clears-body coupling per the 2026-08-04 Owner decision (AC4,
+  AC12); if the technical design or the Owner surfaces
   a genuine new UI/UX need beyond standard field additions, route back to the
   Product Manager for a Designer handoff.
