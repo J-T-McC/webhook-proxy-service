@@ -226,7 +226,15 @@
   existing `tests/Feature/Ingest/ProcessIngestedWebhookTest.php`) — rebuild-from-`ingestId` produces
   the same pipeline execution as the prior `PipelineContext`-based call; the soft-deleted-proxy case;
   the unknown-`ingestId` case (raises, does not silently return).
-- **Completion notes:** _pending_
+- **Completion notes:** `handle()` now takes `string $ingestId`: looks up the `WebhookEvent`
+  (`firstOrFail`), loads the proxy `withTrashed()`, rebuilds the `PipelineContext` from the event's
+  `method`/`headers`/`body` (body decrypts via the ADR-010 cast), and runs the pipeline via a thin
+  private `runPipeline()` seam. Rewrote `ProcessIngestedWebhookTest` (3 cases: rebuild-from-ingest_id
+  delivers once per live destination, soft-deleted-after-capture proxy still delivers, unknown
+  ingest_id raises `ModelNotFoundException`). **Caller kept green:** the signature change forced the
+  sole caller (`IngestController`) to pass `$ingestId` and drop its now-unused `PipelineContext`
+  construction — a minimal same-behaviour (`::run` inline) edit so the suite stays green; T12 does the
+  mode-branch/afterCommit rework. All 30 ingest feature tests + all three checks green.
 
 ## T8 — `DeliverStep`: branch on `processing_mode` (AC5, AC6, AC10; plan §Services)
 

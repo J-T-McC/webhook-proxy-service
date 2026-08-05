@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\ProcessIngestedWebhook;
 use App\Models\Proxy;
-use App\Pipeline\PipelineContext;
 use App\Services\ResponseResolver;
 use App\Services\WebhookEventCapture;
 use Illuminate\Http\Request;
@@ -60,22 +59,14 @@ class IngestController extends Controller
             abort(Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
-        $ctx = new PipelineContext(
-            ingestId: $ingestId,
-            proxy: $proxy,
-            method: $method,
-            headers: $headers,
-            rawBody: $rawBody,
-            payload: $rawBody,
-        );
-
         // Resolve the upstream response BEFORE and INDEPENDENT of delivery (ADR-004).
         // Only reachable after a committed capture (AC5).
         $response = $this->responseResolver->resolve($proxy);
 
-        // ADR-005 timing seam (PIPELINE level): ::run inline at #1; capture already
-        // committed before this dispatch.
-        ProcessIngestedWebhook::run($ctx);
+        // ADR-005 timing seam (PIPELINE level): dispatch by reference (ingest_id) —
+        // the action rebuilds the context from the durable capture (ADR-011 Decision 3).
+        // Still ::run inline here; T12 flips this to the mode branch dispatched afterCommit.
+        ProcessIngestedWebhook::run($ingestId);
 
         return $response;
     }
