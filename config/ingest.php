@@ -59,4 +59,33 @@ return [
 
     'response_body_max_bytes' => (int) env('INGEST_RESPONSE_BODY_MAX_BYTES', 8192),
 
+    /*
+    |--------------------------------------------------------------------------
+    | FIFO Claim Lease (seconds)
+    |--------------------------------------------------------------------------
+    |
+    | How long a FIFO advancer's claim on a `fifo_dispatches` row is considered
+    | live (ADR-011). `AdvanceProxyFifoQueue` stamps `lease_expires_at = now() +
+    | this`; `SweepStalledFifoDispatches` treats a `claimed` row past its lease
+    | as an orphaned claim (crashed worker) and resets it to `pending`. Should
+    | comfortably exceed the worst-case single-event settlement time.
+    |
+    */
+
+    'fifo_lease_seconds' => (int) env('INGEST_FIFO_LEASE_SECONDS', 90),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Webhooks Delivery Queue
+    |--------------------------------------------------------------------------
+    |
+    | The dedicated queue name Async per-destination delivery jobs
+    | (`DeliverToDestination`) are pushed onto, so fan-out delivery has its own
+    | worker pool separate from advancing/sweeping work. FIFO delivery runs
+    | inline within the advancer and does not touch this queue.
+    |
+    */
+
+    'webhooks_queue' => env('INGEST_WEBHOOKS_QUEUE', 'webhooks'),
+
 ];

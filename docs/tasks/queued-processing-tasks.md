@@ -109,7 +109,10 @@
   `.env.example`, matching the existing ingest-guard placeholder pattern.
 - **Testing:** extend `tests/Unit/Config/IngestConfigTest.php` with default + env-override cases for
   both new keys, mirroring the existing `response_body_max_bytes` test (T1 of plan-03).
-- **Completion notes:** _pending_
+- **Completion notes:** Added `ingest.fifo_lease_seconds` (env `INGEST_FIFO_LEASE_SECONDS`, default
+  90) and `ingest.webhooks_queue` (env `INGEST_WEBHOOKS_QUEUE`, default `'webhooks'`) to
+  `config/ingest.php` with inline docs; added commented keys to `.env.example`. Four new
+  default+override cases in `IngestConfigTest` (8 pass). All three checks green.
 
 ## T4 — `proxies.processing_mode` migration + `Proxy` model (AC4, AC5; ADR-011 Decision 1)
 
