@@ -48,6 +48,20 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   before item #5 (first precedent: `CaptureDispatchedStep`'s post-clean guard and
   `ProcessIngestedWebhook`'s cleaned-state guard, both logging `payload.expired` with identifiers
   only per the never-log list in `docs/standards/coding.md`).
+- **Fault-injecting a mid-transaction failure to prove atomicity/rollback, without DDL:**
+  `DB::listen(function ($query) { if (str_contains($query->sql, 'update `table_name`')) { throw new
+  RuntimeException('...'); } });` before calling the code under test. `Connection::logQuery()` fires
+  the `QueryExecuted` event synchronously right after a statement executes but still inside the open
+  transaction, so the exception propagates out through the real `DB::transaction()` wrapper, which
+  rolls back everything already run in that transaction (including an earlier statement in the same
+  closure) before rethrowing — a real rollback through real transaction machinery, no mock of the
+  query builder. **Do NOT use a schema-altering fault (e.g. `CREATE TRIGGER`/`dropColumn` mid-test)**
+  to force a query to fail — DDL causes an implicit `COMMIT` in MySQL/InnoDB, which silently commits
+  the `RefreshDatabase`/`FasterRefreshDatabase`-managed test transaction and leaks fixture rows past
+  the test. Registering `DB::listen` is test-scoped (Laravel boots a fresh `Application` per test
+  method), so it never needs manual teardown. Used for `PurgeExpiredPayloads`'s AC12 atomicity test
+  (#5): failing the `dispatched_payloads` `UPDATE` rolls back the already-executed `webhook_events`
+  `UPDATE` in the same transaction.
 - **Proving the ABSENCE of a per-row policy call (no N+1) during resource serialization**:
   same `partialMock(ProxyPolicy::class)` but `shouldReceive('update')->never()` /
   `->delete()->never()` over a multi-row index render. Unmocked `viewAny` runs real and
