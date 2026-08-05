@@ -94,7 +94,11 @@
   backing values match AC21(a)/(b)/(c).
 - **Testing:** extend `tests/Unit/Enums/DomainEnumsTest.php` with an exact case-set assertion,
   mirroring the existing `ProcessingMode`/`FifoDispatchStatus` cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Enums\StoredPayloadState` added with exactly `Retained`,
+  `Cleaned`, `NeverCaptured` (backing values `retained`/`cleaned`/`never_captured`), no mapping
+  logic (that is T6). `DomainEnumsTest` extended with an exact case-set assertion mirroring the
+  existing enum tests. Verified: `composer lint`, `composer types:check`,
+  `./vendor/bin/sail test --filter DomainEnumsTest` green.
 
 ## T3 — `RetentionPolicy` service (AC1–AC3; ADR-012 Decision 2)
 

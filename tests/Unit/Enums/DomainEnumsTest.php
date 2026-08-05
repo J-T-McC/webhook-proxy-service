@@ -7,6 +7,7 @@ use App\Enums\FifoDispatchStatus;
 use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
+use App\Enums\StoredPayloadState;
 use PHPUnit\Framework\TestCase;
 
 class DomainEnumsTest extends TestCase
@@ -48,6 +49,14 @@ class DomainEnumsTest extends TestCase
         $this->assertSame(
             ['pending', 'claimed', 'settled'],
             array_map(fn (FifoDispatchStatus $c) => $c->value, FifoDispatchStatus::cases()),
+        );
+    }
+
+    public function test_stored_payload_state_has_exactly_retained_cleaned_never_captured(): void
+    {
+        $this->assertSame(
+            ['retained', 'cleaned', 'never_captured'],
+            array_map(fn (StoredPayloadState $c) => $c->value, StoredPayloadState::cases()),
         );
     }
 }
