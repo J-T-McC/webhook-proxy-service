@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, useForm } from '@inertiajs/vue3';
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import DestinationRows from '@/components/DestinationRows.vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import type { DestinationRow, ProxyMode } from '@/types/proxies';
+import type {
+    DestinationRow,
+    ProxyMode,
+    ProxyResponseStatus,
+} from '@/types/proxies';
 
 const props = defineProps<{
     method: 'post' | 'put';
@@ -24,15 +28,15 @@ const props = defineProps<{
     initial: {
         name: string;
         mode: ProxyMode;
-        responseStatus: number | null;
+        responseStatus: ProxyResponseStatus | null;
         responseBody: string | null;
         destinations: DestinationRow[];
     };
 }>();
 
-// The response fields are held as strings for the text inputs; empty means
-// "unconfigured" and is normalised back to null on submit (below), so leaving
-// them blank persists NULL (the resolver then returns the default 202).
+// The response fields are held as strings for the inputs; empty status means
+// "unconfigured" and is normalised back to null on submit (below), so leaving it
+// at the default persists NULL (the resolver then returns the default 202).
 const form = useForm({
     name: props.initial.name,
     mode: props.initial.mode,
@@ -40,6 +44,29 @@ const form = useForm({
     response_body: props.initial.responseBody ?? '',
     destinations: props.initial.destinations.map((row) => ({ ...row })),
 });
+
+// Status is a closed select of {200, 202, 204} plus a "default" sentinel (the
+// unconfigured state → 202). The sentinel maps to '' so submit still sends null.
+const STATUS_DEFAULT = 'default';
+const statusSelect = computed({
+    get: () =>
+        form.response_status === '' ? STATUS_DEFAULT : form.response_status,
+    set: (value: string) => {
+        form.response_status = value === STATUS_DEFAULT ? '' : value;
+    },
+});
+
+// 204 = No Content couples to an empty body (AC12): selecting 204 disables the
+// body field and clears any previously entered body.
+const bodyDisabled = computed(() => form.response_status === '204');
+watch(
+    () => form.response_status,
+    (status) => {
+        if (status === '204') {
+            form.response_body = '';
+        }
+    },
+);
 
 const formEl = ref<HTMLFormElement | null>(null);
 
@@ -114,19 +141,26 @@ function submit(): void {
             <!-- Upstream response (acknowledgement, returned before delivery) -->
             <div class="grid gap-2">
                 <Label for="response_status">Response status code</Label>
-                <Input
-                    id="response_status"
-                    v-model="form.response_status"
-                    type="number"
-                    inputmode="numeric"
-                    class="w-full sm:w-64"
-                    placeholder="202"
-                    :disabled="form.processing"
-                    :aria-invalid="
-                        form.errors.response_status ? 'true' : undefined
-                    "
-                    aria-describedby="response-status-help response-status-error"
-                />
+                <Select v-model="statusSelect" :disabled="form.processing">
+                    <SelectTrigger
+                        id="response_status"
+                        class="w-full sm:w-64"
+                        :aria-invalid="
+                            form.errors.response_status ? 'true' : undefined
+                        "
+                        aria-describedby="response-status-help response-status-error"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem :value="STATUS_DEFAULT">
+                            Default (202 Accepted)
+                        </SelectItem>
+                        <SelectItem value="200">200 OK</SelectItem>
+                        <SelectItem value="202">202 Accepted</SelectItem>
+                        <SelectItem value="204">204 No Content</SelectItem>
+                    </SelectContent>
+                </Select>
                 <p
                     id="response-status-help"
                     class="text-sm text-muted-foreground"
@@ -134,8 +168,8 @@ function submit(): void {
                     The HTTP status returned to the sender the moment the
                     webhook is received — an acknowledgement, sent immediately
                     and independently of whether delivery to your destinations
-                    succeeds. Must be a 2xx code (200–299). Leave blank to
-                    return 202 Accepted.
+                    succeeds. Choose 200, 202, or 204; 204 (No Content) sends an
+                    empty body. Leave as Default to return 202 Accepted.
                 </p>
                 <span id="response-status-error">
                     <InputError :message="form.errors.response_status" />
@@ -149,7 +183,7 @@ function submit(): void {
                     v-model="form.response_body"
                     type="text"
                     placeholder="(empty)"
-                    :disabled="form.processing"
+                    :disabled="form.processing || bodyDisabled"
                     :aria-invalid="
                         form.errors.response_body ? 'true' : undefined
                     "
@@ -162,7 +196,9 @@ function submit(): void {
                     An optional fixed body returned with the acknowledgement
                     (for example a verification challenge echo). It is a static
                     reply, not a delivery report, and never reflects your
-                    destinations' responses. Leave blank for an empty body.
+                    destinations' responses. Leave blank for an empty body; 204
+                    (No Content) always sends an empty body, so this field is
+                    disabled when 204 is selected.
                 </p>
                 <span id="response-body-error">
                     <InputError :message="form.errors.response_body" />

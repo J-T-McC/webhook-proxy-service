@@ -97,11 +97,11 @@ class ProxyStoreTest extends TestCase
 
         $this->actingAs($user)->post(
             route('proxies.store', ['current_team' => $user->currentTeam->slug]),
-            $this->payload(['response_status' => 201, 'response_body' => '{"ok":true}']),
+            $this->payload(['response_status' => 200, 'response_body' => '{"ok":true}']),
         );
 
         $proxy = Proxy::firstOrFail();
-        $this->assertSame(201, $proxy->response_status);
+        $this->assertSame(200, $proxy->response_status);
         $this->assertSame('{"ok":true}', $proxy->response_body);
     }
 

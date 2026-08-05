@@ -45,14 +45,30 @@ class ResponseResolutionTest extends TestCase
     public function test_configured_proxy_returns_exact_status_body_and_content_type(): void
     {
         [, $token] = $this->proxyWithToken([
-            'response_status' => 201,
+            'response_status' => 200,
             'response_body' => '{"ok":true}',
         ]);
 
         $this->post($this->ingestUrl($token), ['hello' => 'world'])
-            ->assertStatus(201)
+            ->assertStatus(200)
             ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
             ->assertContent('{"ok":true}');
+    }
+
+    public function test_204_configured_proxy_returns_no_body(): void
+    {
+        // 204 = No Content: the response carries no body, distinct from 200/202
+        // which return the configured body (AC12).
+        [, $token] = $this->proxyWithToken([
+            'response_status' => 204,
+            'response_body' => null,
+        ]);
+
+        $response = $this->post($this->ingestUrl($token), ['hello' => 'world']);
+
+        $response->assertStatus(204);
+        $this->assertSame('', $response->getContent());
+        $this->assertStringNotContainsString('text/plain', (string) $response->headers->get('Content-Type'));
     }
 
     public function test_unconfigured_proxy_inherits_202_accepted_empty_body(): void
@@ -103,12 +119,12 @@ class ResponseResolutionTest extends TestCase
         Http::fake(['*' => Http::response('nope', 503)]);
 
         [, $token] = $this->proxyWithToken([
-            'response_status' => 299,
+            'response_status' => 202,
             'response_body' => 'received',
         ]);
 
         $this->put($this->ingestUrl($token), ['hello' => 'world'])
-            ->assertStatus(299)
+            ->assertStatus(202)
             ->assertContent('received');
     }
 }

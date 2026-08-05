@@ -117,14 +117,20 @@ class ProxyRequestValidationTest extends TestCase
     }
 
     /**
+     * Values outside the fixed set {200, 202, 204} — including 2xx codes that are
+     * no longer allowed (201, 203, 299) and non-2xx codes (AC4, refined 2026-08-04).
+     *
      * @return array<string, array{0: int}>
      */
-    public static function nonTwoXxStatuses(): array
+    public static function outOfSetStatuses(): array
     {
         return [
             'below range 199' => [199],
             'above range 300' => [300],
             'client error 404' => [404],
+            '2xx not in set 201' => [201],
+            '2xx not in set 203' => [203],
+            '2xx not in set 299' => [299],
         ];
     }
 
@@ -144,9 +150,9 @@ class ProxyRequestValidationTest extends TestCase
     }
 
     #[DataProvider('requestClasses')]
-    public function test_non_2xx_response_status_is_rejected_under_response_status_key_on_store(string $requestClass): void
+    public function test_out_of_set_response_status_is_rejected_under_response_status_key(string $requestClass): void
     {
-        foreach (self::nonTwoXxStatuses() as [$status]) {
+        foreach (self::outOfSetStatuses() as [$status]) {
             $validator = $this->validate($requestClass, $this->validData(['response_status' => $status]));
 
             $this->assertTrue($validator->fails(), "Status {$status} should be rejected.");
@@ -155,13 +161,62 @@ class ProxyRequestValidationTest extends TestCase
     }
 
     #[DataProvider('requestClasses')]
-    public function test_2xx_boundary_statuses_200_and_299_are_accepted(string $requestClass): void
+    public function test_allowed_statuses_200_202_204_are_accepted(string $requestClass): void
     {
-        foreach ([200, 299] as $status) {
+        // 204 must pair with an empty body (asserted separately); pass no body here.
+        foreach ([200, 202] as $status) {
             $validator = $this->validate($requestClass, $this->validData(['response_status' => $status]));
-
             $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
         }
+
+        $validator = $this->validate($requestClass, $this->validData(['response_status' => 204]));
+        $this->assertArrayNotHasKey('response_status', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_204_with_non_empty_body_is_rejected_under_response_body_key(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 204,
+            'response_body' => 'not empty',
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('response_body', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_204_with_empty_or_absent_body_is_accepted(string $requestClass): void
+    {
+        // Empty string body.
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 204,
+            'response_body' => '',
+        ]));
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
+
+        // Null body.
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 204,
+            'response_body' => null,
+        ]));
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
+
+        // Absent body.
+        $validator = $this->validate($requestClass, $this->validData(['response_status' => 204]));
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_200_with_non_empty_body_is_accepted(string $requestClass): void
+    {
+        // The 204-only body coupling must not reject bodies for 200/202.
+        $validator = $this->validate($requestClass, $this->validData([
+            'response_status' => 200,
+            'response_body' => '{"ok":true}',
+        ]));
+
+        $this->assertArrayNotHasKey('response_body', $validator->errors()->messages());
     }
 
     #[DataProvider('requestClasses')]

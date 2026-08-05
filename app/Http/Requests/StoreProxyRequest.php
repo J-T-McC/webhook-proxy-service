@@ -31,10 +31,14 @@ class StoreProxyRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'mode' => ['required', Rule::enum(ProxyMode::class)],
-            // Optional user-defined upstream response (AC4). A non-2xx status is
-            // rejected; NULL/absent is allowed (unconfigured → resolver returns 202).
-            'response_status' => ['nullable', 'integer', 'between:200,299'],
-            'response_body' => ['nullable', 'string', 'max:'.config('ingest.response_body_max_bytes')],
+            // Optional user-defined upstream response (AC4). The status is restricted
+            // to the fixed set {200, 202, 204}; anything else is rejected. NULL/absent
+            // is allowed (unconfigured → resolver returns the 202 default).
+            'response_status' => ['nullable', 'integer', Rule::in([200, 202, 204])],
+            // 204 = No Content couples to an empty body (AC12): a 204 configuration
+            // with a non-empty body is rejected. `prohibited_if` fails when the field
+            // is present-and-non-empty while response_status is 204.
+            'response_body' => ['nullable', 'string', 'prohibited_if:response_status,204', 'max:'.config('ingest.response_body_max_bytes')],
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.url' => ['required', 'string', 'url:https'],
             'destinations.*.http_method' => ['required', Rule::enum(HttpMethod::class)],

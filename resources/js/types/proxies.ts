@@ -2,6 +2,13 @@ export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
 
 /**
+ * User-configurable upstream response status — a closed set of {200, 202, 204}
+ * (204 = No Content couples to an empty body). null = unconfigured (the resolver
+ * returns the 202 Accepted default).
+ */
+export type ProxyResponseStatus = 200 | 202 | 204;
+
+/**
  * Page-level proxy affordances for the acting user (camelCase — a DTO share, not a
  * Resource). The client composes each proxy's edit/delete visibility from these
  * booleans plus the per-record `is_creator` flag (ADR-009 Amendment B) —
@@ -22,7 +29,7 @@ export interface ProxyListItem {
     mode: ProxyMode;
     ingest_url: string;
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
-    response_status: number | null;
+    response_status: ProxyResponseStatus | null;
     response_body: string | null;
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
@@ -47,7 +54,7 @@ export interface ProxyDetail {
     mode: ProxyMode;
     ingest_url: string;
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
-    response_status: number | null;
+    response_status: ProxyResponseStatus | null;
     response_body: string | null;
     destinations: ProxyDestination[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
