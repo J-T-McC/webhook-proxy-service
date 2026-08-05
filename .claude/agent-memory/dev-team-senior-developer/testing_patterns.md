@@ -69,3 +69,25 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   count. Cleaner than `Gate::spy()`, which would also intercept the required `viewAny`.
   (Used for ADR-009 Amendment B: affordance display derives client-side from
   `ProxyResource.is_creator` + page-level `ProxyPermissions`, not a per-row `$user->can()`.)
+- **Reproducing a select-then-act race (a hold reappearing between selection and a
+  compare-and-set `UPDATE`) without real concurrency:** `DB::listen()`, guarded by a
+  captured `bool` so it fires only once, matching the SELECT's SQL substring (e.g.
+  `select \`id\` from \`webhook_events\``); inside the callback, `DB::table(...)->insert(...)`
+  the row that "reappears" (e.g. a `pending` `fifo_dispatches` row) before the code under
+  test's next statement (the erase `UPDATE`, which re-asserts the hold in its own `WHERE`)
+  runs. Proves the CAS affects zero rows and the target is skipped — no mock, no production
+  code change. Used for `PurgeExpiredPayloads`'s reappeared-hold race (#5, T15).
+- **Testing a pipeline step in isolation with a test-only step ahead of it:** build an
+  anonymous class `implements PipelineStep` (mutate `$ctx->payload` or similar in `handle()`,
+  call `$next($ctx)`), then `app(Illuminate\Pipeline\Pipeline::class)->send($ctx)->through([$testStep,
+  RealStep::make()])->thenReturn();` — a test-local pipeline composition, not the wired
+  `PipelineFactory`. Lets an acceptance test exercise a divergence/mutation case the real
+  pipeline doesn't yet produce (e.g. `CaptureDispatchedStep`'s diverged-payload branch, #5 T18)
+  without a second production step existing yet.
+- **Driving a FIFO line across a mid-line state change** (e.g. the claimed event's parent
+  becoming cleaned before the advancer processes it): mutate the target row directly with
+  `$model->forceFill([...])->saveQuietly()` (bypasses `#[Fillable]` + suppresses model events;
+  precedent: `TeamScopingTest`), then call `AdvanceProxyFifoQueue::run($proxyId)` under
+  `Queue::fake()` and assert step-by-step (one `::run()` call settles/claims one row — the
+  self-dispatch is captured, not recursed; see the existing note above on testing a
+  self-dispatching queue action).
