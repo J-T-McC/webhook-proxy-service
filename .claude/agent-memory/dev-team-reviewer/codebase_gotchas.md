@@ -21,6 +21,11 @@ metadata:
   built from a `*_max_bytes` config (e.g. `response_body` → `max:config('ingest.response_body_max_bytes')`)
   lets a UTF-8 value exceed the intended byte cap by up to ~4×. Flag as a Minor whenever a byte-named
   cap feeds a string `max:` rule; a byte-exact check needs a custom rule.
+- **`WithoutOverlapping` job middleware defaults to no TTL** (`expiresAfter = 0`) — on an ungraceful
+  worker crash (SIGKILL/OOM) the Redis lock leaks forever. In the FIFO advancer (`AdvanceProxyFifoQueue`)
+  this permanently stalls a proxy's line: the sweeper reaps the DB claim but its re-dispatched advancer
+  is gated by the same leaked lock. Whenever `WithoutOverlapping` guards a self-dispatching/scheduled
+  job, require an explicit `->expireAfter(...)` (align to the claim lease). Raised as Major in review-04.
 - **Authorization idiom:** every proxy/team decision is a Policy gating on `TeamPermission` via
   `$user->hasTeamPermission($team, …)`; a role literal (`role === Member`) in a policy/controller
   is a standards violation (permission-based, never role-based). Ownership is a second axis modeled
