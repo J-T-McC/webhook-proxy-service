@@ -161,7 +161,30 @@
   T5 lands (not asserted here, see T5's own test).
 - **Testing:** `tests/Unit/Models/DeliveryTest.php` (new) — schema assertions, the unique-pair
   rejection, enum-cast round-trips, relation resolution, factory happy path.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — migration `2026_08_12_000001_create_deliveries_table`
+  creates `deliveries` with the exact approved shape (four restrict-default `foreignId()`
+  columns, `dispatch_uuid` uuid, `kind`/`status` enums, nullable `next_attempt_at`, no soft
+  delete, no payload column) plus the three named indexes (`UNIQUE(dispatch_uuid,
+  destination_id)`, `(webhook_event_id, status)`, `(status, next_attempt_at)`). `Delivery` model
+  (`app/Models/Delivery.php`): `BelongsToCurrentTeam`, `belongsTo` proxy/destination/webhookEvent,
+  `hasMany(DeliveryAttempt)` (relation defined now per task note — only resolves once T5 adds
+  `delivery_attempts.delivery_id`, not asserted here), `kind`/`status` enum casts,
+  `next_attempt_at` datetime cast, `#[Fillable(...)]` matching the eight columns, docblock states
+  the CAS-only status-transition invariant. `DeliveryFactory` anchors on a `WebhookEvent` and
+  derives `team_id`/`proxy_id` from it (mirroring `DispatchedPayloadFactory`), with
+  `destination_id` derived via a same-proxy/team `Destination::factory()` (mirroring
+  `DeliveryAttemptFactory`); no extra state methods added — kept to the plain happy-path
+  `definition()` the named mirror pattern has, deferring `retrying()`/`succeeded()`/`failed()`/
+  `replay()` state helpers to the tasks that actually need them (M3/M6). `tests/Unit/Models/DeliveryTest.php`
+  added (12 tests): both composite indexes, the unique-pair rejection (`QueryException`) plus a
+  same-`dispatch_uuid`-different-destination allow case, `status` schema default, `next_attempt_at`
+  nullable-timestamp schema check, no soft-delete/payload columns, `kind`/`status` enum-cast
+  round-trips, `next_attempt_at` Carbon cast, all three `belongsTo` relations, factory happy path.
+  Migration `up`/`down` both manually exercised via `artisan migrate:rollback --step=1` +
+  `artisan migrate` (clean in both directions), in addition to the automatic
+  `RefreshDatabase`-equivalent migration run every test performs. Verified: `composer lint`
+  (Pint, passed), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test
+  --parallel` (464 passed / 1603 assertions, up from 452/1570 — 12 new `DeliveryTest` cases).
 
 ## T4 — `proxies` retry-policy columns (AC2; ADR-015 Decision 3) — additive, Owner-approved shape (✋ flag 5)
 - **Description:** New migration `add_retry_policy_to_proxies_table`: `retry_attempt_limit`
