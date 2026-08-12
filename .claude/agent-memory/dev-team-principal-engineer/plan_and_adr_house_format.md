@@ -31,7 +31,10 @@ a `## Revision A — what the ruling changed here` table (*prior position → no
 artifact it touches, the plan included. Rules observed: revise a **Proposed** ADR in place (nothing
 ratified is being rewritten); reverse an **Accepted** ADR only via a **new superseding ADR** with an
 enumerated *Positions superseded* table — partial supersession, so the old ADR keeps its file,
-status and full text and gains inline `[Pn — SUPERSEDED by ADR-NNN]` blockquotes. A RESOLVED question
+status and full text and gains inline `[Pn — SUPERSEDED by ADR-NNN]` blockquotes. When the
+superseding ADR is still only **Proposed** at plan time, annotate the Accepted ADR anyway but
+phrase it `[Pn — PROPOSED supersession by ADR-NNN (pending Owner approval)]` (plan-05 annotated
+ADR-010 while ADR-014 was Proposed; plan-06 did the same to ADR-011 for ADR-016). A RESOLVED question
 doc gets an appended `## Amendment A — superseded answers` table, never an edit to its answer. ACs
 are never renumbered. The Owner-flag list is restated **in full** in the plan (it is the single place
 the Owner reads it) and grows as the amendment ripples.
