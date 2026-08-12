@@ -3,10 +3,13 @@
 namespace Tests\Unit\Enums;
 
 use App\Enums\AttemptStatus;
+use App\Enums\DeliveryStatus;
+use App\Enums\DispatchKind;
 use App\Enums\FifoDispatchStatus;
 use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
+use App\Enums\RetryBackoffStrategy;
 use App\Enums\StoredPayloadState;
 use PHPUnit\Framework\TestCase;
 
@@ -58,5 +61,37 @@ class DomainEnumsTest extends TestCase
             ['retained', 'cleaned', 'never_captured'],
             array_map(fn (StoredPayloadState $c) => $c->value, StoredPayloadState::cases()),
         );
+    }
+
+    public function test_retry_backoff_strategy_has_exactly_exponential_and_fixed(): void
+    {
+        $this->assertSame(
+            ['exponential', 'fixed'],
+            array_map(fn (RetryBackoffStrategy $c) => $c->value, RetryBackoffStrategy::cases()),
+        );
+    }
+
+    public function test_dispatch_kind_has_exactly_original_and_replay(): void
+    {
+        $this->assertSame(
+            ['original', 'replay'],
+            array_map(fn (DispatchKind $c) => $c->value, DispatchKind::cases()),
+        );
+    }
+
+    public function test_delivery_status_has_exactly_pending_retrying_succeeded_failed(): void
+    {
+        $this->assertSame(
+            ['pending', 'retrying', 'succeeded', 'failed'],
+            array_map(fn (DeliveryStatus $c) => $c->value, DeliveryStatus::cases()),
+        );
+    }
+
+    public function test_delivery_status_is_terminal_truth_table(): void
+    {
+        $this->assertFalse(DeliveryStatus::Pending->isTerminal());
+        $this->assertFalse(DeliveryStatus::Retrying->isTerminal());
+        $this->assertTrue(DeliveryStatus::Succeeded->isTerminal());
+        $this->assertTrue(DeliveryStatus::Failed->isTerminal());
     }
 }

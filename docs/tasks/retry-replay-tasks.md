@@ -100,7 +100,15 @@
   matching the `RETENTION_*`/`INGEST_*` block pattern.
 - **Testing:** `tests/Unit/Config/RetryConfigTest.php` (new) — default + env-override cases for
   all seven keys, mirroring `RetentionConfigTest`/`IngestConfigTest`.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — `config/retry.php` with all seven keys
+  (`default_attempt_limit`, `max_attempt_limit`, `exponential_base_seconds`,
+  `exponential_multiplier`, `exponential_max_delay_seconds`, `fixed_interval_seconds`,
+  `sweep_grace_seconds`), inline doc blocks matching `config/retention.php`'s pattern, each
+  block noting the ADR-015 decision and whether the value is a product value or an engineering
+  constant. `.env.example` extended with the matching commented placeholder block after the
+  `RETENTION_*` lines. `tests/Unit/Config/RetryConfigTest.php` added (14 tests: default +
+  env-override per key). Verified: `composer lint` (Pint, passed), `composer types:check`
+  (PHPStan L7, 0 errors), `./vendor/bin/sail test --parallel` (452 passed / 1570 assertions).
 
 ## T2 — New retry/delivery enums: `RetryBackoffStrategy`, `DeliveryStatus`, `DispatchKind` (AC2, AC4, AC12; ADR-015 Decisions 1, 3)
 - **Description:** Three new backed string enums, each naming its vocabulary once, no mapping
@@ -119,7 +127,14 @@
   all three enums, mirroring the existing `ProcessingMode`/`FifoDispatchStatus`/
   `StoredPayloadState` cases; a dedicated `isTerminal()` truth-table case covering all four
   `DeliveryStatus` values.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — `App\Enums\RetryBackoffStrategy`
+  (`Exponential`/`Fixed`), `App\Enums\DeliveryStatus` (`Pending`/`Retrying`/`Succeeded`/`Failed`
+  plus `isTerminal(): bool`, `true` only for `Succeeded`/`Failed`), `App\Enums\DispatchKind`
+  (`Original`/`Replay`), each a backed string enum with a house-style docblock citing its
+  governing ADR-015 decision, no mapping logic. `tests/Unit/Enums/DomainEnumsTest.php` extended
+  with exact case-set assertions for all three plus the `isTerminal()` truth table (4 new test
+  methods). Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0
+  errors), `./vendor/bin/sail test --parallel` (452 passed / 1570 assertions).
 
 ## T3 — `deliveries` table + `Delivery` model + factory (AC4, AC13, AC18; ADR-015 Decision 1) — new table, Owner-approved shape (✋ flag 4)
 - **Description:** New migration `create_deliveries_table`, the exact shape ADR-015/plan-06
