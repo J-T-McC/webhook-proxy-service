@@ -202,7 +202,23 @@
   `tinyint`/unsigned.
 - **Testing:** extend `tests/Unit/Models/ProxyTest.php` — schema assertions for both columns,
   the enum-cast round-trip, a fresh proxy reading NULL/NULL by default.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — migration
+  `2026_08_12_000002_add_retry_policy_to_proxies_table` adds `retry_attempt_limit`
+  (`unsignedTinyInteger`, nullable, no schema default — range 1-10 is
+  application-validated by `RetryPolicy`/the proxy form, not a DB constraint) and
+  `retry_backoff_strategy` (`string`, nullable, no schema default), both `->after(...)`
+  placed next to `processing_mode`, mirroring the `response_status`/`response_body`
+  NULL-means-unconfigured pattern (ADR-004/ADR-015 Decision 3). `Proxy` model: both columns
+  added to `#[Fillable]`, `retry_backoff_strategy` cast to `RetryBackoffStrategy`,
+  `@property` docblock updated (both nullable). `tests/Unit/Models/ProxyTest.php` extended
+  with 4 new test methods: nullable/no-default schema assertions for both columns (looped),
+  `tinyint unsigned` `DATA_TYPE`/`COLUMN_TYPE` check, a fresh proxy reading NULL/NULL, and the
+  `retry_backoff_strategy` enum-cast round-trip (including the unset-stays-null case).
+  Migration `up`/`down` both manually exercised via `artisan migrate` +
+  `artisan migrate:rollback --step=1` + `artisan migrate` (clean in both directions).
+  Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors),
+  `./vendor/bin/sail test --parallel` (468 passed / 1618 assertions, up from 464/1603 — 4 new
+  `ProxyTest` cases).
 
 ## T5 — `delivery_attempts`: `delivery_id` FK + idempotency-key replacement (AC7, AC12; ADR-015 Decision 2 / ADR-016 P3) — the one non-additive migration step, Owner-approved (✋ flag 6)
 - **Description:** New migration `add_delivery_id_to_delivery_attempts_table`. **Ordering is
