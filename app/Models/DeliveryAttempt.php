@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
  * Payload-free by construction: no body column, no soft delete.
  *
  * @property int $id
+ * @property int|null $delivery_id
  * @property int $team_id
  * @property int $proxy_id
  * @property int $destination_id
@@ -30,8 +31,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  * @property-read Proxy $proxy
  * @property-read Destination $destination
+ * @property-read Delivery|null $delivery
  */
 #[Fillable([
+    'delivery_id',
     'team_id',
     'proxy_id',
     'destination_id',
@@ -66,6 +69,16 @@ class DeliveryAttempt extends Model
     public function destination(): BelongsTo
     {
         return $this->belongsTo(Destination::class);
+    }
+
+    /**
+     * The delivery this attempt belongs to. Nullable for pre-#6 rows only.
+     *
+     * @return BelongsTo<Delivery, $this>
+     */
+    public function delivery(): BelongsTo
+    {
+        return $this->belongsTo(Delivery::class);
     }
 
     /**

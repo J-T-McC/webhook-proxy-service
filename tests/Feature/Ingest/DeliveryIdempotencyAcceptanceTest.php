@@ -11,7 +11,6 @@ use App\Models\Destination;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use App\Pipeline\DeliveryUnit;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -60,22 +59,12 @@ class DeliveryIdempotencyAcceptanceTest extends TestCase
         $this->assertSame(AttemptStatus::Succeeded, DeliveryAttempt::firstOrFail()->status);
     }
 
-    public function test_the_unique_index_rejects_a_raw_duplicate_insert(): void
-    {
-        $destination = Destination::factory()->createQuietly();
-        $attempt = DeliveryAttempt::factory()->createQuietly([
-            'proxy_id' => $destination->proxy_id,
-            'team_id' => $destination->team_id,
-            'destination_id' => $destination->id,
-        ]);
-
-        $this->expectException(QueryException::class);
-        DeliveryAttempt::factory()->createQuietly([
-            'proxy_id' => $attempt->proxy_id,
-            'team_id' => $attempt->team_id,
-            'destination_id' => $attempt->destination_id,
-            'ingest_id' => $attempt->ingest_id,
-            'attempt_number' => $attempt->attempt_number,
-        ]);
-    }
+    // The raw-duplicate-insert DB-enforcement probe formerly here proved
+    // UNIQUE(ingest_id, destination_id, attempt_number) — retired by T5
+    // (ADR-015 Decision 2 / ADR-016 P3, the idempotency-key swap to
+    // (delivery_id, attempt_number)). The schema-level fact (old key no
+    // longer collides, new key does) is covered by
+    // tests/Unit/Models/DeliveryAttemptTest.php. T10 restores the equivalent
+    // race-safety-net probe here once DeliverToDestination reads
+    // `delivery_id` (its own AC names this file explicitly).
 }

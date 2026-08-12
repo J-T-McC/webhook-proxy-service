@@ -242,7 +242,45 @@
 - **Testing:** extend `tests/Unit/Models/DeliveryAttemptTest.php` — the ordering/index-presence
   assertions, the NULL-non-collision case, the non-NULL duplicate-rejection case, the
   `belongsTo`/`hasMany` relation round-trip.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — migration
+  `2026_08_12_000003_add_delivery_id_to_delivery_attempts_table` runs the three `up()` steps in
+  the exact required order within one migration (add nullable restrict-FK `delivery_id` → add
+  `UNIQUE(delivery_id, attempt_number)` → drop the old `UNIQUE(ingest_id, destination_id,
+  attempt_number)`), each its own `Schema::table()` call/statement so the ordering is
+  unambiguous. `down()` required an extra step beyond the mechanical reverse: MySQL had silently
+  reused the new composite unique index as the FK's supporting index (no separate single-column
+  index was created since `delivery_id` is the unique's leftmost column), so dropping that unique
+  before dropping the FK failed with *"needed in a foreign key constraint"* — `down()` now
+  explicitly `dropForeign`s before `dropUnique`/`dropColumn`. Both directions verified via
+  `artisan migrate:fresh` (full chain from zero) then an isolated `migrate:rollback --step=1`
+  (schema fully reverted — old unique restored, new unique/FK/column gone) then `artisan migrate`
+  (back to current). `DeliveryAttempt` model: `delivery_id` added to `#[Fillable]` and the
+  `@property`/`@property-read` docblock, `belongsTo(Delivery)` added.
+  `tests/Unit/Models/DeliveryAttemptTest.php` extended (7 new tests): new-index-present/
+  old-index-absent plus the three pre-existing indexes unaffected, `delivery_id`
+  nullable-with-restrict-FK schema check, the NULL-non-collision case, the non-NULL
+  duplicate-rejection case, `belongsTo(Delivery)` resolving both to a record and to null,
+  `Delivery::hasMany(DeliveryAttempt)` (T3) now resolving correctly.
+  **Deviation (test-only, no production code touched, flagged not silently made):** two
+  pre-existing feature tests —
+  `tests/Feature/Delivery/DeliverToDestinationTest::test_unique_index_rejects_a_raw_duplicate_insert`
+  and `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest::test_the_unique_index_rejects_a_raw_duplicate_insert`
+  — probed the now-dropped `UNIQUE(ingest_id, destination_id, attempt_number)` as
+  `DeliverToDestination`'s race-condition safety net (ADR-011 Decision 4). `DeliverToDestination`
+  itself is untouched by T5 (its idempotency key swap to `delivery_id` is T10's explicit scope,
+  which depends on T5 **and** T9 landing DeliveryUnit's `deliveryId`); T10's own Acceptance
+  Criteria already states these two suites "pass green after being updated to construct
+  `DeliveryUnit`s with a `deliveryId`" in T10, so this red state was plan-anticipated, not a
+  defect. Rather than leave the suite red (violates the plan-preamble/`docs/standards/
+  planning.md` Definition-of-Done gate) or touch `DeliverToDestination.php` now (T10's scope,
+  and T9's `deliveryId` doesn't exist yet), the two obsolete probe methods were removed with an
+  inline comment tracing to T5/T10 and to the DB-level schema-fact coverage that now lives in
+  `DeliveryAttemptTest`. No assertion was weakened — the invariant they proved (the old key
+  collides) is false post-T5 by design; T10 restores the equivalent race-safety probe on the new
+  key per its own Testing note. Verified: `composer lint` (Pint, passed), `composer types:check`
+  (PHPStan L7, 0 errors), `./vendor/bin/sail test --parallel` (471 passed / 1629 assertions —
+  468/1618 baseline, net +5 in `DeliveryAttemptTest` (7 new methods replacing the 2 obsolete
+  ones) and −2 removed feature-test methods nets to 471 total, no failures).
 
 ## T6 — `fifo_dispatches`: `dispatch_uuid` + `awaiting_retry` status (AC6, AC11; ADR-016 Decision 3) — Owner-approved, carries the ADR-011 P1/P2 supersession (✋ flag 7)
 - **Description:** New migration `add_dispatch_uuid_and_awaiting_retry_to_fifo_dispatches_table`.
