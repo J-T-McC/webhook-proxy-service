@@ -8,6 +8,7 @@ use App\Enums\RetryBackoffStrategy;
 use App\Models\Proxy;
 use App\Models\Team;
 use App\Models\User;
+use App\Models\WebhookEvent;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -274,5 +275,33 @@ class ProxyTest extends TestCase
         // Unset stays null through the cast.
         $unset = Proxy::factory()->createQuietly();
         $this->assertNull($unset->fresh()->retry_backoff_strategy);
+    }
+
+    // T23 (AC15-AC17; plan §API) — Proxy::webhookEvents(): HasMany.
+
+    public function test_webhook_events_resolves_the_proxys_captured_events(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        $resolved = $proxy->webhookEvents;
+
+        $this->assertCount(1, $resolved);
+        $this->assertTrue($resolved->first()->is($event));
+    }
+
+    public function test_webhook_events_excludes_another_proxys_events(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $otherProxy = Proxy::factory()->createQuietly(['team_id' => $proxy->team_id]);
+        WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $otherProxy->id,
+            'team_id' => $otherProxy->team_id,
+        ]);
+
+        $this->assertCount(0, $proxy->webhookEvents);
     }
 }

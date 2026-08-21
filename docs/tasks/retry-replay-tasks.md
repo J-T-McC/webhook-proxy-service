@@ -1432,7 +1432,17 @@
   belonging to a different proxy is not resolvable through this relation.
 - **Testing:** extend `tests/Unit/Models/ProxyTest.php` — the relation resolves correctly and
   excludes another proxy's events.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — `Proxy::webhookEvents(): HasMany` added
+  (`$this->hasMany(WebhookEvent::class)`), placed after `deliveryAttempts()` alongside the other
+  relation methods; class docblock's `@property-read` list extended with `Collection<int,
+  WebhookEvent> $webhookEvents`, matching the house convention for every other relation on this
+  model. `tests/Unit/Models/ProxyTest.php` extended (2 new tests, `WebhookEvent` import added):
+  the relation resolving a proxy's own captured event, and excluding another proxy's event (both
+  proxies sharing the same team, isolating the assertion to the proxy scope rather than the team
+  scope). Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0
+  errors), `./vendor/bin/sail test --filter ProxyTest` (19 passed / 52 assertions),
+  `./vendor/bin/sail test --parallel` full suite (551 passed / 1837 assertions — up from T22's
+  549/1834, net +2, no failures).
 
 ## T24 — `ProxyEventReplayController@store` + `POST .../events/{event}/replay` route (AC9–AC15; ADR-017 Decisions 1, 3)
 - **Description:** New `App\Http\Controllers\ProxyEventReplayController@store`, gated

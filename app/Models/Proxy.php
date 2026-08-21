@@ -38,6 +38,7 @@ use Illuminate\Support\Carbon;
  * @property-read User|null $creator
  * @property-read Collection<int, Destination> $destinations
  * @property-read Collection<int, DeliveryAttempt> $deliveryAttempts
+ * @property-read Collection<int, WebhookEvent> $webhookEvents
  */
 #[Fillable([
     'team_id',
@@ -82,6 +83,19 @@ class Proxy extends Model
     public function deliveryAttempts(): HasMany
     {
         return $this->hasMany(DeliveryAttempt::class);
+    }
+
+    /**
+     * The proxy's captured events (T23; AC15-AC17, plan §API). Needed so
+     * `{event}` route parameters can resolve via `->scopeBindings()` through
+     * the proxy — a cross-team/cross-proxy event id therefore 404s rather than
+     * resolving.
+     *
+     * @return HasMany<WebhookEvent, $this>
+     */
+    public function webhookEvents(): HasMany
+    {
+        return $this->hasMany(WebhookEvent::class);
     }
 
     /**
