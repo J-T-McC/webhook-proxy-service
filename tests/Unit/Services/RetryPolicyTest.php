@@ -4,6 +4,8 @@ namespace Tests\Unit\Services;
 
 use App\Enums\RetryBackoffStrategy;
 use App\Models\Proxy;
+use App\Models\Team;
+use App\Services\RetentionPolicy;
 use App\Services\RetryPolicy;
 use Illuminate\Support\Facades\Config;
 use RuntimeException;
@@ -125,6 +127,58 @@ class RetryPolicyTest extends TestCase
         // 60 + 300 + 1500 + 7500 + (21600 * 5) = 117360 seconds = 32.6 hours.
         $this->assertSame(117360, (int) $span->totalSeconds);
         $this->assertEqualsWithDelta(32.6, $span->totalHours, 0.01);
+    }
+
+    // --- AC18 guard: worstCaseSpan() bounded well inside the retention window
+    // (T20; ADR-015 Decision 4) ---------------------------------------------
+
+    public function test_worst_case_span_stays_well_inside_the_retention_window(): void
+    {
+        // Defaults from config/retry.php: base=60, multiplier=5, cap=21600, limit=10.
+        Config::set('retry.exponential_base_seconds', 60);
+        Config::set('retry.exponential_multiplier', 5);
+        Config::set('retry.exponential_max_delay_seconds', 21600);
+        Config::set('retry.max_attempt_limit', 10);
+
+        $span = (new RetryPolicy)->worstCaseSpan();
+        $window = (new RetentionPolicy)->windowFor(Team::factory()->createQuietly());
+
+        // ~32.6h (T11) is a small fraction of the default 30-day retention window;
+        // asserted against a fixed 3-day intermediate bound (not the window itself)
+        // so a future retry-config change trips this test loudly long before it
+        // could ever threaten AC18, rather than only when it reaches 30 days.
+        $this->assertLessThanOrEqual(3 * 24 * 3600, $span->totalSeconds);
+        $this->assertLessThanOrEqual($window->totalSeconds, 3 * 24 * 3600);
+    }
+
+    public function test_worst_case_span_guard_would_catch_a_regression_that_blows_the_bound(): void
+    {
+        // A deliberately mis-configured max_attempt_limit (config-side, not the
+        // per-proxy column) — proves the 3-day bound actually constrains
+        // something, i.e. is not a tautology: this override alone pushes
+        // worstCaseSpan() past the bound the default-config test asserts.
+        Config::set('retry.exponential_base_seconds', 60);
+        Config::set('retry.exponential_multiplier', 5);
+        Config::set('retry.exponential_max_delay_seconds', 21600);
+        Config::set('retry.max_attempt_limit', 30);
+
+        $span = (new RetryPolicy)->worstCaseSpan();
+
+        $this->assertGreaterThan(3 * 24 * 3600, $span->totalSeconds);
+    }
+
+    public function test_worst_case_span_guard_would_catch_a_regression_that_raises_the_delay_cap(): void
+    {
+        // Same proof via the other named lever: a blown exponential_max_delay_seconds
+        // alone, attempt limit held at the product default.
+        Config::set('retry.exponential_base_seconds', 60);
+        Config::set('retry.exponential_multiplier', 5);
+        Config::set('retry.exponential_max_delay_seconds', 1_000_000);
+        Config::set('retry.max_attempt_limit', 10);
+
+        $span = (new RetryPolicy)->worstCaseSpan();
+
+        $this->assertGreaterThan(3 * 24 * 3600, $span->totalSeconds);
     }
 
     // --- Config sanity guards (mirroring RetentionPolicyTest / review-05 M-1) --

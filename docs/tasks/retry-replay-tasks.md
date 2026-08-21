@@ -1294,7 +1294,27 @@
 - **Testing:** extend `tests/Unit/Services/RetryPolicyTest.php` (T11's file) — the bound
   assertion against the default config, plus a config-override case proving the test would catch
   a regression.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as a pure test-only addition — no production-code gap found
+  (`RetryPolicy::worstCaseSpan()`/`RetentionPolicy::windowFor()` needed no changes).
+  `tests/Unit/Services/RetryPolicyTest.php` extended (3 new tests): (1)
+  `test_worst_case_span_stays_well_inside_the_retention_window` — asserts `worstCaseSpan()` for
+  the default config (`≈32.6h`) is `<= 3 days` (259,200s), and separately that the 3-day
+  intermediate bound itself is `<=` `RetentionPolicy::windowFor()`'s default 30-day window (a
+  freshly-factoried `Team`, no per-team override), matching the spec's exact wording — the
+  intermediate 3-day bound, not the 30-day window directly, is what trips loudly on a future
+  `config/retry.php` constant change; (2)
+  `test_worst_case_span_guard_would_catch_a_regression_that_blows_the_bound` — deliberately
+  overriding `retry.max_attempt_limit` to 30 (default curve constants otherwise) drives
+  `worstCaseSpan()` past the 3-day bound, proving the assertion is not a tautology; (3)
+  `test_worst_case_span_guard_would_catch_a_regression_that_raises_the_delay_cap` — the second
+  named lever, `retry.exponential_max_delay_seconds` raised to 1,000,000 alone (attempt limit
+  held at the product default 10) likewise blows the bound. Both regression-proof tests assert
+  the blown state directly (`assertGreaterThan`) rather than making the suite itself go red, per
+  the AC's "proving it actually constrains something" without leaving anticipated-red behind.
+  Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors),
+  `./vendor/bin/sail test --filter RetryPolicyTest` (23 passed / 47 assertions),
+  `./vendor/bin/sail test --parallel` full suite (544 passed / 1825 assertions — up from T19's
+  541/1819, net +3, no failures). Closes M5.
 
 ---
 
