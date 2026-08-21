@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\StoredPayloadState;
+use App\Models\DispatchedPayload;
 use App\Models\WebhookEvent;
 
 /**
@@ -12,8 +13,7 @@ use App\Models\WebhookEvent;
  * from `body === null`, a failed lookup, or the presence of
  * `delivery_attempts` rows (ADR-014 Decision 7, binding). This class is also
  * the only place `dispatched_payloads.body IS NULL` may ever be interpreted
- * (ADR-013 Decision 3), even though nothing consumes that interpretation at
- * #5.
+ * (ADR-013 Decision 3) — both here (#5) and in `dispatchedBytesFor()` (#6).
  */
 class StoredPayloadLookup
 {
@@ -31,5 +31,36 @@ class StoredPayloadLookup
         return $event->payload_cleaned_at === null
             ? StoredPayloadState::Retained
             : StoredPayloadState::Cleaned;
+    }
+
+    /**
+     * The retry-source resolution (AC13; ADR-013 Decision 3, ADR-015 Decision
+     * 1): the bytes a retry must re-send — `dispatched_payloads.body` when it
+     * diverged from the raw capture, else the raw `webhook_events.body` (the
+     * identical-payload case, ADR-013 Decision 2, and the no-row case).
+     *
+     * Callable ONLY for a retained event — the caller must have already
+     * guarded `payload_cleaned_at` (ADR-014 Decision 7, binding); this method
+     * does NOT re-guard, keeping "the only place `dispatched_payloads.body IS
+     * NULL` is interpreted" true and undivided within this one class.
+     */
+    public function dispatchedBytesFor(WebhookEvent $event): string
+    {
+        $dispatched = DispatchedPayload::query()
+            ->where('webhook_event_id', $event->id)
+            ->first();
+
+        if ($dispatched !== null && $dispatched->body !== null) {
+            return $dispatched->body;
+        }
+
+        // No row, or a NULL body (the identical-payload case) — the raw
+        // capture IS the dispatched output. `$event->body` is guaranteed
+        // non-null here: this method is callable only for a retained event
+        // (guarded by the caller, never here).
+        /** @var string $body */
+        $body = $event->body;
+
+        return $body;
     }
 }

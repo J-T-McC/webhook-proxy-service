@@ -677,7 +677,35 @@
   (cast round-trip, not raw column bytes).
 - **Testing:** extend `tests/Unit/Services/StoredPayloadLookupTest.php` — the two resolution
   cases above.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — no more (T13's settle transitions/scheduling/
+  `DeliveryExhausted`, T14, T15 all untouched). `App\Services\StoredPayloadLookup::dispatchedBytesFor(WebhookEvent
+  $event): string` added: queries `DispatchedPayload::query()->where('webhook_event_id',
+  $event->id)->first()`; if a row exists AND its `body` is non-NULL, returns that (decrypted via
+  the model's `encrypted` cast — the diverged case, ADR-013 Decision 2); otherwise (no row, or a
+  row with `body IS NULL` — the identical-payload case) falls through to `$event->body` (also
+  decrypted via its own cast). No re-guard on `payload_cleaned_at` — the method's docblock states
+  this explicitly, matching the Description; the class docblock's closing sentence updated to
+  note this method as the second (of two) places `dispatched_payloads.body IS NULL` is
+  interpreted, both within this one class (ADR-013 Decision 3 kept undivided). **Deviation from
+  the initially-drafted `?->`/`??` one-liner, caught before commit, not shipped:** a first pass
+  wrote `$dispatched?->body ?? $event->body`, which `composer types:check` flagged
+  (`nullsafe.neverNull` — PHPStan/Larastan infers this project's `Model::query()->first()` result
+  as never-null in this position, a static-analysis quirk unrelated to this task's scope, not
+  investigated further since a correct fix existed without it); rather than fight the inference
+  or suppress it, rewrote using the codebase's own established convention for a possibly-null
+  `first()` (explicit `!== null` check, matching `StoredPayloadLookup::for()`'s own sibling method
+  two lines above it, and `DeliverToDestination::existingAttempt()`'s caller) — safer than the
+  original one-liner regardless of the phpstan finding, since PHP's plain `->` on a null object
+  property-read is a silent warning-and-null, not a fatal error, and relying on that implicitly
+  would have been fragile even had phpstan accepted it. `tests/Unit/Services/StoredPayloadLookupTest.php`
+  extended (3 new tests): no-`dispatched_payloads`-row returns the raw body; a row with `body IS
+  NULL` returns the raw body (the identical-payload case); a row with a diverged `body` returns
+  that value instead — all three assert against plaintext (proving the cast round-trip, not raw
+  encrypted column bytes, per the AC). No anticipated-red left behind — full suite is green.
+  Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors),
+  `./vendor/bin/sail test --filter StoredPayloadLookupTest` (7 passed / 7 assertions),
+  `./vendor/bin/sail test --parallel` full suite (509 total, 509 passed / 1718 assertions — up
+  from T11's 506/506, net +3 new tests, no failures).
 
 ## T13 — `DeliverToDestination`: settle transitions, retry scheduling, `DeliveryExhausted` (AC1, AC3–AC5, AC7; ADR-015 Decisions 5, 6)
 - **Description:** New `App\Events\DeliveryExhausted` (`{ public readonly Delivery $delivery }`,
