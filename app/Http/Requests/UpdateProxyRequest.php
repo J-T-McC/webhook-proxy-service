@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
+use App\Enums\RetryBackoffStrategy;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -44,6 +45,14 @@ class UpdateProxyRequest extends FormRequest
             // with a non-empty body is rejected. `prohibited_if` fails when the field
             // is present-and-non-empty while response_status is 204.
             'response_body' => ['nullable', 'string', 'prohibited_if:response_status,204', 'max:'.config('ingest.response_body_max_bytes')],
+            // Per-proxy retry policy (AC2, AC20) — enhanced-mode-only (Q-06-01
+            // ruling): a value present on a `mode = simple` submission is
+            // rejected, mirroring the `response_body`/204 `prohibited_if` idiom.
+            // NULL/absent always passes regardless of mode (system default), and
+            // is how an enhanced→simple mode switch clears any previously
+            // configured values in the controller (T30).
+            'retry_attempt_limit' => ['nullable', 'integer', 'min:1', 'max:10', 'prohibited_if:mode,simple'],
+            'retry_backoff_strategy' => ['nullable', Rule::enum(RetryBackoffStrategy::class), 'prohibited_if:mode,simple'],
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.id' => ['sometimes', 'nullable', 'integer'],
             'destinations.*.url' => ['required', 'string', 'url:https'],

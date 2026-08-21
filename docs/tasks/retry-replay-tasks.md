@@ -1735,7 +1735,16 @@
   passes regardless of mode.
 - **Testing:** extend `tests/Feature/Proxies/ProxyRequestValidationTest.php` — the valid-range,
   out-of-range, unknown-strategy, and simple-mode-prohibited cases for both Store and Update.
-- **Completion notes:** _pending_
+- **Completion notes:** Added the two rules verbatim as specced to both requests, immediately
+  after `response_body` (same position both existing `prohibited_if` rules occupy). Extended
+  `ProxyRequestValidationTest` with 7 new data-provider-driven test methods (× Store/Update = 14
+  cases): valid limit+strategy on enhanced, the 1/10 bounds accepted, 0/11 rejected, an unknown
+  strategy string rejected, either field alone rejected under `mode = simple`, and both
+  fields omitted-or-explicit-null passing regardless of mode (the existing `validData()` fixture
+  defaults `mode: 'simple'`, so every enhanced-mode case overrides it explicitly). Verified:
+  `./vendor/bin/sail test --filter ProxyRequestValidationTest` 50/50 passed, 144 assertions. Full
+  suite: **624 passed / 2106 assertions** (up from 610/2062). `composer lint`: clean. `composer
+  types:check`: clean (PHPStan L7).
 
 ## T30 — `ProxyController` persistence/clearing + `ProxyResource` fields (AC2, AC20)
 - **Description:** `store()`/`update()` persist `retry_attempt_limit`/`retry_backoff_strategy`

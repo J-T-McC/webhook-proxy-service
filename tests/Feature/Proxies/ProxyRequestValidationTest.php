@@ -277,4 +277,102 @@ class ProxyRequestValidationTest extends TestCase
         $this->assertTrue($overCap->fails());
         $this->assertArrayHasKey('response_body', $overCap->errors()->messages());
     }
+
+    // --- Retry policy (T29; AC2, AC20) --------------------------------------
+
+    #[DataProvider('requestClasses')]
+    public function test_a_valid_retry_policy_on_an_enhanced_mode_submission_passes(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'mode' => 'enhanced',
+            'retry_attempt_limit' => 5,
+            'retry_backoff_strategy' => 'exponential',
+        ]));
+
+        $this->assertArrayNotHasKey('retry_attempt_limit', $validator->errors()->messages());
+        $this->assertArrayNotHasKey('retry_backoff_strategy', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_the_bounds_1_and_10_are_accepted_on_an_enhanced_mode_submission(string $requestClass): void
+    {
+        foreach ([1, 10] as $limit) {
+            $validator = $this->validate($requestClass, $this->validData([
+                'mode' => 'enhanced',
+                'retry_attempt_limit' => $limit,
+            ]));
+
+            $this->assertArrayNotHasKey('retry_attempt_limit', $validator->errors()->messages());
+        }
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_0_and_11_are_rejected_under_retry_attempt_limit_key(string $requestClass): void
+    {
+        foreach ([0, 11] as $limit) {
+            $validator = $this->validate($requestClass, $this->validData([
+                'mode' => 'enhanced',
+                'retry_attempt_limit' => $limit,
+            ]));
+
+            $this->assertTrue($validator->fails(), "Limit {$limit} should be rejected.");
+            $this->assertArrayHasKey('retry_attempt_limit', $validator->errors()->messages());
+        }
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_an_unknown_backoff_strategy_is_rejected_under_retry_backoff_strategy_key(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'mode' => 'enhanced',
+            'retry_backoff_strategy' => 'linear',
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('retry_backoff_strategy', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_a_retry_attempt_limit_on_a_simple_mode_submission_is_rejected(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'mode' => 'simple',
+            'retry_attempt_limit' => 5,
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('retry_attempt_limit', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_a_retry_backoff_strategy_on_a_simple_mode_submission_is_rejected(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'mode' => 'simple',
+            'retry_backoff_strategy' => 'fixed',
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('retry_backoff_strategy', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_both_retry_fields_omitted_or_null_always_pass_regardless_of_mode(string $requestClass): void
+    {
+        foreach (['simple', 'enhanced'] as $mode) {
+            // Absent entirely.
+            $validator = $this->validate($requestClass, $this->validData(['mode' => $mode]));
+            $this->assertArrayNotHasKey('retry_attempt_limit', $validator->errors()->messages());
+            $this->assertArrayNotHasKey('retry_backoff_strategy', $validator->errors()->messages());
+
+            // Explicit null.
+            $validator = $this->validate($requestClass, $this->validData([
+                'mode' => $mode,
+                'retry_attempt_limit' => null,
+                'retry_backoff_strategy' => null,
+            ]));
+            $this->assertArrayNotHasKey('retry_attempt_limit', $validator->errors()->messages());
+            $this->assertArrayNotHasKey('retry_backoff_strategy', $validator->errors()->messages());
+        }
+    }
 }
