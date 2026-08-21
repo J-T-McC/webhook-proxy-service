@@ -5,9 +5,11 @@ namespace App\Models;
 use App\Concerns\BelongsToCurrentTeam;
 use Database\Factories\WebhookEventFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -37,6 +39,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Proxy $proxy
+ * @property-read Collection<int, Delivery> $deliveries
  */
 #[Fillable([
     'team_id',
@@ -62,6 +65,18 @@ class WebhookEvent extends Model
     public function proxy(): BelongsTo
     {
         return $this->belongsTo(Proxy::class);
+    }
+
+    /**
+     * The `deliveries` rows dispatched for this event — original send plus any
+     * replays (T25; ADR-015/017). Required by `WebhookEventResource` to render
+     * the events read surface's per-destination state.
+     *
+     * @return HasMany<Delivery, $this>
+     */
+    public function deliveries(): HasMany
+    {
+        return $this->hasMany(Delivery::class);
     }
 
     /**

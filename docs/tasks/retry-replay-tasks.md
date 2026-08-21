@@ -1573,7 +1573,33 @@
   `DeliveryResourceTest.php`, `DeliveryAttemptResourceTest.php` (new, or one combined file per
   house convention) — the never-content assertion, the payload-state mapping, the effective-
   attempt-limit assertion, the legacy-fallback derivation for all three attempt outcomes.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented all three resources exactly as specced, `$wrap = null`,
+  never emitting `body`/`headers`. `payload_state` calls `app(StoredPayloadLookup::class)->for($this->ingest_id)`
+  (the single resolver) rather than duplicating its `payload_cleaned_at` mapping inline — an
+  accepted per-row extra query (capped at 15 rows/page by T26's pagination), matching the spec's
+  explicit "via StoredPayloadLookup" wording over a micro-optimisation. `DeliveryResource.attempt_limit`
+  resolves via `RetryPolicy::attemptLimitFor($this->proxy)`; `destination` renders whatever the
+  caller eager-loaded (callers use `withTrashed()`, per plan). **One necessary, undocumented-in-Files
+  addition:** `WebhookEvent` had no inverse `deliveries(): HasMany` relation — required for
+  `$this->whenLoaded('deliveries')`/`$this->deliveries` to resolve at all, so added it to
+  `app/Models/WebhookEvent.php` (plus its `@property-read` line) as load-bearing infrastructure for
+  this task, not scope creep. **Legacy fallback** lives entirely inside `WebhookEventResource`
+  (`legacyDeliveries()`/`legacyStatusFor()`) rather than split across both resource classes as the
+  prose loosely implies — `DeliveryResource` mixes in a real `Delivery` model and can't represent a
+  fabricated row; the derived array is shaped to match `DeliveryResource`'s keys (`id`,
+  `dispatch_uuid`, `next_attempt_at`, `attempt_limit`, `attempts` all `null`) so the client renders
+  both uniformly. Triggered only when the `deliveries` relation is loaded and empty (never when
+  simply not eager-loaded, which keeps the whenLoaded/omission contract intact); it queries
+  `delivery_attempts` directly, takes the latest row per `destination_id`, and creates nothing.
+  Verified: 20 new unit tests (never-content, payload-state mapping incl. `never_captured`,
+  effective-attempt-limit column/default/clamp-adjacent cases, `withTrashed` destination
+  rendering, all three legacy-outcome mappings, latest-per-destination tie-break, zero-row-created
+  assertion) — `./vendor/bin/sail test --filter "WebhookEventResourceTest|DeliveryResourceTest|DeliveryAttemptResourceTest"`
+  20/20 passed, 53 assertions. Full suite `./vendor/bin/sail test --parallel`: **587 passed / 1941
+  assertions** (up from 567/1888). `composer lint`: clean (Pint auto-fixed import ordering on
+  `WebhookEventResource.php`). `composer types:check`: clean (PHPStan L7; fixed a `list<...>` vs
+  `array<int,...>` return-type mismatch and two false-positive nullsafe-on-non-nullable warnings on
+  the legacy-fallback path).
 
 ## T26 — `ProxyEventController@index` + `GET .../events` route + `fifoHeldByRetry` prop (AC15, AC16; ADR-017 Decision 5)
 - **Description:** New `App\Http\Controllers\ProxyEventController@index`, gated
