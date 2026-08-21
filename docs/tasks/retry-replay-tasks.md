@@ -434,7 +434,37 @@
 - **Testing:** extend `tests/Feature/Ingest/ProcessIngestedWebhookTest.php` — the delivery-row
   creation case, the redelivery-idempotency case, the trashed-destination-excluded case; extend
   `tests/Unit/Pipeline/PipelineContextTest.php` with the `dispatchUuid`-defaulting case.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — `PipelineContext` gained a readonly
+  `dispatchUuid` property, defaulted to `$ingestId` in the constructor when the new optional
+  `?string $dispatchUuid = null` parameter is omitted (the minimal envelope extension; every
+  other constructor param/behavior untouched). `ProcessIngestedWebhook::handle()` gained the
+  matching `?string $dispatchUuid = null` parameter (defaulted to `$ingestId` at the top of
+  `handle()`, before the existing `firstOrFail()`/cleaned-state guard, so `ProcessIngestedWebhook::run($ingestId)`
+  single-arg call sites are unchanged); after the existing trashed-inclusive proxy load, a
+  `foreach ($proxy->destinations as $destination)` loop (live-only by `Destination`'s
+  `SoftDeletes` default scope — no `withTrashed()`) runs `Delivery::query()->firstOrCreate(...)`
+  exactly per the plan's shape, keyed on `['dispatch_uuid' => $dispatchUuid, 'destination_id' =>
+  $destination->id]` (T3's unique index), before `PipelineContext` is constructed with the
+  resolved `dispatchUuid`. `firstOrFail()`, the trashed-inclusive proxy load, and the pipeline
+  run are byte-for-byte unchanged. `tests/Unit/Pipeline/PipelineContextTest.php` extended (3 new
+  tests): the `dispatchUuid`-defaults-to-`ingestId` case, a case supplying `dispatchUuid`
+  independently of `ingestId` (the replay shape T8 sets up for, not exercised until M6),
+  `dispatchUuid`'s readonly-property assertion (matching the existing raw-field pattern in the
+  same file). `tests/Feature/Ingest/ProcessIngestedWebhookTest.php` extended (3 new tests): one
+  `Delivery` row per live destination with `kind = Original`, `status = Pending`, `dispatch_uuid
+  = $ingestId`, and the correct `webhook_event_id`/`proxy_id`/`team_id`; a same-`ingestId`
+  double-invocation (simulated redelivery) creating exactly 2 rows, not 4, proving the
+  `firstOrCreate` idempotency under T3's unique key; a trashed destination present at capture
+  time receiving zero delivery rows (`Destination::delete()` before the run, live-only selection
+  — ruling 2). The three pre-existing `ProcessIngestedWebhookTest` cases (cleaned event, unknown
+  ingest id, normal 3-destination delivery with one trashed) were left unmodified and stayed
+  green — none needed updating since `Delivery` row creation is additive alongside the existing
+  `DeliveryAttempt` fan-out, not a replacement of it (that swap is T9/T10's scope). No
+  anticipated-red left behind — full suite is green. Verified: `composer lint` (Pint, passed),
+  `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
+  "ProcessIngestedWebhookTest|PipelineContextTest"` (13 passed / 43 assertions),
+  `./vendor/bin/sail test --parallel` full suite (480 total, 480 passed / 1661 assertions — up
+  from T7-fix's 474/474, net +6 new tests, no failures).
 
 ## T9 — `DeliverStep` iterates the dispatch's `deliveries` rows; `DeliveryUnit.deliveryId` (AC3, AC7; ADR-015 Decision 1)
 - **Description:** `DeliveryUnit` gains one new readonly field, `deliveryId` (int). `DeliverStep`
