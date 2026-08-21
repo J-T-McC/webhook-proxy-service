@@ -1395,7 +1395,31 @@
   controller feature test if house convention favours controller-level validation coverage —
   Senior Developer's call, consistent with `ProxyRequestValidationTest`'s existing pattern) — the
   four cases above.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — `App\Http\Requests\ReplayEventRequest`:
+  `authorize()` returns `true` (authorization lives on the controller, T24, matching
+  `StoreProxyRequest`/`UpdateProxyRequest`); `rules()`: `destinations` → `['required', 'array',
+  'min:1']`; `destinations.*` → `['required', 'integer', 'distinct', Rule::exists('destinations',
+  'id')->where('proxy_id', $this->proxy()?->id)->whereNull('deleted_at')]` — scoped to the
+  **current route-bound proxy's live** destinations only, exactly per AC10. A private typed
+  `proxy(): ?Proxy` helper resolves `$this->route('proxy')`, mirroring the house
+  `DeleteTeamRequest::team()` pattern (PHPStan L7 rejects untyped property access on the route
+  resolver's `mixed` return; the existing codebase's own precedent for this exact seam was
+  followed rather than inventing a new one). **Testing deferred to T24, per this task's own
+  explicit allowance** ("fold into T24's controller feature test ... Senior Developer's call"):
+  unlike `StoreProxyRequest`/`UpdateProxyRequest` (whose rules are self-contained,
+  `ProxyRequestValidationTest`'s `Validator::make($data, (new $requestClass)->rules())` pattern
+  works route-free), `ReplayEventRequest::rules()` is genuinely route-dependent (the `Rule::exists`
+  scope needs a real bound `Proxy`), so a route-free unit-test harness would either need to
+  fabricate a `Illuminate\Routing\Route` stub (extra indirection with no behavioural payoff) or
+  assert nothing meaningful. `tests/Feature/Replay/ProxyEventReplayControllerTest.php` (T24) is
+  where this request is actually exercised — through real HTTP requests carrying real route
+  bindings — and its own Testing note already names all four cases T22's AC lists (subset-passes,
+  trashed/other-proxy/non-existent-id-422s, empty-array-422s, duplicate-id-422s) as required
+  coverage for the endpoint it validates; T22's four cases are folded into that file one-for-one,
+  not dropped. No `ReplayEventRequestTest.php` file was created. Verified: `composer lint` (Pint,
+  passed), `composer types:check` (PHPStan L7, 0 errors — the route-resolver typing gap the naive
+  version hit), `./vendor/bin/sail test --parallel` full suite (549 passed / 1834 assertions,
+  unchanged from T21 — no regression, no new tests yet by design).
 
 ## T23 — `Proxy::webhookEvents(): HasMany` relation (AC15–AC17; plan §API)
 - **Description:** New `HasMany` relation on `Proxy`, `webhookEvents(): HasMany` →
