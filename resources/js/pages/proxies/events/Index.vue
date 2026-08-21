@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Info } from '@lucide/vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import ReplayDialog from '@/components/ReplayDialog.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,20 +26,20 @@ import proxyEventRoutes from '@/routes/proxies/events';
 import type { Team } from '@/types';
 import type {
     Paginated,
-    ProxyListItem,
+    ProxyDetail,
     ProxyPermissions,
     WebhookEventListItem,
 } from '@/types/proxies';
 
 const props = defineProps<{
-    proxy: ProxyListItem;
+    proxy: ProxyDetail;
     events: Paginated<WebhookEventListItem>;
     permissions: ProxyPermissions;
     fifoHeldByRetry: boolean;
 }>();
 
 defineOptions({
-    layout: (options: { currentTeam?: Team | null; proxy: ProxyListItem }) => ({
+    layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
         breadcrumbs: [
             {
                 title: 'Proxies',
@@ -83,6 +84,14 @@ function canReplay(event: WebhookEventListItem): boolean {
     return (
         event.payload_state === 'retained' && props.permissions.canReplayProxy
     );
+}
+
+const replayDialogOpen = ref(false);
+const replayEventId = ref<number | null>(null);
+
+function openReplay(event: WebhookEventListItem): void {
+    replayEventId.value = event.id;
+    replayDialogOpen.value = true;
 }
 </script>
 
@@ -204,6 +213,7 @@ function canReplay(event: WebhookEventListItem): boolean {
                                     v-if="canReplay(event)"
                                     variant="ghost"
                                     size="sm"
+                                    @click="openReplay(event)"
                                 >
                                     Replay
                                 </Button>
@@ -242,4 +252,13 @@ function canReplay(event: WebhookEventListItem): boolean {
             </nav>
         </template>
     </div>
+
+    <ReplayDialog
+        v-model:open="replayDialogOpen"
+        :team-slug="teamSlug"
+        :proxy-id="props.proxy.id"
+        :destinations="props.proxy.destinations"
+        :is-fifo="props.proxy.processing_mode === 'fifo'"
+        :event-id="replayEventId"
+    />
 </template>

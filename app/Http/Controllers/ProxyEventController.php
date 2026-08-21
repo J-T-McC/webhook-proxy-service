@@ -41,7 +41,12 @@ class ProxyEventController extends Controller
             ->through(fn (WebhookEvent $event) => new WebhookEventResource($event));
 
         return Inertia::render('proxies/events/Index', [
-            'proxy' => ProxyResource::make($proxy),
+            // `destinations` eager-loaded (beyond T26's original scope) so
+            // `ProxyResource` carries the proxy's current live destinations —
+            // T37's ReplayDialog needs them for its checklist (AC10), the same
+            // "current destinations" the Replay confirmation must offer from
+            // both the Index row action and the Show page's header action.
+            'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
             'events' => $events,
             'permissions' => $this->proxyPermissions($request),
             'fifoHeldByRetry' => $this->fifoHeldByRetry($proxy),

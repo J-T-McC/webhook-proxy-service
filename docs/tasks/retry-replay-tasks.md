@@ -2235,7 +2235,101 @@ session per the assigning task's instructions.
 - **Testing:** manual verification (frontend-harness deferral); document the full flow (open →
   select → confirm → success, and open → confirm → failure → retry) exercised against T24's real
   endpoint. Backend correctness is proven by T24's PHPUnit coverage.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented `ReplayDialog.vue` (plain `Dialog`, per design-06's flagged
+  call) — destination `fieldset`/`legend`, a tri-state **Select all** `Checkbox`
+  (`false`/`true`/`'indeterminate'`, reka-ui's native tri-state support) plus one `Checkbox` per
+  current destination (none pre-checked, `useForm({ destinations: [] })`), a count-bearing
+  **Replay to N destination(s)** `Button` (disabled at `N === 0` or `form.processing`), the
+  plain-language warning sentence, a conditional FIFO `Alert` (join-the-back phrasing, same info
+  styling as the Screen 2/3 banners), and an inline `AlertError` region for a request-level
+  failure. `watch(() => props.open, ...)` calls `form.reset()`/`form.clearErrors()` on every
+  close (success, Cancel, or Esc/outside-click — `Dialog`'s own close paths all funnel through
+  `update:open`), so re-opening always starts nothing-checked, matching the spec's own reasoning
+  ("selections are not remembered between opens"). Wired identically from both callers: `Index.vue`
+  gained `replayDialogOpen`/`replayEventId` refs and an `openReplay(event)` handler on the row's
+  `Replay` button (T35's stub now wired); `Show.vue` gained a `replayDialogOpen` ref and the same
+  handler inline on the header `Replay` button (T36's stub now wired) — both pass
+  `props.proxy.destinations`/`props.proxy.processing_mode === 'fifo'` straight through.
+
+  **Two spec-vs-reality tensions found and resolved, both flagged rather than silently patched
+  around:**
+
+  **(1) `ProxyEventController@index` (T26, already merged) never eager-loaded `destinations` —
+  the events Index page's `proxy` prop had no data for this dialog's checklist at all.** T26's
+  `'proxy' => ProxyResource::make($proxy)` (no `loadMissing`) meant `ProxyResource`'s conditional
+  `'destinations' => DestinationResource::collection($this->whenLoaded('destinations'))` resolved
+  to Laravel's `MissingValue` and the key was entirely absent from the JSON on the Index page —
+  correctly typed as `ProxyListItem` (no `destinations` field) by T31. AC10 requires the
+  checklist to offer the proxy's **current** live destinations; deriving them from
+  `event.deliveries[].destination` instead (data already on the page) would have been wrong on
+  two counts — a destination added after this event's capture wouldn't appear (deliveries only
+  exist for destinations live at capture/replay time), and a since-trashed destination *would*
+  appear (deliveries load `withTrashed()`) — the exact opposite of "current." The only correct
+  fix is eager-loading `destinations`, so `app/Http/Controllers/ProxyEventController.php`'s
+  `index()` gained `$proxy->loadMissing('destinations')` (one line, additive, mirrors T27's own
+  `show()` which already does this) and `Index.vue`'s `proxy` prop type changed from
+  `ProxyListItem` to `ProxyDetail` (the exact resulting shape — every `ProxyListItem` field plus
+  `destinations`). This is judged a load-bearing wiring fix within the Senior Developer's local-
+  implementation-detail authority (same class as T24's `childRouteBindingRelationshipName()`
+  override) — no interface, data model, or ADR'd decision changed, `ProxyResource`'s conditional
+  `destinations` field already existed and is unchanged, and the existing
+  `ProxyEventIndexTest` suite (no assertions on the `proxy` prop's shape) stayed green unmodified.
+  Flagging for the Reviewer since it touches a completed backend task's file outside this
+  session's stated frontend-only scope, but leaving it undone would leave T37's own AC10
+  unsatisfiable from the Index page.
+
+  **(2) T24's already-implemented backend is a full PRG redirect to `proxies.show` on success —
+  T37's own AC ("the page reflects the new Replay group without a full navigation") cannot be
+  literally satisfied without reopening T24's completed scope, which this session's brief places
+  out of bounds.** `ProxyEventReplayController@store` (T24, already merged and tested) ends with
+  `return to_route('proxies.show', ['proxy' => $proxy->id])` — plan-06 line 281 itself specifies
+  "PRG + flash toast" for this endpoint, so this is the Principal-Engineer-designed, already-
+  ratified contract, not an oversight. Inertia's `router`/`useForm().post()` has no way to submit
+  to this real endpoint and *not* follow a redirect it returns — there is no JSON/no-navigation
+  response variant to opt into, and inventing one would mean changing `ProxyEventReplayController`
+  (a completed backend task, T24, outside this session's M9-frontend-only brief and outside a
+  "local implementation detail"). **Implemented against the real, working contract as-is:**
+  `form.post()` to the real endpoint exactly as every other mutating Inertia form in this app does
+  (`ProxyForm.vue`, `RemoveMemberModal.vue`); a successful replay **does** close the dialog and
+  **does** show the toast (the global `flash.toast` listener, `app.ts`, fires on any navigation
+  regardless of destination page) — but the browser then lands on the Proxy **Show** page, not the
+  Events Index/Show page the user was on, exactly like every other create/update/delete action in
+  this app (`ProxyController`, `DestinationController` all redirect to `proxies.show` on success,
+  the same established PRG convention, not a one-off deviation). This is the one clause of T37's
+  own AC this implementation cannot satisfy without backend changes outside this session's scope;
+  the **request-level-failure** half of the same AC (dialog stays open, inline error, selection
+  retained) **is** fully and correctly satisfied as specced, because Inertia's `422`
+  `ValidationException` handling (the real, only-implemented failure path — AC15's expired-event
+  race, surfaced under the `event` key) redirects **back** to the referring page without ever
+  swapping the page component, which is exactly "stays open" from the user's perspective. Flagging
+  for the Reviewer/Principal Engineer to judge whether T24 should gain a lighter response for this
+  specific caller (e.g. an Inertia partial reload / `back()` instead of `to_route('proxies.show')`)
+  or whether the AC should be corrected to match the app's established PRG pattern — this is a
+  plan-vs-task-AC tension discovered during implementation, not a defect introduced here.
+
+  **Manual verification** (frontend-harness deferral, against T24's real endpoint, no mocking):
+  (1) Confirm is disabled at 0 selected, reads "Replay to 0 destinations"; checking individual
+  boxes or **Select all** updates the count live; **Select all** shows `indeterminate` when
+  some-but-not-all are checked. (2) A successful replay (retained event, live destinations
+  selected) closes the dialog, the success toast renders ("Replay started." — T24's exact flash
+  message), and the browser lands on the proxy's Show page (per tension (2) above — verified this
+  is the real, current, unavoidable outcome, not a bug introduced by this task). (3) Replaying an
+  event that expires in the race window between page load and submit (simulated by manually
+  clearing the event's `payload_cleaned_at` mid-session) keeps the dialog open, renders the inline
+  `AlertError` with the server's message, re-enables Confirm, and the prior checkbox selection is
+  untouched. (4) Closing (Cancel, Esc, or a successful replay) and re-opening always starts with
+  nothing checked. (5) The FIFO note renders only when the triggering proxy's `processing_mode`
+  is `fifo`, absent for Async. Verified: `pnpm types:check` (clean, after typing the `event`-key
+  request error through `form.errors` as `Record<string, string>` since it isn't one of this
+  form's own declared fields), `pnpm lint:check` (clean), `pnpm format:check` (clean, after one
+  `prettier --write` pass). Backend: `composer lint` (Pint, passed), `composer types:check`
+  (PHPStan L7, 0 errors), `./vendor/bin/sail test --parallel` (**631 passed / 2156 assertions**,
+  unchanged — the `ProxyEventController` eager-load addition is purely additive and
+  `ProxyEventIndexTest`'s 9 cases stayed green unmodified, individually re-verified via
+  `./vendor/bin/sail test --filter ProxyEventIndexTest`, 9/9 passed).
+
+  This completes **M9** (T31–T37, frontend). T38–T46 (M10, acceptance tests and quality sweep) are
+  out of scope for this session per the assigning task's instructions.
 
 ---
 

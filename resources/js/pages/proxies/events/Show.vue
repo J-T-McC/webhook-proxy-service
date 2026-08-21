@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ArrowLeft, Info } from '@lucide/vue';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import PayloadViewer from '@/components/PayloadViewer.vue';
+import ReplayDialog from '@/components/ReplayDialog.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -89,6 +90,8 @@ const canReplay = computed(
         props.event.payload_state === 'retained' &&
         props.permissions.canReplayProxy,
 );
+
+const replayDialogOpen = ref(false);
 
 const payloadUrl = computed(
     () =>
@@ -256,7 +259,13 @@ function attemptSummaryFor(delivery: Delivery): string | null {
                     payloadBadge.label
                 }}</Badge>
             </div>
-            <Button v-if="canReplay" variant="outline"> Replay </Button>
+            <Button
+                v-if="canReplay"
+                variant="outline"
+                @click="replayDialogOpen = true"
+            >
+                Replay
+            </Button>
         </div>
 
         <!-- Details card -->
@@ -408,4 +417,13 @@ function attemptSummaryFor(delivery: Delivery): string | null {
             </div>
         </Card>
     </div>
+
+    <ReplayDialog
+        v-model:open="replayDialogOpen"
+        :team-slug="teamSlug"
+        :proxy-id="props.proxy.id"
+        :destinations="props.proxy.destinations"
+        :is-fifo="props.proxy.processing_mode === 'fifo'"
+        :event-id="props.event.id"
+    />
 </template>
