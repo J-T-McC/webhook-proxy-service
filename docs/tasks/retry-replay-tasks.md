@@ -623,7 +623,45 @@
   (column set / column NULL / column-above-cap), the delay table for both strategies across the
   full attempt range, `worstCaseSpan()` arithmetic, and the config-sanity exception cases
   (mirroring `RetentionPolicyTest`'s guard-test cases from #5's M-1 fix).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — no more (T12's `StoredPayloadLookup` method,
+  T13's settle/schedule/`DeliveryExhausted`, T14, T15 all untouched). `app/Services/RetryPolicy.php`
+  (new): `attemptLimitFor(Proxy $proxy): int` — column value if set else
+  `config('retry.default_attempt_limit')`, always `max(1, min($limit, $max))`-clamped to
+  `config('retry.max_attempt_limit')` regardless of source (column or default), matching the
+  Description's "regardless of column content" wording read as "regardless of the resolved
+  value's source." `strategyFor(Proxy $proxy): RetryBackoffStrategy` — column value if set else
+  `Exponential`. `delayBefore(Proxy $proxy, int $attemptNumber): CarbonInterval` — exponential:
+  `min(base * multiplier^(N-2), cap)` seconds via a private `exponentialDelaySeconds()` helper
+  shared with `worstCaseSpan()`; fixed: the constant `fixed_interval_seconds`.
+  `worstCaseSpan(): CarbonInterval` — sums `exponentialDelaySeconds()` for attempts
+  `2..max_attempt_limit`, the exact seam T20 will assert against. Config-sanity guard: a private
+  `positiveConfigInt(string $key): int` helper (mirroring `RetentionPolicy::windowFor()`'s
+  inline guard, extracted here since four keys need it) throws `RuntimeException` naming the
+  offending `config('retry.<key>')` key when the resolved value is not a positive integer, used
+  for exactly the four keys the Description names — `default_attempt_limit`, `max_attempt_limit`,
+  `exponential_base_seconds`, `fixed_interval_seconds` — deliberately excluding
+  `exponential_multiplier`/`exponential_max_delay_seconds` (not named in the guard list; a cap of
+  0 clamps delays to 0 rather than corrupting the "retries eventually stop" invariant the guarded
+  keys protect). Verified the `worstCaseSpan()` arithmetic by hand against the plan's stated
+  figure: `60 + 300 + 1,500 + 7,500 + (21,600 × 5) = 117,360` seconds = exactly **32.6 hours**
+  under the default config (base 60s, multiplier 5, cap 21,600s, `max_attempt_limit` 10).
+  `tests/Unit/Services/RetryPolicyTest.php` (new, 20 tests): `attemptLimitFor` — column-set,
+  column-NULL-uses-default, column-above-cap-clamped, default-above-cap-clamped (4);
+  `strategyFor` — column-set, column-NULL-defaults-to-Exponential (2); `delayBefore` exponential
+  — the full attempt-2-through-10 table against the documented formula, including the
+  cap-kicks-in-at-attempt-6 point (1 table test, 9 assertions); `delayBefore` fixed — constant
+  across the same range (1 test); `worstCaseSpan()` — exact-seconds and
+  `assertEqualsWithDelta(32.6, ..., 0.01)`-hours assertions (1 test); config-sanity guards for
+  all four named keys — zero and negative `Config::set()` cases for each (8 tests), plus
+  `default_attempt_limit`'s blank-env and non-numeric-env reproduction cases via
+  `putenv()`/`require base_path('config/retry.php')`, mirroring `RetentionPolicyTest`'s exact
+  pattern (2 tests); each guard test that names its own key in the Description's list also
+  asserts the exception message contains `config('retry.<key>')`, proving the offending key is
+  named (AC). No anticipated-red left behind — full suite is green. Verified: `composer lint`
+  (Pint, passed), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
+  RetryPolicyTest` (20 passed / 41 assertions), `./vendor/bin/sail test --parallel` full suite
+  (506 total, 506 passed / 1715 assertions — up from T10's 486/486, net +20 new tests, no
+  failures). Opens M3 (retry engine).
 
 ## T12 — `StoredPayloadLookup::dispatchedBytesFor()` (AC13; ADR-013 Decision 3, ADR-015 Decision 1)
 - **Description:** New method on the existing `App\Services\StoredPayloadLookup` (#5):
