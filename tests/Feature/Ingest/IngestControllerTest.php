@@ -182,6 +182,10 @@ class IngestControllerTest extends TestCase
         $this->assertSame($proxy->id, $row->proxy_id);
         $this->assertSame(WebhookEvent::firstOrFail()->id, $row->webhook_event_id);
 
+        // The ordering row's dispatch identity is the capture's ingest id (T6/T7,
+        // ADR-016 Decision 3) — same correlator shared with the captured event.
+        $this->assertSame(WebhookEvent::firstOrFail()->ingest_id, $row->dispatch_uuid);
+
         // The advancer is dispatched; the async pipeline job is not.
         AdvanceProxyFifoQueue::assertPushed(fn ($job, array $params) => $params[0] === $proxy->id);
         ProcessIngestedWebhook::assertNotPushed();

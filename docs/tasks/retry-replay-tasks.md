@@ -378,7 +378,33 @@
   === $ingestId`; all existing ingest/FIFO capture tests remain green unmodified.
 - **Testing:** extend `tests/Feature/Ingest/IngestControllerTest.php` (or the nearest existing
   FIFO-capture test) — a new assertion on the captured row's `dispatch_uuid`.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented exactly as specified — the sole change is
+  `app/Http/Controllers/IngestController.php`'s FIFO-capture `FifoDispatch::create([...])` call
+  gaining `'dispatch_uuid' => $ingestId`, nothing else touched. Extended
+  `tests/Feature/Ingest/IngestControllerTest.php::test_fifo_proxy_commits_a_pending_ordering_row_and_dispatches_the_advancer`
+  (the nearest existing FIFO-capture test, per the Testing note) with the named assertion:
+  `$row->dispatch_uuid === WebhookEvent::firstOrFail()->ingest_id` (the same correlator the
+  capture row and the ordering row now both carry). **T6's documented interim-red set is now
+  closed for 9 of the 10 tests** it named: `QueuedDispatchAcceptanceTest` (3, fifo dataset),
+  `FifoOrderingAcceptanceTest` (3), `IngestControllerTest::test_fifo_proxy_commits_a_pending_ordering_row_and_dispatches_the_advancer`,
+  `ProcessingModeSwitchAcceptanceTest` (2) all pass green again, each having gone through
+  `IngestController`'s FIFO capture path that T7 fixes. **One of the ten does not clear and is
+  explicitly out of T7's stated scope ("`IngestController` ... Nothing else")** —
+  `tests/Feature/Retention/RetentionInFlightHoldsAcceptanceTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
+  still fails with the same MySQL 1364 (`Field 'dispatch_uuid' doesn't have a default value`).
+  Root cause is unrelated to `IngestController`: this pre-existing #5 fault-injection test uses a
+  raw `DB::table('fifo_dispatches')->insert([...])` (bypassing both the model/factory and
+  `IngestController` entirely, via a `DB::listen()` callback that fabricates a race-condition
+  fixture row) to simulate a hold reappearing mid-`PurgeExpiredPayloads` run; that raw insert
+  omits `dispatch_uuid`, which T6's migration made `NOT NULL` with no default. This is T6-caused
+  test debt in a file outside both T6's and T7's Files lists (`tests/Feature/Retention/
+  RetentionInFlightHoldsAcceptanceTest.php` belongs to feature #5), not something either task's
+  stated scope covers — flagging per instruction rather than patching it as an unscoped
+  side-fix. Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0
+  errors), `./vendor/bin/sail test --filter IngestControllerTest` (13 passed / 41 assertions),
+  `./vendor/bin/sail test --parallel` full suite (474 total, 473 passed / 1632 assertions, 1
+  error — the single `RetentionInFlightHoldsAcceptanceTest` case above; net improvement from
+  T6's 464 passed / 9 failures + 1 error).
 
 ---
 
