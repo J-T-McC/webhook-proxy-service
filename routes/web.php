@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
 use App\Http\Controllers\ProxyController;
 use App\Http\Controllers\ProxyEventController;
+use App\Http\Controllers\ProxyEventPayloadController;
 use App\Http\Controllers\ProxyEventReplayController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\ApplyTeamScope;
@@ -29,6 +30,9 @@ Route::prefix('{current_team}')
         Route::get('proxies/{proxy}/events/{event}', [ProxyEventController::class, 'show'])
             ->scopeBindings()
             ->name('proxies.events.show');
+        Route::get('proxies/{proxy}/events/{event}/payload', ProxyEventPayloadController::class)
+            ->scopeBindings()
+            ->name('proxies.events.payload');
         Route::post('proxies/{proxy}/events/{event}/replay', [ProxyEventReplayController::class, 'store'])
             ->scopeBindings()
             ->name('proxies.events.replay');

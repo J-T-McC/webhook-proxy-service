@@ -1692,7 +1692,29 @@
 - **Testing:** `tests/Feature/ProxyEvents/ProxyEventPayloadControllerTest.php` (new) — the
   retained/cleaned/unknown/cross-team cases, the header assertions, the identifiers-only logging
   assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as an invokable controller. Guards directly on
+  `$event->payload_cleaned_at !== null` (the event is already route-bound, a plain read — no
+  `lockForUpdate`, unlike the replay endpoint's write path; this is a read-only 410/200 decision,
+  matching the codebase's existing precedent of checking the column directly rather than always
+  routing through `StoredPayloadLookup`, e.g. `ProxyEventReplayController`). Reads only
+  `$event->body` (the raw capture) — never `dispatched_payloads`, per ADR-017's Impact constraint.
+  **One deviation from the spec's literal `abort(410)` wording:** `abort(410)` renders the app's
+  full HTML error-page body (confirmed by a failing first test run — the "cleaned ⇒ no body
+  content" AC failed against Laravel's default error view), which is itself content this endpoint
+  must never carry; used `response('', 410)` instead — same status code, genuinely empty body,
+  satisfies the AC's letter and spirit. Logs `payload.revealed` with exactly the four documented
+  identifiers, only on the 200 (retained) path — never on 410/404 — verified via `Log::spy()`
+  asserting both the exact context array and that the JSON-encoded context never contains the
+  fixture's secret marker. `{event}` resolves via T23's `Proxy::webhookEvents()` scoped binding,
+  so unknown/cross-proxy/cross-team ids all 404 before the method body runs — no bespoke lookup
+  needed. Route `GET /{team}/proxies/{proxy}/events/{event}/payload` (`proxies.events.payload`)
+  registered as a single-action controller reference (no `[Controller::class, 'method']` array,
+  matching the `__invoke` convention). Verified: 9 new feature tests (retained bytes + all three
+  headers, cleaned 410 empty body, unknown/cross-proxy/cross-team 404, guest redirect, non-member
+  404, identifiers-only logging on reveal, no logging on a cleaned attempt) —
+  `./vendor/bin/sail test --filter ProxyEventPayloadControllerTest` 9/9 passed, 20 assertions.
+  Full suite: **610 passed / 2062 assertions** (up from 601/2042). `composer lint`: clean.
+  `composer types:check`: clean (PHPStan L7).
 
 ---
 
