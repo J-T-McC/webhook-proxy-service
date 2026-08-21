@@ -1617,7 +1617,25 @@
   request is redirected/404s; a cross-team proxy id 404s.
 - **Testing:** `tests/Feature/ProxyEvents/ProxyEventIndexTest.php` (new) — pagination, the three
   payload states, the `fifoHeldByRetry` true/false/Async cases, the auth/scoping cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specced. Eager-loads `deliveries.destination` (`withTrashed`)
+  so `WebhookEventResource` never re-queries per row for the delivery summary (only `payload_state`'s
+  `StoredPayloadLookup` call is per-row, per T25's completion note). `fifoHeldByRetry` is a private
+  helper checking `processing_mode === Fifo` short-circuit before an `awaiting_retry` existence
+  query, so Async proxies never issue it. Page props beyond the two the spec names: added `proxy`
+  (`ProxyResource`) and `events` (the paginated `WebhookEventResource` collection) — necessary for
+  any page to render at all (breadcrumb/heading need the proxy's name; design-06 Screen 2's FIFO
+  note reads `proxy.processing_mode` client-side) and named to match the plan's own frontend file
+  list (`proxies/events/Index.vue`, M9) and `ProxyController@index`'s `proxies` naming convention —
+  a naming/shape decision the plan leaves open, not a new requirement. `proxyPermissions()` is
+  duplicated from `ProxyController` (same fail-closed shape) rather than extracted to a shared
+  helper — T26 alone doesn't justify a new abstraction; revisit if a third controller needs it.
+  Route `GET /{team}/proxies/{proxy}/events` (`proxies.events.index`) added ahead of the existing
+  `.../events/{event}/replay` POST route in `routes/web.php` (no ordering conflict — distinct path
+  shapes). Verified: 9 new feature tests (pagination incl. `last_page`, retained/cleaned payload
+  states, all three `fifoHeldByRetry` cases, guest redirect, non-member 404, cross-team 404) —
+  `./vendor/bin/sail test --filter ProxyEventIndexTest` 9/9 passed, 58 assertions. Full suite:
+  **596 passed / 1999 assertions** (up from 587/1941). `composer lint`: clean. `composer
+  types:check`: clean (PHPStan L7).
 
 ## T27 — `ProxyEventController@show` + `GET .../events/{event}` route (AC12, AC16; ADR-017 Decision 5)
 - **Description:** `ProxyEventController@show`, gated `$this->authorize('view', $proxy)`. Event

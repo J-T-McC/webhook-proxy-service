@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
 use App\Http\Controllers\ProxyController;
+use App\Http\Controllers\ProxyEventController;
 use App\Http\Controllers\ProxyEventReplayController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\ApplyTeamScope;
@@ -22,6 +23,9 @@ Route::prefix('{current_team}')
         Route::delete('proxies/{proxy}/destinations/{destination}', [DestinationController::class, 'destroy'])
             ->scopeBindings()
             ->name('proxies.destinations.destroy');
+        Route::get('proxies/{proxy}/events', [ProxyEventController::class, 'index'])
+            ->scopeBindings()
+            ->name('proxies.events.index');
         Route::post('proxies/{proxy}/events/{event}/replay', [ProxyEventReplayController::class, 'store'])
             ->scopeBindings()
             ->name('proxies.events.replay');
