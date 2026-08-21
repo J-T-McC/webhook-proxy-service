@@ -842,7 +842,85 @@
 - **Testing:** `tests/Feature/Retry/RetryDeliveryTest.php` (new) — the happy-path re-send (both
   payload-resolution cases), the stale-job skip, the cleaned-parent terminalize-and-exhaust case
   (`Http::assertNothingSent()`), the new-attempt-row assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented exactly as specified. `app/Actions/RetryDelivery.php` fills
+  in T13's stub body: `handle(int $deliveryId, int $attemptNumber)` reloads the `Delivery`
+  (`Delivery::query()->find()`) and returns silently unless `status === Retrying` — covers both
+  "delivery not found" and "not retrying" as the same stale/superseded no-op (AC: "a stale job
+  ... sends nothing and creates no new attempt row"). Otherwise loads `$delivery->webhookEvent`
+  and guards `payload_cleaned_at` (ADR-014 Decision 7): cleaned ⇒ `terminalizeCleaned()`, a new
+  private method that CASes the delivery straight to `Failed` (`WHERE status = 'retrying'`,
+  the only status reachable here — never a blind `save()`, matching the binding invariant),
+  clears `next_attempt_at`, emits `DeliveryExhausted` iff the CAS affected a row (T13's
+  once-guard shape reapplied), and logs `payload.expired` with `['ingest_id' => ...]` only. **No
+  `DeliveryAttempt` row is written on this branch** — a deliberate reading, resolved against the
+  Description's "CAS the delivery to failed with an error summary" phrasing: `deliveries` has no
+  `error_summary` column (verified against the T3 migration), and PRD-06 AC17 states literally
+  "a cleaned event produces zero new delivery attempts except by rejecting the request cleanly"
+  — so `terminalizeCleaned()` never touches `delivery_attempts` at all; "error summary" in the
+  Description is descriptive framing for the `Log::info('payload.expired', ...)` call, not a
+  literal field write (no data-model change, none authorized for this task). Otherwise (not
+  cleaned): resolves the resend bytes via `StoredPayloadLookup::dispatchedBytesFor($event)`
+  (T12), loads the destination `$delivery->destination()->withTrashed()->firstOrFail()` (ruling
+  2 — a destination trashed mid-schedule still receives its retries), rebuilds a `DeliveryUnit`
+  (headers straight from `$event->headers`, matching `ProcessIngestedWebhook`'s identical
+  pre-existing pass-through to `PipelineContext`; method from the destination; this delivery's
+  id; the given `$attemptNumber` — never re-derived), and runs `DeliverToDestination::run($unit)`
+  — T13's settle/schedule CAS logic applies identically to attempt 1, so a further failure
+  correctly re-schedules or terminalizes and a success CASes to `Succeeded`. `StoredPayloadLookup`
+  is constructor-injected (`private readonly StoredPayloadLookup $payloads`) — proven
+  container-resolvable both via a direct `app(RetryDelivery::class)->handle(...)` call (tests)
+  and via the real queued dispatch path (`JobDecorator`'s `app($action)`, the same parity T13
+  already established for `DeliverToDestination`'s `RetryPolicy` injection). `RetryDelivery`
+  carries only `AsJob` (per the Description, not `AsAction`) — it therefore has **no `::run()`
+  static helper** (traced in `vendor/lorisleiva/laravel-actions/src/Concerns/AsJob.php`: `AsJob`
+  provides `dispatch`/`dispatchSync`/`assertPushed`/etc. but not `AsObject`'s `run`/`make`), so
+  `tests/Feature/Retry/RetryDeliveryTest.php` invokes the job body directly via
+  `app(RetryDelivery::class)->handle($deliveryId, $attemptNumber)` — the same container-resolved
+  seam, just without the `AsObject` convenience wrapper. Five tests, matching the Testing
+  section's four named cases (happy path split into its two payload-resolution sub-cases): (1)
+  raw-capture resend when nothing diverged; (2) recorded-dispatched-output resend when it
+  diverged (a `DispatchedPayload` row with a non-NULL `body`); (3) the stale-job skip (delivery
+  forced to `Succeeded` before invocation — `Http::assertNothingSent()`, zero attempt rows); (4)
+  the cleaned-parent case (`Http::assertNothingSent()`, zero attempt rows, `Failed` +
+  `next_attempt_at` NULL, `DeliveryExhausted` exactly once carrying the right delivery,
+  `Log::spy()` asserting the exact `payload.expired`/`ingest_id`-only call); (5) a successful
+  retry (attempt 3, with a pre-existing attempt-1 row already on the delivery) writes exactly one
+  new `DeliveryAttempt` row carrying `delivery_id` and `attempt_number = 3` — proving the number
+  is carried through, never re-derived. **Anticipated red, predicted and resolved in this task
+  (not deviation) — T13's own completion notes named exactly this seam:** filling in
+  `RetryDelivery::handle()` makes `RetryDelivery::dispatch(...)->delay(...)->onQueue(...)` a
+  REAL retry for the first time; under `QUEUE_CONNECTION=sync` (phpunit.xml) that dispatch drains
+  synchronously in-process (`SyncQueue::later()` ignores the delay) the instant it's called, so
+  any PRE-EXISTING test that drives a genuinely-failing destination WITHOUT `Queue::fake()` now
+  sees a real cascade through the system-default attempt limit (5, `config/retry.php`) instead of
+  stopping at attempt 1. Audited every such test (grepped every un-faked `Http::fake()` failure
+  fixture across the suite) and fixed each on its own terms — two were pure test-isolation cases
+  (the assertion's actual subject is unrelated to retry cascading) fixed by adding `Queue::fake()`
+  to suppress the now-real scheduled retry without disturbing the attempt-1-runs-inline behaviour
+  each already exercises directly (`DeliverToDestinationTest::test_redelivery_after_failure_is_a_no_op`,
+  `DeliverStepTest::test_fifo_one_destination_failing_does_not_abort_the_loop` in
+  `tests/Unit/Actions`); four could NOT be queue-faked without defeating their own stated purpose
+  (each deliberately proves the un-faked sync-drain behaviour end-to-end — faking the queue would
+  zero out their attempt counts entirely, not just suppress the retry), so their count assertions
+  were updated to the real, now-correct cascade totals, each with an inline comment naming T14 and
+  the system-default limit: `QueuedDispatchAcceptanceTest::test_response_is_independent_of_a_failing_destination`
+  (both `async`/`fifo` datasets, 1 → 5 attempts), `AsyncDispatchAcceptanceTest::
+  test_one_destination_failing_does_not_prevent_the_others_succeeding` (1 → 5 failed attempts /
+  events, succeeded count unchanged at 2), `DeliverStepTest::test_one_failing_destination_does_not_prevent_the_others`
+  in `tests/Unit/Pipeline` (2 → 6, Async-default proxy so attempt 1 itself is a real un-faked
+  dispatch), `IngestFanOutTest::test_one_destination_failing_does_not_prevent_others_and_still_returns_202`
+  (2 → 6). No production code changed by this audit — every fix lives in the test files, matching
+  T13's own "one pre-existing test updated, not new anticipated red" precedent, scaled to six
+  test methods (seven failing test RUNS — `QueuedDispatchAcceptanceTest`'s one method runs twice,
+  once per `#[DataProvider('modes')]` case) because this task is precisely the one T13 named as
+  filling in the real cascade. Verified: `composer lint` (Pint, passed, no changes),
+  `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
+  RetryDeliveryTest` (5 passed / 16 assertions), `./vendor/bin/sail test --parallel` full suite
+  (519 total, 519 passed / 1756 assertions — up from T13's 514/514/1740: +5 new tests in the new
+  `RetryDeliveryTest` file, the remaining +0 test-count delta from the six pre-existing methods
+  fixed in place, and the assertion-count growth reflects both the new tests and the updated
+  cascade totals in the six audited methods; no failures). T15 (`SweepDueRetries` + schedule
+  entry) is next.
 
 ## T15 — `SweepDueRetries` action + schedule entry (AC1, AC7; ADR-015 Decision 5)
 - **Description:** `App\Actions\SweepDueRetries` (new, `AsAction`, scheduled every minute beside

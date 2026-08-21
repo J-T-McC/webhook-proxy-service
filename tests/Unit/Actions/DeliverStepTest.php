@@ -123,6 +123,12 @@ class DeliverStepTest extends TestCase
 
     public function test_fifo_one_destination_failing_does_not_abort_the_loop(): void
     {
+        // T14: attempt 1 still runs inline (FIFO), but a failure now schedules a
+        // real `RetryDelivery` (T13). Fake the queue so only attempt 1 per
+        // destination is exercised here — this test is about the loop not
+        // aborting, not about retry cascading (covered by RetryDeliveryTest).
+        Queue::fake();
+
         // First destination throws (connection error), the other two still deliver.
         Http::fake(function ($request) {
             if (str_contains($request->url(), 'boom')) {

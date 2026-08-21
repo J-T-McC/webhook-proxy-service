@@ -130,7 +130,12 @@ class DeliverStepTest extends TestCase
         DeliverStep::make()->handle($this->context($proxy), fn (PipelineContext $c) => $c);
 
         // Both destinations still got an attempt; the healthy one still delivered.
-        $this->assertSame(2, DeliveryAttempt::count());
+        // T14: the proxy defaults to Async, so attempt 1 is itself a real (un-faked)
+        // dispatch that drains inline under sync — a real failure's scheduled
+        // `RetryDelivery` drains the same way, cascading through the
+        // system-default attempt limit (5, config/retry.php): 5 for the failing
+        // destination + 1 for the healthy one.
+        $this->assertSame(6, DeliveryAttempt::count());
         Http::assertSent(fn ($request) => $request->url() === 'https://ok.example.test/hook');
     }
 }

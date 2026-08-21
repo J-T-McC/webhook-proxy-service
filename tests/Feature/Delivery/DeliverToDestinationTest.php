@@ -159,6 +159,11 @@ class DeliverToDestinationTest extends TestCase
 
     public function test_redelivery_after_failure_is_a_no_op(): void
     {
+        // T14: a failure now schedules a real `RetryDelivery`. Fake the queue so
+        // only attempt 1's own redelivery idempotency is exercised here — retry
+        // cascading is covered by RetryDeliveryTest/DeliverToDestinationTest's
+        // settle-CAS tests below.
+        Queue::fake();
         Event::fake();
         Http::fake(['*' => Http::response('nope', 500)]);
 

@@ -91,3 +91,19 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   `Queue::fake()` and assert step-by-step (one `::run()` call settles/claims one row — the
   self-dispatch is captured, not recursed; see the existing note above on testing a
   self-dispatching queue action).
+- **`QUEUE_CONNECTION=sync` (phpunit.xml) means ANY un-faked dispatch — including a
+  `->delay(...)`'d one — runs `handle()` synchronously in-process the moment `dispatch()` is
+  called** (`SyncQueue::later()` just calls `push()`, ignoring the delay; the delay is a
+  no-op under `sync`). Before adding a new delayed dispatch inside an existing action (e.g. a
+  retry-scheduling call inside `DeliverToDestination::send()`), audit every pre-existing test
+  that exercises the triggering branch WITHOUT `Queue::fake()` — they will now really execute
+  the dispatched job's `handle()`. If the dispatched class doesn't fully exist yet (a forward
+  reference to a not-yet-implemented sibling task), give it a genuinely empty no-op `handle()`
+  rather than a "not implemented" throw, so those pre-existing tests stay green until the real
+  task lands.
+- **Inspecting a `->delay()` value set on a Lorisleiva-Actions job under `Queue::fake()`:**
+  the `assertPushed` callback's 3rd arg is the `Lorisleiva\Actions\Decorators\JobDecorator`
+  instance; `PendingDispatch::delay()` sets `$job->delay` on it directly (public property,
+  `Illuminate\Bus\Queueable` trait) — read `$job->delay` (a `CarbonInterval`/`DateInterval`) to
+  assert the scheduled delay, e.g. `fn ($action, $params, JobDecorator $job, $queue) => (int)
+  $job->delay->totalSeconds === $expected`.
