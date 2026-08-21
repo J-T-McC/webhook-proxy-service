@@ -1184,7 +1184,45 @@
 - **Testing:** extend `tests/Unit/Actions/SweepStalledFifoDispatchesTest.php` — the nudge-
   exclusion case, the stuck-hold-release case, the non-terminal-untouched case, a regression
   assertion that pass (a) is unchanged.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — no more; M4 (FIFO composition) now complete.
+  `app/Actions/SweepStalledFifoDispatches.php`: **(b)** the idle-nudge's `whereNotIn('proxy_id',
+  ...)` subquery predicate widened from "a live `claimed` lease" alone to "a live `claimed` lease
+  OR any `awaiting_retry` row" (same `where(...)->orWhere(...)` shape T16 used for the advancer's
+  own busy gate — kept structurally identical across both call sites for the same concept).
+  **(c)** new pass, appended after (b): selects every `awaiting_retry` row whose `dispatch_uuid`
+  has no `deliveries` row left in `('pending', 'retrying')` (`whereNotIn('dispatch_uuid', ...)`
+  against the `deliveries` table by raw table name, matching this file's existing convention of
+  raw `.from('fifo_dispatches')` subqueries rather than a model builder for the "existence" side of
+  a `whereNotIn`), then CASes each individually (`whereKey($id)->where('status', AwaitingRetry)
+  ->update([...])`, one query per row so each is its own independent CAS rather than a single bulk
+  `UPDATE ... WHERE IN (...)` — deliberate: a bulk update can't distinguish "this row raced and
+  already settled" per-row the way the individual-CAS-then-check-affected-count pattern T16/T17
+  both already use can, and the row set here is expected to be small (a crash window, not a steady
+  state)) and dispatches `AdvanceProxyFifoQueue::dispatch($proxyId)` only when its own CAS affected
+  a row (the same once-guard shape as T17's `settleFifoLineIfComplete`). Class docblock's pass list
+  extended with the `(c)` description and an ADR-016 Decision 4 pointer; `App\Enums\DeliveryStatus`
+  import added (the unused `App\Models\Delivery` import from an earlier draft was NOT added —
+  raw table names throughout, per the note above).
+  `tests/Unit/Actions/SweepStalledFifoDispatchesTest.php`: two new helpers —
+  `heldDispatch(Proxy, string $dispatchUuid): FifoDispatch` (an `awaiting_retry` ordering row) and
+  `deliveryFor(Proxy, string $dispatchUuid, DeliveryStatus): Delivery` (a fresh destination +
+  delivery row under that dispatch). Four new tests, one per Testing-note case:
+  `test_excludes_a_proxy_with_a_live_awaiting_retry_row_from_the_idle_nudge` (held row plus
+  a genuinely pending row on the same proxy — no nudge, the AC's "even if it also has pending rows"
+  wording verbatim); `test_releases_a_stuck_hold_whose_dispatch_has_gone_fully_terminal` (both
+  deliveries terminal, fifo row never transitioned — settled + nudged);
+  `test_leaves_an_awaiting_retry_row_with_a_non_terminal_delivery_untouched_by_both_passes` (one
+  `retrying` delivery — untouched by (a) [no lease] or (c) [not fully terminal], no nudge);
+  `test_the_orphaned_claim_reaper_is_unaffected_by_the_new_passes` (an orphaned `claimed` row on
+  one proxy alongside a held row on a SECOND, unrelated proxy in the same sweep call — the reaper
+  still reaps and nudges the first, the held row's proxy gets no nudge — the regression case,
+  proving (a)/(b)/(c) coexist correctly in one pass rather than just re-running T16-era tests
+  unmodified).
+  **Verified (T18 scope, full M4):** `./vendor/bin/sail test --filter
+  "SweepStalledFifoDispatchesTest"` — 9 passed / 25 assertions; full suite `./vendor/bin/sail test
+  --parallel` — 536/536 (0 failures; 524 pre-#16 baseline + 4 T16 tests + 4 T17 tests + 4 T18
+  tests); `composer lint` (Pint, passed);
+  `composer types:check` (PHPStan L7, 0 errors). No anticipated red left behind by T18.
 
 ---
 
