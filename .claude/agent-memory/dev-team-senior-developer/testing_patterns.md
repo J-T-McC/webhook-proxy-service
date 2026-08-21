@@ -129,3 +129,37 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   `Illuminate\Bus\Queueable` trait) — read `$job->delay` (a `CarbonInterval`/`DateInterval`) to
   assert the scheduled delay, e.g. `fn ($action, $params, JobDecorator $job, $queue) => (int)
   $job->delay->totalSeconds === $expected`.
+- **`DB::transactionLevel()` is 1, not 0, for the entire body of every test in this suite** —
+  `FasterRefreshDatabase` (wraps `RefreshDatabase`) opens one outer transaction per test via
+  `beginDatabaseTransaction()` before the test body runs, and that transaction stays open (never
+  committed, only rolled back in teardown) the whole time. A test asserting "no transaction is
+  held at point X" must capture the ambient level first (`$ambient = DB::transactionLevel();`
+  before the action under test runs) and assert equality against that captured value, never a
+  literal `0` — a hardcoded-`0` assertion silently never proves what it claims (see next bullet
+  for why it can go undetected for a long time).
+- **A failed PHPUnit assertion INSIDE application code the test doesn't control (e.g. inside an
+  `Http::fake()` closure that runs deep inside the action under test) is just a thrown
+  `PHPUnit\Framework\ExpectationFailedException` to that code** — if the action has its own
+  `catch (Throwable $e)` around the call site (e.g. `DeliverToDestination::send()`'s HTTP-call
+  try/catch, there to catch real transport errors), it silently swallows the assertion failure
+  and treats it as an ordinary application-level failure, and the test can go on to pass on
+  unrelated downstream assertions. The assertion still counts toward PHPUnit's assertion total
+  (visible as a suspiciously-low count, e.g. 2 asserts executed out of 3 written) but the test
+  goes green. Symptom to watch for: a test with N `assertSame` calls reports fewer than N
+  assertions in the JSON summary while still "passing" — that's the tell this happened. Found via
+  the (now-fixed) hardcoded-`0` transaction-level bug above: it had silently asserted `1 === 0`
+  and failed for an unknown span of time before a real downstream behavioural change (T16 of
+  feature #6 making a FIFO row's fate depend on the delivery's real outcome, not settling
+  unconditionally) turned the swallowed failure into a visible one.
+- **Simulating a real queue worker executing faked, queued Lorisleiva-Actions jobs in place**
+  (needed when a test fakes the queue to assert dispatch, but a LATER assertion in the same test
+  depends on that job's side effects having actually run — e.g. a FIFO row that only settles once
+  its async-dispatched delivery completes): `Queue::pushed(\Lorisleiva\Actions\ActionManager::
+  $jobDecorator, function (\Lorisleiva\Actions\Decorators\JobDecorator $job) { if
+  ($job->decorates(TargetAction::class)) { TargetAction::run(...$job->getParameters()); } return
+  true; })` — runs every currently-pushed job of that action synchronously. Idempotent to
+  re-invoke if the target action's own idempotency guard covers redelivery (e.g.
+  `DeliverToDestination`'s existing-attempt resume-or-skip), so it's safe to call after each of
+  several `Queue::fake()`'d dispatch points in a multi-step test rather than tracking which jobs
+  are "new". Used to fix `ProcessingModeSwitchAcceptanceTest` after feature #6 T16 made a
+  pre-switch FIFO row's settlement depend on its now-async-dispatched delivery actually running.

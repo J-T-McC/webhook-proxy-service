@@ -1249,7 +1249,33 @@
 - **Testing:** extend `tests/Unit/Actions/PurgeExpiredPayloadsTest.php` — the retrying-holds,
   young-pending-holds, old-pending-does-not-hold, terminal-does-not-hold cases; the
   compare-and-set race case (reusing #5's `DB::listen()`-based reappeared-hold technique).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — `PurgeExpiredPayloads::applyHolds()` gained
+  H5 as a fifth `whereNotExists` clause chained after H4, structurally identical in shape to
+  H2/H3/H4: `NOT EXISTS (deliveries WHERE webhook_event_id = webhook_events.id AND (status =
+  'retrying' OR (status = 'pending' AND created_at > $horizon)))`, using the already-computed
+  `$horizon` (`now() - dispatch_horizon_minutes`, the same value H4 uses) so no new config read
+  or parameter was introduced. `DeliveryStatus` imported for the two status-value comparisons.
+  Because `applyHolds()` is shared verbatim between the selection query and the erase `UPDATE`'s
+  own `WHERE` (unchanged), H5 is re-asserted automatically inside the compare-and-set with no
+  further code, exactly as the plan states. Class docblock's holds list extended to name H5 and
+  its rationale, and the "read-only tables" sentence extended to include `deliveries`.
+  `tests/Unit/Actions/PurgeExpiredPayloadsTest.php` extended (5 new tests, `Delivery`/
+  `DeliveryStatus`/`DispatchKind`/`Destination`/`Str` imports added, plus a shared `isCleaned()`
+  helper mirroring the one already used in #5's `RetentionInFlightHoldsAcceptanceTest`):
+  a `retrying` delivery holds regardless of age; a `pending` delivery younger than the default
+  60-minute horizon holds; a `pending` delivery older than the horizon does not hold; two
+  terminal deliveries (`succeeded` and `failed`) on the same event hold nothing, including the
+  `failed` one (AC18's explicit "including a `failed` one" case); the compare-and-set race case,
+  reusing #5's `DB::listen()`-based reappeared-hold technique verbatim (a `deliveries` row
+  flipping to `retrying` is inserted via `DB::table('deliveries')->insert()` immediately after
+  the selection `SELECT id FROM webhook_events` fires but before the erase `UPDATE` runs; the
+  fixture destination is pre-created outside the listener to avoid the create-inside-listener
+  query noise the #5 pattern doesn't need to worry about since H5's fixture, unlike H2's, needs a
+  real `destination_id` FK row). No production code outside `PurgeExpiredPayloads.php` was
+  touched. Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0
+  errors), `./vendor/bin/sail test --filter PurgeExpiredPayloadsTest` (18 passed / 28 assertions),
+  `./vendor/bin/sail test --parallel` full suite (541 passed / 1819 assertions — up from the
+  session's 536 baseline, net +5: 5 new H5 tests, no removals).
 
 ## T20 — AC18 guard test: `RetryPolicy::worstCaseSpan()` bounded well inside the retention window (AC2, AC18; ADR-015 Decision 4)
 - **Description:** A dedicated guard test (no new production code expected — a wiring/assertion
