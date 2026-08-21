@@ -1022,7 +1022,73 @@
   case, the hold-when-non-terminal case; update `tests/Feature/Ingest/FifoOrderingAcceptanceTest.php`
   and `FifoLivenessAcceptanceTest.php` fixtures/assertions for the order-key change (enumerated
   here per plan Implementation Notes — deliberate, not incidental breakage).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — no more (T17's retry-side completion check and
+  T18's sweeper extensions land next). `app/Actions/AdvanceProxyFifoQueue.php`: **(a)**
+  `claimNext()`'s busy check widened from a single live-claim lookup to `where(status=claimed AND
+  lease_expires_at > now()) OR status=awaiting_retry`, still under the same `lockForUpdate()`
+  inside the one short claim transaction — an `awaiting_retry` row has no lease so no lease
+  predicate is needed for it, exactly as the Description states. **(b)** the lowest-pending scan's
+  `orderBy('webhook_event_id')` → `orderBy('id')`, the only line changed in the scan. **(c)** a new
+  private `settleOrHold()` replaces the old unconditional `$claimed->update([status=>Settled,
+  ...])`: queries `Delivery::where('dispatch_uuid', $claimed->dispatch_uuid)->whereNotIn('status',
+  $terminalStatuses)->exists()` (terminal statuses computed from `DeliveryStatus::cases()` filtered
+  by `isTerminal()`, per the Description's explicit citation) — zero non-terminal ⇒ settle +
+  `settled_at` + self-dispatch (byte-for-byte the old behaviour, now conditional); otherwise a CAS
+  `whereKey($claimed->id)->where('status', Claimed)->update([status=>AwaitingRetry, claimed_at=>
+  null, lease_expires_at=>null])`, no self-dispatch. `ProcessIngestedWebhook::run()` call site
+  updated to pass `$claimed->dispatch_uuid` as the second arg (previously omitted, defaulting to
+  the ingest id — now explicit, matching the Description's call signature and correctly driving a
+  replay row's own dispatch identity once #6's replay endpoint lands, T21+).
+  `tests/Unit/Actions/AdvanceProxyFifoQueueTest.php`: renamed
+  `test_settles_pending_rows_one_at_a_time_in_webhook_event_id_order` →
+  `..._in_id_order` (behaviour identical — capture-created rows are order-identical under both
+  keys — renamed for accuracy only); four new tests added per the Testing note —
+  `test_claims_the_lowest_id_not_the_lowest_webhook_event_id` (the id-vs-webhook_event_id
+  divergence case: a replay row with a low `webhook_event_id` but the highest `id` is proven NOT
+  claimed ahead of a genuinely-older pending row), `test_settles_and_advances_when_every_
+  destination_settles_immediately` (2-destination all-succeed case, explicit beyond the existing
+  1-destination coverage), `test_holds_the_line_when_a_delivery_is_left_non_terminal` (a failed-
+  below-limit attempt leaves the row `awaiting_retry`, no lease, no self-dispatch), and
+  `test_a_held_awaiting_retry_row_blocks_the_next_claim` (the busy-gate-includes-awaiting_retry
+  case, no live lease needed to trip it). `tests/Feature/Ingest/FifoOrderingAcceptanceTest.php` and
+  `FifoLivenessAcceptanceTest.php`: class docblocks only — both note the order-key change and why
+  their existing fixtures/assertions needed no behavioural edit (every row is capture-created, so
+  `id` and `webhook_event_id` order are provably identical there; the divergence case lives at the
+  unit level per the Testing note's split).
+  **Pre-existing test defect found and fixed (unrelated to T16's own logic, exposed by it):**
+  `AdvanceProxyFifoQueueTest::test_the_claim_commits_before_the_outbound_delivery_fires` asserted
+  `assertSame(0, DB::transactionLevel())` inside the `Http::fake()` closure — but this project's
+  `FasterRefreshDatabase` wraps every test in its own outer transaction (`beginDatabaseTransaction()`),
+  so the ambient level here has always been 1, never 0. Pre-#6 this assertion's failure was silently
+  swallowed by `DeliverToDestination::send()`'s own `catch (Throwable $e)` (the thrown
+  `ExpectationFailedException` was caught as a generic delivery failure, marking the attempt
+  `Failed` and scheduling a retry) — invisible because the old unconditional settle-to-`Settled`
+  didn't care what the delivery's actual outcome was. T16's real settle-or-hold decision now reads
+  the delivery's actual status, so the swallowed failure surfaced as the row landing on
+  `AwaitingRetry` instead of `Settled` — a true positive catching a latent, previously-inert test
+  bug, not a regression. Fixed to capture the ambient level before the run (`$ambientTransactionLevel
+  = DB::transactionLevel()`) and assert the closure's level equals that ambient value instead of a
+  hardcoded 0 — preserves the original intent ("the claim transaction is closed by the time of the
+  outbound send") correctly regardless of what the test harness's own wrapping level is. Verified
+  the closure's assertions now actually execute (assertion count 2 → 3) and the response really is
+  a success (delivery genuinely settles to `Succeeded`, not silently to `Failed`-then-retried).
+  **Anticipated interim red, not fixed in this commit (T17's scope):**
+  `ProcessingModeSwitchAcceptanceTest::test_pre_switch_fifo_events_still_drain_in_order_after_switching_to_async`
+  goes red under T16 alone — a pre-switch FIFO row claimed after the proxy has switched to Async
+  now correctly holds (`awaiting_retry`) rather than settling unconditionally, because its
+  deliveries are dispatched (queued), not run inline, so the post-run check sees them still
+  `pending`; under this test's `Queue::fake()` nothing then executes those deliveries to close the
+  hold. This is structural, not a bug: T17 is the retry-side completion check that closes exactly
+  this window (a delivery settling later triggers the `awaiting_retry → settled` CAS the advancer
+  itself can no longer make synchronously once delivery is async). Confirmed via isolation (T17/T18
+  changes stashed, T16 alone): 527/528 total, the one failure being this test, `composer lint`
+  clean, `composer types:check` 0 errors — matches the task's "name the tests and why" allowance.
+  Fixed in T17's commit (adds a `runPushedDeliveries()` test helper that executes the faked,
+  queued `DeliverToDestination` jobs in place, standing in for a real queue worker — see T17 notes).
+  **Verified (T16 scope, isolated per above):** `./vendor/bin/sail test --filter
+  "AdvanceProxyFifoQueueTest|FifoOrderingAcceptanceTest|FifoLivenessAcceptanceTest"` — 12 passed / 60
+  assertions; full suite `./vendor/bin/sail test --parallel` — 527/528 (1 anticipated red, above);
+  `composer lint` (Pint, passed); `composer types:check` (PHPStan L7, 0 errors).
 
 ## T17 — `DeliverToDestination`: FIFO `awaiting_retry → settled` completion check (AC6; ADR-016 Decision 1)
 - **Description:** Extend T13's post-CAS settle transition: after a delivery reaches a terminal

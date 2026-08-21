@@ -16,6 +16,13 @@ use Tests\TestCase;
  * End-to-end proof that a FIFO proxy settles events in receive order and never
  * blocks or is blocked by another proxy (T15, AC6/AC7), complementing the
  * AdvanceProxyFifoQueue unit-level advancer test.
+ *
+ * The advancer's pending scan orders by the ordering row's own `id`, not
+ * `webhook_event_id` (T16, ADR-016 Decision 3) — provably order-identical for
+ * every capture-created row here, since each row commits in the same
+ * transaction as its event, per proxy, in arrival order. The id-vs-
+ * webhook_event_id divergence case (a replay row) is covered at the unit
+ * level in `AdvanceProxyFifoQueueTest`.
  */
 class FifoOrderingAcceptanceTest extends TestCase
 {

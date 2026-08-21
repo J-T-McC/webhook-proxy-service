@@ -2,21 +2,28 @@
 
 namespace App\Actions;
 
+use App\Enums\DeliveryStatus;
 use App\Enums\FifoDispatchStatus;
+use App\Models\Delivery;
 use App\Models\FifoDispatch;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 /**
- * The FIFO single-advancer for one proxy (ADR-011 Decision 2, ADR-005 (a)).
+ * The FIFO single-advancer for one proxy (ADR-011 Decision 2, ADR-005 (a);
+ * ADR-016 Decisions 1/3).
  *
  * Guarantees at most one in-flight event per proxy via an atomic `FOR UPDATE`
  * claim (the FIFO correctness primitive): inside a short transaction it checks for a
- * live claim, scans the lowest-pending row, and flips it to `claimed` under a row
- * lock. The outbound delivery runs OUTSIDE that transaction — the row lock is never
- * held across a network send. After settling the claimed event it self-dispatches to
- * advance to the next pending row.
+ * live claim OR a held (`awaiting_retry`) row, scans the lowest-`id` pending row, and
+ * flips it to `claimed` under a row lock. The outbound delivery runs OUTSIDE that
+ * transaction — the row lock is never held across a network send. After the claimed
+ * dispatch's run completes it settles the row only when every one of the dispatch's
+ * `deliveries` has reached a terminal state; otherwise it holds the line
+ * (`claimed → awaiting_retry`, no lease) for the dispatch's in-progress retry
+ * schedule (ADR-015) and does not self-dispatch — a `RetryDelivery` execution or the
+ * sweeper's stuck-hold pass settles it and nudges the advancer instead.
  *
  * `WithoutOverlapping` job middleware is a thundering-herd reducer only — NOT the
  * ordering/dedupe guard (that is the atomic claim). Under real (async) workers a
@@ -32,48 +39,52 @@ class AdvanceProxyFifoQueue
         $claimed = $this->claimNext($proxyId);
 
         if ($claimed === null) {
-            // No pending row, or another advancer already holds a live claim.
+            // No pending row, or another advancer already holds a live claim, or the
+            // line is held by an awaiting_retry row.
             return;
         }
 
         // OUTSIDE the claim transaction (ADR-005 (a)): never hold the row lock across
         // the outbound HTTP send. The proxy is FIFO, so DeliverStep runs delivery
-        // inline and this returns only once the whole event has been delivered.
-        ProcessIngestedWebhook::run($claimed->webhookEvent->ingest_id);
+        // inline and this returns only once the whole event has been delivered
+        // (attempt 1 of every destination's delivery).
+        ProcessIngestedWebhook::run($claimed->webhookEvent->ingest_id, $claimed->dispatch_uuid);
 
-        $claimed->update([
-            'status' => FifoDispatchStatus::Settled,
-            'settled_at' => now(),
-        ]);
-
-        // Advance to the next pending row for this proxy.
-        static::dispatch($proxyId);
+        $this->settleOrHold($claimed, $proxyId);
     }
 
     /**
-     * Atomically claim the lowest pending row for the proxy, or return null when a
-     * live claim already exists or nothing is pending. The live-claim check, the
-     * lowest-pending scan, and the status flip all run under `lockForUpdate` inside
-     * one short transaction (ADR-011 / ADR-005 (a)).
+     * Atomically claim the lowest-`id` pending row for the proxy, or return null
+     * when a live claim or a held (`awaiting_retry`) row already exists, or nothing
+     * is pending. The busy check, the lowest-pending scan, and the status flip all
+     * run under `lockForUpdate` inside one short transaction (ADR-011 / ADR-005 (a);
+     * ADR-016 Decision 1's widened busy-gate).
      */
     private function claimNext(int $proxyId): ?FifoDispatch
     {
         return DB::transaction(function () use ($proxyId): ?FifoDispatch {
-            $liveClaim = FifoDispatch::query()
+            $busy = FifoDispatch::query()
                 ->where('proxy_id', $proxyId)
-                ->where('status', FifoDispatchStatus::Claimed)
-                ->where('lease_expires_at', '>', now())
+                ->where(function ($query): void {
+                    $query
+                        ->where(function ($liveClaim): void {
+                            $liveClaim
+                                ->where('status', FifoDispatchStatus::Claimed)
+                                ->where('lease_expires_at', '>', now());
+                        })
+                        ->orWhere('status', FifoDispatchStatus::AwaitingRetry);
+                })
                 ->lockForUpdate()
                 ->first();
 
-            if ($liveClaim !== null) {
+            if ($busy !== null) {
                 return null;
             }
 
             $next = FifoDispatch::query()
                 ->where('proxy_id', $proxyId)
                 ->where('status', FifoDispatchStatus::Pending)
-                ->orderBy('webhook_event_id')
+                ->orderBy('id')
                 ->lockForUpdate()
                 ->first();
 
@@ -89,6 +100,54 @@ class AdvanceProxyFifoQueue
 
             return $next;
         });
+    }
+
+    /**
+     * The post-run completion decision (ADR-016 Decision 1): settle the row and
+     * advance the line when the dispatch has no non-terminal deliveries left;
+     * otherwise hold the line (`claimed → awaiting_retry`, no lease, no
+     * self-dispatch) for the dispatch's in-progress retry schedule.
+     */
+    private function settleOrHold(FifoDispatch $claimed, int $proxyId): void
+    {
+        $hasNonTerminalDeliveries = Delivery::query()
+            ->where('dispatch_uuid', $claimed->dispatch_uuid)
+            ->whereNotIn('status', $this->terminalStatuses())
+            ->exists();
+
+        if (! $hasNonTerminalDeliveries) {
+            $claimed->update([
+                'status' => FifoDispatchStatus::Settled,
+                'settled_at' => now(),
+            ]);
+
+            // Advance to the next pending row for this proxy.
+            static::dispatch($proxyId);
+
+            return;
+        }
+
+        FifoDispatch::query()
+            ->whereKey($claimed->id)
+            ->where('status', FifoDispatchStatus::Claimed)
+            ->update([
+                'status' => FifoDispatchStatus::AwaitingRetry,
+                'claimed_at' => null,
+                'lease_expires_at' => null,
+            ]);
+    }
+
+    /**
+     * The `DeliveryStatus` cases considered terminal, per {@see DeliveryStatus::isTerminal()}.
+     *
+     * @return array<int, DeliveryStatus>
+     */
+    private function terminalStatuses(): array
+    {
+        return array_values(array_filter(
+            DeliveryStatus::cases(),
+            fn (DeliveryStatus $status): bool => $status->isTerminal(),
+        ));
     }
 
     /**
