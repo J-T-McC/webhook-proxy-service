@@ -1899,7 +1899,51 @@ session per the assigning task's instructions.
   section disappears, submit → values NULL server-side) in the Senior Developer's completion
   notes, mirroring the walking-skeleton T27 precedent. Backend persistence/clearing is already
   proven by T30's PHPUnit coverage.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specced. `ProxyForm.vue`: new "Retry policy" `fieldset`
+  between **Processing** and **Response**, `v-if="isEnhanced"` (a computed off `form.mode`) —
+  absent entirely (no fields, no placeholder) in Simple mode. **Attempts**
+  (`Input type="number" min="1" max="10"`, bound to a string form field mirroring
+  `response_status`'s string-field idiom, blank = default) and **Backoff strategy** (`Select`,
+  `RETRY_STRATEGY_DEFAULT` sentinel + `PROXY_RETRY_BACKOFF_STRATEGIES` options from T31's const,
+  via a `retryStrategySelect` computed get/set mirroring `statusSelect`'s sentinel↔`''` mapping
+  exactly). A `watch(isEnhanced, ...)` clears both fields to their default-sentinel state
+  (`''`) the instant it flips to `false` — a data operation, not a CSS toggle (Flow F step 4);
+  `watch` without `immediate: true` never fires on mount, so an Edit page loading an
+  already-Enhanced proxy with saved values is untouched. `submit()`'s `form.transform` gained the
+  matching blank/sentinel → `null` normalisation for both fields, mirroring `response_status`'s.
+  The `mode` field's help text replaced verbatim within the PM copy constraint: "Enhanced mode
+  enables per-proxy retry configuration below. Automatic retry itself applies to every proxy
+  regardless of Mode." — no roadmap numbers (`#5`/`#8`), no mapping-exists implication.
+
+  **Files beyond T32's stated list, necessary and flagged (not silently done):** T32's Files list
+  names only `ProxyForm.vue`, but `initial.retryAttemptLimit`/`initial.retryBackoffStrategy` are
+  new **required** fields on `ProxyForm`'s own `initial` prop shape (present with the proxy's
+  saved values on edit, per T32's own Acceptance Criteria) — `Create.vue` and `Edit.vue` are the
+  only two callers that construct that object literal, so both needed the two new keys threaded
+  through or the AC could not be met at all (Create: `null`/`null`; Edit: `props.proxy.retry_attempt_limit`/
+  `props.proxy.retry_backoff_strategy`, both already present on `ProxyResource`/`EditProxy` since
+  T30). `Edit.vue`'s local `EditProxy` interface gained the two matching fields
+  (`RetryBackoffStrategy` imported from `@/types/proxies`). This mirrors the same class of
+  necessary-but-unlisted-file precedent already recorded in T9/T24's completion notes — the Files
+  list named the primary file, not every caller that had to change to satisfy the AC.
+
+  **Manual verification** (frontend-harness deferral, mirroring walking-skeleton T27): (1) Create
+  a proxy with Mode = Enhanced, Attempts = 8, Backoff = Fixed interval → save → reload the Edit
+  page → both fields show the saved values (8 / Fixed interval), confirmed via `ProxyResource`'s
+  `retry_attempt_limit`/`retry_backoff_strategy` (T30) round-tripping through `Edit.vue` →
+  `ProxyForm`'s `initial` prop. (2) On that same Edit page, switch Mode to Simple → the Retry
+  policy section disappears immediately (no fields, no placeholder) → Save → the proxy's stored
+  `retry_attempt_limit`/`retry_backoff_strategy` are `NULL` server-side (T30's
+  `prohibited_if`-plus-`?? null` mechanism, already proven by `ProxyUpdateTest`). (3) A proxy
+  created with Mode = Simple never shows the section at all, on both Create and Edit. (4) A
+  server-side validation error on either field (simulated via a temporarily invalid value)
+  renders through `InputError` with the same `aria-describedby`/first-invalid-field focus
+  handling every other field on this form already uses (no new wiring — the existing `onError`
+  handler in `submit()` is untouched and already generic over any `[aria-invalid="true"]`
+  element). Verified: `pnpm types:check` (clean), `pnpm lint:check` (clean), `pnpm format:check`
+  (clean, after one `prettier --write` pass on the edited template). Backend unaffected: `composer
+  lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test
+  --parallel` (**631 passed / 2156 assertions**, unchanged).
 
 ## T33 — `proxies/Show.vue`: `Events` button + `Retry policy` card (design-06 Screen 1)
 - **Description:** Two additions, neither touching the existing Ingest URL / Response /
