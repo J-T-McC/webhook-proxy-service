@@ -47,6 +47,7 @@ final class DeliveryUnit
 
     /**
      * @param  array<string, list<string|null>>  $headers  inbound headers
+     * @param  int  $deliveryId  the `deliveries` row this attempt belongs to (ADR-015 Decision 1)
      */
     public function __construct(
         public readonly string $ingestId,
@@ -56,6 +57,7 @@ final class DeliveryUnit
         public readonly string $method,
         public readonly array $headers,
         public readonly string $payload,
+        public readonly int $deliveryId,
         public readonly int $attemptNumber,
     ) {}
 

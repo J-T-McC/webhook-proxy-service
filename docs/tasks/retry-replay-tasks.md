@@ -484,7 +484,54 @@
   `tests/Unit/Actions/DeliverStepTest.php` / `tests/Unit/Pipeline/DeliverStepTest.php` (whichever
   currently exists) — the N-units-with-deliveryId case, the trashed-destination-still-delivers
   case, Async/FIFO shape unchanged.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified. `app/Pipeline/DeliveryUnit.php`: added the
+  readonly `int $deliveryId` constructor param (no default — every unit must carry a real
+  `deliveries` row id from here on). `app/Actions/DeliverStep.php`: the fan-out loop now sources
+  from `Delivery::query()->where('dispatch_uuid', $ctx->dispatchUuid)->with(['destination' => fn
+  ($query) => $query->withTrashed()])->get()` instead of `$proxy->destinations` directly, building
+  one `DeliveryUnit` per row with `deliveryId: $delivery->id, attemptNumber: 1`; the eager-loaded
+  `destination` relation is explicitly `withTrashed()` (ruling 2 — a destination soft-deleted
+  after its delivery row was created still receives its attempt; trashed-exclusion now happens
+  entirely at delivery-row-creation time, T8, not here). Async/FIFO dispatch shape (queued vs.
+  inline `DeliverToDestination` call) is byte-for-byte unchanged — only the source of the
+  iteration and the new `deliveryId` field on the built unit differ. **Both** existing
+  `DeliverStepTest` files present in the repo (the plan's Testing note anticipated at most one)
+  were updated, since both call `DeliverStep::handle()` directly and both needed their fixtures
+  to pre-create matching `deliveries` rows (mirroring T8's shape) for the loop to find anything:
+  `tests/Unit/Pipeline/DeliveryUnitTest.php` (+1 test: `deliveryId` stored/readonly, plus the two
+  existing `new DeliveryUnit(...)` calls updated with the new required arg);
+  `tests/Unit/Pipeline/DeliverStepTest.php` (renamed the old "skips trashed" case to
+  `test_it_delivers_to_each_live_destination_and_skips_one_with_no_delivery_row` — trashed
+  exclusion is no longer DeliverStep's own concern, so the case now proves a destination with NO
+  delivery row is skipped instead; added
+  `test_a_destination_trashed_after_its_delivery_row_was_created_still_receives_its_attempt`, the
+  AC's ruling-2 case; the failing-destination case updated to pre-create delivery rows, unchanged
+  in intent); `tests/Unit/Actions/DeliverStepTest.php` (added
+  `test_builds_exactly_n_units_each_carrying_the_matching_delivery_rows_id` — Async/`Queue::fake()`
+  path, `DeliverToDestination::assertPushed()` inspecting each pushed `DeliveryUnit`'s
+  `deliveryId` against the set of created `Delivery` row ids, mirroring the existing
+  `AdvanceProxyFifoQueue::assertPushed(fn ($job, array $params) => ...)` param-inspection pattern
+  used elsewhere in the suite; the four existing tests updated to pre-create matching delivery
+  rows, assertions otherwise unchanged). No test coverage was dropped — the rename replaces one
+  invariant (trashed-exclusion) with the one that now actually holds at this layer, and adds the
+  ruling-2 case the old test's premise made impossible to express. **Anticipated interim
+  breakage, predicted by T10's own spec text, not a T9 defect:** `DeliveryUnit`'s new required
+  `deliveryId` param has no default, so the full suite now shows 8 errors
+  (`ArgumentCountError: DeliveryUnit::__construct(): Argument #8 ($deliveryId) not passed`), all
+  in the two files T10's own Acceptance Criteria names verbatim as needing this exact update
+  ("the existing `DeliverToDestinationTest`/`DeliveryIdempotencyAcceptanceTest` suites pass green
+  after being updated to construct `DeliveryUnit`s with a `deliveryId`" — T10 Acceptance
+  Criteria): `tests/Feature/Delivery/DeliverToDestinationTest.php` (7 tests, all via its shared
+  `unit()` helper) and `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php` (1 test, its
+  manually-constructed redelivery unit). Neither file is in T9's Files list; T10 (already gated
+  on T9 as a dependency, alongside T5) is the task that supplies the real `deliveryId` and
+  restores these to green. No test was weakened or removed to hide this. Verified: `composer
+  lint` (Pint, passed — one auto-fix applied to `tests/Unit/Actions/DeliverStepTest.php`'s import
+  order), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
+  "DeliveryUnitTest|Tests\\Unit\\Pipeline\\DeliverStepTest|Tests\\Unit\\Actions\\DeliverStepTest"`
+  (11 passed / 43 assertions), `./vendor/bin/sail test --parallel` full suite (483 total, 475
+  passed / 1631 assertions, 8 errors — all eight enumerated above and traced to T10's explicit,
+  self-declared scope).
 
 ## T10 — `DeliverToDestination`: new attempt idempotency key `(delivery_id, attempt_number)` (AC7; ADR-015 Decision 2 / ADR-016 P3) — no retry logic yet
 - **Description:** `DeliverToDestination::existingAttempt()` and the `DeliveryAttempt::create()`

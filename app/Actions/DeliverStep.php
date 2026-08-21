@@ -3,7 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\ProcessingMode;
-use App\Models\Destination;
+use App\Models\Delivery;
 use App\Pipeline\DeliveryUnit;
 use App\Pipeline\PipelineContext;
 use App\Pipeline\PipelineStep;
@@ -11,10 +11,14 @@ use Closure;
 use Lorisleiva\Actions\Concerns\AsObject;
 
 /**
- * The terminal fan-out step (ADR-001/011). Iterates the proxy's LIVE destinations
- * (the relation carries the SoftDeletes scope, so trashed destinations are never
- * delivered to) and builds one {@see DeliveryUnit} per destination, then dispatches
- * each per the proxy's processing mode (ADR-011):
+ * The terminal fan-out step (ADR-001/011/015). Iterates the dispatch's `deliveries`
+ * rows (`dispatch_uuid = $ctx->dispatchUuid`, one per destination — created ahead of
+ * the pipeline run, T8) instead of `$proxy->destinations` directly, and builds one
+ * {@see DeliveryUnit} per row, carrying that row's id. The destination relation is
+ * loaded `withTrashed()`: a destination soft-deleted after its delivery row was
+ * created still receives its attempt (ruling 2) — trashed-exclusion now happens at
+ * *delivery-row creation* (T8), not here. Each unit is then dispatched per the
+ * proxy's processing mode (ADR-011):
  *  - **Async** — `DeliverToDestination::dispatch(...)` onto the dedicated webhooks
  *    queue, `afterCommit()`, so destinations fan out in parallel.
  *  - **FIFO** — `DeliverToDestination::run(...)` inline, so the advancing job settles
@@ -36,15 +40,21 @@ class DeliverStep implements PipelineStep
         $proxy = $ctx->proxy;
         $async = $proxy->processing_mode === ProcessingMode::Async;
 
-        $proxy->destinations->each(function (Destination $destination) use ($ctx, $proxy, $async): void {
+        $deliveries = Delivery::query()
+            ->where('dispatch_uuid', $ctx->dispatchUuid)
+            ->with(['destination' => fn ($query) => $query->withTrashed()])
+            ->get();
+
+        $deliveries->each(function (Delivery $delivery) use ($ctx, $proxy, $async): void {
             $unit = new DeliveryUnit(
                 ingestId: $ctx->ingestId,
                 teamId: $proxy->team_id,
                 proxyId: $proxy->id,
-                destination: $destination,
-                method: $destination->http_method->value,
+                destination: $delivery->destination,
+                method: $delivery->destination->http_method->value,
                 headers: $ctx->headers,
                 payload: $ctx->payload,
+                deliveryId: $delivery->id,
                 attemptNumber: 1,
             );
 

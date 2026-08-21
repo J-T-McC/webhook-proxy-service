@@ -4,6 +4,7 @@ namespace Tests\Unit\Pipeline;
 
 use App\Models\Destination;
 use App\Pipeline\DeliveryUnit;
+use ReflectionProperty;
 use Tests\TestCase;
 
 class DeliveryUnitTest extends TestCase
@@ -44,6 +45,7 @@ class DeliveryUnitTest extends TestCase
             method: 'POST',
             headers: $headers,
             payload: '{}',
+            deliveryId: 1,
             attemptNumber: 1,
         );
 
@@ -79,9 +81,32 @@ class DeliveryUnitTest extends TestCase
             method: 'PUT',
             headers: ['Content-Type' => ['text/plain']],
             payload: 'x',
+            deliveryId: 2,
             attemptNumber: 1,
         );
 
         $this->assertSame(['Content-Type'], array_keys($unit->forwardHeaders()));
+    }
+
+    public function test_delivery_id_is_stored_and_readonly(): void
+    {
+        $destination = Destination::factory()->create();
+
+        $unit = new DeliveryUnit(
+            ingestId: 'id',
+            teamId: $destination->team_id,
+            proxyId: $destination->proxy_id,
+            destination: $destination,
+            method: 'POST',
+            headers: [],
+            payload: '{}',
+            deliveryId: 42,
+            attemptNumber: 1,
+        );
+
+        $this->assertSame(42, $unit->deliveryId);
+        $this->assertTrue(
+            (new ReflectionProperty(DeliveryUnit::class, 'deliveryId'))->isReadOnly(),
+        );
     }
 }
