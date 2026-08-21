@@ -941,7 +941,54 @@
 - **Testing:** `tests/Unit/Actions/SweepDueRetriesTest.php` (new) — the overdue/not-due/terminal
   selection cases, the double-fire dedupe case, a `Schedule::events()` inspection for the
   registration (mirroring `SweepStalledFifoDispatchesTest`'s `everyMinute()` check).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented exactly as specified, mirroring `SweepStalledFifoDispatches`'s
+  shape. `app/Actions/SweepDueRetries.php` (new, `AsAction`, no constructor deps): `handle()`
+  computes `$cutoff = now()->subSeconds((int) config('retry.sweep_grace_seconds'))`, selects every
+  `Delivery` with `status = Retrying AND next_attempt_at < $cutoff`, and for each derives
+  `$nextAttemptNumber = (DeliveryAttempt::where('delivery_id', $id)->max('attempt_number') ?? 0) +
+  1` before `RetryDelivery::dispatch($delivery->id, $nextAttemptNumber)` — no `.delay()`/`.onQueue()`
+  call, matching the Description's literal `RetryDelivery::dispatch($deliveryId, $n)` shape (T13's
+  own scheduling call is the one that carries `.delay()`/`.onQueue()`; the sweeper redrives
+  immediately, mirroring `SweepStalledFifoDispatches`'s own bare
+  `AdvanceProxyFifoQueue::dispatch($proxyId)` nudge with no queue/delay qualifiers). No dedupe
+  logic lives here by design — the Description and plan-06 both state the
+  `UNIQUE(delivery_id, attempt_number)` create-or-resume key inside `DeliverToDestination`
+  (T5/T10) is what arbitrates a double-fire, exactly as `AdvanceProxyFifoQueue`'s atomic claim
+  arbitrates the FIFO sweeper's nudge — this sweeper only ever computes and redispatches, never
+  checks for an in-flight duplicate itself. `routes/console.php`: one new
+  `Schedule::call(fn () => SweepDueRetries::run())->everyMinute()->description('Sweep due
+  retries')` entry, placed directly beside the FIFO sweeper's entry, same shape (a short
+  ADR-015-citing comment above it, matching the FIFO sweeper's and the GC command's comment
+  style). `tests/Unit/Actions/SweepDueRetriesTest.php` (new, mirrors
+  `SweepStalledFifoDispatchesTest`'s structure): a `retryingDelivery(CarbonInterface
+  $nextAttemptAt)` helper builds a `Retrying` delivery plus a pre-existing failed attempt-1 row
+  (the state a real overdue delivery is always in — `Retrying` is only ever reached after an
+  attempt already failed, so an attempt row always exists). Five tests: (1) an overdue delivery
+  (`next_attempt_at` older than `now() - grace`) is redispatched with `[$delivery->id, 2]`
+  (`Queue::fake()`, `RetryDelivery::assertPushed`); (2) a delivery whose `next_attempt_at` has
+  passed but by less than the grace period is left untouched (`assertNotPushed`) — pins the
+  boundary semantic ("passed more than grace ago", not merely "passed"); (3) a delivery forced to
+  a terminal status (`Failed`, via the query builder — bypassing the real invariant that would
+  have cleared `next_attempt_at`) with a still-past `next_attempt_at` is left untouched, proving
+  the STATUS predicate excludes it independently of the timestamp; (4) the double-fire case — no
+  `Queue::fake()` (the real `RetryDelivery::dispatch()` drains inline under `QUEUE_CONNECTION=sync`,
+  mirroring the "delayed job racing the sweep" scenario for real), `SweepDueRetries::run()` called
+  twice back-to-back for the same overdue delivery: the first pass's real dispatch settles the
+  delivery (HTTP faked 200 ⇒ `Succeeded`) before the second pass's selection query even runs, so
+  the second pass naturally selects zero rows — asserted as exactly 2 total attempt rows (the
+  pre-existing attempt 1 + exactly one new attempt 2, never a duplicate) and `Succeeded` status;
+  (5) the `Schedule::events()` registration check, identical shape to
+  `SweepStalledFifoDispatchesTest`'s own, matched on the `'Sweep due retries'` description and the
+  `'* * * * *'` cron expression. One typing fix needed mid-implementation: `now()` in this app
+  resolves to `Carbon\CarbonImmutable` (not `Illuminate\Support\Carbon`), so the helper's
+  parameter is typed `Carbon\CarbonInterface` (both classes' common interface), not
+  `Illuminate\Support\Carbon` — caught immediately by a failing test run, fixed before any
+  assertion-level work. Verified: `composer lint` (Pint, passed, no changes), `composer
+  types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter SweepDueRetriesTest` (5
+  passed / 8 assertions), `./vendor/bin/sail test --parallel` full suite (524 total, 524 passed /
+  1764 assertions — up from T14's 519/519/1756, net +5 new tests, no failures, no pre-existing
+  test touched). M3 (retry engine) is complete: T11–T15 all land in this branch state. M4 (FIFO
+  composition, T16–T18) is next, not started.
 
 ---
 
