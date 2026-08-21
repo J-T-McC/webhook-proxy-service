@@ -101,6 +101,28 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   reference to a not-yet-implemented sibling task), give it a genuinely empty no-op `handle()`
   rather than a "not implemented" throw, so those pre-existing tests stay green until the real
   task lands.
+- **Filling in a real `handle()` body behind a previously-no-op `AsJob`/`AsAction` stub that a
+  prior task already wired a real (un-faked) `::dispatch()->delay()->onQueue()` call to** (e.g.
+  `RetryDelivery`, stubbed empty by T13, filled in by T14): audit every pre-existing test that
+  exercises the triggering branch WITHOUT `Queue::fake()` — under `QUEUE_CONNECTION=sync` they
+  now execute the real body, and if that body can itself re-trigger the same dispatch (a retry
+  cascade), counts inflate to the full cascade (e.g. the system-default attempt limit) instead of
+  stopping at one. Fix each on its own terms, don't blanket-add `Queue::fake()`: if the
+  assertion's real subject is unrelated to the cascade AND something upstream of the cascade
+  trigger still runs for real without the queue (e.g. `DeliverToDestination::run()` called
+  directly, not `::dispatch()`), `Queue::fake()` cleanly suppresses just the new cascade; but if
+  the test's whole stated purpose IS the un-faked sync-drain behaviour (e.g. "no Queue::fake — the
+  dispatched work drains inline" acceptance tests), faking would zero out the test's own subject —
+  update the count assertions to the real cascade total instead, with an inline comment naming the
+  task and the config default that produced the number. Used for T14 (`RetryDelivery`), which
+  cascaded through `config('retry.default_attempt_limit')` (5) in six pre-existing tests.
+- **`AsJob`-only actions (no `AsAction`) have no `::run()`/`::make()` static helper** — `AsJob`
+  (`vendor/lorisleiva/laravel-actions/src/Concerns/AsJob.php`) provides
+  `dispatch`/`dispatchSync`/`assertPushed`/etc. but not `AsObject`'s `run`/`make` (those come only
+  via `AsAction`, which composes `AsObject + AsJob + ...`). To invoke the job body directly in a
+  test (bypassing the queue entirely), container-resolve and call `handle()` yourself:
+  `app(RetryDelivery::class)->handle($id, $n)` — same container-resolution parity as `::run()`
+  would give, just without the `AsObject` convenience wrapper. Used for T14's `RetryDeliveryTest`.
 - **Inspecting a `->delay()` value set on a Lorisleiva-Actions job under `Queue::fake()`:**
   the `assertPushed` callback's 3rd arg is the `Lorisleiva\Actions\Decorators\JobDecorator`
   instance; `PendingDispatch::delay()` sets `$job->delay` on it directly (public property,

@@ -20,4 +20,16 @@ metadata:
   `Carbon\CarbonInterval`** (nesbot/carbon), NOT `Illuminate\Support\CarbonImmutable`/
   `CarbonInterval` — those classes don't exist under `Illuminate\Support`. Only plain `Carbon` has
   an `Illuminate\Support\Carbon` subclass; reach for `Carbon\...` for the Immutable/Interval
-  variants (see `App\Providers\AppServiceProvider` for the existing precedent).
+  variants (see `App\Providers\AppServiceProvider` for the existing precedent). Consequence for
+  test helpers: `now()` itself resolves to `Carbon\CarbonImmutable` here (not
+  `Illuminate\Support\Carbon`) — type a helper parameter fed a `now()->sub...()` value as
+  `Carbon\CarbonInterface` (the common interface both classes share), not
+  `Illuminate\Support\Carbon`, or it rejects the argument with a `TypeError` (hit in T15's
+  `SweepDueRetriesTest::retryingDelivery()`).
+- **`AsJob`-only actions (no `AsAction`) have no `::run()`/`::make()` static helper** — `AsJob`
+  (`vendor/lorisleiva/laravel-actions/src/Concerns/AsJob.php`) provides
+  `dispatch`/`dispatchSync`/`assertPushed`/etc. but not `AsObject`'s `run`/`make` (those come only
+  via `AsAction`, which composes `AsObject + AsJob + ...`). To invoke the job body directly (e.g.
+  in a test, bypassing the queue entirely), container-resolve and call `handle()` yourself:
+  `app(RetryDelivery::class)->handle($id, $n)` — the same container-resolution parity `::run()`
+  would give, just without the `AsObject` convenience wrapper. Used for T14's `RetryDeliveryTest`.
