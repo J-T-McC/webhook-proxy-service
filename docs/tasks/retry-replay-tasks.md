@@ -1474,7 +1474,73 @@
 - **Testing:** `tests/Feature/Replay/ProxyEventReplayControllerTest.php` (new) — all cases above,
   `Http::fake()`/`Queue::fake()`/`Bus::fake()` for dispatch assertions, a `DB::listen()`-based
   race simulation for the lock-and-recheck case (mirroring #5's fault-injection technique).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified. `App\Http\Controllers\ProxyEventReplayController
+  @store`: `$this->authorize('replay', $proxy)`; validated by `ReplayEventRequest`; one
+  `DB::transaction()` that re-selects the event `WHERE payload_cleaned_at IS NULL` under
+  `lockForUpdate()->exists()` (cleaned/raced-cleaned ⇒ `ValidationException` under the `event` key
+  — a 422, never a 500), mints a fresh `dispatch_uuid` (`Str::uuid()`), creates one `Delivery` row
+  per validated destination id (`kind: DispatchKind::Replay, status: DeliveryStatus::Pending`),
+  and — for a FIFO proxy only — inserts one additional `fifo_dispatches` row (same fresh
+  `dispatch_uuid`, `status: Pending`) that joins the line at the back by construction (T16's `id`
+  order key, no explicit ordering value needed). After the transaction commits: Async ⇒
+  `ProcessIngestedWebhook::dispatch($event->ingest_id, $dispatchUuid)->afterCommit()`; FIFO ⇒
+  `AdvanceProxyFifoQueue::dispatch($proxy->id)->afterCommit()`; PRG redirect to `proxies.show`
+  with a flash toast, matching `ProxyController`/`DestinationController`'s exact pattern. Route:
+  `POST {current_team}/proxies/{proxy}/events/{event}/replay`, name `proxies.events.replay`,
+  `->scopeBindings()`, added inside the existing team-prefixed group in `routes/web.php`
+  immediately after the destinations-destroy route.
+
+  **Spec-vs-reality tension found and resolved (flagged, not silently patched around) — `app/
+  Models/Proxy.php` touched beyond T24's stated Files list.** Laravel's scoped-binding mechanism
+  (`Illuminate\Database\Eloquent\Model::resolveChildRouteBinding()`) resolves the parent
+  relationship for a child route parameter by convention —
+  `Str::plural(Str::camel($childType))` on the route parameter's own name — which for `{event}`
+  computes `events`, not T23's mandated `webhookEvents`. Verified directly against the vendored
+  framework source before writing any workaround. Uncorrected, hitting this route would throw
+  `BadMethodCallException: Call to undefined method Proxy::events()` the instant a real `{event}`
+  parameter needed scoping — a 500, not a 404, and a real security gap (no team/proxy scoping on
+  the child at all) had the fallback path been silently taken instead. Since T23 explicitly locks
+  the relation's name to `webhookEvents()` (Files list, Acceptance Criteria, and its own test all
+  assert that exact name) and ADR-017 Decision 5 explicitly commits to scoped binding through the
+  proxy for `{event}`, neither side of the two task specs could be honoured by renaming the
+  relation — the fix has to live at the seam Eloquent provides for exactly this mismatch:
+  `Proxy::childRouteBindingRelationshipName()` is overridden to map the child type `'event'` to
+  `'webhookEvents'` (falling through to the parent implementation for every other child type, so
+  `{destination}` — already matching the convention via `destinations()` — is untouched). This is
+  the documented Eloquent extension point for a route-parameter name that legitimately differs
+  from its relation name, not a new or invented mechanism, and changes no public interface, data
+  model, or ADR'd decision — judged in scope under the Senior Developer's local-implementation-
+  detail authority rather than escalated, since it is the mechanical wiring T24's own Acceptance
+  Criteria and ADR-017 Decision 5 require to actually hold. Proven by
+  `test_another_proxys_event_id_returns_404` (would have 500'd/thrown without the override).
+
+  `tests/Feature/Replay/ProxyEventReplayControllerTest.php` (new, 16 tests) covers every AC9-AC15
+  case plus T22's four validation cases (folded in per T22's own completion notes) plus the
+  cross-proxy-event scoped-binding proof: subset replay creates exactly that many `Delivery` rows
+  sharing one `dispatch_uuid`; select-all replays to every live destination;
+  simple/enhanced-mode proxies both replay (`#[DataProvider]`); an Async proxy dispatches
+  `ProcessIngestedWebhook` with the matching `(ingest_id, dispatch_uuid)` pair and pushes nothing
+  FIFO-side; a FIFO proxy's new row lands at a strictly higher `id` than a pre-existing pending
+  row (join-at-the-back) and nudges `AdvanceProxyFifoQueue`; a cleaned event's replay creates zero
+  `Delivery` rows and pushes nothing (422, `event` key); the race case (`DB::listen()` on the
+  first plain, non-locking `webhook_events` read — the route-model-binding lookup — cleans the
+  event before the transaction's own `lockForUpdate` re-check runs, mirroring #5's fault-injection
+  technique per the Testing note); the four `ReplayEventRequest` cases (empty array, trashed
+  destination, another proxy's destination, non-existent id, duplicate id — five 422 assertions
+  total, T22's AC named four categories with the duplicate case folded from T22's own AC text);
+  a Member replaying a teammate-created proxy succeeds (AC14); a non-member is denied — observed
+  as 404 (not 403): `ApplyTeamScope`/`SubstituteBindings` run ahead of `EnsureTeamMembership` in
+  this app's middleware pipeline, so the scoped `{proxy}`/`{event}` lookup 404s before the
+  membership check is reached, the same observable shape as the pre-existing cross-team
+  `DestinationDestroyTest` case; AC14's own wording ("a non-member 403/404s") names both outcomes
+  acceptable. `Http::fake()`/`Queue::fake()` used per-test as each case needs (several run un-faked
+  under the `sync` queue driver to prove the real inline send, per the house convention memory
+  documents). No `Bus::fake()` was needed — every dispatch in this codebase goes through
+  Lorisleiva Actions' own `Queue::fake()`-compatible `assertPushed`/`assertNotPushed`, not
+  `Illuminate\Bus`. Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7,
+  0 errors), `./vendor/bin/sail test --filter ProxyEventReplayControllerTest` (16 passed / 51
+  assertions), `./vendor/bin/sail test --parallel` full suite (567 passed / 1888 assertions — up
+  from T23's 551/1837, net +16, no failures). Closes M6.
 
 ---
 

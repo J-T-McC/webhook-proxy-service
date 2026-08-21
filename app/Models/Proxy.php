@@ -99,6 +99,21 @@ class Proxy extends Model
     }
 
     /**
+     * Map the `{event}` route parameter to the `webhookEvents()` relation for
+     * scoped bindings (T24). Eloquent's own convention would otherwise guess
+     * `events()` (`Str::plural(Str::camel($childType))` on the route parameter
+     * name) — which does not exist on this model — so this override is the
+     * minimal, documented seam for a route-parameter name that legitimately
+     * differs from its backing relation name (`{destination}` still resolves
+     * via the untouched default convention, since `destinations()` already
+     * matches it).
+     */
+    protected function childRouteBindingRelationshipName($childType): string
+    {
+        return $childType === 'event' ? 'webhookEvents' : parent::childRouteBindingRelationshipName($childType);
+    }
+
+    /**
      * The absolute public ingest URL for this proxy.
      *
      * Built from server config (`config('ingest.url')`) and the decrypted token —
