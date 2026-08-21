@@ -26,6 +26,9 @@ Route::prefix('{current_team}')
         Route::get('proxies/{proxy}/events', [ProxyEventController::class, 'index'])
             ->scopeBindings()
             ->name('proxies.events.index');
+        Route::get('proxies/{proxy}/events/{event}', [ProxyEventController::class, 'show'])
+            ->scopeBindings()
+            ->name('proxies.events.show');
         Route::post('proxies/{proxy}/events/{event}/replay', [ProxyEventReplayController::class, 'store'])
             ->scopeBindings()
             ->name('proxies.events.replay');

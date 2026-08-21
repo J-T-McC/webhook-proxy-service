@@ -49,6 +49,34 @@ class ProxyEventController extends Controller
     }
 
     /**
+     * Event detail: every `deliveries` row (original + any replays) with its
+     * `attempts` eager-loaded (AC12, AC16). Grouping by `dispatch_uuid`/`kind`
+     * is a client-side (Vue) presentation concern — the resource returns the
+     * flat `deliveries` collection, each row already carrying `kind`/
+     * `dispatch_uuid`. The leading `{current_team}` route parameter is
+     * accepted so implicit binding of `{proxy}` aligns correctly under the
+     * team-prefixed group; `{event}` resolves via `Proxy::webhookEvents()`
+     * scoped binding, so a cross-team/cross-proxy event id 404s.
+     */
+    public function show(Request $request, string $current_team, Proxy $proxy, WebhookEvent $event): Response
+    {
+        $this->authorize('view', $proxy);
+
+        $event->load([
+            'deliveries' => fn ($query) => $query->with([
+                'destination' => fn ($q) => $q->withTrashed(),
+                'deliveryAttempts',
+            ]),
+        ]);
+
+        return Inertia::render('proxies/events/Show', [
+            'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
+            'event' => new WebhookEventResource($event),
+            'permissions' => $this->proxyPermissions($request),
+        ]);
+    }
+
+    /**
      * `true` iff the proxy is FIFO **and** has a live `awaiting_retry` row —
      * `false` for every Async proxy, always (AC15/AC16).
      */

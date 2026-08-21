@@ -1652,7 +1652,25 @@
 - **Testing:** extend `tests/Feature/ProxyEvents/ProxyEventShowTest.php` (new) — the full-detail
   case (original + replay groups), the never-content assertion, the scoped-binding 404 case, the
   legacy-fallback case.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `ProxyEventController@show`, eager-loading `deliveries.destination`
+  (`withTrashed`) and `deliveries.deliveryAttempts` so `WebhookEventResource`/`DeliveryResource`
+  render every row's `attempts` without N+1 (the ID/kind/dispatch_uuid grouping is left to the Vue
+  layer per the spec — this resource returns the flat collection). Route `GET
+  /{team}/proxies/{proxy}/events/{event}` (`proxies.events.show`) added between `.../events` and
+  `.../events/{event}/replay` in `routes/web.php`. Page props beyond `event`: added `proxy`
+  (`ProxyResource`, with `destinations` loaded) and `permissions`, for the same reason as T26's
+  extra props — design-06 Screen 3's header Replay action needs `permissions.canReplayProxy` and
+  the proxy's current live destinations, and the breadcrumb needs the proxy's name; no AC forbids
+  it and it's the same DTO/pattern T26 and `ProxyController::show()` already use, not a new
+  requirement. Cross-team **and** cross-proxy event ids both 404 via the existing `{event}`
+  scoped-binding (`Proxy::webhookEvents()`, T23) — no new binding logic needed. Legacy-fallback
+  case reuses T25's derivation untouched; verified end-to-end here through the controller's real
+  eager-loads (relation loaded-and-empty is exactly what triggers it). Verified: 5 new feature
+  tests (full original+replay detail incl. attempts, never-content via `missing()`, cross-proxy
+  404, cross-team 404, legacy-fallback incl. zero-Delivery-rows-created) — `./vendor/bin/sail test
+  --filter ProxyEventShowTest` 5/5 passed, 43 assertions. Full suite: **601 passed / 2042
+  assertions** (up from 596/1999). `composer lint`: clean. `composer types:check`: clean
+  (PHPStan L7).
 
 ## T28 — `ProxyEventPayloadController` + `GET .../events/{event}/payload` route (AC22, AC25; ADR-017 Decision 6)
 - **Description:** New invokable `App\Http\Controllers\ProxyEventPayloadController`, gated
