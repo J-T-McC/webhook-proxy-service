@@ -135,6 +135,36 @@ class ProxyStoreTest extends TestCase
         }
     }
 
+    // --- Retry policy (T30; AC2, AC20) --------------------------------------
+
+    public function test_creating_an_enhanced_proxy_with_retry_policy_persists_it(): void
+    {
+        $user = $this->actingUser();
+
+        $this->actingAs($user)->post(
+            route('proxies.store', ['current_team' => $user->currentTeam->slug]),
+            $this->payload(['mode' => 'enhanced', 'retry_attempt_limit' => 3, 'retry_backoff_strategy' => 'fixed']),
+        );
+
+        $proxy = Proxy::firstOrFail();
+        $this->assertSame(3, $proxy->retry_attempt_limit);
+        $this->assertSame('fixed', $proxy->retry_backoff_strategy->value);
+    }
+
+    public function test_creating_without_a_retry_policy_leaves_both_null(): void
+    {
+        $user = $this->actingUser();
+
+        $this->actingAs($user)->post(
+            route('proxies.store', ['current_team' => $user->currentTeam->slug]),
+            $this->payload(['mode' => 'enhanced']),
+        );
+
+        $proxy = Proxy::firstOrFail();
+        $this->assertNull($proxy->retry_attempt_limit);
+        $this->assertNull($proxy->retry_backoff_strategy);
+    }
+
     public function test_creating_without_a_processing_mode_is_rejected(): void
     {
         $user = $this->actingUser();

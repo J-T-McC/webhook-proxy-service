@@ -1764,7 +1764,29 @@
 - **Testing:** extend `tests/Feature/Proxies/ProxyStoreTest.php` and `ProxyUpdateTest.php` — the
   persist, clear-on-omit, and clear-on-mode-switch cases; extend `ProxyIndexShowTest.php` for the
   resource-field-presence assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** `update()` persists both fields via `$data['...'] ?? null` exactly as
+  specced. `store()` needed one adjustment to reach the same guarantee: `Proxy::make($data)`
+  mass-assigns only the keys present in `$data`, so an *absent* key (vs. an explicit `null`) would
+  leave the attribute unset rather than explicitly `null` on the in-memory model before `save()` —
+  functionally identical on insert (both fillable retry columns are nullable with no DB default,
+  so an unset attribute inserts NULL exactly like an explicit `null` would), but not the same
+  as literally applying `$data['...'] ?? null` the spec's own wording calls for. Made it literal:
+  `Proxy::make(array_merge($data, ['retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
+  'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null]))` — same observable
+  behaviour, now textually matching the pattern `update()` uses (and resilient if the column ever
+  gains a non-NULL default). `ProxyResource` adds both fields; `retry_backoff_strategy` reads
+  `$this->retry_backoff_strategy?->value` (the enum cast) so the JSON prop is the plain string the
+  frontend consts expect, mirroring `processing_mode`/`mode`'s own `->value` pattern rather than
+  `response_status`'s raw-scalar one (the enum needs unwrapping; the int doesn't). Verified: 7 new
+  feature tests (Store: persist + omitted-null; Update: persist + clear-on-omit +
+  clear-on-enhanced-to-simple-switch; Index/Show: field-presence with values + null-when-
+  unconfigured) — `./vendor/bin/sail test --filter "ProxyStoreTest|ProxyUpdateTest|ProxyIndexShowTest"`
+  29/29 passed, 209 assertions. Full suite: **631 passed / 2156 assertions** (up from 624/2106).
+  `composer lint`: clean. `composer types:check`: clean (PHPStan L7).
+
+This completes **M7** (T25-T28, read-surface backend) and **M8** (T29-T30, proxy form & policy
+surface). M9 (frontend, T31-T37) and M10 (acceptance tests, T38-T46) are out of scope for this
+session per the assigning task's instructions.
 
 ---
 

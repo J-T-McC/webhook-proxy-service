@@ -140,6 +140,46 @@ class ProxyIndexShowTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('proxy.processing_mode', 'async'));
     }
 
+    public function test_index_and_show_expose_retry_policy_fields(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'retry_attempt_limit' => 4,
+            'retry_backoff_strategy' => 'fixed',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('proxies.index', ['current_team' => $this->teamSlug($user)]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('proxies.data.0.retry_attempt_limit', 4)
+                ->where('proxies.data.0.retry_backoff_strategy', 'fixed')
+            );
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('proxy.retry_attempt_limit', 4)
+                ->where('proxy.retry_backoff_strategy', 'fixed')
+            );
+    }
+
+    public function test_unconfigured_retry_policy_fields_are_null(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('proxy.retry_attempt_limit', null)
+                ->where('proxy.retry_backoff_strategy', null)
+            );
+    }
+
     public function test_cross_team_show_returns_404(): void
     {
         $user = $this->actingUser();
