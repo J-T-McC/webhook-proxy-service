@@ -3,20 +3,28 @@
 namespace Tests\Feature\Delivery;
 
 use App\Actions\DeliverToDestination;
+use App\Actions\RetryDelivery;
 use App\Enums\AttemptStatus;
+use App\Enums\DeliveryStatus;
 use App\Enums\HttpMethod;
+use App\Enums\RetryBackoffStrategy;
 use App\Events\DeliveryAttempted;
+use App\Events\DeliveryExhausted;
 use App\Events\DeliveryFailed;
 use App\Events\DeliverySucceeded;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
+use App\Models\Proxy;
 use App\Pipeline\DeliveryUnit;
+use App\Services\RetryPolicy;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Lorisleiva\Actions\Decorators\JobDecorator;
 use Tests\TestCase;
 
 class DeliverToDestinationTest extends TestCase
@@ -34,8 +42,12 @@ class DeliverToDestinationTest extends TestCase
         ]);
     }
 
-    private function unit(Destination $destination, string $payload = '{"a":1}', ?int $deliveryId = null): DeliveryUnit
-    {
+    private function unit(
+        Destination $destination,
+        string $payload = '{"a":1}',
+        ?int $deliveryId = null,
+        int $attemptNumber = 1,
+    ): DeliveryUnit {
         return new DeliveryUnit(
             ingestId: (string) Str::uuid(),
             teamId: $destination->team_id,
@@ -45,7 +57,7 @@ class DeliverToDestinationTest extends TestCase
             headers: ['Content-Type' => ['application/json']],
             payload: $payload,
             deliveryId: $deliveryId ?? $this->deliveryFor($destination)->id,
-            attemptNumber: 1,
+            attemptNumber: $attemptNumber,
         );
     }
 
@@ -245,5 +257,128 @@ class DeliverToDestinationTest extends TestCase
             'attempt_number' => $unit->attemptNumber,
             'started_at' => now(),
         ]);
+    }
+
+    public function test_a_successful_attempt_cases_the_delivery_to_succeeded_and_schedules_nothing(): void
+    {
+        Queue::fake();
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->createQuietly();
+        $delivery = $this->deliveryFor($destination);
+
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id));
+
+        $fresh = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Succeeded, $fresh->status);
+        $this->assertNull($fresh->next_attempt_at);
+
+        RetryDelivery::assertNotPushed();
+        Event::assertNotDispatched(DeliveryExhausted::class);
+    }
+
+    public function test_a_failed_attempt_below_the_limit_on_a_simple_mode_proxy_cases_to_retrying_and_schedules_a_delayed_retry(): void
+    {
+        Queue::fake();
+        Http::fake(['*' => Http::response('nope', 500)]);
+
+        $destination = Destination::factory()->createQuietly();
+        $proxy = $destination->proxy;
+        $delivery = $this->deliveryFor($destination);
+
+        $expectedDelay = app(RetryPolicy::class)->delayBefore($proxy, 2);
+
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id));
+
+        $fresh = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Retrying, $fresh->status);
+        $this->assertNotNull($fresh->next_attempt_at);
+
+        RetryDelivery::assertPushed(function ($action, array $params, JobDecorator $job, $queue) use ($delivery, $expectedDelay) {
+            return $params === [$delivery->id, 2]
+                && $queue === config('ingest.webhooks_queue')
+                && $job->delay !== null
+                && (int) $job->delay->totalSeconds === (int) $expectedDelay->totalSeconds;
+        });
+    }
+
+    public function test_a_failed_attempt_at_the_limit_cases_to_failed_and_emits_delivery_exhausted_exactly_once(): void
+    {
+        Queue::fake();
+        Event::fake();
+        Http::fake(['*' => Http::response('nope', 500)]);
+
+        $destination = Destination::factory()->createQuietly();
+        $delivery = $this->deliveryFor($destination);
+
+        // Default system limit is 5 (config/retry.php) — attempt 5 is terminal.
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id, attemptNumber: 5));
+
+        $fresh = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Failed, $fresh->status);
+        $this->assertNull($fresh->next_attempt_at);
+
+        RetryDelivery::assertNotPushed();
+        Event::assertDispatchedTimes(DeliveryExhausted::class, 1);
+        Event::assertDispatched(DeliveryExhausted::class, fn (DeliveryExhausted $event) => $event->delivery->id === $delivery->id);
+    }
+
+    public function test_a_racing_duplicate_terminal_settle_fires_no_duplicate_event_and_schedules_nothing(): void
+    {
+        Queue::fake();
+        Event::fake();
+        Http::fake(['*' => Http::response('nope', 500)]);
+
+        $destination = Destination::factory()->createQuietly();
+        $delivery = $this->deliveryFor($destination);
+
+        // Simulate a concurrent settler that already won the terminal CAS for
+        // this delivery before this attempt's own settle runs.
+        Delivery::query()->whereKey($delivery->id)->update([
+            'status' => DeliveryStatus::Failed,
+            'next_attempt_at' => null,
+        ]);
+
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id, attemptNumber: 5));
+
+        $this->assertSame(DeliveryStatus::Failed, $delivery->fresh()->status);
+        RetryDelivery::assertNotPushed();
+        Event::assertNotDispatched(DeliveryExhausted::class);
+    }
+
+    public function test_an_enhanced_proxy_with_a_lower_limit_and_fixed_strategy_stops_after_its_limit_with_constant_delays(): void
+    {
+        Queue::fake();
+        Event::fake();
+        Http::fake(['*' => Http::response('nope', 500)]);
+
+        $proxy = Proxy::factory()->enhanced()->createQuietly([
+            'retry_attempt_limit' => 2,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $delivery = $this->deliveryFor($destination);
+
+        // Attempt 1 fails, below the limit of 2 — retrying, constant fixed delay.
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id, attemptNumber: 1));
+
+        $afterFirst = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Retrying, $afterFirst->status);
+        RetryDelivery::assertPushed(1);
+        RetryDelivery::assertPushed(function ($action, array $params, JobDecorator $job, $queue) use ($delivery) {
+            return $params === [$delivery->id, 2]
+                && $job->delay !== null
+                && (int) $job->delay->totalSeconds === (int) config('retry.fixed_interval_seconds');
+        });
+
+        // Attempt 2 fails, at the limit of 2 — terminal, exhausted, no further schedule.
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id, attemptNumber: 2));
+
+        $afterSecond = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Failed, $afterSecond->status);
+        $this->assertNull($afterSecond->next_attempt_at);
+        RetryDelivery::assertPushed(1);
+        Event::assertDispatchedTimes(DeliveryExhausted::class, 1);
     }
 }

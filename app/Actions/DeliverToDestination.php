@@ -3,11 +3,15 @@
 namespace App\Actions;
 
 use App\Enums\AttemptStatus;
+use App\Enums\DeliveryStatus;
 use App\Events\DeliveryAttempted;
+use App\Events\DeliveryExhausted;
 use App\Events\DeliveryFailed;
 use App\Events\DeliverySucceeded;
+use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Pipeline\DeliveryUnit;
+use App\Services\RetryPolicy;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -27,8 +31,15 @@ use Throwable;
  * `attempt_number = 1`): a redelivery of an already-settled unit is a no-op (no send,
  * no duplicate row/event); a unit left `dispatched` by a crashed worker is re-driven
  * on the SAME row. `ingest_id` is still written to the row (team-scoped browsing) but
- * is no longer part of the create-or-resume lookup. No retry/scheduling behaviour is
- * added here (`$tries = 1` unchanged, a failed attempt still just fails) — that is M3.
+ * is no longer part of the create-or-resume lookup.
+ *
+ * After an attempt settles (never on a resume-skip), the delivery row is
+ * transitioned by compare-and-set (ADR-015 Decisions 5/6): success ⇒ `succeeded`;
+ * failure at/above `RetryPolicy::attemptLimitFor()` ⇒ `failed` (terminal),
+ * `DeliveryExhausted` firing iff the CAS affected a row (the once-guard); failure
+ * below the limit ⇒ `retrying` + `next_attempt_at`, plus a delayed `RetryDelivery`
+ * dispatch for the next attempt. A zero-row CAS (another settler already won) does
+ * nothing further — no event, no schedule, no double-dispatch.
  */
 class DeliverToDestination
 {
@@ -40,6 +51,8 @@ class DeliverToDestination
     private const TIMEOUT_SECONDS = 15;
 
     public int $tries = 1;
+
+    public function __construct(private readonly RetryPolicy $retryPolicy) {}
 
     public function handle(DeliveryUnit $unit): void
     {
@@ -108,7 +121,8 @@ class DeliverToDestination
     }
 
     /**
-     * Perform the outbound send and settle the given attempt row in place.
+     * Perform the outbound send, settle the given attempt row in place, and
+     * transition the parent delivery row accordingly.
      */
     private function send(DeliveryUnit $unit, DeliveryAttempt $attempt): void
     {
@@ -131,6 +145,8 @@ class DeliverToDestination
                 ? event(new DeliverySucceeded($attempt))
                 : event(new DeliveryFailed($attempt));
         } catch (Throwable $e) {
+            $succeeded = false;
+
             $attempt->update([
                 'status' => AttemptStatus::Failed,
                 // 247 + '...' = 250 chars max, fitting the string(250) column. Summary
@@ -141,5 +157,72 @@ class DeliverToDestination
 
             event(new DeliveryFailed($attempt));
         }
+
+        $this->settleDelivery($unit, $succeeded);
+    }
+
+    /**
+     * Transition the attempt's `Delivery` row by compare-and-set (ADR-015
+     * Decisions 5/6, plan-06 binding invariant — never a blind `save()`):
+     * success ⇒ `succeeded`; failure at/above the resolved attempt limit ⇒
+     * `failed` (terminal), emitting `DeliveryExhausted` iff the CAS affected a
+     * row (the once-guard); failure below the limit ⇒ `retrying` +
+     * `next_attempt_at`, plus a delayed `RetryDelivery` dispatch for the next
+     * attempt. A zero-row CAS (another settler already won) does nothing
+     * further.
+     */
+    private function settleDelivery(DeliveryUnit $unit, bool $succeeded): void
+    {
+        $delivery = Delivery::query()->findOrFail($unit->deliveryId);
+
+        if ($succeeded) {
+            $this->transition($delivery, DeliveryStatus::Succeeded, ['next_attempt_at' => null]);
+
+            return;
+        }
+
+        $proxy = $delivery->proxy;
+        $limit = $this->retryPolicy->attemptLimitFor($proxy);
+
+        if ($unit->attemptNumber >= $limit) {
+            $affected = $this->transition($delivery, DeliveryStatus::Failed, ['next_attempt_at' => null]);
+
+            if ($affected) {
+                $delivery->status = DeliveryStatus::Failed;
+                $delivery->next_attempt_at = null;
+
+                event(new DeliveryExhausted($delivery));
+            }
+
+            return;
+        }
+
+        $nextAttemptNumber = $unit->attemptNumber + 1;
+        $delay = $this->retryPolicy->delayBefore($proxy, $nextAttemptNumber);
+        $nextAttemptAt = now()->add($delay);
+
+        $affected = $this->transition($delivery, DeliveryStatus::Retrying, ['next_attempt_at' => $nextAttemptAt]);
+
+        if ($affected) {
+            RetryDelivery::dispatch($delivery->id, $nextAttemptNumber)
+                ->delay($delay)
+                ->onQueue(config('ingest.webhooks_queue'));
+        }
+    }
+
+    /**
+     * Compare-and-set `$delivery`'s status to `$to`, keyed on the prior
+     * non-terminal statuses (`pending`/`retrying`). Returns whether the CAS
+     * affected a row; a zero-row result means another settler already
+     * transitioned this delivery — the caller must do nothing further.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function transition(Delivery $delivery, DeliveryStatus $to, array $attributes): bool
+    {
+        return Delivery::query()
+            ->whereKey($delivery->id)
+            ->whereIn('status', [DeliveryStatus::Pending, DeliveryStatus::Retrying])
+            ->update(['status' => $to, ...$attributes]) > 0;
     }
 }

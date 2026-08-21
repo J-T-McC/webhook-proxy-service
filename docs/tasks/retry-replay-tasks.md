@@ -733,7 +733,91 @@
   asserting `DeliveryExhausted`'s exactly-once emission, `Queue::fake()`/`Bus::fake()` asserting
   the delayed `RetryDelivery` dispatch with the correct delay and attempt number, both
   simple-default and enhanced-configured policy cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — no more (T14's real `RetryDelivery::handle()`
+  body and T15's `SweepDueRetries` both untouched). `app/Events/DeliveryExhausted.php` (new):
+  `{ public readonly Delivery $delivery }`, `Dispatchable`, no listener registered — the class
+  docblock names the CAS-affecting-a-row once-guard and the #13 seam. `app/Actions/
+  DeliverToDestination.php`: gained a constructor, `__construct(private readonly RetryPolicy
+  $retryPolicy)` (container-resolved identically under `::run()` — `app(static::class)` — and
+  `::dispatch()` — `JobDecorator`'s `app($action)` — both proven by the existing `PurgeExpiredPayloads`
+  pattern, so no new resolution seam). `send()` now captures `$succeeded` in both the response and
+  the thrown-exception branches and, after the existing attempt-row update/event, calls the new
+  `settleDelivery(DeliveryUnit $unit, bool $succeeded)` — never reached from `resume()`'s
+  early-return skip path, matching "never on a resume-skip" exactly. `settleDelivery()`: reloads
+  the `Delivery` row (`findOrFail` — `delivery_id` is a restrict FK, always exists); success CASes
+  to `Succeeded` with `next_attempt_at` cleared to NULL (covers a retry's own eventual success,
+  where a stale `next_attempt_at` would otherwise linger); failure resolves `$delivery->proxy` and
+  `RetryPolicy::attemptLimitFor($proxy)` — at/above the limit CASes to `Failed` +
+  `next_attempt_at` NULL, and only on a non-zero CAS mutates the in-memory `$delivery` to match
+  (avoiding a second SELECT) before `event(new DeliveryExhausted($delivery))`; below the limit
+  computes `RetryPolicy::delayBefore($proxy, $n+1)`, CASes to `Retrying` with the computed
+  `next_attempt_at`, and only on a non-zero CAS dispatches `RetryDelivery::dispatch($delivery->id,
+  $n+1)->delay($delay)->onQueue(config('ingest.webhooks_queue'))` — the exact Description shape.
+  The CAS itself is a new private `transition(Delivery, DeliveryStatus $to, array $attributes):
+  bool` — `Delivery::query()->whereKey($id)->whereIn('status', [Pending, Retrying])->update([...]) >
+  0` — the query-builder-only pattern the Delivery model docblock and plan-06's binding invariant
+  require; every call site branches on its boolean return before doing anything observable (event
+  or dispatch), so a zero-row CAS is silently inert everywhere, satisfying the racing-duplicate AC
+  with zero special-casing. **`app/Actions/RetryDelivery.php` (new, not in this task's Files list —
+  a necessary deviation, flagged and pre-justified by the Description's own words):** the
+  Description explicitly frames the dispatch call as "T14, forward reference — dispatched here,
+  implemented next," but `RetryDelivery::dispatch(...)` is a real static call requiring the class
+  to exist and autoload for both this task's own AC (which requires asserting the dispatch via
+  `Queue::fake()`) and, critically, for every *pre-existing* failing-delivery test in the suite
+  that does NOT fake the queue — `QUEUE_CONNECTION=sync` in `phpunit.xml` means a real (non-faked)
+  `RetryDelivery::dispatch()->delay(...)` executes `handle()` synchronously, in-process, the
+  moment it's called. Created the smallest possible real class: `use AsJob;` (exactly the trait
+  T14 names, not the fuller `AsAction`), `public int $tries = 1;`, and a `handle(int $deliveryId,
+  int $attemptNumber): void` body that is **deliberately empty** — a bare no-op, not a thrown
+  "not implemented" — specifically so every pre-existing test that triggers a below-limit failure
+  without `Queue::fake()` (audited across `DeliverToDestinationTest`,
+  `QueuedDispatchAcceptanceTest::test_response_is_independent_of_a_failing_destination`,
+  `DeliverStepTest::test_fifo_one_destination_failing_does_not_abort_the_loop`) keeps passing
+  unchanged rather than fatal-erroring on unfinished T14 behaviour. The class docblock states this
+  explicitly and points T14 at the exact body it must fill in (reload/guard/resolve/rebuild/run,
+  per the Description). PHPStan (Larastan, no unused-parameter rule at this project's ruleset) is
+  clean on the two unused no-op parameters. `tests/Feature/Delivery/DeliverToDestinationTest.php`:
+  `unit()` gained an `int $attemptNumber = 1` param (needed for the terminal-at-limit and
+  racing-CAS cases, which must fabricate attempt 5). Five new tests, matching the Testing section's
+  four named transition cases plus the simple/enhanced split: (1) success ⇒ `Succeeded`,
+  `next_attempt_at` NULL, `RetryDelivery::assertNotPushed()`, no `DeliveryExhausted`; (2) a
+  simple-mode proxy's attempt-1 failure ⇒ `Retrying`, and `RetryDelivery::assertPushed()` with a
+  closure checking `$params === [$delivery->id, 2]`, the pushed queue, and the `JobDecorator`'s
+  `->delay` (a `CarbonInterval`, inspected via `JobDecorator::$delay` — the actual value
+  `PendingDispatch::delay()` sets on the decorated job, confirmed by reading the vendor source)
+  against `RetryPolicy::delayBefore()`'s own computed value (not a hardcoded literal, avoiding a
+  config-drift-brittle assertion); (3) the default-limit-5 proxy's attempt-5 failure ⇒ `Failed`,
+  `next_attempt_at` NULL, `RetryDelivery::assertNotPushed()`,
+  `Event::assertDispatchedTimes(DeliveryExhausted::class, 1)` plus a closure asserting the carried
+  delivery's id; (4) the racing-duplicate case — the delivery's status is forced to `Failed` via a
+  raw query-builder update *before* running the (otherwise-terminal) attempt-5 unit, proving the
+  CAS predicate rejects and neither the event nor a schedule fires; (5) an
+  `enhanced()`-proxy with `retry_attempt_limit = 2`/`RetryBackoffStrategy::Fixed`: attempt 1 fails
+  below the limit (`Retrying`, one `RetryDelivery` push with delay ==
+  `config('retry.fixed_interval_seconds')`, i.e. constant, not exponential), attempt 2 fails at the
+  limit (`Failed`, no second push, exactly one more `DeliveryExhausted`). **One pre-existing test
+  updated, not new anticipated red — a direct, correct consequence of this task's own behaviour,
+  not a deviation:** `tests/Feature/Ingest/ProcessIngestedWebhookTest::
+  test_creates_one_original_delivery_row_per_live_destination` asserted a freshly created
+  delivery's `status` was still `Pending` immediately after `ProcessIngestedWebhook::run()`. That
+  proxy is Async-default with every response faked 200, and — now that `DeliverToDestination`
+  performs the settle-CAS this task adds — the delivery legitimately settles to `Succeeded`
+  synchronously within the same call (Async `afterCommit()` dispatch + `QUEUE_CONNECTION=sync`
+  drains inline, no open transaction to defer against). Updated the one assertion to
+  `DeliveryStatus::Succeeded` with an inline comment explaining why; the test's actual purpose
+  (kind/dispatch_uuid/webhook_event_id/proxy_id/team_id on creation) is unchanged and still fully
+  covered. No other pre-existing test needed a change — audited every `Http::fake()` failure/
+  exception case in the suite (`DeliverToDestinationTest`'s own pre-T13 tests,
+  `QueuedDispatchAcceptanceTest`, `DeliverStepTest`, `FifoLivenessAcceptanceTest` — all-200 fixtures
+  there, so no failure branch triggers), confirming the `RetryDelivery` no-op stub's silence is
+  sufficient everywhere. No anticipated-red left behind — the branch is fully green, T14 has no
+  debt to close beyond its own scope. Verified: `composer lint` (Pint, passed — one auto-fix
+  applied to `DeliveryExhausted.php`'s import ordering/brace style, accepted as-is),
+  `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
+  DeliverToDestinationTest` (14 passed / 60 assertions), `./vendor/bin/sail test --parallel` full
+  suite (514 total, 514 passed / 1740 assertions — up from T12's 509/509/1718, net +5 new tests +1
+  updated assertion, no failures). Opens the second half of M3 (T14 fills in `RetryDelivery`'s real
+  body against the scaffold this task created; T15 adds the sweeper).
 
 ## T14 — `RetryDelivery` action (AC1, AC3, AC7, AC13, AC17; ADR-015 Decision 5)
 - **Description:** `App\Actions\RetryDelivery` (new, `AsJob`, `$tries = 1`). Executes attempts ≥ 2

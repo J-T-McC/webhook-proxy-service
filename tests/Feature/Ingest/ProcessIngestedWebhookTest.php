@@ -64,7 +64,10 @@ class ProcessIngestedWebhookTest extends TestCase
         foreach ($destinations as $destination) {
             $delivery = Delivery::query()->where('destination_id', $destination->id)->firstOrFail();
             $this->assertSame(DispatchKind::Original, $delivery->kind);
-            $this->assertSame(DeliveryStatus::Pending, $delivery->status);
+            // Created Pending, but this proxy is Async-default and every response
+            // fakes 200 — DeliverToDestination's post-settle CAS (T13) transitions it
+            // to Succeeded synchronously (sync queue) within this same call.
+            $this->assertSame(DeliveryStatus::Succeeded, $delivery->status);
             $this->assertSame('ingest-original-rows', $delivery->dispatch_uuid);
             $this->assertSame($event->id, $delivery->webhook_event_id);
             $this->assertSame($proxy->id, $delivery->proxy_id);
