@@ -2137,7 +2137,82 @@ session per the assigning task's instructions.
   same visibility rule as the list.
 - **Testing:** manual verification (frontend-harness deferral); document the states exercised.
   Underlying data correctness is proven by T27's PHPUnit coverage.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specced: `< Back to events` link, header (`Received
+  {timestamp}` + Payload badge + page-level `Replay` button, same visibility rule as the Index row
+  action), `Details` card (`dl`/`dt`/`dd`, Received/Size/Content type — third use of the pattern,
+  matching T33's own note), `Payload` card composing T34's `PayloadViewer` for a retained event
+  (URL built via `proxyEventRoutes.payload(...)`), the cleaned-lifecycle message (Flow E step 2's
+  exact copy) for a cleaned event, or the not-captured message — no button in either non-retained
+  state. Also added a breadcrumb (`Proxies > {proxy} > Events > {received timestamp}`) alongside
+  the design's explicit "< Back to events" link — every other page in this app supplies one via
+  the same `defineOptions({ layout: ... breadcrumbs })` convention (T33/T35/`Show.vue` precedent)
+  and `AppLayout` always renders the breadcrumb bar, so omitting it here would be the one page
+  that doesn't fit the shell, not a deliberate design choice the spec argues against.
+
+  **Delivery card grouping (AC12 traceability).** `deliveryGroups` (a `computed`) buckets the
+  flat `event.deliveries` array by `dispatch_uuid` (a pre-#6 legacy-fallback event's rows all
+  share `dispatch_uuid: null`, which groups them into one synthetic "Original delivery" batch —
+  exactly the single-batch shape the legacy fallback represents), labels the `kind: 'original'`
+  group "Original delivery" and each `kind: 'replay'` group "Replay — {time}", and orders Original
+  first then replay groups newest-first. **Spec-vs-resource-shape gap found and resolved
+  (flagged, not silently patched around):** `DeliveryResource` (T25, already complete/out of this
+  session's scope) carries no `created_at` on a `deliveries` row, so there is no literal "{time}"
+  field to read for a replay group's label or for newest-first ordering. Resolved with two
+  independent, minimal derivations rather than inventing a backend field: **(1)** the displayed
+  "{time}" is the earliest `started_at` among the group's attempts across all its destinations,
+  falling back to the bare label "Replay" (no time suffix) when the group has no attempts yet
+  (e.g. a FIFO replay still queued behind the line — a real, reachable state, not a corner case);
+  **(2)** newest-first **ordering** uses each group's highest real `Delivery.id` instead of the
+  derived time — `id` is a reliable creation-order proxy (a fresh `Delivery::create()` row always
+  gets a strictly higher id) that time-of-first-attempt is not, since backoff can delay a later
+  replay's first attempt past an earlier replay's. This is a data-derivation judgment call within
+  the Senior Developer's local-implementation-detail authority (no interface, data model, or
+  ADR'd decision changed), not a backend gap serious enough to block M9 on — flagging for the
+  Reviewer/Principal Engineer to judge whether `DeliveryResource` should eventually gain a real
+  `created_at` (T25 is already merged; out of scope to reopen here).
+
+  Per-destination rows: method `Badge`/URL (matching the Show page's Destinations row layout) +
+  status `Badge` (T31's `proxyDeliveryStatusOption`) + a text line via `attemptSummaryFor()` —
+  `Delivered {time}` for `succeeded` (the last `succeeded` attempt's `started_at`), `Attempt N of
+  L — waiting for its next attempt` for `retrying`/`pending` with ≥1 attempt, `Awaiting first
+  attempt` for `pending` with zero attempts yet (the same pending/retrying-bucket judgment call
+  T31's completion notes already flagged, now given concrete detail-page text since design-06's
+  own table has no row for a zero-attempt state), `Attempt L of L — retries exhausted` for
+  `failed` (always terminal, per `DeliveryStatus`'s own docblock), and `null` (no text line at
+  all) for a legacy-fallback row (`attempt_limit === null` — no attempt history is knowable, only
+  the derived status). A `Collapsible` "Show N attempts" (collapsed by default, Reka UI's own
+  `aria-expanded` wiring, independent per row since each is its own uncontrolled instance) lists
+  each attempt's number/outcome/HTTP status/error summary/time when the delivery has ≥1 attempt
+  (legacy rows have none, so no trigger renders for them, matching "an empty reveal is worse than
+  no control" precedent). Event-scoped FIFO banner (`isFifoHeldByRetry`, reusing the exact Screen
+  2/`TeamInvitationAlert.vue` styling) — see the flagged derivation note below.
+
+  **`ProxyEventController@show` (T27) exposes no dedicated "is this event's FIFO head currently
+  retrying" flag, flagged (not silently invented as a fake prop):** derived client-side as
+  `proxy.processing_mode === 'fifo' && event.deliveries.some(d => d.status === 'retrying')` — on a
+  FIFO proxy, ADR-016's own line invariant is that only one dispatch can be `retrying` at a time
+  (a retrying head holds the line), so a `retrying` delivery appearing on *this* event's own
+  detail page is, by construction, that held head; no other event's page could show it
+  simultaneously. Same reasoning/derivation as T35's list-level `fifoHeldByRetry` prop, just
+  scoped down to "does this specific event have the retrying delivery" instead of "does any event
+  have one."
+
+  **`Replay` header button is a visual stub in this task, wired in T37** — same split/rationale as
+  T35's row action (T37's Files list names this same file for the wiring pass).
+
+  **Manual verification** (frontend-harness deferral): (1) all three Payload-card states
+  (retained → `PayloadViewer`; cleaned → the muted lifecycle line, no control; not-captured → the
+  muted line, no control — the last exercised via a fixture proxy with a pre-#6-shaped event
+  lacking any capture, since "never captured" is vocabulary-complete but not expected per T31/T35's
+  own notes). (2) Delivery card correctly grouping one Original + two manually-triggered Replay
+  batches (via direct DB fixtures, since T37's real dialog doesn't exist until the next task),
+  newest replay first, each row's status badge/attempt-count matching its real per-destination
+  state. (3) a terminally failed destination row reads "Attempt L of L — retries exhausted". (4)
+  the header `Replay` button follows the same visibility rule as T35's list action (retained +
+  `canReplayProxy`). Verified: `pnpm types:check` (clean), `pnpm lint:check` (clean, after fixing
+  one `import/order` violation), `pnpm format:check` (clean, after one `prettier --write` pass).
+  Backend unaffected: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0
+  errors), `./vendor/bin/sail test --parallel` (**631 passed / 2156 assertions**, unchanged).
 
 ## T37 — `ReplayDialog` + wiring from Index/Show (Screen 4, Flow D; AC10–AC12, AC14)
 - **Description:** New `Dialog`-based component (not `AlertDialog` — design-06's flagged,
