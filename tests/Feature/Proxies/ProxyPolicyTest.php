@@ -79,6 +79,28 @@ class ProxyPolicyTest extends TestCase
         }
     }
 
+    public function test_a_member_may_replay_a_proxy_they_did_not_create(): void
+    {
+        // AC14; ADR-017 Decision 4 — the distinguishing case from update/delete:
+        // no ownership limit applies to replay at all.
+        $team = Team::factory()->createQuietly();
+        $creator = $this->member($team, TeamRole::Member);
+        $member = $this->member($team, TeamRole::Member);
+
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $team->id, 'created_by' => $creator->id]);
+
+        $this->assertTrue(Gate::forUser($member)->allows('replay', $proxy));
+    }
+
+    public function test_a_user_with_no_team_membership_may_not_replay(): void
+    {
+        $team = Team::factory()->createQuietly();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $team->id]);
+        $stranger = User::factory()->createQuietly();
+
+        $this->assertFalse(Gate::forUser($stranger)->allows('replay', $proxy));
+    }
+
     public function test_a_role_on_a_different_team_confers_no_permission_on_this_proxy(): void
     {
         // The proxy's owning team.

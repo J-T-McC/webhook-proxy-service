@@ -226,6 +226,7 @@ class ProxyController extends Controller
                 canDeleteProxy: false,
                 canUpdateAnyProxy: false,
                 canDeleteAnyProxy: false,
+                canReplayProxy: false,
             );
         }
 

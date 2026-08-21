@@ -15,7 +15,8 @@ class TeamPermissionTest extends TestCase
         );
 
         // 7 pre-existing team-administration cases (byte-identical values — AC9
-        // regression guard) followed by the 6 new proxy cases (T1).
+        // regression guard) followed by the 6 proxy cases (T1) and the T21 replay
+        // case (ADR-017 Decision 4).
         $this->assertSame([
             ['UpdateTeam', 'team:update'],
             ['DeleteTeam', 'team:delete'],
@@ -30,11 +31,12 @@ class TeamPermissionTest extends TestCase
             ['DeleteProxy', 'proxy:delete'],
             ['UpdateAnyProxy', 'proxy:update-any'],
             ['DeleteAnyProxy', 'proxy:delete-any'],
+            ['ReplayProxy', 'proxy:replay'],
         ], $actual);
     }
 
-    public function test_enum_has_thirteen_cases(): void
+    public function test_enum_has_fourteen_cases(): void
     {
-        $this->assertCount(13, TeamPermission::cases());
+        $this->assertCount(14, TeamPermission::cases());
     }
 }

@@ -1344,7 +1344,39 @@
   per-role bundle assertions), `tests/Feature/Proxies/ProxyPolicyTest.php` (the Member-non-owner-
   can-replay case, the non-member-cannot case), `tests/Feature/Teams/ProxyPermissionsDtoTest.php`
   (`canReplayProxy` true for all three roles, false in the fallback).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified, all six named files touched. `TeamPermission`
+  gained `ReplayProxy = 'proxy:replay'` (appended last, after `DeleteAnyProxy`). `TeamRole::
+  permissions()`: Owner inherits it via `cases()` (unchanged); Admin's and Member's explicit arms
+  both gained `TeamPermission::ReplayProxy` directly — no `-any` bypass case was added or needed,
+  since AC14 rules out an ownership limit for replay entirely (the arm-comment on `Member`
+  explains this is not an oversight). `ProxyPolicy::replay(User, Proxy): bool` — single-axis
+  `hasTeamPermission($proxy->team, ReplayProxy)`, no `ownsOrCanManageAny` composition, matching
+  `view()`'s shape rather than `update()`/`delete()`'s. `App\Data\ProxyPermissions` gained the
+  readonly `canReplayProxy` constructor property (appended last); `HasTeams::
+  toProxyPermissions()` derives it the same way as every other boolean
+  (`$role?->hasPermission(TeamPermission::ReplayProxy) ?? false`); `ProxyController::
+  proxyPermissions()`'s all-false fallback DTO gained `canReplayProxy: false`. Both call sites
+  constructing `ProxyPermissions` (`HasTeams`, `ProxyController`) were the only two in the
+  codebase (grepped), both updated — no other construction site needed touching.
+  `tests/Unit/Enums/TeamPermissionTest.php`: case-set assertion extended with the new
+  `['ReplayProxy', 'proxy:replay']` entry, count assertion renamed/bumped 13→14.
+  `tests/Unit/Enums/TeamRoleTest.php`: new data-provider-driven
+  `test_every_role_holds_replay_with_no_ownership_limit` (all three roles). `tests/Feature/
+  Proxies/ProxyPolicyTest.php`: `test_a_member_may_replay_a_proxy_they_did_not_create` (the
+  distinguishing case from `update`/`delete` — a Member replaying a teammate's proxy succeeds)
+  and `test_a_user_with_no_team_membership_may_not_replay`. `tests/Feature/Teams/
+  ProxyPermissionsDtoTest.php`: `canReplayProxy` assertions added to the existing Member (`true`,
+  no ownership limit despite lacking the `-any` bypasses), Admin/Owner (`true`), and non-member
+  (`false`, the closest analog to the controller's literal fallback DTO — no other permission on
+  this DTO has a dedicated test for the controller-level literal fallback construction either,
+  consistent with existing precedent) cases. No frontend files touched — the TS `ProxyPermissions`
+  type/client affordance derivation is out of T21's Files list (M9's scope). Verified: `composer
+  lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test
+  --filter "TeamPermissionTest|TeamRoleTest|ProxyPolicyTest|ProxyPermissionsDtoTest|
+  ProxyIndexPermissionsTest"` (23 passed / 153 assertions — `ProxyIndexPermissionsTest` included
+  as a regression check since it renders the DTO through Inertia and was not itself modified),
+  `./vendor/bin/sail test --parallel` full suite (549 passed / 1834 assertions — up from T20's
+  544/1825, net +5, no failures).
 
 ## T22 — `ReplayEventRequest` (AC10; ADR-017 Decision 1)
 - **Description:** New `App\Http\Requests\ReplayEventRequest`: `destinations` → `['required',

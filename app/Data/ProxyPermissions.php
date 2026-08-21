@@ -21,6 +21,7 @@ readonly class ProxyPermissions
         public bool $canDeleteProxy,
         public bool $canUpdateAnyProxy,
         public bool $canDeleteAnyProxy,
+        public bool $canReplayProxy,
     ) {
         //
     }

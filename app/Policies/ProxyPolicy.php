@@ -68,6 +68,17 @@ class ProxyPolicy
     }
 
     /**
+     * Determine whether the user can replay a captured event on the proxy
+     * (AC14; ADR-017 Decision 4). Single-axis — no ownership limit applies to
+     * replay at all, unlike update/delete, so there is no `-any` bypass to
+     * compose.
+     */
+    public function replay(User $user, Proxy $proxy): bool
+    {
+        return $user->hasTeamPermission($proxy->team, TeamPermission::ReplayProxy);
+    }
+
+    /**
      * The ownership axis: the actor created the proxy, or holds the given `-any`
      * bypass permission on the proxy's owning team. A null `created_by` matches no
      * user, so it is a safe deny for ownership-limited roles (ADR-009 Amendment A3).

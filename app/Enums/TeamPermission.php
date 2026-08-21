@@ -23,4 +23,9 @@ enum TeamPermission: string
     // not create." Held by Admin/Owner, omitted from Member — never a role check.
     case UpdateAnyProxy = 'proxy:update-any';
     case DeleteAnyProxy = 'proxy:delete-any';
+
+    // Replay (ADR-017 Decision 4): granted to all three roles with no ownership
+    // limit at all (AC14) — there is no `-any` bypass case for it, since there is
+    // nothing to bypass.
+    case ReplayProxy = 'proxy:replay';
 }
