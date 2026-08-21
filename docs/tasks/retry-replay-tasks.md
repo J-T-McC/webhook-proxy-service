@@ -2068,7 +2068,56 @@ session per the assigning task's instructions.
   banner renders iff `fifoHeldByRetry` is true.
 - **Testing:** manual verification (frontend-harness deferral); document the states exercised.
   Underlying data correctness is proven by T26's PHPUnit coverage.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specced, modeled structurally on `proxies/Index.vue`:
+  breadcrumb (`Proxies > {Proxy name} > Events`, mirroring `Show.vue`'s three-level breadcrumb
+  builder), `Table` with the six named columns, pagination reusing the existing `Paginated<T>`
+  link-row pattern verbatim (byte-for-byte the same nav block as `proxies/Index.vue`). Payload
+  badge via T31's `proxyPayloadStateOption()`; aggregate Delivery badge via a local
+  `aggregateDeliveryBadge()` helper composing T31's `proxyAggregateDeliveryState()` (rollup from
+  `event.deliveries.map(d => d.status)`) and `proxyAggregateDeliveryStateOption()` (label/variant)
+  — the client-side rollup design-06's flagged judgment call 2 describes. `Received`/`Size` via
+  the new `resources/js/lib/format.ts` (`formatTimestamp`/`formatByteSize` — no existing
+  formatter anywhere in the app to reuse, design-06 Screen 2's own note; a small shared `lib/`
+  helper avoids duplicating the same two formatters in T36, matching the `lib/utils.ts`
+  framework-agnostic-helper convention). `View` always renders; `Replay` renders only when
+  `event.payload_state === 'retained' && permissions.canReplayProxy` (`canReplay()` helper); a
+  **cleaned** row shows the muted "Expired" label in the Replay slot (Flow E); a **never_captured**
+  row (vocabulary-complete, not expected in practice per the spec's own note) shows neither —
+  design-06 only names the cleaned-row muted-label behavior, so the not-expected third state
+  renders an empty Actions slot rather than inventing an unspecified label, the minimal reading of
+  an intentionally under-specified corner. Empty state mirrors `proxies/Index.vue`'s exactly (same
+  `Card`/heading/helper-text shape), linking `View ingest URL` back to the proxy's Show page (no
+  dedicated ingest-URL anchor exists — the whole Show page is "the ingest URL card's location").
+  FIFO banner reuses `TeamInvitationAlert.vue`'s exact info styling/`Info` icon inline (not
+  extracted into a shared component — one more call site doesn't yet justify one, matching the
+  project's minimal-abstraction ethos), gated directly on the server-computed `fifoHeldByRetry`
+  boolean (T26 already encodes both the FIFO-mode and awaiting-retry facts, so no redundant
+  client-side `processing_mode` check is needed).
+
+  **`Replay` button is a visual stub in this task, wired in T37** (T37's own dependency on T35 and
+  its Files list naming this same file confirms the split is intentional): the button renders with
+  the correct visibility/gating but no `@click` handler yet — T37 adds the click-to-open-
+  `ReplayDialog` behavior in the very next task of this same session, so no dead code lingers
+  merged without its wiring.
+
+  **Manual verification** (frontend-harness deferral): (1) one row per event, newest-first
+  (server-ordered, `latest('id')`), each badge matching its event's real state (exercised against
+  a mix of retained/cleaned events with succeeded/retrying/failed deliveries). (2) empty state
+  renders with a proxy that has zero events. (3) `Replay` present only for a retained event with
+  `canReplayProxy = true`; absent (replaced by muted "Expired") for a cleaned event; absent (no
+  label) for a retained event when `canReplayProxy = false`. (4) FIFO banner renders only when
+  `fifoHeldByRetry` is `true` (a FIFO proxy with a live `awaiting_retry` row), absent for every
+  Async proxy and every FIFO proxy with no such row. Verified: `pnpm types:check` (clean), `pnpm
+  lint:check` (clean), `pnpm format:check` (clean, after one `prettier --write` pass). Backend
+  unaffected: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors),
+  `./vendor/bin/sail test --parallel` (**631 passed / 2156 assertions**, unchanged).
+
+  **File beyond T35's stated list, flagged:** `resources/js/lib/format.ts` (new) — T35's Files
+  list names only `Index.vue`, but design-06 Screen 2 explicitly calls out that no existing
+  timestamp/byte-size formatter exists to reuse; T36's Details card needs the identical two
+  formatters, so a two-function shared helper (not a per-page duplication) was added under the
+  established `lib/` framework-agnostic-helper convention (`docs/standards/coding.md`) rather than
+  inlined twice.
 
 ## T36 — `proxies/events/Show.vue` (Screen 3; Flow B, C, E; AC4, AC10, AC12, AC15–AC17, AC25)
 - **Description:** New page: `Details` card (`dl`/`dt`/`dd`); `Payload` card composing
