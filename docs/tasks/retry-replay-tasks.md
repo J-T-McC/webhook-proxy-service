@@ -1819,7 +1819,60 @@ session per the assigning task's instructions.
   adds a JS test runner before T31 lands; otherwise documented as a manual-verification note per
   the walking-skeleton frontend-harness deferral, T31 to state which applies at implementation
   time).
-- **Completion notes:** _pending_
+- **Completion notes:** No JS test runner exists yet (walking-skeleton T31/`docs/status.md`
+  Backlog follow-ups, still deferred — Vitest not landed), so the aggregate-badge precedence
+  helper is verified by `pnpm types:check` (the closed value unions make an out-of-range branch
+  a compile error) plus manual inspection; consumers of it (T35/T36) exercise it against real
+  page props.
+
+  Implemented all three data consts, mirroring `proxyResponseStatuses.ts`/
+  `proxyProcessingModes.ts` exactly: `resources/js/data/proxyPayloadStates.ts`
+  (`PROXY_PAYLOAD_STATES` — `retained`/`cleaned`/`never_captured`, each with a `Badge` `variant`
+  extending `DataOption`, cross-referenced to `App\Enums\StoredPayloadState`);
+  `resources/js/data/proxyDeliveryStates.ts` — two separate sets, since the per-destination and
+  aggregate badges use different label vocabularies for the same underlying signal:
+  `PROXY_DELIVERY_STATUSES` (per-destination, cross-referenced to `App\Enums\DeliveryStatus`;
+  `pending` and `retrying` both render as "Retrying" — design-06 defines no separate `pending`
+  badge state, and `failed` always renders "Terminally failed" since the backend only reaches it
+  once the retry limit is spent) plus `proxyDeliveryStatusIsTerminal()`, and
+  `PROXY_AGGREGATE_DELIVERY_STATES` (`delivered`/`retrying`/`failed`) with
+  `proxyAggregateDeliveryState()` — the flagged judgment-call-2 precedence helper
+  (terminal-failure beats retrying beats delivered; an all-empty statuses list — not expected,
+  every event gets ≥1 original delivery row per T8 — reads as `delivered`, the vacuous default);
+  `resources/js/data/proxyRetryBackoffStrategies.ts` (`PROXY_RETRY_BACKOFF_STRATEGIES` —
+  `exponential`/`fixed`, cross-referenced to `App\Enums\RetryBackoffStrategy` — plus
+  `RETRY_STRATEGY_DEFAULT` sentinel, `RETRY_DEFAULT_ATTEMPT_LIMIT = 5` and
+  `RETRY_STRATEGY_DEFAULT_LABEL` display literals mirroring `config/retry.php`'s/
+  `RetryPolicy`'s system defaults, and `proxyRetryAttemptLimitDisplay()`/
+  `proxyRetryBackoffStrategyDisplay()` — the Show-page `"5 (default)"`/`"Exponential (default)"`
+  formatters T33 consumes).
+
+  `resources/js/types/proxies.ts`: added `ProxyPermissions.canReplayProxy`; `ProxyListItem`/
+  `ProxyDetail` both gained `retry_attempt_limit: number | null` and
+  `retry_backoff_strategy: RetryBackoffStrategy | null`; new `DispatchKind`/`AttemptStatus`
+  literal-union types (mirroring their PHP enums), `DeliveryAttempt`, `Delivery`,
+  `WebhookEventListItem` interfaces matching `DeliveryAttemptResource`/`DeliveryResource`/
+  `WebhookEventResource` (T25) exactly — never a `body`/`headers` field on any of them — plus
+  `WebhookEventDetail` as a type alias of `WebhookEventListItem` (T25 is one resource shape
+  shared by both the list and detail endpoints, so there is no structural difference to express
+  as a second interface; kept as a named alias rather than reusing `WebhookEventListItem`
+  directly at call sites so T35/T36 each import the name matching their own page, and either can
+  diverge later without disturbing the other). `Delivery.id`/`dispatch_uuid`/`next_attempt_at`/
+  `attempt_limit` are `number | string | null` (the T25 legacy-fallback row sets all four to
+  `null` for a pre-#6 event); `Delivery.attempts` is `DeliveryAttempt[] | null | undefined` —
+  `undefined` (the key is entirely absent from the JSON) on the events **list** page, since T26's
+  controller eager-loads `deliveries.destination` but not `deliveries.deliveryAttempts`, so
+  `DeliveryResource`'s `whenLoaded('deliveryAttempts')` resolves to Laravel's `MissingValue` and
+  the key is dropped from the response; `null` for a legacy-fallback row (explicit, both
+  endpoints); a real populated array only on the event **detail** page (T27 eager-loads
+  `deliveries.deliveryAttempts`). This three-way nullability is load-bearing type-shape truth,
+  not a hedge — T35 must never read `.attempts` at all (list rows don't reliably carry it) and
+  T36 always can.
+
+  Verified: `pnpm types:check` (clean), `pnpm lint:check` (clean), `pnpm format:check` (clean).
+  Backend unaffected (no PHP files touched): `composer lint` (Pint, passed), `composer
+  types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --parallel` (**631 passed / 2156
+  assertions**, unchanged from T30's baseline).
 
 ## T32 — `ProxyForm.vue`: Retry policy section + Mode help-text fix (Flow F; AC2, AC20; design-06 Screen 5)
 - **Description:** New "Retry policy" section between **Processing** and **Response**, rendered

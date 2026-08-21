@@ -1,5 +1,8 @@
+import type { ProxyDeliveryStatus } from '@/data/proxyDeliveryStates';
+import type { ProxyPayloadState } from '@/data/proxyPayloadStates';
 import type { ProcessingMode } from '@/data/proxyProcessingModes';
 import type { ProxyResponseStatus } from '@/data/proxyResponseStatuses';
+import type { RetryBackoffStrategy } from '@/data/proxyRetryBackoffStrategies';
 
 export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
@@ -7,8 +10,9 @@ export type HttpMethod = 'POST' | 'PUT';
 // Re-exported so existing `@/types/proxies` imports keep working; each union is
 // derived from its shared data const (single source of truth) — `ProcessingMode`
 // from `@/data/proxyProcessingModes`, `ProxyResponseStatus` from
-// `@/data/proxyResponseStatuses` — not hand-maintained here.
-export type { ProcessingMode, ProxyResponseStatus };
+// `@/data/proxyResponseStatuses`, `RetryBackoffStrategy` from
+// `@/data/proxyRetryBackoffStrategies` — not hand-maintained here.
+export type { ProcessingMode, ProxyResponseStatus, RetryBackoffStrategy };
 
 /**
  * Page-level proxy affordances for the acting user (camelCase — a DTO share, not a
@@ -23,6 +27,8 @@ export interface ProxyPermissions {
     canDeleteProxy: boolean;
     canUpdateAnyProxy: boolean;
     canDeleteAnyProxy: boolean;
+    /** Replay a retained event — all three roles, no ownership limit (ADR-017 Decision 4). */
+    canReplayProxy: boolean;
 }
 
 export interface ProxyListItem {
@@ -35,6 +41,9 @@ export interface ProxyListItem {
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;
     response_body: string | null;
+    /** Per-proxy retry policy; null = unconfigured (RetryPolicy resolves the system default). */
+    retry_attempt_limit: number | null;
+    retry_backoff_strategy: RetryBackoffStrategy | null;
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
 }
@@ -62,6 +71,9 @@ export interface ProxyDetail {
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;
     response_body: string | null;
+    /** Per-proxy retry policy; null = unconfigured (RetryPolicy resolves the system default). */
+    retry_attempt_limit: number | null;
+    retry_backoff_strategy: RetryBackoffStrategy | null;
     destinations: ProxyDestination[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
@@ -80,3 +92,68 @@ export interface Paginated<T> {
     last_page: number;
     total: number;
 }
+
+/** Origin of a `deliveries` row (`App\Enums\DispatchKind`). */
+export type DispatchKind = 'original' | 'replay';
+
+/** Lifecycle status of a delivery attempt (`App\Enums\AttemptStatus`). */
+export type AttemptStatus = 'dispatched' | 'succeeded' | 'failed';
+
+/**
+ * One delivery-attempt row on the events read surface (mirrors
+ * `DeliveryAttemptResource` exactly, T25) — immutable attempt facts only,
+ * never payload content.
+ */
+export interface DeliveryAttempt {
+    attempt_number: number;
+    status: AttemptStatus;
+    http_status: number | null;
+    error_summary: string | null;
+    started_at: string | null;
+    duration_ms: number | null;
+}
+
+/**
+ * One `deliveries` row — an original send or a replay batch (mirrors
+ * `DeliveryResource` exactly, T25). Never `body`/`headers` (AC22/AC25).
+ *
+ * `id`/`dispatch_uuid`/`next_attempt_at`/`attempt_limit` are `null` only for
+ * a pre-#6 legacy-fallback row (an event captured before this feature, no
+ * real `deliveries` row exists — `WebhookEventResource`'s derived
+ * presentation). `attempts` is `undefined` when the caller didn't
+ * eager-load `deliveryAttempts` (the events **list** page, T26 — the
+ * `whenLoaded` key is omitted entirely from the JSON), and `null` for a
+ * legacy-fallback row.
+ */
+export interface Delivery {
+    id: number | null;
+    dispatch_uuid: string | null;
+    kind: DispatchKind;
+    status: ProxyDeliveryStatus;
+    next_attempt_at: string | null;
+    attempt_limit: number | null;
+    destination: {
+        http_method: HttpMethod;
+        url: string;
+    };
+    attempts?: DeliveryAttempt[] | null;
+}
+
+/**
+ * The events read-surface descriptor shape shared by the list and detail
+ * pages (mirrors `WebhookEventResource` exactly, T25). Never `body`/
+ * `headers` under any state — content is served only by the fetch-on-reveal
+ * payload endpoint (T28/T34).
+ */
+export interface WebhookEventListItem {
+    id: number;
+    received_at: string;
+    byte_size: number;
+    content_type: string | null;
+    method: string;
+    payload_state: ProxyPayloadState;
+    deliveries: Delivery[];
+}
+
+/** Same resource shape as {@link WebhookEventListItem} (T25's single resource, both endpoints). */
+export type WebhookEventDetail = WebhookEventListItem;
