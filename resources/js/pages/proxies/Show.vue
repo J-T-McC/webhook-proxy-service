@@ -20,7 +20,12 @@ import {
     proxyResponseStatusLabel,
     proxyStatusForcesEmptyBody,
 } from '@/data/proxyResponseStatuses';
+import {
+    proxyRetryAttemptLimitDisplay,
+    proxyRetryBackoffStrategyDisplay,
+} from '@/data/proxyRetryBackoffStrategies';
 import proxyRoutes from '@/routes/proxies';
+import proxyEventRoutes from '@/routes/proxies/events';
 import type { Team } from '@/types';
 import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
 
@@ -93,6 +98,18 @@ const hasResponseBody = computed(
         props.proxy.response_body !== '',
 );
 
+// Retry policy card — read-only view of the effective retry policy (design-06
+// Screen 1 / Flow G). A simple-mode proxy's columns are always NULL (per-proxy
+// configurability is enhanced-only, T30), so it always renders the same
+// "(default)" values as an unconfigured enhanced proxy — the display helpers
+// don't need to branch on mode for the value itself, only for the extra note.
+const retryAttemptsDisplay = computed(() =>
+    proxyRetryAttemptLimitDisplay(props.proxy.retry_attempt_limit),
+);
+const retryBackoffDisplay = computed(() =>
+    proxyRetryBackoffStrategyDisplay(props.proxy.retry_backoff_strategy),
+);
+
 const proxyDeleteOpen = ref(false);
 const busy = ref(false);
 
@@ -131,6 +148,18 @@ function confirmDeleteProxy(): void {
                 </Badge>
             </div>
             <div class="flex items-center gap-2">
+                <Button variant="outline" as-child>
+                    <Link
+                        :href="
+                            proxyEventRoutes.index({
+                                current_team: teamSlug,
+                                proxy: props.proxy.id,
+                            })
+                        "
+                    >
+                        Events
+                    </Link>
+                </Button>
                 <Button v-if="canUpdate" variant="outline" as-child>
                     <Link
                         :href="
@@ -235,6 +264,36 @@ function confirmDeleteProxy(): void {
                     </div>
                 </li>
             </ul>
+        </Card>
+
+        <!-- Retry policy card -->
+        <Card class="gap-3 p-6">
+            <h2 class="text-sm font-medium">Retry policy</h2>
+            <p class="text-sm text-muted-foreground">
+                Governs automatic re-attempts to your destinations after a
+                failed delivery.
+            </p>
+            <dl class="flex flex-col gap-3">
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">Attempts</dt>
+                    <dd class="text-sm">{{ retryAttemptsDisplay }}</dd>
+                </div>
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">Backoff</dt>
+                    <dd class="text-sm">{{ retryBackoffDisplay }}</dd>
+                </div>
+            </dl>
+            <p
+                v-if="props.proxy.mode === 'simple'"
+                class="text-sm text-muted-foreground"
+            >
+                Simple-mode proxies use the fixed system default. Configuring
+                attempts and backoff is an Enhanced-mode capability.
+            </p>
         </Card>
     </div>
 

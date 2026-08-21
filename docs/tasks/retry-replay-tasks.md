@@ -1961,7 +1961,32 @@ session per the assigning task's instructions.
   simple-mode proxies.
 - **Testing:** manual verification (same frontend-harness deferral as T32); document the three
   card states (unconfigured enhanced, configured enhanced, simple) exercised manually.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specced. `Show.vue`: **(a)** a new `Events` button
+  (`variant="outline"`, `as-child` + `Link` to `proxyEventRoutes.index(...)`) inserted as the
+  first header action, before `Edit` — rendered unconditionally (no `v-if`, matching the spec's
+  "no separate gate beyond already being able to view this page," unlike `Edit`/`Delete` which
+  keep their existing `canUpdate`/`canDelete` guards, both untouched). **(b)** a new `Retry
+  policy` `Card` after `Destinations`, third use of the `dl`/`dt`/`dd` pattern (design-03's
+  Response card, T33's spec text) — **Attempts**/**Backoff** `dd`s driven by two new `computed`s
+  (`retryAttemptsDisplay`/`retryBackoffDisplay`) calling T31's
+  `proxyRetryAttemptLimitDisplay()`/`proxyRetryBackoffStrategyDisplay()`, plus the simple-mode-only
+  note (`v-if="props.proxy.mode === 'simple'"`). No independent fetch, no loading/error state
+  beyond the page-level ones already in place (design-06 Screen 1 States note) — the card renders
+  fields already on the Show payload (`ProxyResource`'s `retry_attempt_limit`/
+  `retry_backoff_strategy`, T30).
+
+  **Manual verification** (frontend-harness deferral, mirroring T32): (1) **Unconfigured
+  enhanced** — an Enhanced proxy with both retry columns NULL shows `5 (default)` /
+  `Exponential (default)`, no simple-mode note. (2) **Configured enhanced** — set via T32's form
+  (Attempts = 8, Backoff = Fixed interval) → Show renders `8` / `Fixed interval`, no simple-mode
+  note. (3) **Simple** — any simple-mode proxy (columns always NULL, T30/T29's
+  `prohibited_if`) renders the same `5 (default)` / `Exponential (default)` values plus the
+  "Simple-mode proxies use the fixed system default..." note. (4) The `Events` button navigates
+  to `/{team}/proxies/{proxy}/events` (T26's route) for any user who can reach this Show page at
+  all, independent of `canUpdate`/`canDelete`. Verified: `pnpm types:check` (clean), `pnpm
+  lint:check` (clean), `pnpm format:check` (clean). Backend unaffected: `composer lint` (Pint,
+  passed), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --parallel`
+  (**631 passed / 2156 assertions**, unchanged).
 
 ## T34 — `PayloadViewer` composition (Flow C, E; AC25; design-06 §Components)
 - **Description:** New small composition (not a new `ui/*` primitive) built from existing tokens:
