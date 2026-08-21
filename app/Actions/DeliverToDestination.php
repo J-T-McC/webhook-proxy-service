@@ -4,12 +4,14 @@ namespace App\Actions;
 
 use App\Enums\AttemptStatus;
 use App\Enums\DeliveryStatus;
+use App\Enums\FifoDispatchStatus;
 use App\Events\DeliveryAttempted;
 use App\Events\DeliveryExhausted;
 use App\Events\DeliveryFailed;
 use App\Events\DeliverySucceeded;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
+use App\Models\FifoDispatch;
 use App\Pipeline\DeliveryUnit;
 use App\Services\RetryPolicy;
 use Illuminate\Database\QueryException;
@@ -19,8 +21,8 @@ use Lorisleiva\Actions\Concerns\AsAction;
 use Throwable;
 
 /**
- * The delivery-level run-sync-or-queue action (ADR-003/005/011/015). Delivers ONE
- * unit to ONE destination, recording only outcome metadata — never the payload
+ * The delivery-level run-sync-or-queue action (ADR-003/005/011/015/016). Delivers
+ * ONE unit to ONE destination, recording only outcome metadata — never the payload
  * (ADR-003). Invoked with `::run` inline (FIFO) or `::dispatch` onto the webhooks
  * queue (Async).
  *
@@ -40,6 +42,13 @@ use Throwable;
  * below the limit ⇒ `retrying` + `next_attempt_at`, plus a delayed `RetryDelivery`
  * dispatch for the next attempt. A zero-row CAS (another settler already won) does
  * nothing further — no event, no schedule, no double-dispatch.
+ *
+ * On a FIFO proxy, a delivery that just settled into a terminal state (succeeded or
+ * exhausted-failed) triggers the completion check (T17, ADR-016 Decision 1): if its
+ * dispatch has no non-terminal deliveries left, the held `fifo_dispatches` row
+ * compare-and-sets `awaiting_retry → settled` and the advancer is nudged to resume
+ * the line. Async proxies have no matching `fifo_dispatches` row — the check is a
+ * structural no-op for them.
  */
 class DeliverToDestination
 {
@@ -176,7 +185,11 @@ class DeliverToDestination
         $delivery = Delivery::query()->findOrFail($unit->deliveryId);
 
         if ($succeeded) {
-            $this->transition($delivery, DeliveryStatus::Succeeded, ['next_attempt_at' => null]);
+            $affected = $this->transition($delivery, DeliveryStatus::Succeeded, ['next_attempt_at' => null]);
+
+            if ($affected) {
+                $this->settleFifoLineIfComplete($delivery);
+            }
 
             return;
         }
@@ -192,6 +205,8 @@ class DeliverToDestination
                 $delivery->next_attempt_at = null;
 
                 event(new DeliveryExhausted($delivery));
+
+                $this->settleFifoLineIfComplete($delivery);
             }
 
             return;
@@ -207,6 +222,40 @@ class DeliverToDestination
             RetryDelivery::dispatch($delivery->id, $nextAttemptNumber)
                 ->delay($delay)
                 ->onQueue(config('ingest.webhooks_queue'));
+        }
+    }
+
+    /**
+     * The FIFO `awaiting_retry → settled` completion check (T17, ADR-016
+     * Decision 1): once a delivery has just settled into a terminal state,
+     * close out its dispatch's held `fifo_dispatches` row when no sibling
+     * delivery of the same dispatch remains non-terminal, and nudge the
+     * advancer to resume the line. The compare-and-set is keyed on the prior
+     * `awaiting_retry` status, so a racing duplicate settle (two deliveries of
+     * the same dispatch completing near-simultaneously) transitions the row
+     * at most once and nudges at most once. Async proxies never have a
+     * matching `fifo_dispatches` row for the dispatch — the CAS affects zero
+     * rows and this is a structural no-op for them (no proxy-mode branch
+     * needed).
+     */
+    private function settleFifoLineIfComplete(Delivery $delivery): void
+    {
+        $hasOpenDeliveries = Delivery::query()
+            ->where('dispatch_uuid', $delivery->dispatch_uuid)
+            ->whereIn('status', [DeliveryStatus::Pending, DeliveryStatus::Retrying])
+            ->exists();
+
+        if ($hasOpenDeliveries) {
+            return;
+        }
+
+        $affected = FifoDispatch::query()
+            ->where('dispatch_uuid', $delivery->dispatch_uuid)
+            ->where('status', FifoDispatchStatus::AwaitingRetry)
+            ->update(['status' => FifoDispatchStatus::Settled, 'settled_at' => now()]);
+
+        if ($affected > 0) {
+            AdvanceProxyFifoQueue::dispatch($delivery->proxy_id);
         }
     }
 

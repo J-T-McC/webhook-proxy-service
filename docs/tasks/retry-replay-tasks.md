@@ -1109,7 +1109,61 @@
   `tests/Feature/Retry/FifoRetrySettlementTest.php`) — the last-open-delivery-settles-the-line
   case, the not-yet-all-terminal case (no transition), the Async-no-op case, the racing-duplicate
   case.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — no more (T18's sweeper extensions land next).
+  `app/Actions/DeliverToDestination.php`: new private `settleFifoLineIfComplete(Delivery
+  $delivery): void`, called from `settleDelivery()` in both terminal branches (`$affected`-gated,
+  same once-guard shape T13 established for `DeliveryExhausted` — a zero-row delivery CAS means
+  another settler already ran this same check, so skip) — success and failed-at-limit alike, never
+  from the `retrying` branch (not terminal). Checks `Delivery::where('dispatch_uuid',
+  $delivery->dispatch_uuid)->whereIn('status', [Pending, Retrying])->exists()` (the same
+  `whereIn`-on-non-terminal-statuses shape the file's own `transition()` already uses, kept for
+  file-local consistency rather than introducing the sibling `isTerminal()`-array style
+  `AdvanceProxyFifoQueue` uses for the same concept — both are correct, this one matches its
+  immediate neighbour); if any remain, returns (no transition). Otherwise CASes
+  `FifoDispatch::where('dispatch_uuid', ...)->where('status', AwaitingRetry)->update([status=>
+  Settled, settled_at=>now()])` and dispatches `AdvanceProxyFifoQueue::dispatch($delivery->proxy_id)`
+  **only when the CAS affected a row** — this is what makes the racing-duplicate AC true (a second
+  caller finding the row already `settled` affects zero rows and nudges nothing) and what makes the
+  Async no-op literal ("no query match" per the Description): **no `processing_mode` branch at
+  all** — Async proxies structurally never have a matching `fifo_dispatches` row for any
+  `dispatch_uuid`, so the same unconditional check/CAS simply matches nothing for them, exactly as
+  the Description specifies (deliberately not short-circuited on mode, which would have added a
+  branch the Description doesn't ask for). Class docblock gained a closing paragraph naming this
+  behaviour and the ADR-016 pointer; `App\Enums\FifoDispatchStatus`/`App\Models\FifoDispatch`
+  imports added.
+  `tests/Feature/Retry/FifoRetrySettlementTest.php` (new, per the Testing note's named-file
+  option): `heldFifoDispatch()`/`deliveryFor()`/`unitFor()` helpers build a FIFO proxy with an
+  `awaiting_retry` ordering row and its dispatch's `deliveries` rows directly (bypassing the
+  pipeline, mirroring `RetryDeliveryTest`'s direct-construction style, since this exercises
+  `DeliverToDestination` in isolation — a `RetryDelivery` execution's shape, not a fresh capture).
+  Four tests, one per Testing-note case:
+  `test_settling_the_last_open_delivery_settles_the_line_and_nudges_the_advancer` (2 destinations,
+  A already `succeeded`, B `retrying` → settling B transitions the fifo row to `settled` +
+  `settled_at` + nudges `AdvanceProxyFifoQueue::dispatch($proxyId)`);
+  `test_no_transition_while_a_sibling_delivery_remains_non_terminal` (both `retrying`, settling one
+  leaves the fifo row untouched — `AwaitingRetry`, `settled_at` still NULL, no nudge);
+  `test_an_async_proxy_has_no_fifo_dispatches_row_to_transition` (Async proxy, zero
+  `fifo_dispatches` rows exist at all — the Testing note's "or a proxy with no `fifo_dispatches`
+  rows at all" option — delivery still settles normally, no nudge);
+  `test_a_racing_duplicate_settle_cases_the_fifo_row_at_most_once` (fifo row pre-set to `settled`
+  by a simulated racing settler before this delivery's own CAS runs — the delivery settles
+  normally, the fifo row's CAS affects zero rows since it's no longer `awaiting_retry`, no second
+  nudge).
+  **Consequential fix, not new scope — closes T16's documented anticipated red:**
+  `tests/Feature/Proxies/ProcessingModeSwitchAcceptanceTest.php` gained a `runPushedDeliveries()`
+  helper (`Queue::pushed(ActionManager::$jobDecorator, ...)` filtered to `DeliverToDestination`
+  jobs, running each via `DeliverToDestination::run(...$job->getParameters())` — idempotent against
+  re-invocation, since an already-terminal attempt is a resume no-op) standing in for a real queue
+  worker; `test_pre_switch_fifo_events_still_drain_in_order_after_switching_to_async` now calls it
+  after each `AdvanceProxyFifoQueue::run()`, so the async-dispatched delivery this task's own
+  completion check depends on actually executes within the test — closing the window T16's
+  completion notes named. Confirmed the fix is real, not order-dependent, by isolating T17 alone
+  (T18's `SweepStalledFifoDispatches.php` stashed out): 532/532 total, `composer lint` clean,
+  `composer types:check` 0 errors — no anticipated red left behind by T17.
+  **Verified (T17 scope, isolated per above):** `./vendor/bin/sail test --filter
+  "FifoRetrySettlementTest|DeliverToDestinationTest|ProcessingModeSwitchAcceptanceTest|AdvanceProxyFifoQueueTest|FifoOrderingAcceptanceTest|FifoLivenessAcceptanceTest"`
+  — 38 passed / 169 assertions; full suite `./vendor/bin/sail test --parallel` — 532/532 (0
+  failures); `composer lint` (Pint, passed); `composer types:check` (PHPStan L7, 0 errors).
 
 ## T18 — `SweepStalledFifoDispatches` extensions: nudge exclusion + stuck-hold release (AC6; ADR-016 Decision 4)
 - **Description:** Two additions to the existing sweeper: **(b) idle-proxy nudge** excludes any
