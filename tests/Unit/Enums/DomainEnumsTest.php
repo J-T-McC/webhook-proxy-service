@@ -47,10 +47,10 @@ class DomainEnumsTest extends TestCase
         );
     }
 
-    public function test_fifo_dispatch_status_has_exactly_pending_claimed_settled(): void
+    public function test_fifo_dispatch_status_has_exactly_pending_claimed_settled_awaiting_retry(): void
     {
         $this->assertSame(
-            ['pending', 'claimed', 'settled'],
+            ['pending', 'claimed', 'settled', 'awaiting_retry'],
             array_map(fn (FifoDispatchStatus $c) => $c->value, FifoDispatchStatus::cases()),
         );
     }

@@ -57,3 +57,16 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   other transaction doing the same (e.g. a GC pass's own compare-and-set `UPDATE ... WHERE
   guard_col IS NULL`), closing the select→act race without a separate advisory lock. Used for
   `CaptureDispatchedStep`'s post-clean guard (#5) racing `PurgeExpiredPayloads`.
+- **A composite UNIQUE whose leftmost column is a FK becomes that FK's sole supporting index** —
+  InnoDB won't create a redundant single-column index once a left-prefix-matching index exists.
+  In a `down()` that adds `foreignId('x')->constrained()` then `unique(['x', 'y'])` (in that order
+  in `up()`), reversing naively (`dropUnique` before dropping the FK) fails with *"needed in a
+  foreign key constraint"* (MySQL 1553). Always `dropForeign(['x'])` before `dropUnique([...])`/
+  `dropColumn('x')` in the reversal. Used for `delivery_attempts.delivery_id` +
+  `UNIQUE(delivery_id, attempt_number)` (#6 T5).
+- **Verify multi-step `up()`/`down()` migrations by running a full `migrate:fresh` first, not just
+  a single `migrate` on a possibly-already-mutated dev DB** — a dev DB nudged by earlier
+  rollback/re-migrate experiments in the same session can carry stale index state that produces
+  misleading errors unrelated to the migration under test. `migrate:fresh` → inspect
+  `information_schema` → isolated `migrate:rollback --step=1` → inspect again → `migrate` is the
+  reliable up/down/up proof.

@@ -309,7 +309,63 @@
   on a freshly captured row that `dispatch_uuid === webhookEvent.ingest_id`), the index-presence/
   absence assertions, the two-rows-per-event acceptance case, the `AwaitingRetry` case-set
   extension in `DomainEnumsTest` (T2's file).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — migration
+  `2026_08_12_000004_add_dispatch_uuid_and_awaiting_retry_to_fifo_dispatches_table` runs the
+  seven `up()` steps in the exact required order, each its own `Schema::table()` call or raw
+  `DB::statement()` so the ordering is unambiguous: (1) add nullable `uuid('dispatch_uuid')`; (2)
+  a single raw `UPDATE ... INNER JOIN webhook_events ... SET dispatch_uuid = webhook_events.ingest_id`
+  backfill; (3) raw `MODIFY dispatch_uuid CHAR(36) NOT NULL`; (4) add `UNIQUE(dispatch_uuid)`; (5)
+  add a plain single-column index on `webhook_event_id`; (6) drop `UNIQUE(webhook_event_id)`; (7)
+  raw `MODIFY status ENUM(...)` appending `'awaiting_retry'` as the fourth/last value, never
+  reordering the first three. Step (5) was necessary and not redundant: the pre-existing
+  `webhook_event_id` FK (`foreignId()->constrained()`, no separate index because the original
+  migration's `unique('webhook_event_id')` was already serving as the FK's sole supporting index)
+  would otherwise leave the FK unsupported the instant the unique index was dropped — the same
+  class of MySQL error 1553 T5's `delivery_id` down-migration hit, pre-empted here on the up side.
+  `down()` mirrors `up()` in strict reverse (restore `UNIQUE(webhook_event_id)` before dropping
+  the plain index that was supporting the FK, so the FK is never left unsupported mid-migration),
+  and drops `'awaiting_retry'` from the enum best-effort only (documented non-round-tripping
+  caveat, no production data exists, mirrors the #5 payload-erasure migration's same caveat).
+  `FifoDispatchStatus` gained `AwaitingRetry = 'awaiting_retry'`; the class docblock was rewritten
+  to describe the full four-state lifecycle and the reserved `dead_lettered` note was removed
+  (ADR-016 Decision 2 records it as not adopted). `FifoDispatch` model: `dispatch_uuid` added to
+  `#[Fillable]` and the `@property` docblock (non-nullable `string`), plus the docblock's opening
+  paragraph updated to explain the `dispatch_uuid`/`webhook_event_id` identity split.
+  `FifoDispatchFactory` derives `dispatch_uuid` from the anchoring `WebhookEvent`'s `ingest_id`
+  (matching the T6 backfill invariant and the invariant T7 will stamp on new capture).
+  `tests/Unit/Models/FifoDispatchTest.php` extended (7 new tests, 16 total in the file): the
+  `UNIQUE(dispatch_uuid)` presence/single-column assertion, the `UNIQUE(webhook_event_id)`-absent/
+  plain-index-present assertion, a duplicate-`dispatch_uuid` rejection (`QueryException`), the
+  two-rows-for-one-`webhook_event_id`-with-distinct-`dispatch_uuid`s acceptance case, and the
+  backfill-correctness assertion (`dispatch_uuid === webhookEvent.ingest_id`, proven via the
+  factory rather than a raw pre-migration-shaped insert, since the migration's backfill and the
+  factory's derivation are the same mechanical identity and a factory-created row exercises the
+  model/relation layer the raw-insert alternative would not). `tests/Unit/Enums/DomainEnumsTest.php`
+  extended with the `AwaitingRetry` case-set assertion (T2's file, as the plan directs). Migration
+  `up()`/`down()` both manually exercised via `artisan migrate` + an isolated
+  `migrate:rollback --step=1` + `artisan migrate` (clean in both directions), plus a full
+  `artisan migrate:fresh` from zero (entire chain, all 22 migrations, applies cleanly).
+  **Anticipated interim state, not a T6 defect (flagged, not silently left):** the full suite now
+  shows 9 failures + 1 error, all tracing to the single, plan-anticipated root cause —
+  `IngestController`'s FIFO-capture `FifoDispatch::create([...])` call does not yet supply
+  `dispatch_uuid`, so any insert through that production path now fails MySQL error 1364 (`Field
+  'dispatch_uuid' doesn't have a default value`), exactly the gap T7's own description and
+  Acceptance Criteria name ("all existing ingest/FIFO capture tests remain green unmodified" —
+  worded as a T7 outcome, implying red beforehand). Affected:
+  `QueuedDispatchAcceptanceTest` (3, fifo dataset only), `FifoOrderingAcceptanceTest` (3),
+  `IngestControllerTest::test_fifo_proxy_commits_a_pending_ordering_row_and_dispatches_the_advancer`,
+  `ProcessingModeSwitchAcceptanceTest` (2), and
+  `RetentionInFlightHoldsAcceptanceTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
+  (1, via its FIFO-mode fixture) — all ten construct a FIFO dispatch through `IngestController`,
+  none touch `fifo_dispatches` schema/model behavior directly, and none are in T6's own Files/
+  Testing list. No test was weakened, skipped, or removed to hide this; T7 (already gated on T6
+  as its sole dependency) is the task that stamps `dispatch_uuid` on capture and restores these to
+  green, per the plan's own sequencing. T6-scoped verification: `composer lint` (Pint, passed —
+  one auto-fix applied to the new test file's import style), `composer types:check` (PHPStan L7,
+  0 errors), `./vendor/bin/sail test --filter FifoDispatch` (16 passed / 40 assertions),
+  `./vendor/bin/sail test --filter DomainEnumsTest` (10 passed / 13 assertions),
+  `./vendor/bin/sail test --parallel` full suite (474 total, 464 passed / 1594 assertions, 9
+  failures + 1 error, all ten enumerated above and traced to T7's explicit scope).
 
 ## T7 — `IngestController`: stamp `dispatch_uuid` on capture (AC6, AC11; ADR-016 Decision 3)
 - **Description:** One-line change: the FIFO capture-path `FifoDispatch::create([...])` call
