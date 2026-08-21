@@ -2007,7 +2007,49 @@ session per the assigning task's instructions.
 - **Testing:** manual verification (frontend-harness deferral); document the reveal/hide flow and
   a DOM inspection confirming no payload text exists pre-reveal. Backend content-shape/hardening
   is proven by T28's PHPUnit coverage.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specced — a new small composition, not a `ui/*` primitive,
+  built entirely from existing tokens/primitives (`Button`, `Spinner`, `Eye`/`EyeOff` from
+  `@lucide/vue`, the same bordered/`font-mono`/`dark:bg-input/30` block tokens the Response-body
+  block already uses). Takes a single `url` prop (the caller-built fetch-on-reveal endpoint URL —
+  `proxyEventRoutes.payload(...)`'s `.url`) rather than team/proxy/event ids, keeping the
+  component decoupled from routing specifics; T36 builds and passes the URL.
+
+  **Reveal:** `fetch(props.url, { headers: { Accept: 'text/plain' } })` on click — the payload is
+  fetched fresh every time and is not present in this component's reactive state (nor anywhere
+  in the page's Inertia props) until this fetch resolves (ADR-017 Decision 6). `200` → the raw
+  text response renders verbatim as **plain text interpolation** (`v-text`, never `v-html`) inside
+  a `max-h-96 overflow-y-auto` bordered block (taller than the Response-body's `max-h-48`, per the
+  spec's "raw payloads run larger" note); the button becomes **Hide payload** (`EyeOff`),
+  `aria-pressed="true"`. **Hide** clears both `revealed` and the held `payload` string and
+  re-masks — no persisted reveal state (component-local `ref`s only, reset on remount, i.e.
+  navigating away and back). An `aria-live="polite"` `sr-only` region announces "Payload
+  revealed"/"Payload hidden" on toggle, mirroring `CopyField.vue`'s exact pattern.
+
+  **States beyond the spec's two (Reveal/Hide), added as defensive completions of the same
+  requirement, not new scope:** a `loading` state (`Spinner`, button disabled) while the fetch is
+  in flight — this app's established "extend Spinner to all submit buttons" convention (Login.vue
+  precedent) applied to the one other async trigger in this feature; and an inline error message
+  for a non-`200` response (`410` — the event was cleaned in the race window between page load and
+  the click, T28's documented lifecycle response — or any other failure), which does **not** flip
+  `revealed` to `true` so Reveal remains available to retry and no error text is ever mistaken for
+  payload content. Neither state is speculative UI — both are direct, minimal consequences of
+  "fetch on click" that the spec's own Interactions section implies (a real network call can be
+  slow or fail) without spelling out.
+
+  **Manual verification** (frontend-harness deferral): (1) On mount, the DOM contains only the
+  masked placeholder string ("•••••• hidden — click Reveal to view") — no payload bytes appear in
+  the component's props, reactive state, or rendered DOM until Reveal is clicked (inspected via
+  Vue devtools + a DOM search for a probe string planted in a manually-triggered test event's
+  body). (2) Clicking **Reveal payload** issues exactly one `GET` to the payload endpoint (Network
+  tab) and renders the response verbatim; the button becomes **Hide payload**, `aria-pressed`
+  flips to `true`, the `sr-only` region reads "Payload revealed". (3) Clicking **Hide payload**
+  re-masks with no further request (Network tab shows nothing new), `aria-pressed` flips back,
+  region reads "Payload hidden". (4) A manually forced `410` (event cleaned mid-session) renders
+  the inline error, leaves the block masked, and Reveal remains clickable. Verified: `pnpm
+  types:check` (clean), `pnpm lint:check` (clean), `pnpm format:check` (clean). Backend
+  unaffected: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors),
+  `./vendor/bin/sail test --parallel` (**631 passed / 2156 assertions**, unchanged). Not yet wired
+  into any page — T36 composes it into `proxies/events/Show.vue`'s Payload card.
 
 ## T35 — `proxies/events/Index.vue` (Screen 2; Flow A, E; AC15, AC16, AC23)
 - **Description:** New page modeled on `proxies/Index.vue`: breadcrumb, `Table` (Received /
