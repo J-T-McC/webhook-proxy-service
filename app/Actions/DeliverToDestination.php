@@ -15,15 +15,20 @@ use Lorisleiva\Actions\Concerns\AsAction;
 use Throwable;
 
 /**
- * The delivery-level run-sync-or-queue action (ADR-003/005/011). Delivers ONE unit
- * to ONE destination, recording only outcome metadata — never the payload (ADR-003).
- * Invoked with `::run` inline (FIFO) or `::dispatch` onto the webhooks queue (Async).
+ * The delivery-level run-sync-or-queue action (ADR-003/005/011/015). Delivers ONE
+ * unit to ONE destination, recording only outcome metadata — never the payload
+ * (ADR-003). Invoked with `::run` inline (FIFO) or `::dispatch` onto the webhooks
+ * queue (Async).
  *
  * Idempotent against the queue's inherent at-least-once redelivery (ADR-011 Decision
- * 4, AC9), guarded by the `UNIQUE(ingest_id, destination_id, attempt_number)` index:
- * a redelivery of an already-settled unit is a no-op (no send, no duplicate row/event);
- * a unit left `dispatched` by a crashed worker is re-driven on the SAME row. No retry/
- * backoff is added here (`$tries = 1` unchanged) — that is #6.
+ * 4, AC9), guarded by the `UNIQUE(delivery_id, attempt_number)` index (ADR-015
+ * Decision 2 — replaces the pre-#6 `(ingest_id, destination_id, attempt_number)` key,
+ * which could not survive replay: two different deliveries legitimately share
+ * `attempt_number = 1`): a redelivery of an already-settled unit is a no-op (no send,
+ * no duplicate row/event); a unit left `dispatched` by a crashed worker is re-driven
+ * on the SAME row. `ingest_id` is still written to the row (team-scoped browsing) but
+ * is no longer part of the create-or-resume lookup. No retry/scheduling behaviour is
+ * added here (`$tries = 1` unchanged, a failed attempt still just fails) — that is M3.
  */
 class DeliverToDestination
 {
@@ -55,6 +60,7 @@ class DeliverToDestination
                 'proxy_id' => $unit->proxyId,
                 'destination_id' => $unit->destination->id,
                 'ingest_id' => $unit->ingestId,
+                'delivery_id' => $unit->deliveryId,
                 'status' => AttemptStatus::Dispatched,
                 'attempt_number' => $unit->attemptNumber,
                 'started_at' => now(),
@@ -82,8 +88,7 @@ class DeliverToDestination
     private function existingAttempt(DeliveryUnit $unit): ?DeliveryAttempt
     {
         return DeliveryAttempt::query()
-            ->where('ingest_id', $unit->ingestId)
-            ->where('destination_id', $unit->destination->id)
+            ->where('delivery_id', $unit->deliveryId)
             ->where('attempt_number', $unit->attemptNumber)
             ->first();
     }

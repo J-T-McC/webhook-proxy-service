@@ -8,9 +8,11 @@ use App\Enums\HttpMethod;
 use App\Events\DeliveryAttempted;
 use App\Events\DeliveryFailed;
 use App\Events\DeliverySucceeded;
+use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Pipeline\DeliveryUnit;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -19,7 +21,20 @@ use Tests\TestCase;
 
 class DeliverToDestinationTest extends TestCase
 {
-    private function unit(Destination $destination, string $payload = '{"a":1}'): DeliveryUnit
+    /**
+     * One `deliveries` row per unit, mirroring T8's shape — `delivery_id` is a
+     * restrict FK to `deliveries` (T5), so every unit under test needs a real row.
+     */
+    private function deliveryFor(Destination $destination): Delivery
+    {
+        return Delivery::factory()->create([
+            'team_id' => $destination->team_id,
+            'proxy_id' => $destination->proxy_id,
+            'destination_id' => $destination->id,
+        ]);
+    }
+
+    private function unit(Destination $destination, string $payload = '{"a":1}', ?int $deliveryId = null): DeliveryUnit
     {
         return new DeliveryUnit(
             ingestId: (string) Str::uuid(),
@@ -29,6 +44,7 @@ class DeliverToDestinationTest extends TestCase
             method: $destination->http_method->value,
             headers: ['Content-Type' => ['application/json']],
             payload: $payload,
+            deliveryId: $deliveryId ?? $this->deliveryFor($destination)->id,
             attemptNumber: 1,
         );
     }
@@ -160,6 +176,7 @@ class DeliverToDestinationTest extends TestCase
             'proxy_id' => $unit->proxyId,
             'destination_id' => $destination->id,
             'ingest_id' => $unit->ingestId,
+            'delivery_id' => $unit->deliveryId,
             'status' => AttemptStatus::Dispatched,
             'attempt_number' => $unit->attemptNumber,
             'started_at' => now(),
@@ -175,12 +192,58 @@ class DeliverToDestinationTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    // The raw-duplicate-insert DB-enforcement probe formerly here proved
-    // UNIQUE(ingest_id, destination_id, attempt_number) — retired by T5
-    // (ADR-015 Decision 2 / ADR-016 P3, the idempotency-key swap to
-    // (delivery_id, attempt_number)). The schema-level fact (old key no
-    // longer collides, new key does) is covered by
-    // tests/Unit/Models/DeliveryAttemptTest.php. T10 restores the equivalent
-    // race-safety-net probe here once DeliverToDestination reads
-    // `delivery_id` (its own AC names this file explicitly).
+    public function test_two_different_deliveries_can_legitimately_share_attempt_number_one_with_no_collision(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        // Same destination, two distinct deliveries (e.g. original + a later
+        // replay dispatch) — the reason the old (ingest_id, destination_id,
+        // attempt_number) key could not survive replay (ADR-015 Decision 2).
+        $destination = Destination::factory()->createQuietly();
+        $first = $this->unit($destination);
+        $second = $this->unit($destination);
+
+        DeliverToDestination::run($first);
+        DeliverToDestination::run($second);
+
+        $this->assertSame(2, DeliveryAttempt::count());
+        $this->assertSame(1, DeliveryAttempt::where('delivery_id', $first->deliveryId)->count());
+        $this->assertSame(1, DeliveryAttempt::where('delivery_id', $second->deliveryId)->count());
+        Http::assertSentCount(2);
+    }
+
+    public function test_unique_index_rejects_a_raw_duplicate_insert(): void
+    {
+        // T10 restores the race-safety-net probe against the NEW key
+        // (delivery_id, attempt_number) — the equivalent of the pre-T5 probe
+        // this file carried against the retired (ingest_id, destination_id,
+        // attempt_number) key.
+        $destination = Destination::factory()->createQuietly();
+        $unit = $this->unit($destination);
+
+        DeliveryAttempt::create([
+            'team_id' => $unit->teamId,
+            'proxy_id' => $unit->proxyId,
+            'destination_id' => $destination->id,
+            'ingest_id' => $unit->ingestId,
+            'delivery_id' => $unit->deliveryId,
+            'status' => AttemptStatus::Dispatched,
+            'attempt_number' => $unit->attemptNumber,
+            'started_at' => now(),
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        DeliveryAttempt::create([
+            'team_id' => $unit->teamId,
+            'proxy_id' => $unit->proxyId,
+            'destination_id' => $destination->id,
+            'ingest_id' => (string) Str::uuid(),
+            'delivery_id' => $unit->deliveryId,
+            'status' => AttemptStatus::Dispatched,
+            'attempt_number' => $unit->attemptNumber,
+            'started_at' => now(),
+        ]);
+    }
 }

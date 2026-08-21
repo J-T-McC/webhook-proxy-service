@@ -553,7 +553,46 @@
   `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php` — update fixtures to the new key,
   add a case proving two different deliveries legitimately share `attempt_number = 1` (the
   reason the old key could not survive replay) with no collision.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified — no more. `app/Actions/DeliverToDestination.php`:
+  `existingAttempt()`'s lookup and the `DeliveryAttempt::create()` call both moved from
+  `(ingest_id, destination_id, attempt_number)` to `(delivery_id, attempt_number)`
+  (`'delivery_id' => $unit->deliveryId` added to the create payload; `existingAttempt()` now
+  queries `where('delivery_id', $unit->deliveryId)->where('attempt_number', ...)`only).
+  `ingest_id` is still written to the row, just no longer part of the lookup, exactly as
+  specified. **No scheduling/retry behaviour added** — `$tries = 1` untouched, `send()`/`resume()`
+  byte-for-byte unchanged, a failed attempt still just fails; the class docblock updated to name
+  the new key and explicitly note M3 is where CAS/scheduling lands, not here. **T9's 8 anticipated
+  errors are now closed**: both `DeliverToDestinationTest` (7 tests) and
+  `DeliveryIdempotencyAcceptanceTest` (1 test) construct their `DeliveryUnit`s with a real
+  `deliveryId` again. `tests/Feature/Delivery/DeliverToDestinationTest.php`: added a
+  `deliveryFor(Destination): Delivery` helper (one real `deliveries` row per unit — `delivery_id`
+  is a restrict FK, T5, so a fabricated int would fail at the DB); the `unit()` helper gained an
+  optional `?int $deliveryId = null` param defaulting to a freshly created delivery, so every
+  existing call site needed no change beyond the constructor's new required arg being satisfied
+  implicitly; the manually-built orphan row in
+  `test_a_row_left_dispatched_is_re_driven_on_the_same_row` gained `'delivery_id' =>
+  $unit->deliveryId`. Two tests added: (1)
+  `test_two_different_deliveries_can_legitimately_share_attempt_number_one_with_no_collision` —
+  the Testing note's named case, two units against the same destination but distinct
+  `deliveryId`s both settle to their own row at `attempt_number = 1`, no collision (the exact
+  shape the old key could not express — ADR-015 Decision 2); (2)
+  `test_unique_index_rejects_a_raw_duplicate_insert` — restores the raw-duplicate-insert
+  DB-enforcement probe T5 retired against the old key, now proving the NEW
+  `UNIQUE(delivery_id, attempt_number)` index rejects a duplicate pair, fulfilling T5's own
+  deviation note ("T10 restores the equivalent race-safety probe on the new key").
+  `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php`: the manually-constructed
+  redelivery `DeliveryUnit` now resolves the real `Delivery` row T8's `ProcessIngestedWebhook`
+  created for the `(dispatch_uuid, destination_id)` pair (`Delivery::query()->where('dispatch_uuid',
+  $event->ingest_id)->where('destination_id', $destination->id)->firstOrFail()`) and passes its
+  id as `deliveryId` — this is the real idempotency key the redelivery must now match, not an
+  arbitrary value. `test_the_unique_index_rejects_a_raw_duplicate_insert` restored here too (same
+  T5 promise, second of the two named files), against a `Delivery::factory()`-created row. No
+  test was weakened; both restorations replace exactly what T5 removed, against the new key. No
+  anticipated-red left behind — the branch is fully green, closing M2. Verified: `composer lint`
+  (Pint, passed), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
+  "DeliverToDestinationTest|DeliveryIdempotencyAcceptanceTest"` (11 passed / 47 assertions),
+  `./vendor/bin/sail test --parallel` full suite (486 total, 486 passed / 1674 assertions — up
+  from T9's 483 total/475 passed/8 errors; all eight closed, no new red).
 
 ---
 
