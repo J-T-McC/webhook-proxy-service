@@ -2739,7 +2739,42 @@ session per the assigning task's instructions.
 - **Acceptance Criteria:** every named seam in the plan's Test Strategy "Unit" group has at least
   one passing unit test; no seam is covered twice by near-duplicate tests across files.
 - **Testing:** as described above.
-- **Completion notes:** _pending_
+- **Completion notes:** Audited every named seam in the plan's Test Strategy "Unit" group against
+  T1-T44's own testing sections. Six of the seven were already fully covered, no gap: `RetryPolicy`
+  (`RetryPolicyTest`, T11/T20) already exercises the exponential delay-table boundary at the cap
+  explicitly (attempt 5 at 7500s just under the 21600s cap, attempt 6 at the 37500s-would-be value
+  capped to 21600s — the exact boundary case, not a rounder mid-range value); `DeliveryStatus::
+  isTerminal` (`DomainEnumsTest`, T2) already asserts all four cases (a complete truth table for a
+  four-case enum); `StoredPayloadLookup::dispatchedBytesFor` (`StoredPayloadLookupTest`, T12)
+  already covers both resolution cases (no row/NULL body -> raw; diverged body -> dispatched); the
+  "refuses/never called on cleaned" property is a caller-guard property, not testable on the method
+  itself (it deliberately does not re-guard per its own docblock), and is already proven at the
+  caller (`RetryDeliveryTest`'s cleaned-parent case, T14); `applyHolds` H5 (`PurgeExpiredPayloadsTest`,
+  T19) already covers all four named cases plus the reappeared-hold race; `PipelineContext`
+  dispatch-uuid defaulting (`PipelineContextTest`, T8) already covers defaulting, independent
+  override, and read-only-ness; `DeliverStep` iterates delivery rows (T9) is split, by house
+  precedent, across two real files (`tests/Unit/Pipeline/DeliverStepTest.php`, pre-#6, and
+  `tests/Unit/Actions/DeliverStepTest.php`, T9's own) which together cover the N-units-with-
+  `deliveryId` case, the trashed-destination-still-delivers case, and the Async/FIFO shape
+  unchanged case — not a duplicate-coverage problem, T9's Testing note explicitly allowed either
+  file. **One genuine gap found and filled:** no dedicated CAS transition-matrix test existed for
+  `DeliverToDestination::transition()`/`RetryDelivery::terminalizeCleaned()` — every single valid
+  transition was provable only by piecing together scattered single-case tests across
+  `DeliverToDestinationTest`, `RetryDeliveryTest`, and the acceptance suites, and the invalid/no-op
+  transitions were proven from only ONE terminal source status (`failed`, via
+  `DeliverToDestinationTest`'s one racing-duplicate test) — `succeeded` as a rejected CAS source
+  was never asserted at all. Added `tests/Unit/Actions/DeliveryStatusTransitionTest.php`: a 12-case
+  data-provider matrix covering every `(from ∈ {pending, retrying, succeeded, failed}) ×
+  (outcome ∈ {success, fail-below-limit, fail-at-limit})` combination `DeliverToDestination::
+  transition()` can be asked to attempt — the two non-terminal sources honor every outcome, the two
+  terminal sources reject every outcome as a true no-op (status unchanged, no `RetryDelivery` push,
+  no `DeliveryExhausted`) — plus one direct test naming `RetryDelivery::terminalizeCleaned()`'s own
+  CAS (`retrying -> failed`), explicitly cross-referencing rather than duplicating
+  `RetryDeliveryTest`'s existing full assertion of it. No production defect found — the CAS
+  guard behaves correctly in every cell of the matrix as implemented. Verified: `./vendor/bin/sail
+  test --filter DeliveryStatusTransitionTest` (13 passed, 26 assertions); full suite
+  `./vendor/bin/sail test --parallel` (**699 passed / 2587 assertions**, up from 686/2561);
+  `composer lint` (Pint clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T46 — Full quality sweep + docs cross-check (plan §Milestones M10)
 - **Description:** Final task: run the full suite in parallel, Pint, and PHPStan L7 across the
