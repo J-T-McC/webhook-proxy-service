@@ -2462,7 +2462,46 @@ session per the assigning task's instructions.
     the deliberate order-key/unique-key updates enumerated in T5/T6/T16.
 - **Testing:** the cases above; `Queue::fake()` to prevent self-dispatch recursion inline
   (mirroring `FifoLivenessAcceptanceTest`'s step-by-step-advance pattern).
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Retry/FifoRetryCompositionAcceptanceTest.php` (8
+  tests), driving the real `AdvanceProxyFifoQueue` / `RetryDelivery` / `SweepStalledFifoDispatches`
+  chain over a `fifoProxyWithPending()` fixture mirroring `FifoLivenessAcceptanceTest`'s shape. No
+  production defect found; all eight bullets hold as implemented. Covered: the head's first
+  attempt failing inline holding the line (`awaiting_retry`, no lease), the next pending row
+  staying unclaimed with zero delivery work, and the sweeper's reaper/nudge both leaving the held
+  line untouched; a successful retry settling the row (`settled_at` set) and nudging the advancer
+  to claim the next row only after, never before; an exhausted retry settling the row (asserted
+  against `FifoDispatchStatus::cases()` directly — no `dead_lettered` case exists at all) with the
+  terminal fact on `deliveries` and the line advancing past the poison head; a multi-destination
+  head staying held while one delivery is still retrying and settling exactly once (one CAS, one
+  nudge) once the last delivery terminalizes; a genuine race against an alternate settler (the
+  fifo row already flipped to `settled` by a simulated concurrent process before a second
+  delivery's own real completion runs) proving that later completion's CAS is a true no-op; the
+  T18 stuck-hold release (an `awaiting_retry` row whose only delivery is already terminal —
+  simulating the crash window between a delivery settling and its normal fifo-row transition)
+  being settled and nudged by `SweepStalledFifoDispatches`; an Async proxy's two events each
+  running their own full retry cascade to their own terminal state with zero `fifo_dispatches`
+  rows ever created and each one's attempt count/status completely unaffected by the other having
+  run; and the order key — two capture-created rows processing in `id` order, with a replay row
+  created afterward processing only once both captures have settled (AC11 join-at-back). The
+  existing #4 correctness suites (`FifoLivenessAcceptanceTest`, `AdvanceProxyFifoQueueTest`,
+  `SweepStalledFifoDispatchesTest`, `FifoDispatchTest`) all pass green, unmodified, in the full
+  suite run below.
+
+  **Test-authoring pitfall found and worked around (no production code affected):** `Http::fake()`
+  called a second time in the same test with the array/URL-pattern form does **not** replace the
+  previously registered stub — `Factory::fake()`'s array branch calls `stubUrl()` per entry, which
+  itself calls `fake()` again with a closure that gets **merged** onto `$stubCallbacks`, never
+  cleared; the **first**-registered `'*'` stub wins for every subsequent request. Two tests needed
+  "fails once (or twice), then succeeds" within a single test method (the successful-retry and
+  multi-destination cases) — fixed by using a single `Http::fakeSequence()->pushStatus(500)->...
+  ->whenEmpty(Http::response('ok', 200))` instead of two sequential `Http::fake([...])` calls.
+  Documented inline at each use site; noted in project memory (`testing_patterns.md`) for future
+  test-writing.
+
+  Verified: `./vendor/bin/sail test --filter FifoRetryCompositionAcceptanceTest` (8 passed, 48
+  assertions, re-run 3× with no flakiness); full suite `./vendor/bin/sail test --parallel` (652
+  passed, 2282 assertions); `composer lint` (Pint clean); `composer types:check` (PHPStan level 7,
+  0 errors).
 
 ## T41 — Replay acceptance tests (AC9–AC14)
 - **Description:** End-to-end proof of manual replay through the real endpoint (T24) and the

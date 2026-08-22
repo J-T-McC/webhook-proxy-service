@@ -174,3 +174,13 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   body on that status (e.g. ADR-017's "cleaned => 410 Gone, no body content"), use `return
   response('', $code);` instead of `abort($code)`. Caught by a first failing test run asserting
   against the response content. Used for #6 T28's `ProxyEventPayloadController`.
+- **`Http::fake(['*' => ...])` called a SECOND time in the same test does NOT replace the first
+  stub.** The array/URL-pattern form (`Factory::fake($callback)`'s `is_array($callback)` branch)
+  calls `stubUrl()` per entry, which itself calls `fake()` again with a closure that gets
+  **merged** onto `$stubCallbacks`, never cleared — the first-registered matching pattern (e.g.
+  `'*'`) wins for every request for the rest of the test, silently ignoring the later fake. Needing
+  "fails N times then succeeds" (or any response change) within one test: use a single
+  `Http::fakeSequence()->pushStatus(500)->pushStatus(500)->whenEmpty(Http::response('ok', 200))`
+  (or `->push($body, $status)`) instead of two sequential `Http::fake([...])` calls. Symptom: a
+  status/outcome assertion after the "second" fake fails as if the FIRST fake were still active.
+  Found in #6 T40's `FifoRetryCompositionAcceptanceTest`.
