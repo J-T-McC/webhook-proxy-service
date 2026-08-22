@@ -1,6 +1,6 @@
 # ADR-011: Per-proxy FIFO dispatch mechanism (claim-based single-advancer) and the `processing_mode` attribute
 
-- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions carry a PROPOSED partial supersession by ADR-016 (#6, pending Project Owner approval) — see the inline notes at Decisions 2 and 4. Everything else stands, Accepted and operative.**
+- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. Everything else stands, Accepted and operative.**
 - **Author:** Principal Engineer
 - **Date:** 2026-08-04
 - **Feature:** prd-04-queued-processing (realizes ADR-005 at build time; serves #6)

@@ -2790,7 +2790,126 @@ session per the assigning task's instructions.
   `pnpm format:check` all green; no remaining docblock or comment describes the superseded
   ADR-011 positions as current without a pointer to ADR-016.
 - **Testing:** the full-suite run itself is the test.
-- **Completion notes:** _pending_
+- **Completion notes:** Final task, feature exit gate. **Full gate, all green:**
+  `./vendor/bin/sail test --parallel` — **699 passed / 2587 assertions**, 0 failures;
+  `composer lint` — Pint clean; `composer types:check` — PHPStan level 7, 0 errors; `pnpm
+  lint:check` — ESLint clean; `pnpm types:check` — `vue-tsc --noEmit` clean; `pnpm format:check` —
+  Prettier clean ("All matched files use Prettier code style!").
+
+  **ADR-011 docblock sweep.** Searched every production/test file citing `ADR-011` (14 files) for
+  a docblock describing a superseded P1/P2/P3 position (order key = `webhook_event_id`;
+  `UNIQUE(webhook_event_id)`; the old `delivery_attempts` idempotency key) as current, without a
+  pointer to its superseding ADR. All in-code citations were already correctly annotated (either
+  citing an unaffected ADR-011 Decision — 1/3 — or already pointing to ADR-015/ADR-016 alongside
+  ADR-011 where the superseded Decisions 2/4 are touched). **One stale doc found and fixed:**
+  `docs/architecture/adr-011-per-proxy-fifo-dispatch-mechanism.md`'s own top **Status** line still
+  read "carry a PROPOSED partial supersession by ADR-016 (#6, pending Project Owner approval)" —
+  stale as of ADR-016's actual 2026-08-12 Owner acceptance, even though the same file's own inline
+  notes at Decisions 2/4 already correctly said "SUPERSEDED by ADR-016 (Accepted, Project Owner
+  2026-08-12)". Updated the Status line's wording to match the inline notes exactly (pointer-only,
+  per ADR-016's own Impact section — no ADR-011 decision text rewritten, its Author/Date/Feature
+  fields and every decision/alternative untouched).
+
+  **AC coverage verdict.** Every PRD-06 AC1-AC18, AC20, AC22, AC23, AC25 traces to at least one
+  task whose title names it and whose completion notes name the covering test file(s) — confirmed
+  by cross-referencing every `## T<n> — ... (AC...)` header against the PRD's own AC list. **AC8**
+  ("Upstream sender unaffected") is not named in any task *title*, but is covered:
+  `ReplayAcceptanceTest::test_replay_never_produces_an_ingest_response_and_ingest_stays_unaffected_by_retry_state`
+  is explicitly headed "AC8" in its own file and T41's body (not title) cites it. **AC19** ("No
+  notifications"), **AC21** ("No mapping, no payload transformation"), and **AC24** ("No numeric
+  targets") trace to **no task and no test** — all three are pure scope-boundary/negative claims
+  asserting a feature or target was deliberately *not* built, with no corresponding code path to
+  exercise (unlike AC20/AC23, whose scope boundaries got a testable positive proof — "mode gates
+  nothing else", "no stats beyond the per-event state" — because a concrete mechanism existed to
+  assert against). No task in the approved plan claims otherwise for AC19/21/24, and adding a test
+  for the absence of unbuilt, out-of-scope code would itself be scope creep beyond this task's
+  remit — flagged here as the honest verdict, not silently claimed as covered.
+
+  **Task completion-note audit.** Every task T1-T45 carries real, non-placeholder completion notes
+  (grepped for `_pending_` across the whole task file — the only remaining match was this task's
+  own line, now filled in). Plan/ADR references spot-checked: ADR-015/016/017 all read **Accepted
+  (Project Owner, 2026-08-12)**; plan-06's own Status line ("Approved ... except the seven items
+  ... not self-certified") remains accurate as literally worded — those seven items were never
+  self-certified, they were separately Owner-ratified, which the line doesn't dispute — so no
+  further plan-level edit was needed beyond the ADR-011 Status-line fix above.
+
+  **Compiled flagged-tension list, inherited from every prior T1-T45 session, for the Reviewer:**
+  1. **T37/T24 navigation conflict (unresolved).** T37's own AC wants a successful replay to avoid
+     a full page navigation ("the page reflects the new Replay group without a full navigation");
+     T24's already-implemented, already-merged controller does `return to_route('proxies.show',
+     ...)` on success — a full PRG redirect, per plan-06's own explicit "PRG + flash toast" spec
+     for this endpoint and the app's established convention for every other write endpoint. T37
+     could not satisfy its own AC without either changing T24's endpoint shape (outside T37's
+     stated scope) or the AC being wrong against the app's established pattern — flagged rather
+     than silently decided either way. `ReplayAcceptanceTest`'s AC8 test asserts and documents
+     today's real behaviour (a full redirect to `proxies.show`) inline, per this session's own
+     explicit instruction not to silently resolve it. Awaiting a ruling.
+  2. **T14's cleaned-path attempt-row decision.** `RetryDelivery::terminalizeCleaned()` writes
+     **no** `DeliveryAttempt` row when a retry meets a cleaned parent — resolved against PRD-06
+     AC17's literal wording ("a cleaned event produces zero new delivery attempts except by
+     rejecting the request cleanly"), reading the Description's "CAS the delivery to failed with
+     an error summary" as descriptive framing for the `Log::info('payload.expired', ...)` call,
+     not a literal `delivery_attempts.error_summary` field write (that column doesn't exist on
+     `deliveries` at all — T3's migration was checked before this reading was taken). T42 exercises
+     AC17 against this exact behaviour.
+  3. **T16's mode-switch behaviour change.** T16's real settle-or-hold logic (reading the
+     delivery's actual terminal/non-terminal state instead of unconditionally settling) surfaced a
+     genuine, structural interim red in the pre-existing #4 suite:
+     `ProcessingModeSwitchAcceptanceTest::test_pre_switch_fifo_events_still_drain_in_order_after_switching_to_async`
+     — a pre-switch FIFO row claimed after the proxy has switched to Async now correctly holds
+     (`awaiting_retry`) instead of settling unconditionally, because its deliveries are dispatched
+     (queued) rather than run inline, and nothing in that test's `Queue::fake()` world executes
+     them to close the hold. Confirmed structural (not a regression) by isolating T16 alone (527/528,
+     one anticipated failure); closed in T17's own commit via a `runPushedDeliveries()` test helper
+     standing in for a real queue worker. No longer red in the final suite — named here only so the
+     Reviewer has the full arc, not because it's still open.
+  4. **T24's `childRouteBindingRelationshipName()` seam.** Eloquent's default child-route-binding
+     convention computes `Str::plural(Str::camel('event'))` = `events` for the `{event}` route
+     parameter, but T23 locks the relation to `webhookEvents()` (both task specs independently
+     correct, mutually incompatible by name). Resolved via `Proxy::childRouteBindingRelationshipName()`
+     — the documented Eloquent extension point for exactly this mismatch — mapping `'event'` →
+     `'webhookEvents'` and falling through to the default for every other child type. No interface,
+     data model, or ADR'd decision changed; judged in scope under local-implementation-detail
+     authority, flagged for visibility since an uncorrected version would have 500'd (not 404'd) the
+     instant a real `{event}` parameter needed scoping — a real security gap, not just a bug.
+  5. **T25's `WebhookEvent::deliveries()` addition.** `WebhookEventResource`'s `whenLoaded('deliveries')`
+     needed an inverse `HasMany` relation that did not exist on `WebhookEvent` before T25 — added as
+     load-bearing infrastructure for the task (not scope creep), alongside its `@property-read` line.
+  6. **T37's `loadMissing('destinations')` fix to a completed backend task.** T26's already-merged
+     `ProxyEventController@index` never eager-loaded `destinations`, so the events Index page's
+     `proxy` prop had no data for `ReplayDialog`'s checklist (AC10 needs the proxy's *current* live
+     destinations, which can't be correctly derived from `event.deliveries[].destination` — that set
+     is neither guaranteed current nor guaranteed live). Fixed with one additive line mirroring T27's
+     own `show()`, plus a `ProxyListItem` → `ProxyDetail` prop-type widening on the Index page. Judged
+     in scope (same class of fix as #4 above), flagged because it touches a completed backend task's
+     file outside a later session's stated frontend-only scope.
+  7. **T36's derived-data gaps.** `DeliveryResource` (T25) carries no `created_at` on a `deliveries`
+     row. T36 needed a "{time}" label and a newest-first ordering for replay groups on the event
+     detail page and derived both without a backend field: the label from the earliest attempt
+     `started_at` in the group (falling back to a bare "Replay" label when a FIFO replay is still
+     queued with zero attempts yet); the ordering from each group's highest real `Delivery.id`
+     (attempt time is not a reliable creation-order proxy once backoff is involved). T43 asserts the
+     missing `created_at` explicitly (`->missing('event.deliveries.0.created_at')`) as today's real
+     resource shape, not silently patched around. Flagged for the Reviewer/Principal Engineer to
+     judge whether `DeliveryResource` should eventually gain a real `created_at`.
+  8. **T41's subset-destination fix (AC10 defect, found and fixed).** `ProcessIngestedWebhook`'s
+     per-live-destination `firstOrCreate` backfill loop (T8, designed only for the original ingest
+     dispatch where `dispatchUuid === ingestId`) ran unconditionally regardless of dispatch identity,
+     so a replay to a chosen subset of destinations (T24, passing its own distinct `dispatch_uuid`)
+     silently got backfilled a `kind = original` row — and a real outbound send — for every live
+     destination the user did **not** select, defeating the subset selection entirely. Neither T8's
+     nor T24's own tests caught it (T8 never exercises a non-default `dispatchUuid`; T24's own subset
+     test uses `Queue::fake()`, which never actually runs `ProcessIngestedWebhook`'s body). Found only
+     because T41's Testing note required a real ingest → replay → assert flow. Fixed by gating the
+     backfill loop on `$dispatchUuid === $ingestId` — a one-line, minimally-scoped fix, no interface
+     or data-model change.
+  9. **T30-vs-#7 forward collision (not resolved in #6, flagged for #7).** T30's `update()` clears a
+     proxy's `retry_attempt_limit`/`retry_backoff_strategy` to `NULL` whenever `mode` switches from
+     enhanced to simple — correct per PRD-06/design-06 today (T44's acceptance test proves this
+     exact behaviour, phrased as current behaviour only, not entrenched as a guarantee). Feature #7's
+     Owner ruling (Q-07-01(b), 2026-08-21) will instead preserve a persisted policy dormant across a
+     mode switch — out of scope for #6 to pre-empt; #7 will need to change this clearing behaviour
+     when it lands.
 
 ---
 
