@@ -50,7 +50,19 @@ Inertia `useForm().post()`/`router.post()` cannot avoid following a server redir
 controller does a PRG `to_route(...)` to a *different* page than the caller (e.g. a dialog on
 an Events page whose backend redirects to the Proxy Show page on success), the browser lands
 on that page after a successful submit; there is no "stay on this page, just re-fetch" opt-out
-without the backend returning something other than a redirect. Established app-wide PRG
-convention (every mutating controller redirects to its resource's Show page on success) can
-conflict with a UI spec's "no full navigation" expectation — check the actual controller
-response before assuming a dialog can stay open on success.
+without the backend returning something other than a redirect. When a spec wants "land back
+where the user was" rather than a fixed resource page, `return back();` is the fix — Inertia's
+`form.post()` carries the browser's `Referer` header, so no client change is needed; assert it
+in feature tests with `->from($refererUrl)->post(...)->assertRedirect($refererUrl)` (review-06
+Major 1, `ProxyEventReplayController`).
+
+`reka-ui`'s `CheckboxRoot` (and other `role="button"`-rendering reka-ui primitives) is NOT in
+HTML-AAM's name-computation chain for a wrapping `<label>` with no `for`/`id` — a `<Label>`
+wrapping a `<Checkbox>` with a sibling text `<span>` gives the rendered `<button
+role="checkbox">` an EMPTY accessible name (axe `button-name` fails). Fix: pass `aria-label`
+(or `aria-labelledby`) straight on the `<Checkbox>` — `CheckboxRoot` reads `$attrs["aria-label"]`
+and forwards it verbatim onto the underlying button (verified in
+`node_modules/reka-ui/dist/Checkbox/CheckboxRoot.js`); Vue's default attribute fallthrough
+carries it there through the `components/ui/checkbox/Checkbox.vue` wrapper with no extra work.
+No frontend a11y test harness exists in this project — verify via source read of the rendered
+node_modules output, or a real browser/DOM check, not assumption (review-06 Major 3).

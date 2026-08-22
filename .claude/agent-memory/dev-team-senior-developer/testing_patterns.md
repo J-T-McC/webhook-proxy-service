@@ -184,3 +184,18 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   (or `->push($body, $status)`) instead of two sequential `Http::fake([...])` calls. Symptom: a
   status/outcome assertion after the "second" fake fails as if the FIRST fake were still active.
   Found in #6 T40's `FifoRetryCompositionAcceptanceTest`.
+- **The test client's `actingAs($user)` authentication PERSISTS across every subsequent `$this->
+  get()/post()/...` call within the same test method, even without re-chaining `actingAs()`** — a
+  later unauthenticated-guest assertion (`->assertRedirect(route('login'))`) in a test that already
+  called `actingAs()` earlier will get 200, not a redirect, because the session is still
+  authenticated. Assert the guest/unauthenticated case FIRST, before any `actingAs()` call in that
+  test method, or put it in its own test entirely. Found in #6 T43's
+  `ReadSurfaceRevealAcceptanceTest`.
+- **A real delayed dispatch (e.g. `RetryDelivery::dispatch(...)->delay(...)`) inside an inline-first-
+  attempt flow (FIFO `DeliverStep`, or `AdvanceProxyFifoQueue::run()`) needs `Queue::fake()` to
+  observe an intermediate `retrying` state before it resolves** — without it, `QUEUE_CONNECTION=sync`
+  runs the delayed job immediately (delay is a no-op), cascading straight through to the delivery's
+  eventual terminal state within the one triggering call, so "assert it's mid-schedule" assertions
+  fail against an already-terminal row. `Queue::fake()` freezes exactly the delayed hop; the
+  triggering inline attempt (FIFO's direct `DeliverToDestination::run()`) still executes for real.
+  Found repeatedly in #6 T42's `RetryReplayRetentionInterplayAcceptanceTest`.
