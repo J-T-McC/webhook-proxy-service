@@ -2357,7 +2357,50 @@ session per the assigning task's instructions.
     next failure; raising it extends the schedule (plan ruling 1).
   - A soft-deleted destination mid-schedule still executes and settles its retry (plan ruling 2).
 - **Testing:** the cases above via `Http::fake()`, `Queue::fake()`/`Bus::fake()`, `travel()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Retry/RetryEngineAcceptanceTest.php` (10
+  tests), exercising the real `ProcessIngestedWebhook` → `DeliverStep` →
+  `DeliverToDestination` → `RetryDelivery`/`SweepDueRetries` chain — no new production
+  code needed, all seven bullets hold as implemented. Proxies use
+  `ProcessingMode::Fifo` purely to get an inline first attempt (`DeliverStep`'s Fifo
+  branch calls `DeliverToDestination::run()` directly, unaffected by `Queue::fake()`),
+  orthogonal to the simple/enhanced retry-config axis under test — Async-mode coverage
+  of the same engine already exists (`AsyncDispatchAcceptanceTest`). Covered: AC1
+  system-default schedule (limit 5, exponential ≈60s first delay) on a simple proxy;
+  AC2 enhanced `limit=2`/fixed stopping at attempt 2 with the configured fixed delay,
+  and enhanced-with-unset-columns falling back to 5/exponential; AC3 two-destination
+  independence (failed one alone retries to its own terminal state, succeeded one gets
+  no extra attempts); AC7 incremented `attempt_number` per retry, same `delivery_id`,
+  no payload column, `DeliveryAttempted`/`DeliveryFailed`/`DeliveryExhausted` firing
+  counts; the unique-key dedupe (`RetryDelivery::handle()` called twice for the same
+  `(delivery_id, attempt_number)` yields one attempt-2 row); `SweepDueRetries`
+  re-driving an overdue `retrying` delivery whose delayed job was lost; mid-flight
+  policy change both directions (lowering the limit below the executed count
+  terminalizes at the next failure; raising it before a would-be terminal failure
+  extends the schedule, proven via a fresh `RetryDelivery` dispatch for the next
+  attempt); a soft-deleted destination mid-schedule still executing and settling via
+  `withTrashed()`.
+  **Non-blocking observation, no code change:** manually pacing multi-hop `Fixed`-
+  strategy cascades exposed that `DeliverToDestination::transition()`'s
+  compare-and-set reads its "did I win" signal from the PDO/MySQL default
+  affected-rows count, which counts rows whose stored **values actually changed**,
+  not rows the `WHERE` **matched**. A `retrying → retrying` continue-schedule CAS
+  whose new `next_attempt_at` happens to round to the same stored second as the
+  already-persisted value (only possible when two schedule computations land within
+  the same wall-clock second) is silently treated as "another settler already won" and
+  drops the scheduled dispatch. This is unreachable in production — real retries are
+  always genuinely separated by their configured delay via the actual queue's delayed
+  execution — and was only surfaced here by the sync-queue test driver's zero-delay
+  cascade collapsing successive `now()` calls to milliseconds apart. Worked around in
+  these tests with `travel()` pacing (mirroring the Testing note's own guidance) rather
+  than a production fix, since the only real fix (`PDO::MYSQL_ATTR_FOUND_ROWS` on the
+  `mysql`/`mariadb` connections) would change affected-rows semantics for every
+  compare-and-set across #1/#4/#5/#6 — reopening ADR-005/011/015/016's binding CAS
+  invariant, not a T38-scoped change. Flagging for principal-engineer awareness only;
+  no action taken.
+  Verified: `./vendor/bin/sail test --filter RetryEngineAcceptanceTest` (10 passed, 41
+  assertions); full suite `./vendor/bin/sail test --parallel` (641 passed, 2197
+  assertions); `composer lint` (Pint clean); `composer types:check` (PHPStan level 7,
+  0 errors).
 
 ## T39 — Terminal state & event acceptance tests (AC4, AC5)
 - **Description:** End-to-end proof of the explicit terminal state and its event, complementing
