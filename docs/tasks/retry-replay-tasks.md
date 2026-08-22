@@ -2696,7 +2696,30 @@ session per the assigning task's instructions.
   - The `mode` field still gates nothing else — no toggle surface is added, no other field
     becomes conditional on it beyond the pre-existing behaviour (AC20).
 - **Testing:** the cases above via real `store`/`update` requests.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php` (8 tests),
+  complementing T29's request-validation and T30's controller/resource per-task tests by driving
+  real `store`/`update` HTTP requests end to end through to persistence and the resource shape.
+  No production defect found; all three bullets hold as implemented. Covered: `store` accepting
+  the exact 1/5/10 bounds with a known strategy on `mode = enhanced` and persisting both columns;
+  `store` rejecting 0, 11, and an unknown strategy string (422, `assertJsonValidationErrors`);
+  `store` rejecting either retry field present under `mode = simple`; `update` persisting both
+  fields on an enhanced submission; `update` rejecting either field under `mode = simple`;
+  switching `mode` from enhanced (with previously configured values) to simple on `update` clears
+  both columns to `NULL`; `ProxyResource` emitting both fields with real (non-null) values across
+  **all three** routes that carry the proxy shape — index, show, **and edit** (T30's own tests
+  only ever covered index/show; `proxies.edit` had zero coverage of these two fields before this
+  task, a genuine gap this suite closes); AC20 — a `mode = simple` update still freely sets an
+  entirely unrelated field (`response_status`/`response_body`, gated only by its own pre-existing
+  204 rule, never by `mode`), proving #6 added no gating beyond the retry-policy pair, plus a
+  routing-level check (`Route::has()`) that no new mode-toggle route exists. **The T30-vs-#7
+  forward collision, flagged per the task's own instructions, was deliberately NOT entrenched
+  here:** the enhanced→simple clear-to-NULL test above asserts today's PRD-06-correct behaviour
+  only, phrased as current behaviour rather than as a guarantee the suite would defend against a
+  future change — feature #7's Owner ruling (Q-07-01(b), 2026-08-21) will change this to preserve
+  a persisted policy dormant instead, out of scope for #6. Verified: `./vendor/bin/sail test
+  --filter RetryPolicyFormAcceptanceTest` (8 passed, 64 assertions); full suite `./vendor/bin/sail
+  test --parallel` (**686 passed / 2561 assertions**, up from 678/2497); `composer lint` (Pint
+  clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T45 — Unit test sweep for remaining named seams (plan §Test strategy "Unit")
 - **Description:** Fill any gap in the plan's explicitly named unit-test seams not already
