@@ -2524,7 +2524,60 @@ session per the assigning task's instructions.
   - A redelivered replay-processing job creates no duplicate delivery rows or attempts.
 - **Testing:** the cases above via a real ingest → replay → assert flow, `Http::fake()`,
   `Queue::fake()`/`Bus::fake()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Replay/ReplayAcceptanceTest.php` (13 tests) driving
+  the real `POST .../events/{event}/replay` endpoint end to end.
+
+  **Defect found and fixed (AC10).** A subset-destination replay (e.g. 2 of 3 live destinations
+  selected) dispatched to **all three** destinations, not just the two selected — the third,
+  unselected destination silently received its own `Delivery` row (wrongly `kind = original`) and
+  a real outbound HTTP attempt. Root cause: `ProcessIngestedWebhook::handle()`'s per-live-destination
+  `firstOrCreate` backfill loop (introduced by **T8**, titled "original delivery-row creation",
+  designed only for the original ingest dispatch where `dispatchUuid` always equals `ingestId`) ran
+  **unconditionally** regardless of dispatch identity. **T24** (replay controller) reuses this same
+  action for the Async dispatch path, passing a fresh, distinct replay `dispatch_uuid` — the loop
+  then "helpfully" backfilled a row for every live destination the replay controller had NOT
+  already created, defeating the user's subset selection. Neither T8 nor T24's own tests caught it:
+  T8's tests only ever call the single-arg `ProcessIngestedWebhook::run($ingestId)` form (dispatchUuid
+  defaults to ingestId, so the loop is always correctly scoped there), and T24's own subset test
+  (`ProxyEventReplayControllerTest::test_replaying_a_subset_creates_matching_delivery_rows_...`) uses
+  `Queue::fake()`, which captures the dispatch and never actually executes `ProcessIngestedWebhook`'s
+  body — the bug is invisible unless the replay's queued job genuinely runs (which this task's
+  Testing note explicitly required: a real ingest → replay → assert flow, not a faked one). **Fix**
+  (`app/Actions/ProcessIngestedWebhook.php`): gated the backfill loop on `$dispatchUuid ===
+  $ingestId` — the original dispatch's own identifying shape (T7/T8) — so a replay's distinct
+  `dispatch_uuid` never triggers it; the replay controller's own pre-created rows for the chosen
+  subset are untouched and are all `DeliverStep` ever sees for that dispatch. Minimal, scoped to the
+  one loop; no interface/behavior change for the original-ingest path (still covered by T8's own
+  tests, all still green).
+
+  Also asserted, per the task's flagged open item: a successful replay's redirect target is
+  literally `proxies.show` (a full PRG navigation) — the T37/T24 conflict (T37's AC wanted no full
+  navigation on a successful replay) is unresolved and is asserted here as the endpoint's real
+  current behaviour, not silently changed either direction.
+
+  Covered: AC10 subset/select-all/trashed+foreign-rejection; AC11/AC12 the real pipeline running
+  end to end (`CaptureDispatchedStep`'s `webhook_event_id`-unique idempotent update on a
+  already-dispatched enhanced-mode event, the replay's own distinct `dispatch_uuid` never equal to
+  the original `ingest_id`, `kind = replay`, attempts chained via `delivery_id` and traceable via
+  `ingest_id`); AC9 simple/enhanced data-provider; AC13 a `limit=1` replay terminalizing on its own
+  first attempt with `DeliveryExhausted` carrying `kind = replay`; AC8 the replay's PRG redirect
+  vs. the ingest endpoint's own 202 response, and a fresh ingest against the same proxy succeeding
+  normally while the replay's delivery is still `retrying`; AC14 all three roles (data-provided)
+  replaying a proxy they did not create, and a non-member 404ing; a redelivered replay-processing
+  job (`ProcessIngestedWebhook::run()` called again for the same dispatch_uuid) creating no
+  duplicate delivery rows or attempts.
+
+  **Test-authoring notes (no further production changes):** three tests needed adjusting away from
+  an initial draft that used `Queue::fake()` while also needing the replay's own queued dispatch to
+  actually execute — `Queue::fake()` freezes an Async proxy's `dispatch()->afterCommit()` (both the
+  first attempt AND any retry), so a test needing one controlled real attempt uses a FIFO proxy
+  (inline first attempt, mirroring `RetryEngineAcceptanceTest`'s established pattern) or simply
+  omits `Queue::fake()` when the whole cascade is safe to let run inline (e.g. `limit=1`, or
+  `Http::fake` always-200 with no retry concern).
+
+  Verified: `./vendor/bin/sail test --filter ReplayAcceptanceTest` (13 passed, 53 assertions); full
+  suite `./vendor/bin/sail test --parallel` (665 passed, 2335 assertions); `composer lint` (Pint
+  clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T42 — Retention interplay acceptance tests (AC15–AC18)
 - **Description:** End-to-end proof that #6's dispatch forms honor the #5 retention contract,
