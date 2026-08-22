@@ -2649,7 +2649,39 @@ session per the assigning task's instructions.
   - A pre-#6 event (attempts, no `deliveries`) renders the derived per-destination state with no
     error (ruling 3).
 - **Testing:** the cases above, composing the real controllers/resources end to end.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php`
+  (6 tests), complementing T25-T28's own per-task test files by composing the three read routes
+  and the payload endpoint together rather than one route/case at a time. No production defect
+  found; all five bullets hold as implemented. Covered: list AND detail together never emit
+  `body`/`headers` under either state (retained or cleaned), asserted both via `->missing()` on
+  the Inertia props and a raw-response `assertStringNotContainsString()` against a body marker
+  (belt-and-suspenders against a future prop leak that `missing()` alone wouldn't structurally
+  catch); the payload endpoint's full matrix in one place — retained (exact bytes, the three
+  documented headers), cleaned (410), an unknown event id for the proxy (404), another proxy's
+  event id on the same team (404), another team's event id entirely (404), and unauthenticated
+  (redirect to login, asserted **before** any `actingAs()` call in the same test — the test
+  client's authentication persists across requests within one test once set, so ordering here is
+  load-bearing, not incidental); a Member who did **not** create the proxy successfully reveals
+  its payload (no distinct reveal permission beyond the existing view gate, AC25); the events list
+  paginates newest-first with the documented descriptor fields (`method`, `content_type`,
+  `byte_size`, `received_at`) and a genuinely proxy-scoped empty state (`events.data` count 0,
+  `events.total` 0) renders without error; `fifoHeldByRetry` proven `false` then `true` across a
+  **real** retry cascade (`AdvanceProxyFifoQueue::run()` driving a head's first attempt to fail
+  for real, landing the `fifo_dispatches` row on `awaiting_retry`) rather than a directly-created
+  row, differentiating this from T26's own unit-shaped true/false/Async cases; the legacy fallback
+  (ruling 3) proven with **three** destinations spanning all three `delivery_attempts` outcomes
+  (succeeded/failed/dispatched) simultaneously, on **both** the list and detail routes, with no
+  exception and zero `deliveries` rows created either way — T25/T27's own tests only ever cover
+  one destination/outcome at a time. **One derived-data gap flagged per the task notes, asserted
+  as current real shape, not silently added:** `DeliveryResource` carries no `created_at` — the
+  first test's final assertion (`->missing('event.deliveries.0.created_at')`) makes this explicit
+  rather than leaving it merely absent-by-omission. The other named gap (T27 exposing no
+  event-scoped FIFO-held flag) is structural — `fifoHeldByRetry` is a page-level, not per-event,
+  prop, confirmed by reading `ProxyEventController` — nothing to assert beyond what this suite's
+  `fifoHeldByRetry` test already proves at the page level. Verified: `./vendor/bin/sail test
+  --filter ReadSurfaceRevealAcceptanceTest` (6 passed, 109 assertions); full suite
+  `./vendor/bin/sail test --parallel` (**678 passed / 2497 assertions**, up from 672/2388);
+  `composer lint` (Pint clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T44 — Proxy form & policy acceptance tests (AC2, AC20)
 - **Description:** End-to-end proof of the retry-policy form/persistence surface, complementing
