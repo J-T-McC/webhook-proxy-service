@@ -1563,6 +1563,32 @@
   0 errors), `./vendor/bin/sail test --filter ProxyEventReplayControllerTest` (16 passed / 51
   assertions), `./vendor/bin/sail test --parallel` full suite (567 passed / 1888 assertions — up
   from T23's 551/1837, net +16, no failures). Closes M6.
+- **Rework (review-06 finding Major 1 / Ruling 1 — replay redirected to a page showing
+  neither the event nor the replay).** `to_route('proxies.show', ['proxy' => $proxy->id])`
+  landed the user on a third page — neither the events Index nor the event's own Show page
+  — satisfying neither design-06 Flow D step 3 ("no navigation away") nor Screen 4's Success
+  state ("the underlying page — list or detail — reflects the new Replay group/attempts").
+  Ruling 1 resolved the flagged T37-vs-T24 tension in the plan's favour on mechanism (PRG is
+  correct and the house convention) but not on destination. **Fix:** `return back();` — PRG
+  back to whichever page the user replayed from, satisfying the plan (still PRG, still a
+  flash toast) and design-06 (list or detail, per its own delegated choice) simultaneously.
+  No change to `ReplayDialog.vue` — it already submits via Inertia's `form.post`, which
+  carries the browser's `Referer` header, so `back()` resolves correctly from either entry
+  point with no client change. `tests/Feature/Replay/ProxyEventReplayControllerTest.php`:
+  reworked the first happy-path test to set `->from($indexRoute)` and assert the redirect
+  target is the Index route, not `proxies.show`; added two new named tests proving both
+  entry points work and the success toast surfaces on each
+  (`test_a_replay_from_the_events_index_redirects_back_to_the_index_with_a_success_toast`,
+  `test_a_replay_from_the_event_detail_page_redirects_back_to_the_detail_page_with_a_success_toast`).
+  `tests/Feature/Replay/ReplayAcceptanceTest.php`'s AC8 test
+  (`test_replay_never_produces_an_ingest_response_and_ingest_stays_unaffected_by_retry_state`)
+  updated to set the referer to the event's Show page and assert the redirect targets that
+  same URL, replacing the comment that had pinned the old `proxies.show` behaviour as an
+  unresolved conflict. Verified: `composer lint` (Pint, passed), `composer types:check`
+  (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
+  "ProxyEventReplayControllerTest|ReplayAcceptanceTest"` (31 passed / 112 assertions),
+  `./vendor/bin/sail test --parallel` full suite (711 passed / 2607 assertions, up from
+  709/2599).
 
 ---
 

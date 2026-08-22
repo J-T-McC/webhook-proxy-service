@@ -68,6 +68,23 @@ class ProxyEventReplayControllerTest extends TestCase
         ]);
     }
 
+    private function indexRoute(User $user, Proxy $proxy): string
+    {
+        return route('proxies.events.index', [
+            'current_team' => $user->currentTeam->slug,
+            'proxy' => $proxy->id,
+        ]);
+    }
+
+    private function showRoute(User $user, Proxy $proxy, WebhookEvent $event): string
+    {
+        return route('proxies.events.show', [
+            'current_team' => $user->currentTeam->slug,
+            'proxy' => $proxy->id,
+            'event' => $event->id,
+        ]);
+    }
+
     // --- Happy paths (AC9-AC13) --------------------------------------------
 
     public function test_replaying_a_subset_creates_matching_delivery_rows_sharing_one_dispatch_uuid(): void
@@ -80,8 +97,9 @@ class ProxyEventReplayControllerTest extends TestCase
         $chosen = $proxy->destinations()->take(2)->pluck('id');
 
         $this->actingAs($user)
+            ->from($this->indexRoute($user, $proxy))
             ->post($this->route($user, $proxy, $event), ['destinations' => $chosen->all()])
-            ->assertRedirect(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]));
+            ->assertRedirect($this->indexRoute($user, $proxy));
 
         $deliveries = Delivery::query()->where('webhook_event_id', $event->id)->get();
         $this->assertCount(2, $deliveries);
@@ -89,6 +107,39 @@ class ProxyEventReplayControllerTest extends TestCase
         $this->assertTrue($deliveries->every(fn (Delivery $d) => $d->kind === DispatchKind::Replay));
         $this->assertTrue($deliveries->every(fn (Delivery $d) => $d->status === DeliveryStatus::Pending));
         $this->assertCount(1, $deliveries->pluck('dispatch_uuid')->unique());
+    }
+
+    // --- review-06 Major 1: replay redirects back to the entry-point page,
+    // not a third page that shows neither the event nor the replay --------
+
+    public function test_a_replay_from_the_events_index_redirects_back_to_the_index_with_a_success_toast(): void
+    {
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = $this->proxyWithDestinations($user);
+        $event = $this->eventFor($proxy);
+
+        $this->actingAs($user)
+            ->from($this->indexRoute($user, $proxy))
+            ->post($this->route($user, $proxy, $event), ['destinations' => [$proxy->destinations()->first()->id]])
+            ->assertRedirect($this->indexRoute($user, $proxy))
+            ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Replay started.']);
+    }
+
+    public function test_a_replay_from_the_event_detail_page_redirects_back_to_the_detail_page_with_a_success_toast(): void
+    {
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = $this->proxyWithDestinations($user);
+        $event = $this->eventFor($proxy);
+
+        $this->actingAs($user)
+            ->from($this->showRoute($user, $proxy, $event))
+            ->post($this->route($user, $proxy, $event), ['destinations' => [$proxy->destinations()->first()->id]])
+            ->assertRedirect($this->showRoute($user, $proxy, $event))
+            ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Replay started.']);
     }
 
     public function test_select_all_replays_to_every_current_live_destination(): void

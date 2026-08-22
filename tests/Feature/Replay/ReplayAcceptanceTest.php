@@ -266,17 +266,18 @@ class ReplayAcceptanceTest extends TestCase
         // The replay itself never produces an ingest-shaped response — it is a
         // session-authenticated redirect (PRG), never the token-authenticated
         // ingest endpoint's own response.
-        // A successful replay currently performs a FULL PRG navigation to the
-        // Proxy Show page (per plan-06's `to_route('proxies.show', ...)`) — the
-        // T37/T24 conflict flagged in the task notes (T37's AC wanted no full
-        // navigation on success; unresolved, awaiting a ruling). Asserted here
-        // as the endpoint's real, current behaviour, not silently changed.
-        $replayResponse = $this->actingAs($user)
-            ->post($this->replayRoute($user, $proxy, $event), ['destinations' => [$destination->id]]);
-        $replayResponse->assertRedirect(route('proxies.show', [
+        // A successful replay redirects back (`back()`) to whichever page the
+        // user replayed from — the events Index or the event's own Show page
+        // (review-06 Major 1 fix; design-06 Flow D step 3 / Screen 4 Success).
+        $refererUrl = route('proxies.events.show', [
             'current_team' => $user->currentTeam->slug,
             'proxy' => $proxy->id,
-        ]));
+            'event' => $event->id,
+        ]);
+        $replayResponse = $this->actingAs($user)
+            ->from($refererUrl)
+            ->post($this->replayRoute($user, $proxy, $event), ['destinations' => [$destination->id]]);
+        $replayResponse->assertRedirect($refererUrl);
         $this->assertNotSame(200, $replayResponse->getStatusCode());
 
         // Run the replay's (captured) FIFO advance once, for real — the

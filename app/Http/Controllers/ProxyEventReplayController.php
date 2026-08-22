@@ -96,6 +96,9 @@ class ProxyEventReplayController extends Controller
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Replay started.')]);
 
-        return to_route('proxies.show', ['proxy' => $proxy->id]);
+        // PRG back to the page the user replayed from — the events Index or
+        // the event's own Show page (design-06 Flow D step 3 / Screen 4
+        // Success) — never a third page that shows neither (review-06 Major 1).
+        return back();
     }
 }
