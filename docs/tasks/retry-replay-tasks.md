@@ -2599,7 +2599,39 @@ session per the assigning task's instructions.
     including `never_captured` for an unknown ingest id — never inferred from `body` (AC16).
 - **Testing:** the cases above, reusing #5's `DB::listen()`-based fault-injection technique for
   the race cases.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Retention/RetryReplayRetentionInterplayAcceptanceTest.php`
+  (7 tests), complementing T19's unit-level `PurgeExpiredPayloadsTest` H5 cases and #5's existing
+  `RetentionInFlightHoldsAcceptanceTest`/`CleanedStateReaderGuardAcceptanceTest` by driving the
+  real `ProcessIngestedWebhook`/`RetryDelivery`/replay-endpoint chain against `PurgeExpiredPayloads`,
+  rather than constructing `deliveries` rows directly. No production defect found; all five bullets
+  hold as implemented. Covered: a replay POST against a cleaned event 422s with zero `Delivery`
+  rows, zero attempts, zero HTTP sends (AC15/AC17); the existing GC-erases-first race (mirroring
+  `ProxyEventReplayControllerTest`'s own `DB::listen()` technique, reproduced here as part of this
+  suite's own closure) and its converse — a replay's `retrying` delivery committed first holds an
+  otherwise-eligible erase, the compare-and-set affecting zero rows (AC17/AC18); H5 proven over a
+  real retry cascade end to end: an expired event with a genuine `retrying` delivery survives a GC
+  pass, then once that same delivery is driven to its real terminal `failed` state the very next
+  GC pass erases it (AC18); H5's `pending`-younger-than-horizon-holds /
+  older-than-horizon-does-not-hold pair, mirroring H4's shape for the `deliveries` table; the
+  H4-residual race T14's Description names — `RetryDelivery` meeting a cleaned parent — reproduced
+  over a genuinely real `retrying` delivery (not a pre-cleaned factory row) with the parent forced
+  cleaned directly (H5 closes this window under normal GC operation, so no normal
+  `PurgeExpiredPayloads` pass can ever produce it for real; documented in the test as the only way
+  to observe the defensive guard), terminalizing, sending nothing further (one recorded request
+  total, from the real attempt 1 that already ran), emitting `DeliveryExhausted` once, and logging
+  `payload.expired` with identifiers only; the three payload states (`retained`/`cleaned`/
+  `never_captured`) rendering distinctly across the events list, event detail, and payload
+  endpoint — `never_captured` is structurally unreachable through those three real routes (each
+  passes its own row's `ingest_id` to `StoredPayloadLookup`), so it is asserted directly against
+  the shared resolver instead, which is what every #6 read path composes through; noted inline
+  rather than silently worked around. Two tests needed `Queue::fake()` (mirroring
+  `RetryEngineAcceptanceTest`'s documented pattern) to freeze a delayed retry attempt for
+  controlled manual invocation — without it the sync queue driver's zero-delay inline cascade
+  drains the whole schedule to a terminal state within one call, making the intermediate
+  "outstanding retry" state unobservable. Verified: `./vendor/bin/sail test --filter
+  RetryReplayRetentionInterplayAcceptanceTest` (7 passed, 53 assertions); full suite
+  `./vendor/bin/sail test --parallel` (**672 passed / 2388 assertions**, up from 665/2335);
+  `composer lint` (Pint clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T43 — Read surface & reveal acceptance tests (AC22, AC25; PRD-05 AC16)
 - **Description:** End-to-end proof of the three read routes and the payload endpoint,
