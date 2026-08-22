@@ -20,9 +20,10 @@ use RuntimeException;
  *
  * Also enforces plan-06's Config sanity invariant (mirroring `RetentionPolicy`
  * / review-05 M-1 precedent): `default_attempt_limit`, `max_attempt_limit`,
- * `exponential_base_seconds`, and `fixed_interval_seconds` must each resolve
- * to a positive integer, or the affected read fails loudly (`RuntimeException`
- * naming the offending key) rather than silently substituting a default.
+ * `exponential_base_seconds`, `fixed_interval_seconds`, `exponential_multiplier`,
+ * and `exponential_max_delay_seconds` must each resolve to a positive integer,
+ * or the affected read fails loudly (`RuntimeException` naming the offending
+ * key) rather than silently substituting a default.
  */
 class RetryPolicy
 {
@@ -92,14 +93,17 @@ class RetryPolicy
 
     /**
      * `min(base * multiplier^(N-2), cap)` seconds for exponential attempt N.
-     * `exponential_multiplier`/`exponential_max_delay_seconds` are engineering
-     * constants not named in the Config sanity guard list — read plainly.
+     *
+     * @throws RuntimeException if `exponential_base_seconds`,
+     *                          `exponential_multiplier`, or
+     *                          `exponential_max_delay_seconds` does not
+     *                          resolve to a positive integer.
      */
     private function exponentialDelaySeconds(int $attemptNumber): int
     {
         $base = $this->positiveConfigInt('exponential_base_seconds');
-        $multiplier = (int) config('retry.exponential_multiplier');
-        $cap = (int) config('retry.exponential_max_delay_seconds');
+        $multiplier = $this->positiveConfigInt('exponential_multiplier');
+        $cap = $this->positiveConfigInt('exponential_max_delay_seconds');
 
         $delay = $base * ($multiplier ** ($attemptNumber - 2));
 

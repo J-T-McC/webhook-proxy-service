@@ -662,6 +662,28 @@
   RetryPolicyTest` (20 passed / 41 assertions), `./vendor/bin/sail test --parallel` full suite
   (506 total, 506 passed / 1715 assertions — up from T10's 486/486, net +20 new tests, no
   failures). Opens M3 (retry engine).
+- **Rework (review-06 finding Major 2 — config-sanity guard covered 4 of 6 keys).**
+  The deliberate exclusion recorded above was wrong: a blank or non-numeric env value
+  for either excluded key collapses `exponentialDelaySeconds()`'s cap or multiplier to
+  `0` via the bare `(int) config(...)` cast, and `min($delay, 0)` collapses every
+  exponential delay to zero — a zero-backoff burst of up to `attempt_limit` real
+  outbound sends, with `worstCaseSpan()` reporting 60s instead of tripping the AC18
+  guard (verified via `artisan tinker` in the review). **Fix:** `exponentialDelaySeconds()`
+  now routes `exponential_multiplier` and `exponential_max_delay_seconds` through the
+  same `positiveConfigInt()` guard as the other four keys — no more bare `(int) config(...)`
+  reads in `RetryPolicy`. Docblocks updated to match (no key is excluded from the guard
+  list anymore). New tests in `tests/Unit/Services/RetryPolicyTest.php` (+10, 23→33): zero/negative
+  `Config::set()` cases and blank-env/non-numeric-env `putenv()` reproduction cases for both
+  keys (mirroring `default_attempt_limit`'s existing pattern), plus two named regression
+  tests reproducing the review's exact pre-fix `artisan tinker` findings
+  (`test_a_zero_exponential_max_delay_seconds_no_longer_collapses_every_delay_to_zero`,
+  `test_a_zero_exponential_multiplier_no_longer_lets_worst_case_span_under_report`) proving
+  both now throw instead of silently zeroing the backoff. `worstCaseSpan()`'s AC18 bound
+  (T20) is unaffected — the default config path never touches the guard. Verified:
+  `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0 errors),
+  `./vendor/bin/sail test --filter RetryPolicyTest` (33 passed / 59 assertions),
+  `./vendor/bin/sail test --parallel` full suite (709 passed / 2599 assertions, up from
+  699/2587).
 
 ## T12 — `StoredPayloadLookup::dispatchedBytesFor()` (AC13; ADR-013 Decision 3, ADR-015 Decision 1)
 - **Description:** New method on the existing `App\Services\StoredPayloadLookup` (#5):

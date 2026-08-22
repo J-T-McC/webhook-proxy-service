@@ -312,4 +312,156 @@ class RetryPolicyTest extends TestCase
 
         (new RetryPolicy)->worstCaseSpan();
     }
+
+    public function test_delay_before_throws_when_exponential_multiplier_is_zero(): void
+    {
+        Config::set('retry.exponential_multiplier', 0);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("config('retry.exponential_multiplier')");
+
+        (new RetryPolicy)->delayBefore($proxy, 3);
+    }
+
+    public function test_delay_before_throws_when_exponential_multiplier_is_negative(): void
+    {
+        Config::set('retry.exponential_multiplier', -5);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->delayBefore($proxy, 3);
+    }
+
+    public function test_delay_before_throws_when_exponential_multiplier_env_value_is_blank(): void
+    {
+        // Reproduces review-06 finding Major 2's pattern: a blank env value casts to 0.
+        putenv('RETRY_EXPONENTIAL_MULTIPLIER=');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_EXPONENTIAL_MULTIPLIER');
+        }
+
+        Config::set('retry.exponential_multiplier', $resolved['exponential_multiplier']);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->delayBefore($proxy, 3);
+    }
+
+    public function test_delay_before_throws_when_exponential_multiplier_env_value_is_non_numeric(): void
+    {
+        putenv('RETRY_EXPONENTIAL_MULTIPLIER=not-a-number');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_EXPONENTIAL_MULTIPLIER');
+        }
+
+        Config::set('retry.exponential_multiplier', $resolved['exponential_multiplier']);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->delayBefore($proxy, 3);
+    }
+
+    public function test_delay_before_throws_when_exponential_max_delay_seconds_is_zero(): void
+    {
+        Config::set('retry.exponential_max_delay_seconds', 0);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("config('retry.exponential_max_delay_seconds')");
+
+        (new RetryPolicy)->delayBefore($proxy, 2);
+    }
+
+    public function test_delay_before_throws_when_exponential_max_delay_seconds_is_negative(): void
+    {
+        Config::set('retry.exponential_max_delay_seconds', -21600);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->delayBefore($proxy, 2);
+    }
+
+    public function test_delay_before_throws_when_exponential_max_delay_seconds_env_value_is_blank(): void
+    {
+        // Reproduces review-06 finding Major 2's pattern: a blank env value casts to 0.
+        putenv('RETRY_EXPONENTIAL_MAX_DELAY_SECONDS=');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_EXPONENTIAL_MAX_DELAY_SECONDS');
+        }
+
+        Config::set('retry.exponential_max_delay_seconds', $resolved['exponential_max_delay_seconds']);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->delayBefore($proxy, 2);
+    }
+
+    public function test_delay_before_throws_when_exponential_max_delay_seconds_env_value_is_non_numeric(): void
+    {
+        putenv('RETRY_EXPONENTIAL_MAX_DELAY_SECONDS=not-a-number');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_EXPONENTIAL_MAX_DELAY_SECONDS');
+        }
+
+        Config::set('retry.exponential_max_delay_seconds', $resolved['exponential_max_delay_seconds']);
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->delayBefore($proxy, 2);
+    }
+
+    // --- Major 2 regression: the cap can no longer collapse every delay to zero ---
+
+    public function test_a_zero_exponential_max_delay_seconds_no_longer_collapses_every_delay_to_zero(): void
+    {
+        // Pre-fix repro from review-06 Major 2 (artisan tinker, this branch):
+        // config(['retry.exponential_max_delay_seconds' => 0]) used to make
+        // delayBefore(attempt 2..5) resolve to 0, 0, 0, 0 — a zero-backoff burst
+        // of real outbound sends. It must now fail loudly instead.
+        Config::set('retry.exponential_base_seconds', 60);
+        Config::set('retry.exponential_multiplier', 5);
+        Config::set('retry.exponential_max_delay_seconds', 0);
+        Config::set('retry.max_attempt_limit', 10);
+
+        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Exponential]);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->delayBefore($proxy, 2);
+    }
+
+    public function test_a_zero_exponential_multiplier_no_longer_lets_worst_case_span_under_report(): void
+    {
+        // Pre-fix repro from review-06 Major 2: config(['retry.exponential_multiplier' => 0])
+        // used to make delayBefore(attempt 2..5) resolve to 60, 0, 0, 0, so
+        // worstCaseSpan() reported 60s instead of tripping the AC18 guard. It
+        // must now fail loudly instead.
+        Config::set('retry.exponential_base_seconds', 60);
+        Config::set('retry.exponential_multiplier', 0);
+        Config::set('retry.exponential_max_delay_seconds', 21600);
+        Config::set('retry.max_attempt_limit', 10);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->worstCaseSpan();
+    }
 }
