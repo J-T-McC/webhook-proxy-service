@@ -147,6 +147,7 @@ function submit(): void {
                     <Checkbox
                         :model-value="selectAllState"
                         :disabled="form.processing"
+                        aria-label="Select all destinations"
                         @update:model-value="toggleSelectAll"
                     />
                     <span>Select all</span>
@@ -160,6 +161,7 @@ function submit(): void {
                     <Checkbox
                         :model-value="isChecked(destination.id)"
                         :disabled="form.processing"
+                        :aria-label="`${destination.http_method} ${destination.url}`"
                         @update:model-value="toggle(destination.id)"
                     />
                     <span class="truncate font-mono text-sm"

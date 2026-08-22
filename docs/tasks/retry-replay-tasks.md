@@ -2378,6 +2378,37 @@ session per the assigning task's instructions.
 
   This completes **M9** (T31–T37, frontend). T38–T46 (M10, acceptance tests and quality sweep) are
   out of scope for this session per the assigning task's instructions.
+- **Rework (review-06 Ruling 1 / Major 1 — pointer only, fixed under T24).** Tension (2) above
+  is resolved: `ProxyEventReplayController@store` now returns `back()` instead of
+  `to_route('proxies.show', ...)`, so a successful replay lands the user back on whichever
+  page (events Index or event Show) they replayed from, satisfying T37's own AC ("the page
+  reflects the new Replay group without a full navigation") — see T24's completion notes for
+  the fix and its tests. No change to `ReplayDialog.vue` was required.
+- **Rework (review-06 finding Major 3 — replay dialog checkboxes have no accessible name).**
+  `reka-ui`'s `CheckboxRoot` renders `<button role="checkbox">`; the wrapping `<Label>` (no
+  `for`/`id`) is not in HTML-AAM's name-computation chain for a `button`, so the computed
+  accessible name was empty for every destination checkbox and the Select-all checkbox — a
+  screen-reader user heard "checkbox, not checked" with no destination name, on the one
+  control in this feature that sends real production traffic. No prior reka-ui `Checkbox`
+  usage in the codebase (`Login.vue`'s "Remember me") establishes a correct pattern — it has
+  the identical bug, out of scope here since it predates #6 and is not named in the finding.
+  **Fix:** the standard association — `:aria-label="`${destination.http_method}
+  ${destination.url}`"` on each destination `Checkbox`, `aria-label="Select all destinations"`
+  on the Select-all `Checkbox`. Verified against the actual mechanism, not assumption:
+  `node_modules/reka-ui/dist/Checkbox/CheckboxRoot.js` shows `CheckboxRoot` reads
+  `useAttrs()["aria-label"]` and renders it verbatim as the `aria-label` on the underlying
+  `Primitive`/`<button role="checkbox">` (`"aria-label": _ctx.$attrs["aria-label"] ||
+  ariaLabel.value`); Vue's default attribute fallthrough carries the `aria-label` passed on
+  `<Checkbox>` through the wrapper SFC (`components/ui/checkbox/Checkbox.vue`, single-root
+  template, no `inheritAttrs: false`) into `CheckboxRoot`'s `$attrs`, so the accessible name is
+  computed correctly end to end — the same source-level method the review used to find the
+  defect. A live-browser DOM/accessibility-tree check was attempted (Playwright, logged-in
+  session) but blocked by an unrelated pre-existing local-environment fault (`.env`
+  `REDIS_PORT` value corrupted, `Redis::connect()` 500s on login) outside this fix's scope; not
+  fixed here. Verified: `pnpm lint:check` (clean), `pnpm types:check` (clean), `pnpm
+  format:check` (clean). Backend unaffected: `composer lint` (Pint, passed), `composer
+  types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --parallel` (711 passed / 2607
+  assertions, unchanged).
 
 ---
 
