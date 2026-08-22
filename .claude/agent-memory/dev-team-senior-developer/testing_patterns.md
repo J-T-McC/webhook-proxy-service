@@ -163,3 +163,14 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   several `Queue::fake()`'d dispatch points in a multi-step test rather than tracking which jobs
   are "new". Used to fix `ProcessingModeSwitchAcceptanceTest` after feature #6 T16 made a
   pre-switch FIFO row's settlement depend on its now-async-dispatched delivery actually running.
+- **Testing a `JsonResource`'s `whenLoaded()`/conditional-key omission directly (no HTTP round
+  trip):** call `->resolve(request())`, NOT `->toArray(request())`. `toArray()` returns the raw
+  array with `Illuminate\Http\Resources\MissingValue` objects still in place for omitted keys
+  (`assertArrayNotHasKey` then fails - the key exists, just holding a `MissingValue`); `resolve()`
+  runs the same `filter()` pass Inertia/`toResponse()` does in production, so omitted keys are
+  genuinely absent. Used for #6 T25's `WebhookEventResource`/`DeliveryResource` unit tests.
+- **`abort(410)` (or any `abort($code)` for a lifecycle/non-error status) renders the app's full
+  HTML error-page body in the test env** - if an endpoint's contract requires a genuinely empty
+  body on that status (e.g. ADR-017's "cleaned => 410 Gone, no body content"), use `return
+  response('', $code);` instead of `abort($code)`. Caught by a first failing test run asserting
+  against the response content. Used for #6 T28's `ProxyEventPayloadController`.

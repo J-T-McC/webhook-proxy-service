@@ -2416,7 +2416,28 @@ session per the assigning task's instructions.
   - A terminal delivery remains visible on the read surface (T25/T27) and the event stays
     replayable while retained (AC4).
 - **Testing:** the cases above via `Event::fake()`, `travel()`, and the read-surface resources.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Retry/TerminalStateAcceptanceTest.php` (3 tests),
+  exercising the real `ProcessIngestedWebhook` → `DeliverToDestination`/`RetryDelivery`/
+  `SweepDueRetries` chain and the real `ProxyEventController`/`ProxyEventReplayController`
+  routes — no production code needed, all three bullets hold as implemented. Covered: an
+  enhanced FIFO proxy (`limit=2`/fixed) reaching `failed`/`next_attempt_at = null` at the
+  limit, then `travel()`-ing far past any conceivable further schedule and running
+  `SweepDueRetries` — zero new `DeliveryAttempt` rows and no `RetryDelivery` push for an
+  attempt 3 (the sweeper's own `WHERE status = retrying` query structurally excludes a
+  terminal delivery, not merely skips it by chance); `DeliveryExhausted` firing exactly once
+  under a realistic racing duplicate settle at the actual job entry point — two
+  `RetryDelivery::handle()` calls for the same terminal `(delivery, attempt_number)` (the
+  sweeper and the delivery's own still-live delayed job both firing), where the first call
+  terminalizes and fires the event and the second reloads a no-longer-`retrying` delivery and
+  is a structural no-op via `RetryDelivery`'s own early-return guard — carrying
+  team/proxy/destination/event all reachable off the event's `Delivery $delivery` payload
+  (`->team_id`, `->proxy`, `->destination`, `->webhookEvent`); a terminal delivery rendering on
+  both `GET .../events` (list) and `GET .../events/{event}` (detail) with `status = 'failed'`,
+  and a subsequent replay POST to the same still-retained event succeeding (302), proving a
+  terminal delivery does not itself block replay eligibility (AC15 governs only the cleaned
+  case). No defect found. Verified: `./vendor/bin/sail test --filter TerminalStateAcceptanceTest`
+  (3 passed, 37 assertions); full suite `./vendor/bin/sail test --parallel` (644 passed, 2234
+  assertions); `composer lint` (Pint clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T40 — FIFO composition acceptance tests (AC6)
 - **Description:** End-to-end proof of `awaiting_retry` line-holding, settlement, and the stuck-
