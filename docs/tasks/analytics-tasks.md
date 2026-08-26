@@ -1093,7 +1093,33 @@
 - **Testing:** extend the existing Proxy Show controller test file (or add
   `tests/Feature/Analytics/ProxyShowControllerTest.php`, new) — the window-fallback case, the
   permission-denial case, the query-count assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as described — `ProxyController` gains a constructor-injected
+  `App\Services\DeliveryStatistics` (mirroring `DashboardController`'s T13 constructor-injection
+  style), and `show()` gains `window` resolution identical to T13's
+  (`AnalyticsWindow::tryFrom((string) $request->query('window')) ?? AnalyticsWindow::default()`)
+  and two new Inertia props: `statistics` = `forProxy($proxy, $window)`, `destinations` =
+  `destinationBreakdown($proxy, $window)`. Authorization untouched — `$this->authorize('view',
+  $proxy)` still runs before either service call, no new gate, no new permission.
+
+  `tests/Feature/Analytics/ProxyShowControllerTest.php` (new) covers: absent `window` → `30d`
+  default with 200; malformed `window` (`'garbage'`) → same default, 200 not 422; a valid `window`
+  (`'7d'`) honoured; `statistics`/`destinations` scoped to the requested proxy (a second proxy on
+  the same team with its own traffic contributes nothing); the permission-denial case via
+  `partialMock(ProxyPolicy::class, ...)` forcing `view` to `false` and asserting 403 — the
+  established technique (`testing_patterns.md`/`ProxyAuthorizationTest::
+  test_store_is_denied_when_the_create_policy_denies`) for proving `authorize()` is genuinely wired
+  when every real role already holds the permission being tested, so a role-based denial is
+  unreachable; a direct assertion that `TeamPermission::cases()` is the exact, unchanged
+  fourteen-case list (AC24 — no new permission introduced by this task's diff, checked
+  independently of the policy-mock test above); the query-count assertion at N=1 vs. N=10
+  destinations on the proxy (same count, `DeliveryStatistics::destinationBreakdown()`, T8, is
+  already O(1) in destination count); and a sanity check that the existing `proxy`/`permissions`
+  props are untouched. `tests/Feature/Proxies/ProxyIndexShowTest.php` itself needed no edits and
+  stays green unmodified.
+
+  Verified: `composer lint`, `composer types:check` (PHPStan level 7, no suppressions),
+  `./vendor/bin/sail test --filter "ProxyShowControllerTest|ProxyIndexShowTest"` (18/18) all
+  green; full `./vendor/bin/sail test --parallel` 825/825 (up from 817 after T17).
 
 ## T19 — `proxies/Show.vue`: Analytics card (AC7, AC12, AC13, AC19, AC20; correction C2/C3/C4/C5; flagged design call 3)
 - **Description:** New "Analytics" card inserted **immediately after the header block, before

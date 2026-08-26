@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Data\ProxyPermissions;
+use App\Enums\AnalyticsWindow;
 use App\Enums\ProxyMode;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
@@ -10,6 +11,7 @@ use App\Http\Resources\ProxyFormResource;
 use App\Http\Resources\ProxyResource;
 use App\Models\Destination;
 use App\Models\Proxy;
+use App\Services\DeliveryStatistics;
 use App\Services\IngestTokenService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +22,10 @@ use Inertia\Response;
 
 class ProxyController extends Controller
 {
+    public function __construct(
+        private DeliveryStatistics $statistics,
+    ) {}
+
     /**
      * Paginated list of the current team's proxies (AC4/AC12d).
      */
@@ -129,12 +135,20 @@ class ProxyController extends Controller
     {
         $this->authorize('view', $proxy);
 
+        // AC17/plan-11 Technical ruling 8: an unrecognised or absent `window`
+        // resolves to the default rather than a 422 — never propagated further.
+        // Carried from a Dashboard drill-through link (design-11 § Interactions)
+        // when present, so the period survives the drill-down.
+        $window = AnalyticsWindow::tryFrom((string) $request->query('window')) ?? AnalyticsWindow::default();
+
         // Share the page-level permission booleans alongside the resource so Show.vue
         // composes the edit/delete affordances client-side from these + is_creator
         // (ADR-009 Amendment B5) — server enforcement is unchanged.
         return Inertia::render('proxies/Show', [
             'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
             'permissions' => $this->proxyPermissions($request),
+            'statistics' => $this->statistics->forProxy($proxy, $window),
+            'destinations' => $this->statistics->destinationBreakdown($proxy, $window),
         ]);
     }
 
