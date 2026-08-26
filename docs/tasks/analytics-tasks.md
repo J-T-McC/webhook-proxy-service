@@ -742,7 +742,50 @@
 - **Testing:** extend `tests/Feature/DashboardTest.php` or add `tests/Feature/Analytics/
   DashboardControllerTest.php` (new) — the window-fallback case, the cross-team isolation case, the
   query-count assertion, the no-proxies case.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as described — `DashboardController` gains a constructor-injected
+  `App\Services\DeliveryStatistics` (mirroring `IngestController`'s constructor-injection style),
+  `window` resolved via `AnalyticsWindow::tryFrom((string) $request->query('window')) ??
+  AnalyticsWindow::default()`, and two new Inertia props: `statistics` = `forTeam($team->id,
+  $window)`, `proxies` = `proxyBreakdown($team->id, $window)`. No separate top-level `window` prop
+  — plan-11 § API's "Prop shapes" lists only `statistics`/`proxies` as the Dashboard's new props,
+  and `StatisticsPanel::$window` already carries the resolved value; the window selector (T14)
+  reads `props.statistics.window` rather than a duplicate prop that could disagree with it.
+
+  Added a controller-level guard (`$team = $user->currentTeam; abort_if($team === null, 404);`)
+  before either service call — this is the "controller-level guard" T9's completion notes
+  cross-reference: `DeliveryStatistics::forTeam()`/`proxyBreakdown()` both take a plain
+  non-nullable `int $teamId`, so the controller is the one place that must resolve a concrete team
+  id before calling either, never the service. In practice this branch is unreachable through the
+  shipped route (`EnsureTeamMembership` aborts 403 before this action runs unless the user belongs
+  to the `{current_team}` the URL names, which sets `currentTeam` via `switchTeam()`), but it keeps
+  `$team->id` PHPStan-narrowed from `Team|null` to `Team` without a suppression, and it is the
+  concrete artifact of the guard T9 promised existed here.
+
+  Added `resources/js/types/analytics.ts` (new, not itself named in this task's Files list) —
+  the TypeScript mirror of the `App\Data\Analytics\*` DTOs plan-11 § API documents, needed for
+  `pnpm types:check` to type-check `analyticsLabels.ts`'s `AnalyticsWindowValue` import (T12) and
+  every Dashboard prop from T14 onward. Reading "Files" lists across this plan's tasks as the
+  production surface each task **must** touch rather than an exhaustive enumeration (T4's
+  completion notes record the same reading for `DeliveryStatistics`'s method visibility) — a typed
+  props contract is required for `pnpm types:check` to mean anything on the very next task, T14,
+  and duplicating the eight interfaces once per consuming task would itself be the kind of drift
+  R6 exists to prevent.
+
+  `tests/Feature/Analytics/DashboardControllerTest.php` (new) covers: absent `window` → `30d`
+  default with 200; malformed `window` (`'garbage'`) → same default, 200 not 422; a valid `window`
+  (`'7d'`) honoured; cross-team isolation (`proxies`/`statistics` for one team carry none of a
+  second team's identical-shaped traffic); the query-count assertion at N=1 vs. N=10 proxies (same
+  count); a team with zero proxies renders `proxies` empty at the **same** fixed query cost as N=1
+  — not a "zero queries" branch, since `DeliveryStatistics::proxyBreakdown()` (T8) is already O(1)
+  in proxy count including N=0, and asserting "no group-by query at all" would have required
+  reaching into and changing T8's already-tested, out-of-scope-for-this-task service; and a sanity
+  check that the existing `pendingInvitations` prop is untouched. `tests/Feature/DashboardTest.php`
+  itself needed no edits and stays green unmodified.
+
+  Verified: `composer lint`, `composer types:check` (PHPStan level 7, no suppressions),
+  `pnpm lint:check`, `pnpm types:check`, `pnpm format:check`, and `./vendor/bin/sail test --filter
+  "DashboardControllerTest|DashboardTest"` (13/13) all green; full `./vendor/bin/sail test
+  --parallel` 817/817 (up from 810 after T1–T11).
 
 ## T14 — `Dashboard.vue`: two-tier headline card + bridge sentence + window selector (AC7, AC13, AC14, AC17, C1/AC22 flagged call 1; plan § Read surfaces D)
 - **Description:** Removes the first `PlaceholderPattern` block. Adds the page-level `WindowSelector`
