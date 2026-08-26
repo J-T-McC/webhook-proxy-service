@@ -243,7 +243,19 @@
 - **Testing:** non-behavioral — plain data holders with no logic to assert beyond construction and
   typing, which PHPStan level 7 already checks statically. No dedicated test file; each DTO is
   exercised indirectly by every `DeliveryStatistics` test from T4 onward.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented all eight DTOs under `app/Data/Analytics/`, `readonly`,
+  constructor-promoted, no logic, mirroring `App\Data\ProxyPermissions`'s style. Two shape
+  decisions the task's prose left open, resolved for consistency with the rest of the set:
+  `SeriesPoint` embeds `delivery: UnitFigure` and `attempt: UnitFigure` (rather than six flat
+  prefixed fields) — reuses the one figure type everywhere a succeeded/failed/rate/total triple
+  appears, so a day's figure and a window's figure are the same shape; `EventListFilters`'
+  `destination`/`outcome` are typed inline shape arrays (`array{...}|null`) per the task's own
+  PHPDoc, with the shape spelled out on the constructor's doc-block for PHPStan level 7. `rate`,
+  `averageMs`, `p95Ms`, `latencyAverageMs` are all nullable; every count property a plain `int`.
+  `composer types:check` (PHPStan level 7) passes with no suppression anywhere, including the
+  `list<SeriesPoint>` property on `StatisticsPanel`. Verified: `composer lint`, `composer
+  types:check`. No dedicated test file, per the task's own testing note — exercised indirectly
+  from T4 onward.
 
 ## T4 — `DeliveryStatistics`: two-unit success/failure figures, team · proxy · destination grain (AC7, AC13, AC14, Amendment A(i); plan § Architecture A/B, Technical ruling 6)
 - **Description:** New `App\Services\DeliveryStatistics` service (stateless, no HTTP knowledge).
