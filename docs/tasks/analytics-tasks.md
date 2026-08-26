@@ -536,7 +536,35 @@
 - **Testing:** `tests/Unit/Services/DeliveryStatisticsScopingTest.php` (new) — the cross-team
   isolation case per method (four assertions), the Simple-mode retry-figures-counted case, the
   FIFO/Async identical-path case (and the `mode`/`processing_mode`-absence check).
-- **Completion notes:** _pending_
+- **Completion notes:** `forTeam()`/`forProxy()` compose `StatisticsPanel` by calling the exact
+  same public per-grain methods (`unitFiguresFor*()`, `retryReplayFor*()`, `latencyFor*()`,
+  `seriesFor*()`) a direct caller could call — no duplicate query-building, and a figure can never
+  disagree between the panel and a standalone call to the same method. `hasTraffic` is
+  `delivery.total > 0 || attempt.total > 0`. Did not add a query-consolidation pass (e.g. sharing
+  one `attemptAggregates()` call across `unitFigures`/`retryReplay`/`latency`): the resulting
+  query count for `forTeam()`/`forProxy()` (roughly 8-10 queries, depending on whether the
+  percentile query runs) still lands within the plan's own "roughly nine to twelve" Dashboard
+  estimate once `proxyBreakdown()`'s 3 queries are added, no test asserts an exact total, and the
+  binding constraint that matters (R7, no per-row/per-proxy query) is satisfied regardless — this
+  is recorded as a known, deliberate simplification with a clear ceiling (a future rollup, § Risks
+  R1, would revisit this class's query shape entirely anyway).
+
+  The `team_id`/mode-independence audit itself is written directly into `forTeam()`'s doc-block
+  (AC23, AC25, AC26) rather than as a separate document, since the actual auditable fact is "every
+  `$constraints` array this class builds is `['team_id' => ...]` or `['proxy_id' => ...]`, applied
+  via a plain `where()` loop with no branch" — a claim best checked against the code itself.
+  `tests/Unit/Services/DeliveryStatisticsScopingTest.php` covers cross-team isolation for
+  `forTeam()`, `forProxy()`, `proxyBreakdown()`, and `destinationBreakdown()` (four separate test
+  methods, each with a second team's identical-shaped traffic contributing nothing), a Simple-mode
+  fixture whose retry figures come back non-zero, a FIFO-vs-Async fixture producing identical
+  figures through the same path, and a `mode`/`processing_mode`-absence check that tokenizes
+  `DeliveryStatistics.php` and strips comments/doc-blocks before the substring check (a plain grep
+  would have false-positived on this very invariant being *documented* in the class's own
+  doc-block). The team-less controller-level guard (AC23's other half) is cross-referenced to
+  T13/T18, not asserted here, per the task's own testing note — the service takes a resolved
+  `teamId`/`Proxy`, so there is nothing to construct a team-less case against at this layer.
+  `composer lint`, `composer types:check` (PHPStan level 7, no suppressions), and
+  `./vendor/bin/sail test --parallel` all green (803/803).
 
 ## T10 — Anchor invariant: a terminal row's `updated_at` never moves again (R2; binding constraint 5)
 - **Description:** A dedicated, required test — not folded into another task — pinning the

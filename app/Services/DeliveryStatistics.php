@@ -7,6 +7,7 @@ use App\Data\Analytics\LatencyFigure;
 use App\Data\Analytics\ProxyBreakdownRow;
 use App\Data\Analytics\RetryReplayFigures;
 use App\Data\Analytics\SeriesPoint;
+use App\Data\Analytics\StatisticsPanel;
 use App\Data\Analytics\UnitFigure;
 use App\Enums\AnalyticsWindow;
 use App\Models\Destination;
@@ -44,6 +45,75 @@ use stdClass;
  */
 class DeliveryStatistics
 {
+    /**
+     * The full figure set for the given team, over the given window — every
+     * query this method's pieces issue states `team_id` explicitly (audited
+     * below); none relies on `ApplyTeamScope` (which does not scope
+     * `Delivery` at all) or calls `withoutGlobalScope(TeamScope::class)`
+     * (AC23; Technical ruling 7). Reads through the exact same per-grain
+     * methods `unitFiguresForTeam()`/`retryReplayForTeam()`/
+     * `latencyForTeam()`/`seriesForTeam()` a caller could call directly, so
+     * a figure can never disagree between this panel and a direct call.
+     *
+     * **Explicit `team_id` audit (Technical ruling 7).** Every query built by
+     * `unitFigures()`, `retryReplayAndBridge()`
+     * (`eventualSuccessCount()`/`bridgeFailedAttemptsCount()` included),
+     * `latencyFigure()`/`percentileDurationMs()`, and `series()`
+     * (`dailyAggregates()`) takes its grain constraint from the
+     * `$constraints` array this class's public `*ForTeam()`/`*ForProxy()`
+     * methods build (`['team_id' => $teamId]` / `['proxy_id' => $proxyId]`)
+     * and applies it via a plain `where($column, $value)` loop — there is no
+     * code path in this class that omits it or substitutes a global scope.
+     * A Simple-mode proxy's figures are counted exactly like an Enhanced
+     * one's (AC25): no query here reads `proxies.mode`. `deliveries`/
+     * `delivery_attempts` rows exist identically regardless of a proxy's
+     * `processing_mode` (FIFO or Async, AC26): no query here reads
+     * `processing_mode` either — both are asserted by absence in
+     * `DeliveryStatisticsScopingTest`.
+     */
+    public function forTeam(int $teamId, AnalyticsWindow $window): StatisticsPanel
+    {
+        $units = $this->unitFiguresForTeam($teamId, $window);
+        $retryReplay = $this->retryReplayForTeam($teamId, $window);
+        $latency = $this->latencyForTeam($teamId, $window);
+        $series = $this->seriesForTeam($teamId, $window);
+
+        return new StatisticsPanel(
+            window: $window,
+            delivery: $units['delivery'],
+            attempt: $units['attempt'],
+            bridgeFailedAttempts: $retryReplay['bridgeFailedAttempts'],
+            retryReplay: $retryReplay['retryReplay'],
+            latency: $latency,
+            series: $series,
+            hasTraffic: $units['delivery']->total > 0 || $units['attempt']->total > 0,
+        );
+    }
+
+    /**
+     * The full figure set for the given proxy, over the given window — see
+     * `forTeam()`'s doc-block for the `team_id`/mode-independence audit,
+     * which applies identically here with `proxy_id` as the grain.
+     */
+    public function forProxy(Proxy $proxy, AnalyticsWindow $window): StatisticsPanel
+    {
+        $units = $this->unitFiguresForProxy($proxy->id, $window);
+        $retryReplay = $this->retryReplayForProxy($proxy->id, $window);
+        $latency = $this->latencyForProxy($proxy->id, $window);
+        $series = $this->seriesForProxy($proxy->id, $window);
+
+        return new StatisticsPanel(
+            window: $window,
+            delivery: $units['delivery'],
+            attempt: $units['attempt'],
+            bridgeFailedAttempts: $retryReplay['bridgeFailedAttempts'],
+            retryReplay: $retryReplay['retryReplay'],
+            latency: $latency,
+            series: $series,
+            hasTraffic: $units['delivery']->total > 0 || $units['attempt']->total > 0,
+        );
+    }
+
     /**
      * Delivery-level and attempt-level success/failure figures for the given
      * team, over the given window (AC7, AC13).
