@@ -57,7 +57,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
 | 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
-| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26) — `plan-11` now at **Revision A**. **No open questions and no outstanding approvals on #11.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
+| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` revised and **pending PM re-approval**. **M8 (two tasks) not yet broken down.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
@@ -260,6 +260,74 @@ plus both Owner flags ruled, 2026-08-26);
   non-text contrast floor at **3.11:1** — passing, but with almost no margin. It is a pre-existing
   design-11 token choice, not something M6 introduced, and it is worth a second look if that palette
   ever changes.
+- **Trend bucket granularity reopened and re-ruled after the Owner saw it live** (2026-08-26).
+  The Owner observed the 24h trend rendering **a single point at the far left** — correct
+  behaviour under the original specification, since the series bucketed by day and a 24-hour
+  window can only yield one or two day buckets. The specification was wrong, not the code.
+  Three artifacts moved in response, in order:
+  **PRD-11 `## Amendment B`** (PM, on AC16/AC17's PM-derived D-11-4 authority, recorded as
+  **D-11-8** and **D-11-9**). **(i)** Bucket size varies by window: `24h` buckets **hourly**
+  (24 points), `7d` and `30d` bucket **daily**. Buckets partition the window with no gap or
+  overlap, every point names the period it covers (AC8), and an empty bucket may not be
+  dropped. AC17's windows and default are untouched. **(ii)** The per-bucket drill-through is
+  obliged at **day grain only**. Hourly buckets owe none, and **an hourly row carrying a
+  day-grained link is a direct AC10 breach, forbidden outright** — an 11am bucket reading 3
+  failures must never land on a whole-day view reading 40. An hour-precise drill-through is
+  permitted and not required. `Q-11-04`'s `date` parameter therefore stands untouched and the
+  PM needed no mechanism ruling from the PE. **The absence of a link must not render as a
+  disabled or dead control.**
+  **`design-11` revised** (Designer) across the PM's seven named places plus five more it
+  found, and is **pending PM re-approval** — it did not self-approve. Two calls worth carrying:
+  an hourly row renders as **plain text in the same weight and colour as any other cell**,
+  reusing the treatment already given the Dashboard's non-linking rate cells; and the hour
+  column is **date-qualified** (`Aug 25, 2:00 PM`, never a bare hour) because a rolling 24-hour
+  window crosses midnight and Amendment B(i) forbids inferring a point's period from its
+  position. The same reasoning revised the **chart axis**: design-11's "the axis already states
+  the window, so no caption is needed" holds for day buckets and does not hold for hourly ones,
+  fixed by qualifying the axis at the day-boundary tick rather than by adding a caption. The
+  historical approval record was deliberately left unedited, two stale "daily" lines and all —
+  it is a dated record of what was true at that gate.
+  **`plan-11` at Revision B** (PE, no Owner gate and no ADR, walked item by item into the plan).
+  Buckets key on `Y-m-d H` via `SUBSTRING(updated_at, 1, 13)` at 24h and the unchanged
+  `DATE(updated_at)` at 7d/30d, half-open at both sizes because a truncating expression
+  *produces* the partition rather than leaving it to a pair of comparisons. **Timezone is now an
+  obligation pinned by test rather than an observation** — SQL, the database session and
+  `CarbonImmutable::now()` must agree, because a mismatch displaces *every* hourly point where
+  it displaced only a minority of daily ones. Neither engine has a portable hour-truncating
+  function, so the portable substring form is ruled with a verification step on the implementing
+  task and the driver-selected fallback (`DATE_FORMAT`/`strftime`) pre-approved; PHP-side
+  bucketing was rejected by name. `SeriesPoint` gains `bucketStart` and its `date` becomes
+  nullable, which is also **how link suppression is expressed — in the data, not in display
+  logic**: a row links when and only when it has a `date`, the same idiom as `UnitFigure.rate`
+  and `ProxyBreakdownRow.canDrillThrough`. **The four approved indexes are untouched and Owner
+  flag 2 is not reopened** — the grouping expression was never index-fed (neither `DATE()` nor
+  an hour truncation is sargable), the index serves the *filter* through the unchanged
+  `(grain, status, updated_at)` prefix, and the hourly case reads a strictly narrower range.
+- **A pre-existing defect was found while carrying Amendment B, and is fixed by Revision B
+  ruling 12.** It is independent of the amendment and was in the certified plan. The series used
+  a **calendar-aligned** start (`now()->startOfDay()->subDays($window->days() - 1)`) while every
+  other figure used a **rolling** one (`now()->sub($window->interval())`), so the headline figure
+  counted records that fall before the chart's first bucket — breaking the same partition
+  property Amendment B(i) states. Verified in `app/Services/DeliveryStatistics.php` against both
+  methods before it was recorded here. Ruling 12 gives the feature **one window definition** —
+  `[first bucket start, now)`, resolved once on `AnalyticsWindow::start()`, used by every figure,
+  the series and the Events list, with `interval()` removed. Aligning buckets to `now` was
+  rejected by name because it destroys the calendar alignment `Q-11-04`'s `date` depends on. The
+  user-visible cost is stated: the window boundary moves by less than one bucket.
+- **M8 is appended to `plan-11` and needs the Task Planner before implementation.** Two tasks.
+  **(1) Backend** — the `SeriesBucket` enum, `AnalyticsWindow::bucket()`/`bucketCount()`/`start()`
+  with `interval()` removed, per-bucket grouping and densification, the one window definition
+  applied across the service and `ProxyEventController`, the DTO shapes, and the new test-strategy
+  assertions; depends on nothing. **(2) Frontend** — TypeScript types, bucket-aware labels and
+  formatters, both trend tables' first column and row keys, `TrendChart.vue`'s axis and accessible
+  summary, and hourly link suppression on Proxy Show; **depends on the Designer's revision being
+  approved**, for the hour wording. **`T29`'s verification sweep must run after both** — run
+  earlier it would certify the single-point rendering as correct. One concrete string is already
+  known wrong and is named rather than left to an implementer: `trendChartAriaLabel()` renders
+  "Daily delivery and attempt success rate…", false on the 24-hour window; if the Designer's
+  revision omits an hour wording for it, for the trend table's first-column header, or for a
+  point's period label, `plan-11` requires a question document to the Designer rather than an
+  invented string.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
