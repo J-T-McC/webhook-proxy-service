@@ -1,9 +1,12 @@
 <script setup lang="ts">
 /**
- * The daily trend chart (AC16; design-11 Flow C step 3, § Accessibility;
- * plan-11 Implementation Notes 14–15). Two lines — delivery success solid,
+ * The trend chart (AC16; design-11 Flow C step 3, § Accessibility; plan-11
+ * Implementation Notes 14–15, 21–23). Two lines — delivery success solid,
  * attempt success dashed — fed the same `SeriesPoint[]` the sibling "View as
- * table" fallback (T17/T19) already renders from.
+ * table" fallback (T17/T19) already renders from. Buckets hourly on the
+ * 24-hour window and daily on 7d/30d (Amendment B(i)) — `props.bucket`
+ * (`StatisticsPanel.bucket`) drives axis and summary wording only, never a
+ * drill-through decision (§ *Technical rulings* 13; T32).
  *
  * `Chart` construction happens exclusively inside `Vue3ChartJs`'s own
  * `onMounted` hook (the wrapper's `dist/vue3-chartjs.es.js`: `w(() => l())`,
@@ -27,18 +30,43 @@ import { useAppearance } from '@/composables/useAppearance';
 import {
     ATTEMPT_SUCCESS_LABEL,
     DELIVERY_SUCCESS_LABEL,
-    formatSeriesDate,
+    formatBucketAxisTick,
     trendChartAriaLabel,
 } from '@/data/analyticsLabels';
 import { resolveChartSeriesColours } from '@/lib/chartTokens';
-import type { AnalyticsWindowValue, SeriesPoint } from '@/types/analytics';
+import type {
+    AnalyticsWindowValue,
+    SeriesBucketValue,
+    SeriesPoint,
+} from '@/types/analytics';
 
 const props = defineProps<{
     series: SeriesPoint[];
     window: AnalyticsWindowValue;
+    bucket: SeriesBucketValue;
 }>();
 
-const ariaLabel = computed(() => trendChartAriaLabel(props.window));
+const ariaLabel = computed(() =>
+    trendChartAriaLabel(props.window, props.bucket),
+);
+
+/**
+ * The bucket key (`bucketStart`'s date portion) an hourly tick's calendar
+ * day differs on from the point before it — the day-boundary crossing the
+ * axis is obliged to date-qualify (design-11 Screen 1 mockup axis note).
+ * The first point is never date-qualified (design-11 "Call 3" — permitted,
+ * not required, additive only; not adopted here).
+ */
+function isDayBoundaryCrossing(index: number): boolean {
+    if (index === 0) {
+        return false;
+    }
+
+    const current = props.series[index].bucketStart.slice(0, 10);
+    const previous = props.series[index - 1].bucketStart.slice(0, 10);
+
+    return current !== previous;
+}
 
 // A zero-traffic day's `rate` is `null` (Amendment A(i)) — plotted as a gap,
 // never as a literal 0%, which would read as total failure. `spanGaps` stays
@@ -53,7 +81,13 @@ function buildChartData(): ChartData<'line'> {
     const colours = resolveChartSeriesColours();
 
     return {
-        labels: props.series.map((point) => formatSeriesDate(point.date)),
+        labels: props.series.map((point, index) =>
+            formatBucketAxisTick(
+                point.bucketStart,
+                props.bucket,
+                props.bucket === 'hour' && isDayBoundaryCrossing(index),
+            ),
+        ),
         datasets: [
             {
                 label: DELIVERY_SUCCESS_LABEL,
@@ -114,7 +148,7 @@ const { resolvedAppearance } = useAppearance();
 // Writing straight to the exposed `chartJSState.chart` — the real `Chart`
 // instance — and calling its own `update()` is the actual Chart.js API this
 // wrapper is a thin layer over, and is unaffected by that snapshot bug.
-watch([() => props.series, resolvedAppearance], () => {
+watch([() => props.series, () => props.bucket, resolvedAppearance], () => {
     chartData.value = buildChartData();
 
     const chart = chartRef.value?.chartJSState.chart;

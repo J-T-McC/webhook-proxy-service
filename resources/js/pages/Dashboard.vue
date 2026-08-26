@@ -37,11 +37,12 @@ import {
     bridgeSentence,
     compactRateText,
     deliveryCaption,
+    formatBucketPeriod,
     formatLatencyMs,
     formatRate,
-    formatSeriesDate,
     lastWindowSubtitle,
     liveVsReplayText,
+    trendTableFirstColumnHeader,
 } from '@/data/analyticsLabels';
 import { dashboard } from '@/routes';
 import proxyRoutes from '@/routes/proxies';
@@ -458,6 +459,7 @@ function proxyFailuresHref(proxyId: number) {
                 <TrendChart
                     :series="props.statistics.series"
                     :window="props.statistics.window"
+                    :bucket="props.statistics.bucket"
                 />
                 <!--
                     The chart's "View as table" fallback is collapsed by
@@ -474,7 +476,11 @@ function proxyFailuresHref(proxyId: number) {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Date</TableHead>
+                                    <TableHead>{{
+                                        trendTableFirstColumnHeader(
+                                            props.statistics.bucket,
+                                        )
+                                    }}</TableHead>
                                     <TableHead>{{
                                         DELIVERY_SUCCESS_COLUMN_LABEL
                                     }}</TableHead>
@@ -486,10 +492,13 @@ function proxyFailuresHref(proxyId: number) {
                             <TableBody>
                                 <TableRow
                                     v-for="point in props.statistics.series"
-                                    :key="point.date"
+                                    :key="point.bucketStart"
                                 >
                                     <TableCell>{{
-                                        formatSeriesDate(point.date)
+                                        formatBucketPeriod(
+                                            point.bucketStart,
+                                            props.statistics.bucket,
+                                        )
                                     }}</TableCell>
                                     <TableCell>{{
                                         compactRateText(point.delivery)

@@ -14,6 +14,15 @@
 export type AnalyticsWindowValue = '24h' | '7d' | '30d';
 
 /**
+ * The trend series' bucket size (plan-11 Revision B, § *Technical rulings*
+ * 11). Mirrors `App\Enums\SeriesBucket`'s backing values exactly — `'hour'`
+ * on the 24-hour window, `'day'` on `7d`/`30d`. Exists for labelling and
+ * axis formatting only — **never** the hourly-link gate (§ *Technical
+ * rulings* 13); that gate reads `SeriesPoint.date` alone.
+ */
+export type SeriesBucketValue = 'hour' | 'day';
+
+/**
  * A success/failure figure for one unit (delivery- or attempt-grain) at one
  * grain (team / proxy / destination). `rate` is `null` when `total === 0`
  * (Amendment A(i)) — never `0`.
@@ -46,11 +55,22 @@ export interface LatencyFigure {
 }
 
 /**
- * One densified day in the daily trend series (AC16) — a no-traffic day is a
- * real point with zero counts and a `null` rate, never a gap.
+ * One densified bucket in the trend series (AC16; amended at Revision B for
+ * bucket-aware windows) — a no-traffic bucket is a real point with zero
+ * counts and a `null` rate, never a gap.
+ *
+ * `bucketStart` and `date` have two different jobs and are deliberately not
+ * merged (plan-11 § API): `bucketStart` (local ISO-8601 `Y-m-d\TH:i:s`) is
+ * the display, axis and row-key anchor, present at both bucket sizes.
+ * `date` is the drill-through parameter value and nothing else — the same
+ * `Y-m-d` string as `bucketStart`'s first ten characters at a day bucket,
+ * and `null` at an hourly bucket, where no drill-through is owed. A row
+ * builds a link when and only when it has a `date` (§ *Technical rulings*
+ * 13) — never by consulting `StatisticsPanel.bucket`.
  */
 export interface SeriesPoint {
-    date: string;
+    bucketStart: string;
+    date: string | null;
     delivery: UnitFigure;
     attempt: UnitFigure;
 }
@@ -58,6 +78,7 @@ export interface SeriesPoint {
 /** The full figure set for one grain (team or proxy) over one window. */
 export interface StatisticsPanel {
     window: AnalyticsWindowValue;
+    bucket: SeriesBucketValue;
     delivery: UnitFigure;
     attempt: UnitFigure;
     bridgeFailedAttempts: number;

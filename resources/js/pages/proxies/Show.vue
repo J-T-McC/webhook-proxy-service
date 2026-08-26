@@ -46,11 +46,12 @@ import {
     bridgeSentence,
     compactRateText,
     deliveryCaption,
+    formatBucketPeriod,
     formatLatencyMs,
     formatRate,
-    formatSeriesDate,
     lastWindowSubtitle,
     liveVsReplayText,
+    trendTableFirstColumnHeader,
     zeroProxyTrafficMessage,
 } from '@/data/analyticsLabels';
 import { proxyProcessingModeLabel } from '@/data/proxyProcessingModes';
@@ -68,7 +69,6 @@ import type { Team } from '@/types';
 import type {
     AnalyticsWindowValue,
     DestinationBreakdownRow,
-    SeriesPoint,
     StatisticsPanel,
 } from '@/types/analytics';
 import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
@@ -245,14 +245,20 @@ function viewEventsHref(destination: DestinationBreakdownRow) {
  * `outcome=delivery_failed`/`attempt_failed` at the clicked cell's unit. No
  * `canDrillThrough` gate needed, for the same reason `terminalFailureHref()`
  * above has none: this page only renders for a live proxy.
+ *
+ * Callers pass a row's `date` only when it is present — a row builds a link
+ * when and only when it has one (§ *Technical rulings* 13; T32). `date`
+ * being `string` here rather than `string | null` is intentional: the
+ * template gates on `point.date` before ever calling this function, so an
+ * hourly row (whose `date` is `null`) never reaches it.
  */
-function trendDayHref(point: SeriesPoint, unit: 'delivery' | 'attempt') {
+function trendDayHref(date: string, unit: 'delivery' | 'attempt') {
     return proxyEventRoutes.index(
         { current_team: teamSlug.value, proxy: props.proxy.id },
         {
             query: {
                 window: props.statistics.window,
-                date: point.date,
+                date,
                 outcome:
                     unit === 'delivery' ? 'delivery_failed' : 'attempt_failed',
             },
@@ -442,6 +448,7 @@ function confirmDeleteProxy(): void {
                 <TrendChart
                     :series="props.statistics.series"
                     :window="props.statistics.window"
+                    :bucket="props.statistics.bucket"
                 />
                 <!--
                     The chart's "View as table" fallback is collapsed by
@@ -458,7 +465,11 @@ function confirmDeleteProxy(): void {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Date</TableHead>
+                                    <TableHead>{{
+                                        trendTableFirstColumnHeader(
+                                            props.statistics.bucket,
+                                        )
+                                    }}</TableHead>
                                     <TableHead>{{
                                         DELIVERY_SUCCESS_COLUMN_LABEL
                                     }}</TableHead>
@@ -470,15 +481,32 @@ function confirmDeleteProxy(): void {
                             <TableBody>
                                 <TableRow
                                     v-for="point in props.statistics.series"
-                                    :key="point.date"
+                                    :key="point.bucketStart"
                                 >
                                     <TableCell>{{
-                                        formatSeriesDate(point.date)
+                                        formatBucketPeriod(
+                                            point.bucketStart,
+                                            props.statistics.bucket,
+                                        )
                                     }}</TableCell>
+                                    <!--
+                                        An hourly row (`point.date === null`)
+                                        owes no drill-through (Amendment
+                                        B(ii)) and renders plain text — no
+                                        `Link`, no button, no disabled/muted
+                                        control, no explanatory note (§
+                                        *Technical rulings* 13; T32). The gate
+                                        reads `point.date` alone, never
+                                        `props.statistics.bucket`.
+                                    -->
                                     <TableCell>
                                         <Link
+                                            v-if="point.date"
                                             :href="
-                                                trendDayHref(point, 'delivery')
+                                                trendDayHref(
+                                                    point.date,
+                                                    'delivery',
+                                                )
                                             "
                                             class="hover:underline"
                                         >
@@ -486,16 +514,26 @@ function confirmDeleteProxy(): void {
                                                 compactRateText(point.delivery)
                                             }}
                                         </Link>
+                                        <template v-else>{{
+                                            compactRateText(point.delivery)
+                                        }}</template>
                                     </TableCell>
                                     <TableCell>
                                         <Link
+                                            v-if="point.date"
                                             :href="
-                                                trendDayHref(point, 'attempt')
+                                                trendDayHref(
+                                                    point.date,
+                                                    'attempt',
+                                                )
                                             "
                                             class="hover:underline"
                                         >
                                             {{ compactRateText(point.attempt) }}
                                         </Link>
+                                        <template v-else>{{
+                                            compactRateText(point.attempt)
+                                        }}</template>
                                     </TableCell>
                                 </TableRow>
                             </TableBody>

@@ -2494,5 +2494,100 @@
   the chart's axis and accessible summary read correctly with no "Daily" wording anywhere; on
   `7d`/`30d`, confirm the day rows and their existing per-day links are unchanged; both light and
   dark theme.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified, touching exactly the five files named in Files.
+
+  `resources/js/types/analytics.ts` gained `SeriesBucketValue = 'hour' | 'day'`, mirroring
+  `App\Enums\SeriesBucket`. `SeriesPoint` gained `bucketStart: string` and `date` became
+  `string | null`; `StatisticsPanel` gained `bucket: SeriesBucketValue` — all three match T30's
+  PHP DTOs exactly, verified by `pnpm run types:check`.
+
+  `resources/js/data/analyticsLabels.ts` gained four bucket-aware functions, replacing every
+  free-standing trend-period string in the two page components: `trendTableFirstColumnHeader(bucket)`
+  ("Hour"/"Date"), `formatBucketPeriod(bucketStart, bucket)` (the reserved date-qualified-hour /
+  calendar-date point label, delegating to the unchanged `formatSeriesDate` at day grain),
+  `formatBucketAxisTick(bucketStart, bucket, dateQualified)` (the chart's per-tick text — not one
+  of `plan-11`'s three reserved strings, so this shape is mine), and `trendChartAriaLabel(window,
+  bucket)`, whose signature gained a `bucket` parameter and whose body now switches "Hourly"/"Daily"
+  on it — replacing the unconditional "Daily …" string the task named as already known false on the
+  24-hour window. All three reserved strings (table header, point label, chart aria-label) are the
+  Designer's wording verbatim from `design-11`'s "Amendment B re-approval" § "The three strings
+  `plan-11` named" — no string was invented and no question document was needed, since all three
+  were confirmed present at that section before writing any of them.
+
+  `TrendChart.vue` gained a `bucket: SeriesBucketValue` prop, read by `trendChartAriaLabel` for the
+  `aria-label` and by a new `isDayBoundaryCrossing()` helper plus `formatBucketAxisTick` for the
+  per-point axis label — `props.bucket` was added to the existing theme/data `watch` array so a
+  window change (which always arrives together with a `series`/`bucket` prop change on this
+  full-page-visit architecture) recomputes the axis correctly through the same non-`update()`
+  `chartJSState.chart` write path already in place; no change to that mechanism.
+
+  `Dashboard.vue` and `proxies/Show.vue` both: switched the trend table's row `:key` from
+  `point.date` to `point.bucketStart`; wired `trendTableFirstColumnHeader`/`formatBucketPeriod` into
+  the header and each row's first cell; and pass `:bucket="props.statistics.bucket"` to
+  `<TrendChart>`. Dashboard carries no other change — its trend rows have never linked at either
+  bucket size (ruling 10's scope), confirmed unaffected by inspection (no `<Link>` in that table in
+  either the old or new diff).
+
+  On Proxy Show, `trendDayHref`'s signature narrowed from `(point: SeriesPoint, unit)` to
+  `(date: string, unit)` — it is now only ever called from inside a `v-if="point.date"` branch, so
+  the caller passes a definite `string`, not a value that could be `null`. Each rate cell is now
+  `<Link v-if="point.date" ...>…</Link><template v-else>…</template>` — the `v-else` branch is a
+  bare interpolated text node with no wrapping element, `<button>`, `aria-disabled`, class, or note,
+  matching the design's "same weight, colour and typography as any other cell" instruction exactly.
+  The gate reads `point.date` alone; no code path in the diff consults `props.statistics.bucket` (or
+  any other field) to decide whether a cell builds a link — confirmed by inspection, and separately
+  by the manual check below (a day-bucket zero-traffic row still links; every hourly row never does).
+
+  **First axis tick: not date-qualified.** Design-11 calls this permitted, not required, and
+  additive. Chose not to add it: the accessible table is the authoritative surface and every one of
+  its rows is already fully date-qualified regardless of chart treatment, the window is stated
+  independently by the page's own window selector and "Last {window}" subtitle, and the "date at the
+  day-boundary crossing" convention design-11 requires already resolves the whole axis (everything
+  left of the crossing tick is the earlier day). Adding it later is a pure addition, not a
+  correction, so there is no cost to deferring it.
+
+  **Verification.** `pnpm run types:check`, `pnpm run lint:check`, `pnpm run format:check` (one
+  Prettier auto-fix applied to `TrendChart.vue` and `analyticsLabels.ts`, then re-verified clean) —
+  all green. `composer lint`, `composer types:check` (PHPStan level 7, 0 errors) and
+  `./vendor/bin/sail test --parallel` — 857/857, unchanged from T30's baseline, confirming this
+  task changed no backend behaviour.
+
+  **Manual verification**, per the standing trap: confirmed `public/hot` absent, ran `pnpm run
+  build`, and drove the built output through Sail (`http://localhost`, not a dev server) with
+  Playwright, logged in as the `AnalyticsDemoSeeder` team owner.
+  - **24h window (Proxy Show and Dashboard) now renders 24 hourly points** — the defect that
+    started M8. Confirmed both on the chart (24 visible points/ticks in a screenshot) and in the
+    "View as table" fallback (row count 24 on both pages, scoped to the trend table specifically to
+    exclude the Destinations/Proxies tables sharing the page).
+  - **24h trend table**: header "Hour"; rows read date-qualified hour labels exactly in the
+    reserved format, e.g. `Aug 25, 11:00 PM`, `Aug 26, 4:00 AM`, `Aug 26, 10:00 PM` — never a bare
+    hour; zero `<a>` tags found in any Delivery/Attempt success cell across the full 24-row table on
+    Proxy Show, and a single row's raw HTML was inspected directly to confirm the cell is plain text
+    with no wrapping element at all (not a styled-to-look-plain link).
+  - **7d/30d tables unchanged**: header "Date"; a day row's rate cell is still `<a href="…&date=
+    2026-07-28&outcome=delivery_failed">100% (26/26)</a>` — the existing per-day link, landing on
+    the correct day. On the 30-day window, every one of 30 day-bucket rows carried exactly 2 links
+    (60 total), confirming no day row lost its link either.
+  - **The gap day still reads a genuine zero point**: proxy "Customer Support Relay", 30d window,
+    `Aug 11, 2026` row reads "No deliveries yet" for both units — and, being a day bucket, still
+    carries its link (`…date=2026-08-11&outcome=delivery_failed`), unchanged from T23 behaviour.
+  - **Chart axis**: 24h screenshot shows bare-hour ticks (`11 PM`, `1 AM`, … `10 PM`) with exactly
+    one date-qualified tick at the midnight crossing (`Aug 26, 12 AM`); 7d/30d retain the prior
+    calendar-date tick behaviour unchanged (verified via `formatBucketAxisTick`'s day-bucket branch
+    delegating to the same `formatSeriesDate` call the labels always used).
+  - **Accessible summary**: `aria-label` read exactly `"Hourly delivery and attempt success rate,
+    last 24 hours — see table below for exact values."` on the 24h window (Dashboard and Proxy Show
+    both) and `"Daily delivery and attempt success rate, last 7 days — see table below for exact
+    values."` / `"…last 30 days…"` on 7d/30d — the word "Daily" never appeared on the 24-hour
+    window.
+  - **Both themes**: screenshots taken with the `dark` class applied via `useAppearance`'s own
+    localStorage-driven mechanism (not a raw class toggle) confirm identical structure and legible
+    chart/table rendering in both light and dark on the 24h Proxy Show page.
+
+  Nothing was flagged to another role — all wording was found present in the approved `design-11`
+  revision before use, and no ambiguity was found in the acceptance criteria.
+
+  **Commit:** `feat(item-11): bucket-aware trend labels, table columns/keys, hourly link
+  suppression (T32)` — one commit, on `feat/item-11-analytics`, made after the full verification
+  above (lint/types/format/suite green, manual checks passed).
 

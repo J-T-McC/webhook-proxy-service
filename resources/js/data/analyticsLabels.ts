@@ -12,7 +12,10 @@
  * counterpart to drift from since they are pure display text.
  */
 
-import type { AnalyticsWindowValue } from '@/types/analytics';
+import type {
+    AnalyticsWindowValue,
+    SeriesBucketValue,
+} from '@/types/analytics';
 
 /** The two-tier headline card's `dt` labels (design-11 Screen 1(b)). */
 export const DELIVERY_SUCCESS_LABEL = 'Delivery success';
@@ -160,18 +163,30 @@ export function zeroProxyTrafficMessage(window: AnalyticsWindowValue): string {
  * Note 14) — the sibling "View as table" fallback is the authoritative
  * accessible representation, so this text only orients a screen-reader user
  * to what the (skipped) chart shows and where the real values are.
+ *
+ * Bucket-conditional since Revision B (design-11 "Amendment B re-approval",
+ * "The three strings `plan-11` named", string (a); plan-11 Implementation
+ * Note 22) — the prior unconditional "Daily …" wording is false on the
+ * 24-hour window, which buckets hourly. `bucket` is sourced from
+ * `StatisticsPanel.bucket`, never re-derived from `window` here (plan-11
+ * Implementation Note 21).
  */
-export function trendChartAriaLabel(window: AnalyticsWindowValue): string {
-    return `Daily delivery and attempt success rate, last ${windowLabel(window)} — see table below for exact values.`;
+export function trendChartAriaLabel(
+    window: AnalyticsWindowValue,
+    bucket: SeriesBucketValue,
+): string {
+    const bucketWord = bucket === 'hour' ? 'Hourly' : 'Daily';
+
+    return `${bucketWord} delivery and attempt success rate, last ${windowLabel(window)} — see table below for exact values.`;
 }
 
 /**
  * An ISO `Y-m-d` series date, formatted for display. Shared by the Dashboard
- * and Proxy Show trend tables' Date column (T17/T19) and, on Proxy Show only,
- * the day-narrowed Events list Window chip a per-day drill-through link
- * lands on (T23/T24, Revision A, `Q-11-04`; plan Implementation Note 20) —
- * one formatter, so the two surfaces cannot disagree about how a day is
- * written.
+ * and Proxy Show trend tables' Date column at day-bucket grain (T17/T19) and,
+ * on Proxy Show only, the day-narrowed Events list Window chip a per-day
+ * drill-through link lands on (T23/T24, Revision A, `Q-11-04`; plan
+ * Implementation Note 20, unchanged at Revision B) — one formatter, so the
+ * two surfaces cannot disagree about how a day is written.
  */
 export function formatSeriesDate(isoDate: string): string {
     return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
@@ -179,6 +194,76 @@ export function formatSeriesDate(isoDate: string): string {
         month: 'short',
         day: 'numeric',
     });
+}
+
+/**
+ * The trend table's first-column header — bucket-aware since Revision B
+ * (design-11 "Amendment B re-approval", string (b); plan-11 Implementation
+ * Note 22). Same rule on both the Dashboard's table and Proxy Show's.
+ */
+export function trendTableFirstColumnHeader(bucket: SeriesBucketValue): string {
+    return bucket === 'hour' ? 'Hour' : 'Date';
+}
+
+/**
+ * A trend point's own period label (design-11 "Amendment B re-approval",
+ * string (c); plan-11 Implementation Note 22) — a date-qualified hour at an
+ * hourly bucket (`Aug 25, 2:00 PM`, naming the hour the bucket begins,
+ * **never** a bare hour-of-day, since a rolling 24-hour window crosses
+ * midnight, Amendment B(i)), or the calendar date at a day bucket
+ * (`Aug 12, 2026`, unchanged — delegates to {@link formatSeriesDate}).
+ * Reads `bucketStart` rather than `date`, since `date` is `null` at every
+ * hourly point.
+ */
+export function formatBucketPeriod(
+    bucketStart: string,
+    bucket: SeriesBucketValue,
+): string {
+    if (bucket === 'day') {
+        return formatSeriesDate(bucketStart.slice(0, 10));
+    }
+
+    return new Date(bucketStart).toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+    });
+}
+
+/**
+ * The trend chart's per-tick axis label. Not one of `plan-11`'s three
+ * reserved strings — tick formatting inside the charting library is the
+ * implementer's call (design-11 "Amendment B re-approval", "the axis
+ * states the period in the bucket's own unit and carries the date at the
+ * day-boundary tick"). At a day bucket this is the same date each row's
+ * period label already reads. At an hourly bucket a tick is bare
+ * ("2 PM") unless `dateQualified` is set, in which case it also names the
+ * calendar date ("Aug 26, 2 AM") — reserved for the tick where the rolling
+ * 24-hour window crosses into a new calendar day, so a member is never left
+ * to infer a tick's date from its position (design-11 Screen 1 mockup, the
+ * axis note).
+ */
+export function formatBucketAxisTick(
+    bucketStart: string,
+    bucket: SeriesBucketValue,
+    dateQualified = false,
+): string {
+    if (bucket === 'day') {
+        return formatSeriesDate(bucketStart.slice(0, 10));
+    }
+
+    const date = new Date(bucketStart);
+
+    if (dateQualified) {
+        return date.toLocaleString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+        });
+    }
+
+    return date.toLocaleTimeString(undefined, { hour: 'numeric' });
 }
 
 /**
