@@ -15,6 +15,41 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import {
+    ATTEMPT_SUCCESS_COLUMN_LABEL,
+    ATTEMPT_SUCCESS_LABEL,
+    DELIVERY_SUCCESS_COLUMN_LABEL,
+    DELIVERY_SUCCESS_LABEL,
+    EVENTUAL_SUCCESS_LABEL,
+    LATENCY_AVERAGE_LABEL,
+    LATENCY_CAPTION,
+    LATENCY_P95_LABEL,
+    LIVE_VS_REPLAY_LABEL,
+    RETRY_VOLUME_LABEL,
+    TERMINAL_FAILURE_LABEL,
+    attemptCaption,
+    bridgeSentence,
+    compactRateText,
+    deliveryCaption,
+    formatLatencyMs,
+    formatRate,
+    lastWindowSubtitle,
+    liveVsReplayText,
+    zeroProxyTrafficMessage,
+} from '@/data/analyticsLabels';
 import { proxyProcessingModeLabel } from '@/data/proxyProcessingModes';
 import {
     proxyResponseStatusLabel,
@@ -27,11 +62,13 @@ import {
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
 import type { Team } from '@/types';
+import type { AnalyticsWindowValue, StatisticsPanel } from '@/types/analytics';
 import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
 
 const props = defineProps<{
     proxy: ProxyDetail;
     permissions: ProxyPermissions;
+    statistics: StatisticsPanel;
 }>();
 
 // Edit/delete visibility derives from the shared page-level permissions + the
@@ -125,6 +162,56 @@ const modeSummary = computed(() =>
         : `Simple mode — no dispatched-output storage or per-proxy retry configuration; automatic retry, payload capture, retention, and replay still apply. See Retry policy below for what governs this proxy's retries.`,
 );
 
+/** The three windows the page-level selector switches between (AC17). */
+const WINDOW_VALUES: AnalyticsWindowValue[] = ['24h', '7d', '30d'];
+
+/**
+ * A full-page navigation to this same proxy with a different `?window=`
+ * (design-11 § Interactions) — never client-side state, so the server
+ * recomputes every figure for the newly selected window.
+ */
+function windowHref(value: AnalyticsWindowValue) {
+    return proxyRoutes.show(
+        { current_team: teamSlug.value, proxy: props.proxy.id },
+        { query: { window: value } },
+    );
+}
+
+/**
+ * The bridge sentence naming the gap between delivery- and attempt-level
+ * success (AC14(d)) — `null` when there is nothing to bridge, so the
+ * paragraph is omitted rather than rendered empty.
+ */
+const bridgeText = computed(() =>
+    bridgeSentence(props.statistics.bridgeFailedAttempts),
+);
+
+/**
+ * The "Retry & replay" Terminal failure tile's drill-through target (Flow C
+ * step 4) — the only one of the four tiles that is failure-shaped. Proxy ·
+ * window today; T23 adds `&outcome=delivery_failed` once the Events list's
+ * filter resolver (T21) exists to read it — the same "builds the link, T23
+ * wires the rest" pattern T15 already established for the Dashboard's
+ * Proxies table. No `canDrillThrough`-style gate is needed here: this page
+ * only renders for a live proxy (the route's implicit model binding 404s on
+ * a soft-deleted one, T22), so drill-through is always available from it.
+ */
+function terminalFailureHref() {
+    return proxyEventRoutes.index(
+        { current_team: teamSlug.value, proxy: props.proxy.id },
+        { query: { window: props.statistics.window } },
+    );
+}
+
+/** An ISO `Y-m-d` series date, formatted for the trend table's row label. */
+function formatSeriesDate(isoDate: string): string {
+    return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    });
+}
+
 const proxyDeleteOpen = ref(false);
 const busy = ref(false);
 
@@ -210,6 +297,239 @@ function confirmDeleteProxy(): void {
                 {{ modeSummary }}
             </p>
         </div>
+
+        <!-- Analytics card (design-11 Screen 2; flagged design call 3's
+             accepted reordering — leads ahead of Ingest URL because "is this
+             working" is the reason a member opens a proxy from a Dashboard
+             drill-through, Flow C step 1). The window selector is
+             page-level for this page but rendered inside this card (the
+             only card whose figures depend on window) and stays visible
+             even in the zero-traffic state below, so a member can check
+             another window — only the figures collapse to the single
+             message (design-11 Screen 2 "Zero traffic for this proxy"
+             state). -->
+        <Card class="gap-4 p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-sm font-medium">Analytics</h2>
+                <nav class="flex items-center gap-2" aria-label="Time window">
+                    <Button
+                        v-for="value in WINDOW_VALUES"
+                        :key="value"
+                        as-child
+                        variant="outline"
+                        size="sm"
+                        :class="
+                            value === props.statistics.window ? 'bg-accent' : ''
+                        "
+                    >
+                        <Link
+                            :href="windowHref(value)"
+                            :aria-current="
+                                value === props.statistics.window
+                                    ? 'true'
+                                    : undefined
+                            "
+                        >
+                            {{ value }}
+                        </Link>
+                    </Button>
+                </nav>
+            </div>
+
+            <p
+                v-if="!props.statistics.hasTraffic"
+                class="text-sm text-muted-foreground"
+            >
+                {{ zeroProxyTrafficMessage(props.statistics.window) }}
+            </p>
+
+            <template v-else>
+                <dl class="flex flex-col gap-1">
+                    <div>
+                        <dt class="text-sm text-muted-foreground">
+                            {{ DELIVERY_SUCCESS_LABEL }}
+                        </dt>
+                        <dd>
+                            <span class="text-3xl font-semibold">
+                                {{ formatRate(props.statistics.delivery.rate) }}
+                            </span>
+                            <p class="text-sm text-muted-foreground">
+                                {{
+                                    deliveryCaption(
+                                        props.statistics.delivery.succeeded,
+                                        props.statistics.delivery.total,
+                                        props.statistics.window,
+                                    )
+                                }}
+                            </p>
+                        </dd>
+                    </div>
+                    <div class="mt-4">
+                        <dt class="text-sm text-muted-foreground">
+                            {{ ATTEMPT_SUCCESS_LABEL }}
+                        </dt>
+                        <dd>
+                            <span class="text-lg font-medium">
+                                {{ formatRate(props.statistics.attempt.rate) }}
+                            </span>
+                            <p class="text-sm text-muted-foreground">
+                                {{
+                                    attemptCaption(
+                                        props.statistics.attempt.succeeded,
+                                        props.statistics.attempt.total,
+                                        props.statistics.window,
+                                    )
+                                }}
+                            </p>
+                        </dd>
+                    </div>
+                </dl>
+                <p
+                    v-if="bridgeText"
+                    class="text-sm text-muted-foreground italic"
+                >
+                    {{ bridgeText }}
+                </p>
+
+                <!--
+                    No chart yet (T27/M6 adds the canvas above this table,
+                    same as Dashboard.vue's Trend card). The table is
+                    therefore the only representation at this stage, so it
+                    is rendered open by default — T27/T28 should switch this
+                    back to collapsed-by-default once the chart lands beside
+                    it (design-11 § Interactions: "collapsed by default").
+                -->
+                <Collapsible default-open>
+                    <CollapsibleTrigger as-child>
+                        <Button variant="ghost" size="sm" class="w-fit">
+                            View as table
+                        </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>{{
+                                        DELIVERY_SUCCESS_COLUMN_LABEL
+                                    }}</TableHead>
+                                    <TableHead>{{
+                                        ATTEMPT_SUCCESS_COLUMN_LABEL
+                                    }}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
+                                    v-for="point in props.statistics.series"
+                                    :key="point.date"
+                                >
+                                    <TableCell>{{
+                                        formatSeriesDate(point.date)
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        compactRateText(point.delivery)
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        compactRateText(point.attempt)
+                                    }}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </CollapsibleContent>
+                </Collapsible>
+
+                <div>
+                    <h3 class="text-sm font-medium">Retry & replay</h3>
+                    <p class="text-sm text-muted-foreground">
+                        {{ lastWindowSubtitle(props.statistics.window) }}
+                    </p>
+                </div>
+                <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                    <div>
+                        <dt class="text-sm text-muted-foreground">
+                            {{ EVENTUAL_SUCCESS_LABEL }}
+                        </dt>
+                        <dd class="text-lg font-medium">
+                            {{ props.statistics.retryReplay.eventualSuccess }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-muted-foreground">
+                            {{ TERMINAL_FAILURE_LABEL }}
+                        </dt>
+                        <dd class="text-lg font-medium">
+                            <Link
+                                :href="terminalFailureHref()"
+                                class="hover:underline"
+                            >
+                                {{
+                                    props.statistics.retryReplay.terminalFailure
+                                }}
+                            </Link>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-muted-foreground">
+                            {{ RETRY_VOLUME_LABEL }}
+                        </dt>
+                        <dd class="text-lg font-medium">
+                            {{ props.statistics.retryReplay.retryVolume }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm text-muted-foreground">
+                            {{ LIVE_VS_REPLAY_LABEL }}
+                        </dt>
+                        <dd class="text-lg font-medium">
+                            {{
+                                liveVsReplayText(
+                                    props.statistics.retryReplay.live,
+                                    props.statistics.retryReplay.replay,
+                                )
+                            }}
+                        </dd>
+                    </div>
+                </dl>
+
+                <div>
+                    <h3 class="text-sm font-medium">Latency</h3>
+                    <p class="text-sm text-muted-foreground">
+                        {{ lastWindowSubtitle(props.statistics.window) }}
+                    </p>
+                </div>
+                <dl class="flex flex-col gap-3">
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                    >
+                        <dt class="text-sm text-muted-foreground">
+                            {{ LATENCY_AVERAGE_LABEL }}
+                        </dt>
+                        <dd class="text-sm">
+                            {{
+                                formatLatencyMs(
+                                    props.statistics.latency.averageMs,
+                                )
+                            }}
+                        </dd>
+                    </div>
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                    >
+                        <dt class="text-sm text-muted-foreground">
+                            {{ LATENCY_P95_LABEL }}
+                        </dt>
+                        <dd class="text-sm">
+                            {{
+                                formatLatencyMs(props.statistics.latency.p95Ms)
+                            }}
+                        </dd>
+                    </div>
+                </dl>
+                <p class="text-sm text-muted-foreground">
+                    {{ LATENCY_CAPTION }}
+                </p>
+            </template>
+        </Card>
 
         <!-- Ingest URL card -->
         <Card class="gap-3 p-6">

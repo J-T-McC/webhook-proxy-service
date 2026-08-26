@@ -143,6 +143,15 @@ export function liveVsReplayText(live: number, replay: number): string {
 }
 
 /**
+ * Proxy Show's Analytics-card zero-traffic message (design-11 Screen 2,
+ * Flow C step 6) — the entire card collapses to this single message when
+ * the current proxy has no traffic in the window.
+ */
+export function zeroProxyTrafficMessage(window: AnalyticsWindowValue): string {
+    return `No deliveries to this proxy in the last ${windowLabel(window)}. Figures appear once it receives and delivers a webhook.`;
+}
+
+/**
  * A latency duration in whole milliseconds, formatted as `"340 ms"` below
  * one second and `"1.2 s"` at or above it, or {@link LATENCY_NO_DATA_LABEL}
  * when `null` (`sampleCount === 0`) — never `0 ms`.

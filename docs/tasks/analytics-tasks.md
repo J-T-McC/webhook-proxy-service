@@ -1139,7 +1139,100 @@
 - **Testing:** manual verification (no harness) — `pnpm run build`, confirm card position, the
   collapsed zero-traffic state (seed a proxy with no deliveries), label parity against the
   Dashboard, both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented the "Analytics" card as one `Card` directly in
+  `resources/js/pages/proxies/Show.vue`, inserted immediately after the header block and before
+  the existing "Ingest URL" card (flagged design call 3's accepted reordering). Every label comes
+  from `analyticsLabels.ts` (T12) — the same constants and formatting functions T14/T16 already
+  use on the Dashboard, so wording matches byte-for-byte by construction, not by duplication.
+  Structure follows design-11 Screen 2's mockup literally: `h2 "Analytics"` plus the window
+  selector as the card's first row (mirrors the mockup's ASCII layout, which nests `[24h] [7d]
+  [30d]` inside the "Card 'Analytics'" block, unlike Dashboard where the selector sits above every
+  card since Dashboard has several windowed cards); the two-tier headline + bridge sentence (T14's
+  shape); a densified trend table (see flagged deviation below); `h3 "Retry & replay"` + "Last
+  {window}" subtitle + four tiles (T16's shape); `h3 "Latency"` + subtitle + the two `dt`/`dd`
+  pairs + caption (T16's shape).
+
+  **Two deliberate reads, flagged rather than silently decided:**
+
+  1. **The trend/series accessible table is included in this task, even though T19's own
+     Description/Acceptance-Criteria/Testing text never names it** (it lists only "headline +
+     bridge sentence (T14)," "Retry & replay tiles (T16)," and "Latency block (T16)" as the shape
+     to match — omitting T17's Trend card entirely). Three independent sources say it belongs here:
+     design-11 Screen 2's own mockup shows `[dual-line trend chart] + "View as table"` inside the
+     Analytics card; Flow C step 3 describes it as part of the same flow ("Sees the daily trend
+     chart... Each row of the chart's 'View as table' fallback is a link into Flow E"); and T28's
+     own description assumes it already exists — "Both trend cards (Dashboard's 'Trend' card, T17;
+     **Proxy Show's Analytics card trend block, T19**)... render `TrendChart.vue` **above** the
+     already-shipped 'View as table' Collapsible." No task in M4 (T18–T20) other than T19 could
+     plausibly have built it, and `statistics.series` (T7/T18) is already on the page's props with
+     nothing else to consume it. Reading T19's own bullet list as an incomplete shape-reference
+     (three examples of "match the Dashboard," not an exhaustive one) rather than a deliberate
+     scope cut is the only reading consistent with an already-approved design and a later task's
+     explicit back-reference — implemented rather than escalated, since design-11 and T28 already
+     settle what belongs here; nothing was invented. Built identically to T17's Dashboard table:
+     `Date | Delivery success | Attempt success`, `compactRateText()` cells, rendered
+     `default-open` (no chart yet, T27/T28), with the same code comment marking it for
+     collapsed-by-default once the chart lands. No per-day drill-through links yet — T23's own
+     Files list already names `proxies/Show.vue` for wiring those, matching T17's Dashboard table
+     at the same stage.
+  2. **The window selector stays visible in the zero-traffic-for-this-proxy collapsed state**,
+     rather than disappearing along with the figures. Design-11's literal text ("the entire
+     Analytics card collapses to one message... no chart shell, no zeroed tiles, no latency block")
+     could be read as removing everything including the selector, but the same paragraph also
+     calls the selector "(page-level for this page)" — a control for the whole page's context, not
+     one of the collapsing card's own figure blocks — and a member has no other way to check
+     whether a different window has traffic if it vanishes. This mirrors Dashboard's own "no
+     proxies at all" vs. "zero deliveries in window" distinction (design-11 lines 292–319): the
+     selector is removed only when there is nothing to window over at all (Dashboard's "no proxies"
+     state), never merely because the current window is empty. Implemented by rendering the
+     selector unconditionally at the top of the card and gating only the figure content
+     (`v-if="!props.statistics.hasTraffic"` vs. the rest) below it.
+
+  `canDrillThrough`-style gating was not needed for the Retry & replay card's Terminal failure tile
+  link (the only failure-shaped tile, Flow C step 4): this page only renders for a live proxy in
+  the first place — the route's implicit model binding 404s on a soft-deleted one (T22) — so
+  drill-through is always available from here, unlike the Dashboard's Proxies-table row which must
+  handle both live and deleted proxies in the same table.
+
+  **Manual verification** (recipe in agent memory `manual_verification_recipe.md`): removed
+  `public/hot` (absent already, confirmed), ran `pnpm run build`, seeded a throwaway team via
+  `sail tinker` with two proxies — "Traffic Proxy" (one delivery succeeded on attempt 2: one failed
+  attempt at 200 ms, one succeeded at 300 ms) and "Zero Proxy" (a destination, zero deliveries).
+  Logged in via Playwright:
+
+  - **Traffic proxy, card position:** page heading order read `Traffic Proxy` (h1), `Analytics`,
+    `Ingest URL`, `Response`, `Destinations`, `Retry policy` — Analytics leads, ahead of Ingest URL,
+    exactly as design-11 requires.
+  - **Traffic proxy, headline:** `100%` / "1 of 1 delivered · last 30 days" and `50%` / "1 of 2
+    attempts succeeded · last 30 days" — the seeded delivery's correct split; bridge sentence read
+    "1 attempt failed before these deliveries succeeded — see Retry & replay below."
+  - **Traffic proxy, trend table:** exactly 30 rows (`Jul 28` through `Aug 26` inclusive, the
+    session's current date), every day but the last reading "No deliveries yet" on both columns,
+    `Aug 26` reading `100% (1/1)` / `50% (1/2)` — genuine server-side densification, not a
+    coincidentally-complete raw aggregate.
+  - **Traffic proxy, Retry & replay tiles:** Eventual success `1`, Terminal failure `0`, Retry
+    volume `1`, Live vs replay `"1 live · 0 replay"` — all four independently correct against the
+    fixture.
+  - **Traffic proxy, Latency:** Average `250 ms` (exact mean of 200/300), 95th percentile
+    `300 ms` (nearest-rank at `n = 2`, ordinal `2` — the larger of the two values) — confirming the
+    percentile reads correctly at this boundary `n`, not just a plausible-looking number.
+  - **Window selector:** navigating to `?window=7d` moved `aria-current="true"` to the `7d` button
+    and the Retry & replay/Latency subtitles updated to "Last 7 days".
+  - **Zero-traffic proxy:** the Analytics card rendered exactly `Analytics` + the three window
+    buttons (still present and clickable) + the single message "No deliveries to this proxy in the
+    last 30 days. Figures appear once it receives and delivers a webhook." — zero `dl` elements in
+    the card (asserted via a `0`-count Playwright locator check, not merely "not visually
+    noticed"), confirming no chart shell, no tiles, no latency block rendered alongside it.
+  - Screenshots inspected in both light and dark theme for both proxies — legible, correct card
+    ordering and content, no colour-only distinction relied upon anywhere.
+
+  Cleaned up the throwaway team/proxies/destinations/deliveries/attempts/user afterward
+  (`forceDelete()`, children before parents).
+
+  Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green (one file needed a
+  Prettier re-format after the manual edit, applied and re-verified). Backend suite unaffected by
+  this frontend-only task; `./vendor/bin/sail test --filter "ProxyShowControllerTest|ProxyIndexShowTest"`
+  (18/18) re-run as a sanity check, unchanged and green.
 
 ## T20 — `proxies/Show.vue`: Destinations table extended (AC6, AC15; plan Implementation Note 11)
 - **Description:** The existing `Destinations` card (currently a plain `ul`) becomes a `Table`:
