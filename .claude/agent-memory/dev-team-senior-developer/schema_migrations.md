@@ -96,3 +96,22 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   FIRST run already mutated. Reset all worker DBs (`for i in 1..N: DB_DATABASE=testing_test_$i
   artisan migrate:fresh`) and run `sail test --parallel` twice in a row to prove idempotency, not
   just once.
+- **The full migration set cannot run against SQLite at all**, despite `stack.md` naming SQLite as
+  local/default — the `webhook_events.body` LONGBLOB migration's raw `ALTER TABLE ... ADD body
+  LONGBLOB NOT NULL AFTER content_type` is MySQL-only DDL syntax (`AFTER col`); SQLite's parser
+  rejects it outright (`near "AFTER": syntax error`). `RefreshDatabase`-based feature/unit tests
+  therefore only run under `./vendor/bin/sail test` (MySQL) in practice, even locally. To verify a
+  raw SQL expression (e.g. a `DB::raw()` bucket/grouping expression) against SQLite anyway, skip
+  migrations entirely and exercise the query builder against a bare temp table:
+  `DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan tinker` (host PHP, no Sail needed) —
+  `CREATE TABLE`/`insert`/`select` by hand, compare output to the same call against
+  `sail artisan tinker` (MySQL). Confirmed one instance already: `SUBSTRING(col, 1, n)` produces
+  identical output on MySQL 8.4 and SQLite 3.53+ (SQLite registers it as a `substr()` alias) — no
+  driver branch needed for that expression.
+- **`DB::raw($dynamicString)` fails PHPStan's `literal-string` check on `Connection::raw()` even
+  when `$dynamicString` is itself built from an exhaustive `match` — a helper method's declared
+  `: string` return type erases the literal-ness at the call boundary.** Fix by inlining the
+  `match` directly inside the `DB::raw(...)` call (or the `select(...)` argument list) rather than
+  extracting it to a `private function foo(): string`; PHPStan's literal-string flow analysis sees
+  through an inline `match`/ternary of string literals but not through an intervening function
+  call.
