@@ -94,9 +94,12 @@ export interface DestinationBreakdownRow {
 }
 
 /**
- * The Events list's active-filter chip descriptors (T21+). `destination`/
- * `outcome` are `null` when the corresponding query parameter could not be
- * resolved — a chip never claims a narrowing the query did not apply.
+ * The Events list's active-filter chip descriptors (T21+; Revision A/T23,
+ * `Q-11-04`). `destination`/`outcome`/`day` are `null` when the
+ * corresponding query parameter could not be resolved — a chip never claims
+ * a narrowing the query did not apply. A resolved `day` (ISO `Y-m-d`) is
+ * **not** a fourth chip — it renders as the value of the existing Window
+ * chip (design-11 Screen 4; plan Technical ruling 10).
  */
 export interface EventListFilters {
     window: AnalyticsWindowValue;
@@ -110,4 +113,5 @@ export interface EventListFilters {
         unit: string;
         label: string;
     } | null;
+    day: string | null;
 }

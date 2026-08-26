@@ -38,6 +38,7 @@ import {
     deliveryCaption,
     formatLatencyMs,
     formatRate,
+    formatSeriesDate,
     lastWindowSubtitle,
     liveVsReplayText,
 } from '@/data/analyticsLabels';
@@ -185,15 +186,6 @@ function proxyFailuresHref(proxyId: number) {
             },
         },
     );
-}
-
-/** An ISO `Y-m-d` series date, formatted for the trend table's row label. */
-function formatSeriesDate(isoDate: string): string {
-    return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
 }
 </script>
 

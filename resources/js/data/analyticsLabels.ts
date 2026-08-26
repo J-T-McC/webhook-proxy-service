@@ -155,6 +155,22 @@ export function zeroProxyTrafficMessage(window: AnalyticsWindowValue): string {
 }
 
 /**
+ * An ISO `Y-m-d` series date, formatted for display. Shared by the Dashboard
+ * and Proxy Show trend tables' Date column (T17/T19) and, on Proxy Show only,
+ * the day-narrowed Events list Window chip a per-day drill-through link
+ * lands on (T23/T24, Revision A, `Q-11-04`; plan Implementation Note 20) —
+ * one formatter, so the two surfaces cannot disagree about how a day is
+ * written.
+ */
+export function formatSeriesDate(isoDate: string): string {
+    return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    });
+}
+
+/**
  * A latency duration in whole milliseconds, formatted as `"340 ms"` below
  * one second and `"1.2 s"` at or above it, or {@link LATENCY_NO_DATA_LABEL}
  * when `null` (`sampleCount === 0`) — never `0 ms`.

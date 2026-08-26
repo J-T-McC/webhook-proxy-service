@@ -15,7 +15,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { windowLabel } from '@/data/analyticsLabels';
+import { formatSeriesDate, windowLabel } from '@/data/analyticsLabels';
 import {
     proxyAggregateDeliveryState,
     proxyAggregateDeliveryStateOption,
@@ -75,15 +75,33 @@ defineOptions({
 const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
-// --- Filter chips (T24; AC10, AC21; design-11 Screen 4) ---------------------
+// --- Filter chips (T24; T23/T24 Revision A, `Q-11-04`; AC10, AC21;
+// design-11 Screen 4) --------------------------------------------------------
 //
 // A chip row (window + destination + outcome, up to three at once) renders
-// only once `destination` or `outcome` actually resolved — an arrival with
-// neither is "arrived directly," visually identical to the pre-#11 shipped
-// surface (T21's own reading of AC28), so no chip row renders there either.
+// only once `destination`, `outcome` or `day` actually resolved — an arrival
+// with none of the three is "arrived directly," visually identical to the
+// pre-#11 shipped surface (T21's own reading of AC28), so no chip row
+// renders there either. A resolved `day` is **not** a fourth chip — plan
+// Technical ruling 10 renders it as the value of the existing Window chip
+// (see `windowChipValue` below), so the chip row stays fixed at three.
 
 const hasActiveFilters = computed(
-    () => props.filters.destination !== null || props.filters.outcome !== null,
+    () =>
+        props.filters.destination !== null ||
+        props.filters.outcome !== null ||
+        props.filters.day !== null,
+);
+
+/**
+ * The Window chip's rendered value — the day-narrowed date (same formatter
+ * as the trend table's Date column, ruling 10/Implementation Note 20) when
+ * `filters.day` resolved, otherwise the usual "last {window}" text.
+ */
+const windowChipValue = computed(() =>
+    props.filters.day
+        ? formatSeriesDate(props.filters.day)
+        : `last ${windowLabel(props.filters.window)}`,
 );
 
 /** The `outcome` query token this filter's resolved `unit` came from (T21). */
@@ -96,13 +114,20 @@ function outcomeQueryToken(unit: string): string {
  * exactly the one named — a chip's remove control is a real re-navigation
  * (design-11 § Interactions: "not a client-side row filter"), never
  * client-side state, so the server-side query and the URL stay the single
- * source of truth for what's shown.
+ * source of truth for what's shown. Removing `'window'` drops `date`
+ * alongside it — the day-narrowed Window chip's `×` removes both together
+ * (ruling 10), since a resolved day is that chip's value, not a filter of
+ * its own.
  */
 function filterHref(remove: 'window' | 'destination' | 'outcome' | 'all') {
     const query: Record<string, string | number> = {};
 
     if (remove !== 'window' && remove !== 'all') {
         query.window = props.filters.window;
+
+        if (props.filters.day) {
+            query.date = props.filters.day;
+        }
     }
 
     if (
@@ -194,7 +219,7 @@ function openReplay(event: WebhookEventListItem): void {
             aria-label="Active filters"
         >
             <Badge variant="secondary" class="gap-1.5 py-1 pr-1.5 pl-2.5">
-                Window: last {{ windowLabel(props.filters.window) }}
+                Window: {{ windowChipValue }}
                 <button
                     type="button"
                     aria-label="Remove window filter"

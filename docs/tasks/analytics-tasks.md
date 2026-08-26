@@ -1505,8 +1505,11 @@
   Terminal failures cell is not a link (`canDrillThrough === false`, T22).
 - **Testing:** manual verification (no harness) — `pnpm run build`, click through each entry point
   and confirm the landed Events list's active filter chips match the table above, both themes.
-- **Completion notes:** **Partially complete — one entry point is blocked, not silently skipped or
-  guessed at.** Wired four of the five entry points design-11's Flow E table names:
+- **Completion notes:** **Complete — all five entry points design-11's Flow E table names are
+  wired.** The fifth (the Trend chart's per-day, per-unit row) was blocked on `Q-11-04` at first
+  pass; the question resolved (Principal Engineer, plan-11 Revision A) and that entry point is now
+  wired too — see the dedicated section below. Wired four of the five entry points on the first
+  pass:
 
   - **Dashboard Proxies table's Terminal failures (deliveries) cell** (`proxyFailuresHref()`,
     `Dashboard.vue`) — added `outcome=delivery_failed` alongside the `window` T15 already carried.
@@ -1519,22 +1522,21 @@
     (T20) already carries proxy · destination · window with no `outcome` parameter, exactly as Flow
     D step 3 and this task's own AC require.
 
-  **Blocked, and escalated rather than guessed at: the Trend chart's "View as table" row, per day
-  per unit.** `docs/questions/prd-11-q-11-04-trend-day-drill-through.md` (new, directed to the
-  Principal Engineer) — design-11's Flow C step 3 and Flow E table both require this entry point to
-  carry "window narrowed to that single day," but plan-11 §§ Architecture E, API, Services & Actions
-  and Validation all define the Events list's filter resolver (T21, already implemented) as taking
-  exactly three query parameters — `window` (one of `AnalyticsWindow`'s three fixed values),
-  `destination`, `outcome` — with no mechanism for narrowing to a single calendar day.
-  `AnalyticsWindow::tryFrom()` silently falls back to the 30-day default on any value it doesn't
-  recognise (ruling 8), so routing a literal date through the existing `window` parameter would not
-  narrow anything — it would silently resolve to the wrong window, exactly the "silently wrong
-  answer" ruling 3 says this feature must not produce. Inventing a fourth query parameter here would
-  be extending T21's already-implemented, task-approved public interface beyond what any approved
-  artifact specifies, not a purely local implementation detail left open by the task — squarely the
-  "plan conflicts with reality... pause the affected task" escalation rule, directed to the
-  Principal Engineer as plan-11's owner. This is the only portion of T23 left undone; every other
-  named entry point is wired and verified below.
+  **Was blocked, escalated rather than guessed at, and is now resolved: the Trend chart's "View as
+  table" row, per day per unit.** `docs/questions/prd-11-q-11-04-trend-day-drill-through.md` (new,
+  directed to the Principal Engineer) — design-11's Flow C step 3 and Flow E table both require this
+  entry point to carry "window narrowed to that single day," but plan-11 §§ Architecture E, API,
+  Services & Actions and Validation all defined the Events list's filter resolver (T21, already
+  implemented) as taking exactly three query parameters — `window` (one of `AnalyticsWindow`'s three
+  fixed values), `destination`, `outcome` — with no mechanism for narrowing to a single calendar
+  day. `AnalyticsWindow::tryFrom()` silently falls back to the 30-day default on any value it
+  doesn't recognise (ruling 8), so routing a literal date through the existing `window` parameter
+  would not narrow anything — it would silently resolve to the wrong window, exactly the "silently
+  wrong answer" ruling 3 says this feature must not produce. Inventing a fourth query parameter here
+  would have extended T21's already-implemented, task-approved public interface beyond what any
+  approved artifact specifies, not a purely local implementation detail left open by the task —
+  squarely the "plan conflicts with reality... pause the affected task" escalation rule, directed to
+  the Principal Engineer as plan-11's owner.
 
   **Manual verification** (recipe in agent memory `manual_verification_recipe.md`): `public/hot`
   absent already (confirmed), ran `pnpm run build`, seeded a throwaway team via `sail tinker` with
@@ -1554,6 +1556,114 @@
 
   Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green. Backend suite
   unaffected by this frontend-only task; not re-run here.
+
+  ### Resolution — `Q-11-04`, plan-11 Revision A: the fifth entry point wired
+
+  `Q-11-04` resolved (Principal Engineer, plan-11 Revision A, Technical ruling 10): a fourth,
+  optional `date` query parameter (ISO `Y-m-d`, the same string `SeriesPoint.date` already carries).
+  A resolved `date` **replaces** the window's range bound with the half-open interval `[that day
+  00:00, next day 00:00)` in the application timezone. This is not purely a T23 change — the ruling
+  widens T21's resolver (its own task, already Done) and T24's chip rendering (its own task, already
+  Done) as well as T23's own hrefs, so the touched files go beyond this task's originally-listed
+  `Dashboard.vue`/`Show.vue`, per Technical ruling 10's own scope statement. Touched, beyond this
+  task's own two files:
+
+  - **`app/Http/Controllers/ProxyEventController.php`** (T21's file) — `resolveDate()` (new private
+    method) parses `date` strictly: `CarbonImmutable::createFromFormat('Y-m-d', $value)` is lenient
+    (it accepts `2026-8-4` and silently rolls an out-of-range value like `2026-13-45` over into a
+    different date), so the parsed value is reformatted back to `Y-m-d` and compared against the raw
+    input — anything that doesn't round-trip exactly drops the filter (ruling 8), never a 422.
+    `resolveFilters()`'s "arrived directly" short-circuit widened to require `destination`,
+    `outcome` **and** `date` all unresolved before it returns a `null` predicate — a `date` alone is
+    a real narrowing and must run. `applyFilters()` builds `$start`/`$end` exactly once; a resolved
+    `date` substitutes `[day, day + 1)` for the window's `[now - window, now)` at that single point,
+    with no second range clause added elsewhere. The day bound is applied via a new private
+    `applyRangeBound()` helper with `$halfOpen = true` (`>=`/`<`, never `whereBetween`), so no
+    instant at a day boundary belongs to two days or to neither. **One thing the ruling doesn't spell
+    out and had to be decided locally**: the *window*'s own existing bound could not be switched to
+    the same half-open shape — `$end` there is `CarbonImmutable::now()` computed at request time, a
+    moving target that a just-created row's `updated_at` (also second-precision, truncated the same
+    way) can land on exactly, and a first attempt at a uniform half-open bound turned that up as a
+    real regression (four pre-existing tests started failing — a delivery created and queried inside
+    the same wall-clock second was excluded by a strict `<` against `now()`). `applyRangeBound()`
+    therefore keeps the window bound's existing inclusive `whereBetween` shape (`$halfOpen = false`)
+    and only the day bound is half-open — matching the ruling's actual concern (a day boundary must
+    not double- or non-count a record) without changing the window bound's already-certified,
+    already-tested behaviour.
+  - **`app/Data/Analytics/EventListFilters.php`** (T21's file) — gained `public ?string $day`.
+  - **`resources/js/types/analytics.ts`** — `EventListFilters.day: string | null`.
+  - **`resources/js/pages/proxies/Show.vue`** (this task's own file) — the trend table's Delivery
+    success and Attempt success cells are now each wrapped in a `Link` (`trendDayHref(point, unit)`)
+    carrying `window` (still emitted, per ruling 10 — "the period a member returns to"), `date`
+    (`point.date`, verbatim) and `outcome` (`delivery_failed`/`attempt_failed` per column). No
+    `canDrillThrough` gate, for the same reason `terminalFailureHref()` above has none: this page
+    only renders for a live proxy.
+  - **`resources/js/pages/Dashboard.vue`** — **not touched for this ruling.** The C1 re-check states
+    the Dashboard's team-grained trend chart is not a drill-through entry point at all (no single
+    proxy resolves from a team-grained series), so its trend table's rows carry no link — only its
+    Terminal-failures cell (already wired, first pass) does. T23's own task text names
+    `Dashboard.vue` in its Files list for that cell, not for its trend rows; followed the ruling over
+    the task text and record it here as directed by the ruling itself.
+  - **`resources/js/data/analyticsLabels.ts`** — added `formatSeriesDate()`, moved here from a
+    near-identical copy each of `Dashboard.vue` and `Show.vue` carried locally, because ruling 10 and
+    plan Implementation Note 20 require the trend table's Date column and the day-narrowed Window
+    chip to render a day exactly the same way — one formatter, so the two surfaces cannot disagree.
+  - **`resources/js/pages/proxies/events/Index.vue`** (T24's file) — the day is **not** a fourth
+    chip (ruling 10; design-11 Screen 4 fixes the chip row at three). `hasActiveFilters` widened to
+    include `filters.day !== null`. The existing Window chip's value (`windowChipValue` computed)
+    reads the day-formatted string when `filters.day` is present, otherwise its prior "last {window}"
+    text — same chip, same `×`, no new chip. `filterHref('window')` now also drops `date` when
+    dropping `window`, so that chip's `×` removes both together, exactly as the ruling states.
+
+  New backend test group in `tests/Feature/Analytics/ProxyEventDrillThroughTest.php` (8 tests,
+  named "Day narrowing"): exact record-set narrowing at both units; the half-open boundary
+  (`>= start`/`< end`) with fixtures at the target day's exact midnight, one second before the next
+  midnight, one second before the target midnight, and exactly the next midnight; five malformed
+  `date` shapes (`2026-8-4`, `yesterday`, `2026-13-45`, an ISO-8601 timestamp, an empty string), each
+  asserted to drop to no-day-narrowing and 200, never 422; a well-formed `date` outside the resolved
+  window narrowing to that day rather than being dropped, including the "narrows to a visibly empty
+  day" case; conjunctive composition with `destination` and `outcome`; `?date=` alone narrowing
+  without either of the other two (the widened short-circuit); and survival across pagination.
+
+  **Manual verification** (recipe in agent memory `manual_verification_recipe.md`): `public/hot`
+  absent already (confirmed), ran `pnpm run build`, seeded a throwaway team via `sail tinker` with
+  one proxy, one destination, and two failed deliveries three and four days ago (`updated_at`
+  backdated via factory state). Logged in via Playwright, on the Proxy Show page with the trend
+  table default-open (T27/T28 not yet landed — the "View as table" trigger toggles it *closed* at
+  this stage, so the check reads the table's initial open state rather than clicking the trigger):
+
+  - The three-days-ago row's Delivery success cell (`"0% (0/1)"`) is a real anchor:
+    `?window=30d&date=2026-08-23&outcome=delivery_failed`; the Attempt success cell in the same row
+    (`"No deliveries yet"` — no attempt row was seeded, only a delivery) is also a real anchor:
+    `?window=30d&date=2026-08-23&outcome=attempt_failed` — confirming the link exists regardless of
+    whether that unit's own rate is null, which is correct: the link targets the failure *count* at
+    that unit, not that cell's own rate.
+  - Clicking the Delivery success cell landed on the Events list with chip row exactly `"Window:
+    Aug 23, 2026 × Outcome: Terminal failure (deliveries) ×"` and exactly one matching event (the
+    three-days-ago one, not the four-days-ago one) — the day-narrowed Window chip renders the day,
+    not "last 30 days," and the four-days-ago event is correctly excluded.
+  - Clicking the Attempt success cell for the same row produced the same URL shape with
+    `outcome=attempt_failed` and the chip read `"Outcome: Terminal failure (attempts)"`.
+  - Direct navigation to the same three-parameter URL reproduced both the chip text and the single
+    matching row exactly.
+  - Clicking the Window chip's `×` (`aria-label="Remove window filter"`) navigated to
+    `?outcome=delivery_failed` only — confirmed via a `page.on('request', ...)` listener on the real
+    outgoing `GET` — both `window` and `date` dropped together in one click, per ruling 10.
+  - Dark mode: toggled `document.documentElement.classList.add('dark')`, waited 400 ms, screenshotted
+    the full Proxy Show page — no console/page errors, the two new links render with the same
+    `hover:underline`-only styling (no distinct link colour) as every other drill-through link this
+    feature already shipped (Dashboard's Terminal-failures cell, the Retry & replay tile), so no new
+    contrast question is introduced.
+
+  Cleaned up the throwaway team/proxy/destination/events/deliveries/user afterward (`forceDelete()`,
+  children before parents).
+
+  Verified: `composer lint`, `composer types:check` (PHPStan level 7, no suppressions),
+  `./vendor/bin/sail test --filter "ProxyEventDrillThroughTest"` (16/16, including the 8 new
+  day-narrowing tests), `./vendor/bin/sail test --filter "ProxyEvent"` (63/63), full
+  `./vendor/bin/sail test --parallel` **844/844** (up from 836 after T22); `pnpm lint:check`,
+  `pnpm types:check`, `pnpm format:check` all green (Prettier reformatted `Dashboard.vue` and
+  `proxies/Show.vue` after the manual edits, re-verified).
 
 ## T24 — `proxies/events/Index.vue`: filter chips, explanatory copy, empty-filtered state (AC10, AC21; correction/C1 landed, § Accessibility)
 - **Description:** Above the existing (unchanged) table: up to three removable `FilterChips` —

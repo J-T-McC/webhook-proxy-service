@@ -47,6 +47,7 @@ import {
     deliveryCaption,
     formatLatencyMs,
     formatRate,
+    formatSeriesDate,
     lastWindowSubtitle,
     liveVsReplayText,
     zeroProxyTrafficMessage,
@@ -66,6 +67,7 @@ import type { Team } from '@/types';
 import type {
     AnalyticsWindowValue,
     DestinationBreakdownRow,
+    SeriesPoint,
     StatisticsPanel,
 } from '@/types/analytics';
 import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
@@ -234,13 +236,27 @@ function viewEventsHref(destination: DestinationBreakdownRow) {
     );
 }
 
-/** An ISO `Y-m-d` series date, formatted for the trend table's row label. */
-function formatSeriesDate(isoDate: string): string {
-    return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-    });
+/**
+ * The Trend table's per-day, per-unit drill-through target (Flow C step 3;
+ * design-11 Flow E entry-point table; T23/Revision A, `Q-11-04`, plan
+ * Technical ruling 10) — proxy (current) · window (still carried, ruling 10)
+ * · the row's own `date`, narrowing the window to that single day ·
+ * `outcome=delivery_failed`/`attempt_failed` at the clicked cell's unit. No
+ * `canDrillThrough` gate needed, for the same reason `terminalFailureHref()`
+ * above has none: this page only renders for a live proxy.
+ */
+function trendDayHref(point: SeriesPoint, unit: 'delivery' | 'attempt') {
+    return proxyEventRoutes.index(
+        { current_team: teamSlug.value, proxy: props.proxy.id },
+        {
+            query: {
+                window: props.statistics.window,
+                date: point.date,
+                outcome:
+                    unit === 'delivery' ? 'delivery_failed' : 'attempt_failed',
+            },
+        },
+    );
 }
 
 const proxyDeleteOpen = ref(false);
@@ -457,12 +473,28 @@ function confirmDeleteProxy(): void {
                                     <TableCell>{{
                                         formatSeriesDate(point.date)
                                     }}</TableCell>
-                                    <TableCell>{{
-                                        compactRateText(point.delivery)
-                                    }}</TableCell>
-                                    <TableCell>{{
-                                        compactRateText(point.attempt)
-                                    }}</TableCell>
+                                    <TableCell>
+                                        <Link
+                                            :href="
+                                                trendDayHref(point, 'delivery')
+                                            "
+                                            class="hover:underline"
+                                        >
+                                            {{
+                                                compactRateText(point.delivery)
+                                            }}
+                                        </Link>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Link
+                                            :href="
+                                                trendDayHref(point, 'attempt')
+                                            "
+                                            class="hover:underline"
+                                        >
+                                            {{ compactRateText(point.attempt) }}
+                                        </Link>
+                                    </TableCell>
                                 </TableRow>
                             </TableBody>
                         </Table>

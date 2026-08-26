@@ -10,15 +10,16 @@ use App\Models\Destination;
 use App\Models\Proxy;
 use App\Models\User;
 use App\Models\WebhookEvent;
+use Carbon\CarbonImmutable;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 /**
- * `ProxyEventController::index`'s filter resolver (T21; AC10, AC21; plan-11
- * §§ Architecture E, Technical rulings 3 and 8, Validation) — the `window`,
- * `destination` and `outcome` query parameters, both outcome-subquery
- * shapes, `withQueryString()`, and the unresolved-filter/unfiltered
- * fallbacks.
+ * `ProxyEventController::index`'s filter resolver (T21; T23/T24 Revision A,
+ * `Q-11-04`; AC10, AC21; plan-11 §§ Architecture E, Technical rulings 3, 8
+ * and 10, Validation) — the `window`, `destination`, `outcome` and `date`
+ * query parameters, both outcome-subquery shapes, `withQueryString()`, and
+ * the unresolved-filter/unfiltered fallbacks.
  */
 class ProxyEventDrillThroughTest extends TestCase
 {
@@ -330,6 +331,386 @@ class ProxyEventDrillThroughTest extends TestCase
                 ->where('events.last_page', 2)
                 ->where('events.links', fn ($links) => collect($links)->contains(
                     fn ($link) => str_contains((string) ($link['url'] ?? ''), 'outcome=delivery_failed'),
+                ))
+            );
+    }
+
+    // --- Day narrowing (`date`, Revision A / plan Technical ruling 10) ------
+
+    /**
+     * A `date` inside the resolved window narrows to exactly that day's
+     * failing records at the delivery grain — the day cell's figure and its
+     * drill-through describe the same record set (AC10 at the day grain).
+     * Records the day before and the day after the target day, both also
+     * delivery-failed, must not appear.
+     */
+    public function test_date_narrows_to_exactly_that_days_failing_records_at_delivery_grain(): void
+    {
+        $user = $this->actingUser();
+        [$proxy, $destination] = $this->makeProxyAndDestination($user);
+
+        $targetDay = CarbonImmutable::now()->subDays(5)->startOfDay();
+
+        $onTargetDay = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $onTargetDay->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->addHours(3),
+        ])->createQuietly();
+
+        $dayBefore = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $dayBefore->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->subDay()->addHours(12),
+        ])->createQuietly();
+
+        $dayAfter = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $dayAfter->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->addDay()->addHours(1),
+        ])->createQuietly();
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, [
+                'outcome' => 'delivery_failed',
+                'date' => $targetDay->format('Y-m-d'),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 1)
+                ->where('events.data.0.id', $onTargetDay->id)
+                ->where('filters.day', $targetDay->format('Y-m-d'))
+                ->where('filters.window', '30d')
+            );
+    }
+
+    /**
+     * The same narrowing at the attempt grain, matching on `updated_at`
+     * inside `delivery_attempts` rather than `deliveries`.
+     */
+    public function test_date_narrows_to_exactly_that_days_failing_records_at_attempt_grain(): void
+    {
+        $user = $this->actingUser();
+        [$proxy, $destination] = $this->makeProxyAndDestination($user);
+
+        $targetDay = CarbonImmutable::now()->subDays(5)->startOfDay();
+
+        $onTargetDay = $this->makeEvent($user, $proxy);
+        DeliveryAttempt::factory()->state([
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'ingest_id' => $onTargetDay->ingest_id,
+            'attempt_number' => 1,
+            'status' => AttemptStatus::Failed,
+            'updated_at' => $targetDay->addHours(3),
+        ])->createQuietly();
+
+        $dayBefore = $this->makeEvent($user, $proxy);
+        DeliveryAttempt::factory()->state([
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'ingest_id' => $dayBefore->ingest_id,
+            'attempt_number' => 1,
+            'status' => AttemptStatus::Failed,
+            'updated_at' => $targetDay->subDay()->addHours(12),
+        ])->createQuietly();
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, [
+                'outcome' => 'attempt_failed',
+                'date' => $targetDay->format('Y-m-d'),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 1)
+                ->where('events.data.0.id', $onTargetDay->id)
+            );
+    }
+
+    /**
+     * The day bound is half-open (`>= start`, `< end`), never an inclusive
+     * `whereBetween` — a record at the target day's exact midnight and one a
+     * second before the next day's midnight both fall inside; one a second
+     * before the target day's midnight and one exactly at the next day's
+     * midnight both fall outside.
+     */
+    public function test_date_boundary_is_half_open(): void
+    {
+        $user = $this->actingUser();
+        [$proxy, $destination] = $this->makeProxyAndDestination($user);
+
+        $targetDay = CarbonImmutable::now()->subDays(5)->startOfDay();
+
+        $atStart = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $atStart->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay,
+        ])->createQuietly();
+
+        $justBeforeEnd = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $justBeforeEnd->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->addDay()->subSecond(),
+        ])->createQuietly();
+
+        $justBeforeStart = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $justBeforeStart->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->subSecond(),
+        ])->createQuietly();
+
+        $atNextMidnight = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $atNextMidnight->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->addDay(),
+        ])->createQuietly();
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, [
+                'outcome' => 'delivery_failed',
+                'date' => $targetDay->format('Y-m-d'),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 2)
+                ->where('events.data', fn ($events) => collect($events)
+                    ->pluck('id')
+                    ->sort()
+                    ->values()
+                    ->all() === collect([$atStart->id, $justBeforeEnd->id])->sort()->values()->all())
+            );
+    }
+
+    /**
+     * An absent, empty or malformed `date` means no day-narrowing — the
+     * request resolves exactly as it does without one, never a 422.
+     * `createFromFormat('Y-m-d', ...)` is lenient (accepts `2026-8-4`,
+     * silently rolls `2026-13-45` over into a different date), so each of
+     * these specifically exercises the round-trip check that catches what
+     * lenient parsing alone would not.
+     */
+    public function test_a_malformed_date_drops_the_day_narrowing_and_never_422(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $event = $this->makeEvent($user, $proxy, now()->subDays(90));
+
+        foreach (['2026-8-4', 'yesterday', '2026-13-45', now()->toIso8601String(), ''] as $malformed) {
+            $this->actingAs($user)
+                ->get($this->route($user, $proxy, ['date' => $malformed]))
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->has('events.data', 1)
+                    ->where('events.data.0.id', $event->id)
+                    ->where('filters.day', null)
+                );
+        }
+    }
+
+    /**
+     * A well-formed `date` outside the resolved window narrows to that day
+     * rather than being dropped or silently widening back to the window —
+     * "narrowed to that single day" holds even for a hand-edited or stale
+     * URL, and an empty result is visible ("No events match these filters")
+     * rather than silently wrong.
+     */
+    public function test_a_well_formed_date_outside_the_window_narrows_to_that_day(): void
+    {
+        $user = $this->actingUser();
+        [$proxy, $destination] = $this->makeProxyAndDestination($user);
+
+        // 40 days ago — outside the default 30-day window.
+        $targetDay = CarbonImmutable::now()->subDays(40)->startOfDay();
+
+        $outsideWindowButOnTargetDay = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $outsideWindowButOnTargetDay->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->addHours(3),
+        ])->createQuietly();
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, [
+                'outcome' => 'delivery_failed',
+                'date' => $targetDay->format('Y-m-d'),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 1)
+                ->where('events.data.0.id', $outsideWindowButOnTargetDay->id)
+            );
+
+        // A day with nothing on it, also outside the window: narrows to a
+        // visibly empty result rather than an error or a silent widening.
+        $emptyDay = CarbonImmutable::now()->subDays(41)->startOfDay();
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, [
+                'outcome' => 'delivery_failed',
+                'date' => $emptyDay->format('Y-m-d'),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('events.data', 0));
+    }
+
+    /**
+     * `date` composes conjunctively with `destination` and with each
+     * `outcome` unit, exactly as `destination` and `outcome` compose with
+     * each other — all resolved independently, all applied together.
+     */
+    public function test_date_composes_conjunctively_with_destination_and_outcome(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $destinationOne = Destination::factory()->state(['team_id' => $user->current_team_id, 'proxy_id' => $proxy->id])->createQuietly();
+        $destinationTwo = Destination::factory()->state(['team_id' => $user->current_team_id, 'proxy_id' => $proxy->id])->createQuietly();
+
+        $targetDay = CarbonImmutable::now()->subDays(5)->startOfDay();
+
+        $matching = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $matching->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destinationOne->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->addHours(3),
+        ])->createQuietly();
+
+        // Right day, right outcome, wrong destination.
+        $wrongDestination = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $wrongDestination->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destinationTwo->id,
+            'status' => DeliveryStatus::Failed,
+            'updated_at' => $targetDay->addHours(3),
+        ])->createQuietly();
+
+        // Right day, right destination, wrong outcome (succeeded).
+        $wrongOutcome = $this->makeEvent($user, $proxy);
+        Delivery::factory()->state([
+            'webhook_event_id' => $wrongOutcome->id,
+            'team_id' => $user->current_team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destinationOne->id,
+            'status' => DeliveryStatus::Succeeded,
+            'updated_at' => $targetDay->addHours(3),
+        ])->createQuietly();
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, [
+                'outcome' => 'delivery_failed',
+                'destination' => $destinationOne->id,
+                'date' => $targetDay->format('Y-m-d'),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 1)
+                ->where('events.data.0.id', $matching->id)
+                ->where('filters.destination.id', $destinationOne->id)
+                ->where('filters.day', $targetDay->format('Y-m-d'))
+            );
+    }
+
+    /**
+     * `?date=` alone, with no `destination` and no `outcome`, still narrows
+     * — the "arrived directly" short-circuit widens to require all three of
+     * `destination`, `outcome` and `date` to be unresolved before it
+     * short-circuits (ruling 10), so a `date` on its own is not swallowed.
+     * With no outcome active the bound applies to `received_at` (ruling 3).
+     */
+    public function test_date_alone_narrows_without_destination_or_outcome(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $targetDay = CarbonImmutable::now()->subDays(5)->startOfDay();
+
+        $onTargetDay = $this->makeEvent($user, $proxy, $targetDay->addHours(6));
+        $dayBefore = $this->makeEvent($user, $proxy, $targetDay->subHours(6));
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, ['date' => $targetDay->format('Y-m-d')]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 1)
+                ->where('events.data.0.id', $onTargetDay->id)
+                ->where('filters.day', $targetDay->format('Y-m-d'))
+                ->where('filters.destination', null)
+                ->where('filters.outcome', null)
+            );
+
+        $this->assertNotSame($onTargetDay->id, $dayBefore->id);
+    }
+
+    /**
+     * `date` survives pagination via the same `withQueryString()` mechanism
+     * already covered for `outcome` alone.
+     */
+    public function test_date_survives_pagination(): void
+    {
+        $user = $this->actingUser();
+        [$proxy, $destination] = $this->makeProxyAndDestination($user);
+
+        $targetDay = CarbonImmutable::now()->subDays(5)->startOfDay();
+
+        for ($i = 0; $i < 20; $i++) {
+            $event = $this->makeEvent($user, $proxy);
+            Delivery::factory()->state([
+                'webhook_event_id' => $event->id,
+                'team_id' => $user->current_team_id,
+                'proxy_id' => $proxy->id,
+                'destination_id' => $destination->id,
+                'status' => DeliveryStatus::Failed,
+                'updated_at' => $targetDay->addHours($i % 24),
+            ])->createQuietly();
+        }
+
+        $this->actingAs($user)
+            ->get($this->route($user, $proxy, [
+                'outcome' => 'delivery_failed',
+                'date' => $targetDay->format('Y-m-d'),
+            ]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('events.data', 15)
+                ->where('events.last_page', 2)
+                ->where('events.links', fn ($links) => collect($links)->contains(
+                    fn ($link) => str_contains((string) ($link['url'] ?? ''), 'date='.$targetDay->format('Y-m-d')),
                 ))
             );
     }
