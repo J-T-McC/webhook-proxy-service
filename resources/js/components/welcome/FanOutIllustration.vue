@@ -466,7 +466,7 @@ function computeGeometry(width: number, height: number): Geometry {
         ],
         nodeW,
         nodeH,
-        junctionR: height * 0.012,
+        junctionR: height * 0.018,
         cornerR: Math.min(nodeW, nodeH) * 0.2,
     };
 }
@@ -578,6 +578,7 @@ interface ThemeVisuals {
     queuedEdgeAlpha: number;
     nodeStrokeAlpha: number;
     labelAlpha: number;
+    junctionAlpha: number;
 }
 
 const DARK_VISUALS: ThemeVisuals = {
@@ -596,6 +597,7 @@ const DARK_VISUALS: ThemeVisuals = {
     queuedEdgeAlpha: 0.8,
     nodeStrokeAlpha: 0.45,
     labelAlpha: 0.9,
+    junctionAlpha: 0.3,
 };
 
 const LIGHT_VISUALS: ThemeVisuals = {
@@ -614,9 +616,9 @@ const LIGHT_VISUALS: ThemeVisuals = {
     queuedEdgeAlpha: 0.85,
     nodeStrokeAlpha: 0.9,
     labelAlpha: 1,
+    junctionAlpha: 0.55,
 };
 
-const JUNCTION_ALPHA = 0.4; // same both themes — static anchor, always drawn
 const NODE_STROKE_WIDTH = 1;
 const GRID_CELL = 32; // fixed logical px — does not scale with the diagram
 
@@ -948,14 +950,21 @@ function drawBaseScene(state: RenderState, timeMs: number) {
         }
     }
 
-    const junctionColor = withAlpha(tokens.mutedForeground, JUNCTION_ALPHA);
+    // A thin ring, not a filled dot. The solid grey circle was the only opaque
+    // blob in an otherwise line-based drawing and read as an artefact sitting on
+    // top of the wires rather than as part of them. Drawn once — both events
+    // share this junction, so the array holds the same point twice.
+    const junctionColor = withAlpha(
+        tokens.mutedForeground,
+        visuals.junctionAlpha,
+    );
+    const junction = geo.junction[0];
 
-    for (const junction of geo.junction) {
-        ctx.beginPath();
-        ctx.arc(junction.x, junction.y, geo.junctionR, 0, Math.PI * 2);
-        ctx.fillStyle = junctionColor;
-        ctx.fill();
-    }
+    ctx.beginPath();
+    ctx.arc(junction.x, junction.y, geo.junctionR, 0, Math.PI * 2);
+    ctx.lineWidth = NODE_STROKE_WIDTH * geo.scale;
+    ctx.strokeStyle = junctionColor;
+    ctx.stroke();
 
     const nodeStroke = withAlpha(
         tokens.mutedForeground,
