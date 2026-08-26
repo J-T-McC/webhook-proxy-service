@@ -2393,9 +2393,9 @@
   (844 baseline + 13 new: 2 `SeriesBucketTest`, 4 net-new `AnalyticsWindowTest` cases, 6 new
   `DeliveryStatisticsSeriesTest` cases, 1 new `AnalyticsWindowConsistencyTest` case).
 
-  **Commits:** `9f8e5a1` `feat(item-11): SeriesBucket enum, bucket-aware AnalyticsWindow, and the
-  one window definition (T30)` — see `git log` on `feat/item-11-analytics` for the exact SHA at
-  merge time; committed once, green, after the full verification above.
+  **Commit:** `8da25d5` `feat(item-11): SeriesBucket enum, bucket-aware AnalyticsWindow, and the
+  one window definition (T30)` — one commit, on `feat/item-11-analytics`, made after the full
+  verification above (lint/types/suite green) — nothing held back to a later commit.
 
 > **T31 is deliberately unused in this file.** This document refers to "backlog T31" — the
 > deferred frontend test harness on `docs/tasks/walking-skeleton-tasks.md` — in seven places,
