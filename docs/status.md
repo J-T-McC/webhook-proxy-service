@@ -57,7 +57,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
 | 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
-| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` **fully Approved again** (PM, 2026-08-26) — Amendment B delta approved with no corrections, design gate closed. **M8 broken down as T30 and T32** (Task Planner, self-certified) — both unstarted. **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
+| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` **fully Approved again** (PM, 2026-08-26) — Amendment B delta approved with no corrections, design gate closed. **M8: T30 complete, T32 next.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
@@ -364,6 +364,38 @@ plus both Owner flags ruled, 2026-08-26);
   note explaining that its position moved — that was the only edit made to an existing task.
   The Task Planner found **no conflict or gap** between PRD-11 Amendment B, `plan-11` Revision B
   and the revised `design-11`.
+- **T30 complete — the bucket backend landed** (Senior Developer, 2026-08-26). `SeriesBucket`,
+  `AnalyticsWindow::bucket()`/`bucketCount()`/`start()` with **`interval()` removed**, per-bucket
+  grouping and densification in `DeliveryStatistics`, `SeriesPoint.bucketStart` plus its now
+  nullable `date`, and `StatisticsPanel.bucket`. Verified green afterwards: `composer lint`,
+  `composer types:check` (0 errors), and the suite at **857/857** (up from 844; 13 new tests).
+  **Ruling 12 landed on both sides** — `ProxyEventController` calls the same
+  `AnalyticsWindow::start()` the service does, and `AnalyticsWindowConsistencyTest` pins them
+  against each other by placing one record exactly at the window start (must count) and one a
+  second earlier (must not), then asserting the service and a live
+  `GET proxies.events.index?outcome=delivery_failed` agree at all three windows. A second test
+  asserts the series sums to the headline figure at both units on all three windows — the
+  partition property Amendment B(i) states and the pre-existing defect broke.
+  The portable `SUBSTRING(updated_at, 1, 13)` form was adopted with **no fallback needed**.
+  One implementation choice was not dictated by the plan and is recorded: the expression is
+  inlined as a `match` inside the `select()` call rather than extracted to a helper, because
+  `DB::raw()` requires a `literal-string` and a helper's declared `string` return type erases
+  that for PHPStan.
+  **Existing tests changed, and the report is explicit about why each was legitimate.** The four
+  pre-existing series tests needed no behavioural change — all exercise `7d`/`30d`, whose bucket
+  shape Revision B does not alter — and two simply gained `bucketStart` assertions. One test was
+  renamed and extended from "one point per day, every window" to assert 24 points on `24h`; that
+  shape is exactly what Amendment B superseded. **No assertion was weakened to reach green.**
+- **Found while verifying T30, out of scope, fixed by nobody yet: this project's full migration
+  set cannot run against SQLite.** `database/migrations/2026_08_04_000002_create_webhook_events_table.php`
+  issues a raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`, which is MySQL-only
+  DDL — SQLite's parser rejects it outright (`near "AFTER": syntax error`). So `./vendor/bin/sail
+  test` is in practice the **only** way this suite runs, while `docs/stack/stack.md` still records
+  "Local/default: SQLite · CI + test suite: MySQL". The two disagree, and the stack document is
+  the one that is wrong. This predates item #11 entirely and was confirmed independently before
+  being recorded here. **Whoever owns `stack.md` and that migration should reconcile them** — the
+  practical cost today is that the T30 dual-engine bucket verification had to be done at the
+  query-builder level rather than by running the suite on both engines.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
