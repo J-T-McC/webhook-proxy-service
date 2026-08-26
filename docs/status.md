@@ -218,8 +218,16 @@ plus both Owner flags ruled, 2026-08-26);
   alternative is to adopt `chart.js` alone behind roughly forty lines of local `TrendChart.vue`
   doing what the wrapper's component does — hold a `<canvas>` ref, construct in `onMounted`,
   `update()` on prop change, `destroy()` on unmount — which needs no plan change beyond dropping
-  one package name. **Selecting between that, accepting the tax, and fixing the wrapper upstream
-  is the Owner's call.** T26, T27 and T28 are unstarted and blocked behind it; T29 is unstarted.
+  one package name. **RULED (Project Owner, 2026-08-26): adopt the wrapper anyway.** The
+  fallback and the fix-upstream-first option were both put to the Owner with the measured cost and
+  neither was taken; the Owner accepted the roughly 59 kB raw / 20.6 kB gzip tax, and both packages
+  ship as originally approved. The reasoning behind the original flag-1 approval is what carries it:
+  the wrapper is the Owner's own package, so the maintenance exposure that would argue for keeping
+  forty lines in-tree does not apply, and those lines would become this project's to own. Recorded
+  in `plan-11-analytics.md` § *Owner ruling on T25's check-2 finding* and in T25's completion notes.
+  **T25 resumes from check 3**; every other condition stands — `onMounted`-only construction, no
+  click target on the canvas, and no automated vulnerability scanning for this package, Dependabot
+  being configured for `github-actions` only. **M6 is unblocked**; T29 remains unstarted.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·

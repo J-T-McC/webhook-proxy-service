@@ -1866,6 +1866,19 @@
   No production file changed by this task. `git status --porcelain` clean at the end of this task;
   `pnpm types:check` and `pnpm lint:check` re-verified green (unaffected, since nothing changed).
 
+  **OWNER RULING (Project Owner, 2026-08-26) — adopt the wrapper anyway; T25 resumes and both
+  packages are committed.** The finding above was put to the Owner with its measured cost and with
+  two alternatives: the plan's recorded fallback (adopt `chart.js` alone behind a local
+  `TrendChart.vue`) and fixing the wrapper upstream before adopting it. **Neither was taken.** The
+  Owner accepted the roughly 59 kB raw / 20.6 kB gzip cost and ruled that `chart.js` (^4) and
+  `@j-t-mcc/vue3-chartjs` are both adopted as originally approved. Recorded in
+  `docs/plans/plan-11-analytics.md` § *Owner ruling on T25's check-2 finding*. The stop was correct
+  and is not a defect in this task — check 2 exists to surface exactly this, it surfaced it, and the
+  decision it fed was the Owner's to make. **Resuming T25 from check 3**: run checks 3 and 4, then
+  commit `package.json` and `pnpm-lock.yaml`. Every other condition stands unchanged —
+  `onMounted`-only construction, no click target on the canvas, and no automated vulnerability
+  scanning for this package in this repository.
+
 ## T26 — `resources/js/lib/chartTokens.ts`: colour resolution reusing the PR #12 fix (R8; binding constraint 4)
 - **Description:** New module resolving a series colour by reading the token verbatim
   (`getComputedStyle(document.documentElement).getPropertyValue('--chart-1')` /

@@ -1143,6 +1143,11 @@ Stated in full, as the house format requires, because this is the single place t
 
 ### Owner rulings on both flags (Project Owner, 2026-08-26)
 
+> **Superseded in part — see § Owner ruling on T25's check-2 finding (Project Owner,
+> 2026-08-26), below flag 2.** Flag 1's approval stands, and so does the check that was run
+> against it; what changed is that the check reported the failure it was written to catch, and
+> the Owner ruled on the result rather than taking the fallback.
+
 **Both flags are ruled. Neither milestone is withheld, and the Task Planner may sequence all of
 M1–M7.**
 
@@ -1171,6 +1176,40 @@ argument was accepted — the same `ALTER TABLE` is cheap now and an operations 
 have grown under indefinite retention — as was the decision to **keep** the now-redundant
 `delivery_attempts (proxy_id, status)` prefix index rather than fold a non-additive drop into an
 additive change; reclaiming that space remains a separate later decision with its own gate.
+
+### Owner ruling on T25's check-2 finding (Project Owner, 2026-08-26)
+
+**Check 2 failed, and the Owner ruled to adopt the wrapper anyway. Both packages ship.** T25 ran
+the four § *Dependencies* checks and stopped at check 2, exactly as flag 1 instructed it to: as
+published, `@j-t-mcc/vue3-chartjs` 2.1.0 imports `chart.js`'s `registerables` export and, on every
+mount, runs `Chart.register(...registerables)` unconditionally. The literal string `chart.js/auto`
+does not appear anywhere in the package, so the check passes if read as a text search and fails if
+read as what it was written to detect — the wrapper reaches the same end by its own code. Because
+`registerables` is an eagerly constructed array naming every controller, element, scale and plugin
+the library ships, importing it pulls all of them into the module graph regardless of what the
+application itself registers. The cost was measured rather than estimated: two minimal bundles
+registering the same seven line-chart pieces came out at **218.6 kB raw / 77.6 kB gzip with the
+wrapper** against **159.4 kB / 57.0 kB without it**, and the seven controllers this feature never
+uses — `BarController`, `BubbleController`, `DoughnutController`, `PieController`,
+`PolarAreaController`, `RadarController`, `ScatterController` — appear in the wrapper bundle and in
+neither the other.
+
+**The Owner accepted that cost — roughly 59 kB raw and 20.6 kB gzip — and ruled that both packages
+are adopted.** The fallback this plan records (adopt `chart.js` alone behind a local
+`TrendChart.vue`) was put to the Owner alongside the option of fixing the wrapper upstream first,
+and was not taken. The reasoning behind flag 1 is unchanged by the finding and is what carries the
+ruling: the wrapper is the Owner's own package, so the maintenance exposure that would normally
+argue for keeping forty lines in-tree does not apply here, and those forty lines would become this
+project's to own.
+
+**What this ruling does not change.** T25 proceeds to checks 3 and 4 and commits both packages;
+every other condition on the adopting task stands. Construction remains **`onMounted`-only**, so a
+future Inertia SSR entrypoint cannot break the page. The canvas still carries **no click target**
+(§ *Technical rulings* 10, Flow C step 3, Implementation Note 14). The package still receives **no
+automated vulnerability scanning** in this repository, Dependabot being configured for
+`github-actions` only — a fact the Owner has now been told twice and has accepted twice. **No ADR
+and no re-certification**: the dependency was already approved, no plan section changes shape, and
+this records an Owner ruling on a condition the plan itself set.
 
 **Not tripped, verified item by item against `CLAUDE.md`'s major-decision list:** no Composer
 dependency; no stack change (`docs/stack/stack.md` untouched — no row changes, and both dependency
