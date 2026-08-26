@@ -1,9 +1,21 @@
 # Design Spec: Analytics / stats
 
-- **Status:** Draft — pending Product Manager approval
+- **Status:** **Fully approved — all six required corrections landed and cleared** (design gate,
+  delegated per `CLAUDE.md`). All nine flagged design calls are **accepted as designed**. Five of
+  the six corrections (C2–C6) changed no approved outcome and landed **under this approval**.
+  **C1 (drill-through fidelity)** was reserved for a section-scoped re-check; that re-check was
+  performed on **2026-08-26** against Flow E and Screen 4 and **C1 is cleared** — no re-check is
+  outstanding and nothing in this spec is pending. The spec is **ready for Principal Engineer
+  handoff**. One feasibility dependency travels with it and does not hold the gate: `Q-11-03`
+  **item (10)** (can the Events list filter events by delivery/attempt outcome at either grain).
+  See § Corrections landed, at the end of this document, for what changed and where, and
+  § C1 re-check outcome for the ruling.
 - **Author:** Designer
-- **PRD:** `docs/product/prd-11-analytics.md` (Approved, Project Owner, 2026-08-26)
-- **Approved by / date:** _pending_
+- **PRD:** `docs/product/prd-11-analytics.md` (Approved, Project Owner, 2026-08-26; **amended
+  2026-08-26 — Amendment A**, two clarifications this gate raised: AC12's zero-denominator rate
+  and the grain at which AC16/AC20 are obliged)
+- **Approved by / date:** **Product Manager, 2026-08-26.** See § Approval record (design gate)
+  at the end of this document for the full verdict, the per-call rulings, and the corrections.
 
 > **Scope note.** #11 adds **no new page and no new "Analytics" area** (UX Direction —
 > "extend, do not annex"). It makes two existing surfaces show what has always been
@@ -44,6 +56,12 @@ Restated so this spec's choices read as consequences, not inventions:
   states as-of what time it's current (AC11) — the technical shape is `Q-11-03(6)`,
   still open, and this spec is written to be correct under either answer** (see
   *As-of, conditionally* under Components).
+- **AC13's pre-#6 exclusion (`delivery_id` NULL rows) gets no user-facing statement
+  (Product Manager ruling, design gate).** The rows exist only in development and CI
+  data — none exists in production (AC13, D-11-7, F4) — so AC13's "the exclusion is
+  stated, not silent" obligation is discharged in the technical artifacts (ADR-015,
+  PRD-11, this note) rather than on screen. If such rows ever reach production data,
+  a user-facing statement becomes required and returns to the Designer.
 
 ## Scope boundaries (confirmed, not designed here)
 - **AC23/AC24 — team-scoped, permission-gated, no new permission.** Every figure on
@@ -118,6 +136,13 @@ where to look.")*
 4. Member clicks a proxy's name or **View** → **Proxy Show** (Flow C), carrying the
    currently selected window as a query parameter so the next page opens on the same
    period, not a reset default.
+5. **Member clicks the row's Terminal failures (deliveries) figure** — the one
+   failure-shaped cell in this table — and goes straight to **Flow E** on that
+   proxy's Events list, skipping Proxy Show, pre-filtered to that proxy, the current
+   window, and terminal failure (delivery-level). The Delivery success and Attempt
+   success cells are **not** links to Flow E — they are rates, not failure counts,
+   and reaching their evidence still goes through the proxy's name/**View** into
+   Flow C, same as step 4 (see § C1 in the Approval record).
 
 ### Flow C — "Is this proxy working, and is it getting worse?" (per-proxy Analytics, Show)
 *(User stories: "figures per proxy"; "figures over time... a chronic problem from a
@@ -128,10 +153,19 @@ long deliveries take.")*
 2. Sees the same two-tier headline + bridge sentence, scoped to this proxy, for the
    carried-over (or default 30d) window.
 3. Sees the **daily trend chart**: one line per unit, both present, both labelled,
-   never a toggle between them (AC14(c)).
+   never a toggle between them (AC14(c)). **Each row of the chart's "View as
+   table" fallback is a link into Flow E** for that day, scoped to this proxy,
+   narrowing the window to that single day, filtered to terminal failure at the
+   row's unit (delivery-level from the delivery-rate cell, attempt-level from the
+   attempt-rate cell) — the chart canvas itself carries no click target, only its
+   accessible table does (consistent with § Accessibility's "charts are not the
+   only way to reach the data").
 4. Sees the **Retry & replay** row: eventual success, terminal failure, retry volume,
    live-vs-replay split (AC19) — read as "what sits behind the headline," visually
-   subordinate to it.
+   subordinate to it. **The Terminal failure tile is a link into Flow E**, filtered
+   to this proxy, the current window, and terminal failure (delivery-level) — the
+   only one of the four tiles that is failure-shaped; eventual success, retry volume
+   and live-vs-replay are not links.
 5. Sees the **Latency** block: average and a high-percentile figure, or "No data" if
    nothing resolved in the window (AC12, AC20).
 6. **Zero traffic for this proxy in the window:** the whole card collapses to a
@@ -149,17 +183,62 @@ long deliveries take.")*
    destination to be *identifiable*, not *manageable*, and a soft delete preserves the
    id. See Screen 3 for the row states, and Open Questions for what this assumes.
 3. Member clicks **View events** on a destination row → **Flow E**, landing on the
-   Events list filtered to that destination and the current window.
+   Events list filtered to that destination and the current window. **No outcome
+   filter travels from here** — this row's figures are rates over *all* of that
+   destination's traffic (Delivery success, Attempt success), not a failure count,
+   so the action is total-shaped: it takes the member to that destination's events,
+   not to its failures specifically (C1(a)).
 
 ### Flow E — "Show me the failures" (drill-through, Events list)
-*(User stories: "go from a failure figure to the actual failed events"; AC21.)*
-1. From any failure-shaped figure (a terminal-failure tile, a destination's Delivery
-   success cell, a trend-chart point via its data table), the member follows a link
-   into the proxy's existing **Events** list.
-2. The list opens pre-filtered: at minimum by the **window** the member was looking
-   at, and — when the entry point was a specific destination — by that
-   **destination** too. Active filters render as removable chips above the table
-   (Screen 4).
+*(User stories: "go from a failure figure to the actual failed events"; AC10, AC21.)*
+
+**Entry points and the filters each carries (C1(a)).** Every entry point below is
+already scoped to one proxy — the Events list is per-proxy (AC21, AC28: no
+cross-proxy events surface exists or is introduced here) — so a **team-level**
+figure (Screen 1's headline, Screen 1's "Retry & replay" tiles, Screen 1's Trend
+chart) is **not** a drill-through entry point: there is no single proxy for it to
+land on, and aggregating a team-wide Events list is a new surface this spec does not
+build. Only figures that already resolve to one proxy (a Proxies-table row, a
+proxy's own Analytics card, a destination row) can drill through.
+
+| Entry point | Shape | Filters carried into the Events list |
+|---|---|---|
+| Dashboard "Proxies" table — **Terminal failures (deliveries)** cell (Screen 1, Flow B step 5) | failure-shaped | proxy (that row's) · window · outcome = terminal failure, delivery-level |
+| Dashboard "Proxies" table — Delivery success / Attempt success cells | rate-shaped | **not a link** — reach that proxy's evidence via Name/**View** → Flow C instead |
+| Proxy Show "Retry & replay" — **Terminal failure** tile (Screen 2, Flow C step 4) | failure-shaped | proxy (current) · window · outcome = terminal failure, delivery-level |
+| Proxy Show "Retry & replay" — Eventual success / Retry volume / Live vs replay tiles | not failure-shaped | **not links** |
+| Proxy Show Trend chart's "View as table" row, per day, per unit (Screen 2, Flow C step 3) | failure-shaped | proxy (current) · window narrowed to that single day · outcome = terminal failure, at the clicked cell's unit (delivery- or attempt-level) |
+| Destinations table — **View events** action (Screen 3, Flow D step 3) | total-shaped (not failure-specific) | proxy (current) · destination · window — **no outcome filter** (Flow D step 3) |
+
+Every failure-shaped entry point narrows the list to the failing records at its own
+unit; the one total-shaped entry point (Destinations row) does not, because it is
+not itself a failure count. Active filters render as removable chips above the table
+(Screen 4) — window and destination reuse the two chip kinds this spec already
+designs; **outcome is a third, same-shaped chip** ("Outcome: Terminal failure
+(deliveries)" or "Outcome: Terminal failure (attempts)"), removable exactly as the
+others are, and needs no new component.
+
+**What the filtered list contains, and how it relates to the figure's count
+(C1(b)).** AC21 fixes the drill-down floor at the **per-event** surface; AC10's
+figures are denominated in **deliveries** or **attempts**. One event can carry
+several deliveries to several destinations, so **the filtered list's row count is
+not the figure's count** — an outcome-filtered list shows the **events that contain
+at least one delivery (or attempt) matching the filter**, not one row per counted
+delivery or attempt. A "Terminal failures: 12" tile can therefore land on fewer than
+12 rows (one event with three failing deliveries is three failed deliveries but one
+row) or, at the attempt-level filter, land on events whose overall delivery still
+succeeded (a delivery that failed twice and succeeded on attempt three shows up
+under an attempt-level failure filter even though the event's aggregate delivery
+badge reads success). **This spec does not build a delivery-level or attempt-level
+list to make the counts match row-for-row** — that would be a second events surface,
+which AC28 forbids. Instead, Screen 4 states in copy what the filtered list is
+showing (see Screen 4).
+
+1. From any entry point in the table above, the member follows a link into that
+   proxy's existing **Events** list.
+2. The list opens pre-filtered per the table above: always by **window**, and by
+   **destination** and/or **outcome** when the entry point carries them. Active
+   filters render as removable chips above the table (Screen 4).
 3. The member reaches the same list, delivery badges, and event detail (masked
    payload, delivery history) that already ship — nothing new is built at this
    floor (AC28).
@@ -180,7 +259,7 @@ Dashboard                                                    h1
 
 Card "Deliveries"
   dt "Delivery success"          (text-sm text-muted-foreground)
-  dd "96%"                       (text-3xl font-semibold)  — or "No deliveries yet"
+  dd "100%"                      (text-3xl font-semibold)  — or "No deliveries yet"
      "42 of 42 delivered · last 30 days"      (text-sm text-muted-foreground)
   dt "Attempt success — destination health"   (text-sm text-muted-foreground, mt-4)
   dd "67%"                       (text-lg font-medium)
@@ -188,18 +267,20 @@ Card "Deliveries"
   p (italic, text-sm text-muted-foreground)
     "14 attempts failed before these deliveries succeeded — see Retry & replay below."
 
-Card "Proxies"
-  Table: Proxy | Delivery success | Attempt success | Terminal failures | (View)
+Card "Proxies"                    subtitle "Last {window}" (text-sm text-muted-foreground)
+  Table: Proxy | Delivery success | Attempt success | Terminal failures (deliveries) | (View)
   {one row per readable proxy, sortable by column click}
 
 Card "Trend"
   [dual-line chart: Delivery success — solid · Attempt success — dashed]
   <Collapsible> "View as table" → data table, same series, one row per day
+  (chart's own axis/labelling already states the window it spans — no separate caption needed)
 
-Card "Retry & replay"
-  4 stat tiles: Eventual success | Terminal failure | Retry volume | Live vs replay
+Card "Retry & replay"             subtitle "Last {window}" (text-sm text-muted-foreground)
+  4 stat tiles: Eventual success (deliveries) | Terminal failure (deliveries) |
+  Retry volume (attempts) | Live vs replay (deliveries)
 
-Card "Latency"
+Card "Latency"                    subtitle "Last {window}" (text-sm text-muted-foreground)
   dt "Average" / dd "340 ms"  —or—  dt "Average" / dd "No data"
   dt "95th percentile" / dd "1.2 s"  —or—  "No data"
   p "Excludes time spent waiting in the queue."
@@ -208,14 +289,27 @@ Card "Latency"
 
 **States:**
 - **Default (has traffic):** as above.
-- **Zero deliveries in window, proxies exist:** "Deliveries" card shows "No
-  deliveries yet" in place of the percentage (see *Flagged design call 2*); the
-  count line reads "0 of 0 delivered · last {window}"; the bridge sentence is
-  omitted (there is nothing to bridge). "Proxies" table still lists every proxy,
-  each row showing the same "No deliveries yet" treatment. "Trend," "Retry &
-  replay," and "Latency" cards render their own empty states (flat "No data for
-  this period" message in place of a chart/tiles) rather than an all-zero chart —
-  a flat line at 0% would read as "100% failure," which is false.
+- **Zero deliveries in window, proxies exist:** a **rate** (a percentage) and a
+  **count** (a raw number) take different treatments — only the rate reads "no
+  data"; a count reads `0` (AC12, PRD-11 Amendment A(i)).
+  - "Deliveries" card: both **rates** show "No deliveries yet" in place of the
+    percentage (see *Flagged design call 2*); the **count** captions still read
+    "0 of 0 delivered · last {window}" (a count, always shown); the bridge
+    sentence is omitted (there is nothing to bridge).
+  - "Proxies" table: each row's **Delivery success** and **Attempt success**
+    columns (rates) show the same "No deliveries yet" treatment; the **Terminal
+    failures (deliveries)** column — a count — reads `0`, not "No deliveries
+    yet".
+  - "Retry & replay" tiles: **render, not hidden or replaced.** All four are
+    counts (AC19), so each reads `0` — "Eventual success (deliveries): 0",
+    "Terminal failure (deliveries): 0", "Retry volume (attempts): 0", "Live vs
+    replay (deliveries): 0 live · 0 replay" — with the card's existing
+    explanatory line intact.
+  - "Trend" card: the plotted series are **rates**, so the no-data treatment
+    stands as drafted (flat "No data for this period" message in place of the
+    chart) rather than an all-zero chart — a flat line at 0% would read as
+    "100% failure," which is false.
+  - "Latency" card: unchanged — a **measure** figure, "No data" (AC20).
 - **No proxies at all:** the entire page below the header is a single centered
   `Card` — "No proxies yet," helper text pointing at proxy creation, no window
   selector (nothing to window over). Matches the existing empty-state idiom
@@ -236,11 +330,14 @@ p  {modeSummary}                                         (existing, unchanged)
 Card "Analytics"                                          (NEW)
   [24h] [7d] [30d*]                       WindowSelector (page-level for this page)
   "Figures as of {timestamp}"             (conditional)
-  dt "Delivery success" / dd "96%" / "42 of 42 · last 30 days"
+  dt "Delivery success" / dd "100%" / "42 of 42 · last 30 days"
   dt "Attempt success — destination health" / dd "67%" / "28 of 42 · last 30 days"
   p (bridge sentence, as Screen 1)
   [dual-line trend chart] + "View as table"
-  4 stat tiles: Eventual success | Terminal failure | Retry volume | Live vs replay
+  h3 "Retry & replay"            subtitle "Last {window}" (text-sm text-muted-foreground)
+  4 stat tiles: Eventual success (deliveries) | Terminal failure (deliveries) |
+  Retry volume (attempts) | Live vs replay (deliveries)
+  h3 "Latency"                   subtitle "Last {window}" (text-sm text-muted-foreground)
   dt "Average latency" / dd  |  dt "95th percentile" / dd
   p "Excludes time spent waiting in the queue."
 
@@ -267,7 +364,7 @@ becomes a `Table` so multiple stat columns fit per row, reusing the exact `Table
 primitive already used on the Events list:
 
 ```
-Card "Destinations"
+Card "Destinations"                subtitle "Last {window}" (text-sm text-muted-foreground)
   Table
     Destination | Delivery success | Attempt success | Latency (avg) | Actions
     {one row per destination, current + deleted}
@@ -303,14 +400,26 @@ shipped them):
 
 ```
 Events for "{Proxy name}"                                          h1
-[Window: last 7 days ×]  [Destination: POST api.example.com/hook ×]   FilterChips (NEW)
+[Window: last 7 days ×]  [Destination: POST api.example.com/hook ×]
+[Outcome: Terminal failure (deliveries) ×]                       FilterChips (NEW)
+p (text-sm text-muted-foreground, shown only when an Outcome chip is active)
+  "Showing events with at least one matching delivery — one event can hold more
+   than one, so this list's row count won't match the figure's count exactly."
 {existing table, existing pagination}
 ```
 
 **States:**
 - **Arrived via drill-through, filters applied, has rows:** chips render above the
   table, each with a remove (`×`) affordance that re-navigates without that filter;
-  table shows only matching rows.
+  table shows only matching rows. **An Outcome chip is a third, same-shaped chip**
+  (window, destination, outcome — up to three at once), reads "Outcome: Terminal
+  failure (deliveries)" or "Outcome: Terminal failure (attempts)" depending on which
+  entry point's unit it carried (see Flow E), and removes exactly as the other two
+  do. **When an Outcome chip is active**, the explanatory line above renders,
+  stating plainly that the list shows the **events containing** the matching
+  deliveries/attempts, not one row per counted delivery/attempt (C1(b)) — so a member
+  is never misled into expecting the row count to equal the figure they drilled
+  from.
 - **Arrived directly (no filter):** no chip row renders — visually identical to
   today.
 - **Filtered set is empty:** the existing "No events yet" empty-state card renders,
@@ -318,6 +427,17 @@ Events for "{Proxy name}"                                          h1
   active, plus a **Clear filters** link — never a dead end or an error.
 - Everything else (loading, error, FIFO note, pagination) is **unchanged** from the
   shipped `design-06` spec.
+
+**Dependency flagged to the Principal Engineer, not resolved here (C1(a) note).**
+Window and destination filtering are straightforward — `webhook_events.received_at`
+and the existing proxy↔destination relationship the events route already resolves.
+**Outcome filtering is different**: it asks the Events list query to select events
+that have at least one delivery (or attempt) matching a status at a given grain —
+a join/aggregate shape the shipped list has never needed, since it carries no filter
+today. This spec designs the chip, its copy, and the filters each entry point
+carries; whether the query is cheap at both grains, and whether it can share a path
+with the window/destination filters or needs its own, is a technical question. It is
+raised as a new item on `Q-11-03` (see Open Questions) rather than assumed.
 
 ## Components
 | Role | Component | Status |
@@ -330,8 +450,9 @@ Events for "{Proxy name}"                                          h1
 | Trend / latency charts | Chart.js (via the Owner-suggested `@j-t-mcc/vue3-chartjs` wrapper) | **New dependency** — a Principal Engineer / Owner gate per `CLAUDE.md`, not approved here. This spec names chart *types*, states, and the accessible fallback; it does not assume a specific API |
 | Chart data-table fallback | `Collapsible`/`CollapsibleTrigger`/`CollapsibleContent` | Reused — already shipped, first used in `design-06` |
 | Retry & replay stat tiles | `Card` + `dl`/`dt`/`dd` | Reused pattern, new composition of it |
-| Filter chips (Events list) | small `Badge`-shaped composition with a remove control | **New small composition** — no existing chip/tag primitive in this app; built from `Badge` + a `button` with an `aria-label` (never an icon-only, unlabelled `×`) |
+| Filter chips (Events list) — window, destination, **outcome** | small `Badge`-shaped composition with a remove control | **New small composition** — no existing chip/tag primitive in this app; built from `Badge` + a `button` with an `aria-label` (never an icon-only, unlabelled `×`). Outcome is a third instance of the same composition (**C1**), not a new component |
 | Deleted-row label | muted `Badge variant="outline"` | Reused — same treatment `design-06` used for expired/never-captured states |
+| Card/table window subtitle ("Last {window}") | plain `p`/`CardDescription`, muted, directly under the card or table title | **New small composition**, reused wherever a card or table displays a figure but sits away from the page-level `WindowSelector` (Proxies table, Retry & replay tiles, Latency card, Destinations table) — states the active window locally so it never has to be inferred from a control that may be off-screen (AC8; **C2**) |
 
 **No new `ui/*` primitive is introduced.** The only new dependency this spec's
 components imply is the charting library itself, which is a named Owner-suggested,
@@ -513,6 +634,17 @@ larger change, the row's **View events** action degrades to the same muted,
 non-interactive label the destination's own **Deleted** badge already uses, and
 that is additive, not a rework of this spec.
 
+**Second feasibility question for the Principal Engineer, raised by C1 (design-gate
+correction):** whether the Events list query can filter to events containing at
+least one delivery or attempt at a given outcome and grain (Flow E's Outcome chip,
+Screen 4). The shipped list carries no query filter today; window and destination
+narrowing are assumed straightforward (an indexed timestamp column, and the
+destination relationship the route already resolves for the badge/detail views),
+but outcome narrowing is a join/aggregate shape nothing on this surface has needed
+before. This spec designs the chip, its copy, and which entry points carry it
+(Flow E); it does not assume the query is cheap at both the delivery and the
+attempt grain. Written into `Q-11-03` as a new item — see § Handoff.
+
 ## Handoff
 - **Inputs:** `docs/product/prd-11-analytics.md` (Approved, esp. § Definitions, § UX
   Direction, AC6–AC22, AC25/AC26); `docs/questions/prd-11-q-11-01-analytics-
@@ -521,9 +653,11 @@ that is additive, not a rework of this spec.
   `docs/questions/prd-11-q-11-02-throughput-and-delivery-targets.md` (RESOLVED — no
   target, no verdict layer, the four fixed definitions); `docs/questions/prd-11-q-
   11-03-stats-lifecycle-and-aggregation.md` (**OPEN**, Principal Engineer — this
-  spec is written to hold under either answer to items (5)/(6)/(9), and names the
-  one place, item 9 above, where a "yes" to feasibility is additive rather than a
-  rework); `docs/design/design-06-retry-replay.md` (Events-list/detail shape this
+  spec is written to hold under either answer to items (5)/(6)/(9)/**(10)**, and
+  names the one place, item 9 above, where a "yes" to feasibility is additive rather
+  than a rework; **item (10) is new**, raised by this correction pass to land
+  **C1** — whether the Events list query can filter events by outcome at a given
+  grain, see § Open Questions above); `docs/design/design-06-retry-replay.md` (Events-list/detail shape this
   spec drills into unchanged; `dl`/`dt`/`dd` and `Collapsible` precedent);
   `docs/design/design-07-enhanced-mode-toggle.md` (house format; header-caption-vs-
   card precedent applied to *Flagged design call 3*'s reasoning);
@@ -562,13 +696,332 @@ that is additive, not a rework of this spec.
   through browser style computation on a real element sidesteps both failure modes
   because the output format is never assumed. This is a technical note for the
   Principal Engineer, not a design requirement with a UI-visible consequence.
-- **Outstanding Questions:** None blocking this spec's approval. Nine flagged,
-  reversible judgment calls above for the Product Manager's design-gate review; one
-  feasibility question folded into the Principal Engineer's already-open,
-  non-blocking `Q-11-03`; the new-dependency Owner gate is named but not approved
-  here, per PRD-11's own Handoff.
+- **Outstanding Questions:** None blocking this spec's approval — resolved at the
+  design gate (see § Approval record below). Two feasibility questions are folded
+  into the Principal Engineer's already-open, non-blocking `Q-11-03` (items (9) and
+  the new item (10), raised by correction **C1**); the new-dependency Owner gate is
+  named but not approved here, per PRD-11's own Handoff.
 - **Next Agent:** **Product Manager**, to approve this spec against PRD-11 (design
   gate, delegated per `CLAUDE.md`). On approval, hands to the **Principal
   Engineer** for technical design, which also carries the open, non-blocking
   `Q-11-03` and the new-dependency and data-model Owner gates named in PRD-11's
   Handoff.
+
+## Approval record (design gate)
+
+**Approved by: Product Manager · 2026-08-26 · with six required corrections (C1–C6).**
+
+### Coverage verified against PRD-11's 37 acceptance criteria
+
+Every criterion with a user-facing surface was traced to a screen, state or flow in this spec, and
+the spec was checked in the other direction for requirements it invents that the PRD does not carry.
+
+**Covered as designed.** AC7 (both units, team and per proxy — Screen 1's "Deliveries" card and
+Screen 2's Analytics card); AC9 (retries and replays visible, not hidden — the "Retry & replay"
+row); AC13 (both units always present, delivery-level as headline); AC14(c)/(d) (never a toggle,
+tab or dropdown — stated in § Interactions and honoured on every screen); AC15 (all three grains —
+team headline, Proxies table, Destinations table); AC16/AC17 (daily series, three windows, 30-day
+default — the trend chart plus the `WindowSelector`); AC19 (all four of eventual success, terminal
+failure, retry volume, live-vs-replay); AC20 (average plus a high percentile, with the
+queue-wait exclusion stated on screen); AC21 (drill-through ends at the shipped per-event surface,
+subject to **C1**); AC22 (no target, no verdict — flagged calls 5 and 6 are the load-bearing
+defences, plus "no control is conditioned on a figure's value"); AC23/AC24 (team-scoped,
+permission-gated, no new gate); AC25/AC26 (no mode or processing-mode filter, gate or differential
+treatment); AC27/AC28 (the Events list and its masked viewer are extended, never rebuilt);
+AC30 (no roadmap numbers and no unbuilt capability in any user-facing string);
+AC31/AC32/AC34/AC35/AC36/AC37 (no affordance exists anywhere — the absence is the compliance, and
+the scope note's explicit "no export affordance exists anywhere in this spec" is the right way to
+evidence it).
+
+**Covered but incompletely stated — the corrections.** AC8 (**C2**), AC10 (**C1**), AC12 (**C3**),
+AC14(a)/(b) (**C4**), AC13's stated-exclusion clause (**C6**).
+
+**No invented requirements found.** The additions this spec makes beyond the PRD's own language —
+sortable columns, filter chips, the carried-forward window query parameter, the `analyticsLabels.ts`
+file-organisation note — are all design detail in service of a stated criterion, none asserts a
+verdict, and none adds a figure, a surface or an egress path. Specifically confirmed absent: **no
+export affordance**, **no V8 verdict or threshold layer**, **no merged single success figure and no
+unit toggle**, **no per-event-type breakdown**. The charting library is correctly named as an
+assumption carrying a **new-dependency Owner gate** that this spec does not approve.
+
+### Rulings on the nine flagged design calls — all nine accepted
+
+1. **Two-unit headline as one card: large primary, smaller secondary beneath it, bridge sentence —
+   ACCEPTED.** This is the correct resolution of the PRD's stated hardest problem, and it is the
+   shape the UX Direction described: neither hiding the second figure, nor a toggle, nor equal
+   prominence with no stated relationship. **Two binding conditions:** the attempt-level figure is
+   never collapsible, dismissible or behind a "show more" — it renders whenever the headline does;
+   and the bridge sentence stays **descriptive**, never arithmetic that converts one unit into the
+   other (AC14(d)). The drafted sentence ("14 attempts failed before these deliveries succeeded")
+   satisfies this — it describes attempts *within* those deliveries; a sentence of the form "which
+   is 67% once you account for retries" would not.
+2. **A zero-denominator rate reads "No deliveries yet" rather than `0%` — ACCEPTED, and the PRD is
+   corrected rather than the design.** The Designer is right and AC12's literal wording was wrong:
+   `0%` over zero deliveries asserts total failure, which is the same class of false number AC12
+   already forbids for latency. **PRD-11 Amendment A(i)** (Product Manager, 2026-08-26) records the
+   reading so the Reviewer does not later fail the implementation against the literal phrase. The
+   ruling is bounded by **C3**: it governs *rates*, never *counts*.
+3. **Analytics card inserted after the header, ahead of Ingest URL — ACCEPTED.** Nothing in the UX
+   Direction reserves the existing card order; "extend, do not annex" is about not building a
+   separate Analytics area, which this spec honours. Leading with "is this working" matches the
+   primary flow the Direction optimises for. **Binding condition:** the zero-traffic collapsed state
+   must stay the single message this spec specifies, so a brand-new proxy — where Ingest URL is the
+   card the member actually came for — is not pushed down by an empty analytics block.
+4. **Per-proxy figures on Show; the Events list gains only filter chips — ACCEPTED.** The UX
+   Direction expressly allowed either surface, and keeping an already-approved surface untouched is
+   the lower-risk half of that choice.
+5. **Neutral default sort (name / creation order), user-sortable by column — ACCEPTED, and the
+   reasoning is correct.** A built-in worst-first default is the product asserting a ranking, which
+   is the judgement AC22(b) forbids; user-initiated sorting reaches the same evidence without the
+   product declaring it. **Binding condition:** no sort control, label, tooltip or default may use
+   evaluative wording ("worst", "best", "problem", "unhealthy") — column name plus
+   ascending/descending only.
+6. **Neutral `chart-1`/`chart-2` trend lines rather than red/green — ACCEPTED.** Correct reading of
+   AC22(b): the trend chart is exactly where a "getting worse" reading would smuggle in a verdict.
+   Note that the two lines encode *units*, not outcomes, so a category palette is right here;
+   AC22(b)'s permission for category colour (succeeded vs failed) remains available elsewhere.
+7. **Pre-designed labelled substitute for the latency tail — ACCEPTED as a contingency.** The
+   requirement side is settled and unchanged: a substitute must expose the tail and be labelled for
+   what it is, and **a bare average does not satisfy AC20**. **The trigger is not the Product
+   Manager's to pull** — whether a true percentile is feasible, and which substitute is chosen if it
+   is not, is the **Principal Engineer's** call at `Q-11-03(6)`. If a substitute lands, it does so
+   under this approval; no re-approval is required provided it is labelled.
+8. **Conditional "as of {time}" caption slot — ACCEPTED.** Designing so either answer fits without
+   rework is the right response to an open question. **The trigger is the Principal Engineer's**
+   (`Q-11-03(6)`): if the answer is a rollup, AC11 makes the caption **mandatory and concrete** (a
+   real timestamp, not "recently"); if the answer is live computation, the caption may be omitted
+   entirely — "as of now" is acceptable but adds nothing.
+9. **Destinations card shows average latency only, no per-destination percentile — ACCEPTED, and
+   the PRD is clarified.** **PRD-11 Amendment A(ii)** (Product Manager, 2026-08-26) records that
+   AC16's daily series and AC20's percentile are obliged at the **team and proxy** grains; the
+   destination grain carries the both-unit figures and an average. Adding a per-destination
+   percentile later is additive and needs no gate.
+
+**On the feasibility question folded in alongside `Q-11-03`** (whether a deleted destination's or
+proxy's **View events** link can resolve a soft-deleted parent): the **requirement** half is ruled
+here and the **feasibility** half is the **Principal Engineer's**. Ruling: a **View events** link on
+a deleted row is a *read of history*, not an action against the deleted object, so it is permitted
+by the UX Direction's "offer no actions against something that no longer exists" — which bars
+edit, manage and delete affordances, not navigation into the past. AC6 requires the row to stay
+counted, attributable and labelled; it does **not** require it to stay navigable. The question is
+now written into the Principal Engineer's open question doc as **`Q-11-03(9)`**, and this spec's
+stated fallback (the action degrades to the same muted, non-interactive treatment as its **Deleted**
+label) is **pre-approved** — landing it needs no design rework and no re-approval.
+
+### Six required corrections, returned to the Designer
+
+**(C1) The drill-through does not land on the records behind the figure — Flow E carries no
+outcome filter, and the count-to-rows relationship is unstated.** *(The one correction whose landed
+text returns to the Product Manager; see the re-approval note.)*
+
+Flow E step 2 says the Events list opens pre-filtered "**at minimum by the window** and — when the
+entry point was a specific destination — by that **destination**". Neither filter narrows the list
+to *failures*. So a member who clicks a "Terminal failures: 12" tile arrives at every event in the
+window and must hunt for the twelve. That misses two things PRD-11 requires:
+
+- **AC10** — "an aggregate reconciles with the records a member reaches by drilling into it". A
+  window-and-destination filter does not reconcile with a failure figure; it reconciles with the
+  total.
+- **The UX Direction's primary flow** — the member "lands in the already-shipped per-event surface
+  **at the events behind what they were looking at**", so that "a bad number is the start of a
+  diagnosis rather than the end of one". Landing on the unfiltered window is the end of one.
+
+**Required — two parts:**
+
+**(a) Specify the filter set per drill-through entry point, and carry an outcome filter from every
+failure-shaped one.** Enumerate the entry points this spec already names — the terminal-failure
+tile, a Proxies-table cell, a Destinations-row cell, a trend-chart point via its data table — and
+state for each which filters travel (window, destination, outcome, and any others). Every entry
+point whose source figure is failure-shaped must narrow the list to the failing records; a
+success-shaped or total-shaped entry point need not. The filter chips this spec already designs are
+the right surface for it: an outcome chip is a fourth chip, removable exactly as the others are, and
+requires no new component.
+
+**(b) State how the figure's count relates to the rows shown, because the two cannot be
+row-for-row identical.** AC21 fixes the floor of the drill-down at the **per-event** surface, while
+AC10's figures are denominated in **deliveries** and **attempts** — one event with three failing
+destinations is three failed deliveries but one row. The spec must say plainly what the filtered
+list contains (the events *containing* the counted deliveries or attempts) and must not present the
+list as if its row count should equal the figure. **Do not resolve this by building a delivery-level
+or attempt-level list** — AC28 forbids a second events surface, and AC21 fixes the floor where it
+is. A short statement in Flow E, and copy on the filtered list that names what is being shown, is
+what is wanted.
+
+*If part (a) proves impossible on the shipped Events list without a change that is genuinely
+technical rather than presentational, that is a **Principal Engineer** question to raise against
+`Q-11-03` — not something to leave unstated in the spec. Silence here is what this correction
+exists to prevent.*
+
+**(C2) Every figure-bearing block must state the window it covers, not inherit it from a
+page-level selector.** AC8 requires that **no** number, rate or series point appears without its
+unit **and its window** visible to the member. This spec satisfies it for the headline figures,
+whose captions read "· last 30 days", and fails it everywhere else: the Dashboard **"Proxies"**
+table, the **"Retry & replay"** tiles, the **"Latency"** card, and Screen 3's extended
+**"Destinations"** table all carry figures with no window on them, relying on the `WindowSelector`
+at the top of the page. On the Show page the Destinations card sits several cards below the
+selector, so the window is routinely off-screen when the numbers are read — and the Destinations
+card is the grain PRD-11 says a member actually acts on. **Required:** each card or table that
+displays a figure states its active window in its own header or caption (e.g. a card subtitle "Last
+30 days", or a caption on the table), so the window travels with the numbers rather than with the
+control that set them. The `WindowSelector` stays exactly where this spec puts it — this adds a
+statement, not a second control, and no per-card window selection is introduced.
+
+**(C3) In an empty window, count figures must read `0` — only rates and measures take the "no
+data" treatment.** Flagged design call 2 is accepted for **rates** (PRD-11 Amendment A(i)), but
+Screen 1's zero-window state applies it too widely: it replaces the **"Retry & replay"** tiles and
+the **"Trend"** card with a "No data for this period" message. Eventual success, terminal failure,
+retry volume and live-vs-replay are **pure counts** (§ Definitions, "Count figure"), and AC12 —
+unchanged on this point by Amendment A — requires them to read **zero**, with an indication of what
+would populate them. Zero terminal failures is a true and useful statement; "no data" withholds it.
+**Required, per element of Screen 1's "Zero deliveries in window" state and Screen 2's zero-traffic
+state:**
+- **"Retry & replay" tiles — must render, showing `0`** for each of the four figures, with the
+  card's existing explanatory line. They are not replaced by a message and not hidden.
+- **The Dashboard "Proxies" table's Terminal-failures column — `0`**, not "No deliveries yet";
+  only that row's two *rate* columns take the no-rate treatment.
+- **The headline's count captions — `0 of 0 delivered`** (already correct as drafted; keep).
+- **Latency — "No data"** (already correct; it is a measure figure, AC20).
+- **The trend chart — the no-data treatment stands as drafted.** Its plotted series are *rates*,
+  so a flat line at 0% would assert total failure; this spec's own reasoning for that is correct
+  and is ratified.
+*Net effect: within Screen 2's collapsed empty card, the collapse itself remains approved (flagged
+call 3's binding condition), so this correction governs Screen 1's zero-window state and any place a
+count is shown at all — a count that is displayed must be displayed as `0`.*
+
+**(C4) Every success, failure and retry figure must name its unit in its own label — four labels
+currently do not.** AC14(a) requires the unit in the figure's own label, and AC14(b) makes an
+unlabelled failure count a defect regardless of which unit it uses. The two headline figures and the
+two rate table columns satisfy this ("Delivery success", "Attempt success — destination health").
+These do not:
+- **"Terminal failures"** (Dashboard "Proxies" table column, Screen 1);
+- **"Eventual success"**, **"Terminal failure"**, **"Retry volume"** and **"Live vs replay"** (the
+  four "Retry & replay" tiles, Screens 1 and 2).
+Each is unit-bearing — eventual success, terminal failure and live-vs-replay are **delivery**-grained
+(PRD-11 § Definitions), retry volume is **attempt**-grained — and a member reading the tile row
+cannot tell which is which. **Required:** give each label its unit explicitly, in the label itself
+and not in a tooltip or a card-level note (e.g. "Terminal failures (deliveries)", "Eventual success
+(deliveries)", "Retry volume (attempts)", "Live vs replay (deliveries)"; exact wording is the
+Designer's). *This is the single most load-bearing criterion on this surface: the tile row sits
+directly beneath a headline in one unit and a secondary figure in the other, which is exactly where
+an unlabelled count gets read in the wrong one.*
+
+**(C5) The sample figures in Screens 1 and 2 do not agree with their own counts.** Screen 1 shows
+`dd "96%"` above the caption `"42 of 42 delivered"`; 42 of 42 is **100%**, not 96%. Screen 2 repeats
+the same pair. The attempt-level example is internally consistent (28 of 42 = 67%, and the bridge
+sentence's 14 failed attempts reconciles), so only the delivery-level figure is wrong. **Required:**
+make the delivery-level sample read `100%` with `42 of 42 delivered`, on both Screen 1 and Screen 2
+— which also restores the exact 100%-vs-67% pairing PRD-11 § Problem 5 uses as the canonical
+illustration of why both units are shown. *Why this is not cosmetic: an illustrative mock whose
+arithmetic is wrong is the thing most likely to be copied verbatim into the implementation and into
+a test fixture, and a figure that disagrees with its own caption is precisely the defect AC8 and
+AC14(d) exist to prevent.*
+
+**(C6) AC13's pre-#6 exclusion is stated nowhere in this spec — record the decision rather than
+leave it absent.** AC13 requires that pre-#6 attempt rows (`delivery_id` NULL) are excluded from
+every delivery-level figure and included in attempt-level ones, and that **"the exclusion is stated,
+not silent"**. This spec designs no surface for that statement, and does not say it decided not to.
+**Required:** add one line to § Decisions carried forward recording the Product Manager's ruling —
+**no user-facing statement of the pre-#6 exclusion is designed**, because the affected rows exist
+only in development and CI data and none exists in production (PRD-11 AC13, D-11-7, F4), so AC13's
+"stated" obligation is discharged in the technical artifacts rather than on screen; **if such rows
+ever reach production data, a user-facing statement becomes required** and returns to the Designer.
+*Recording it makes the absence a decision the Reviewer can check rather than an omission they must
+guess about.*
+
+### Re-approval
+
+- **C2, C3, C4, C5 and C6 land under this approval — no re-approval.** Each is stated concretely
+  enough to implement without a follow-up question, and none reopens a design choice: C2 adds a
+  statement, C3 and C4 correct labelling and empty-state treatment against named criteria, C5 fixes
+  arithmetic in an illustration, C6 records a decision already taken. The Designer lands them and
+  hands on.
+- **C1 returns for a section-scoped re-check, not a re-approval.** Parts (a) and (b) require the
+  Designer to *choose* the filter set per entry point and the copy that states the count-to-rows
+  relationship — choices this gate has constrained but not made. When landed, the Product Manager
+  re-reads **Flow E and Screen 4 only** and confirms them; the rest of the spec is approved and is
+  not reopened. If C1's resolution turns out to need something from the Principal Engineer, that
+  travels on `Q-11-03` and does not block the rest of the spec from proceeding.
+  **Resolved 2026-08-26: the re-check was performed and C1 is cleared — see § C1 re-check
+  outcome at the end of this document.**
+- **Handing on is not blocked.** The Principal Engineer may begin Technical Design against the
+  approved spec while C1 is landed — none of the six corrections changes the data a figure is
+  computed from, the grains, the windows, or the surfaces involved, so nothing the Principal
+  Engineer would decide is contingent on them.
+
+### Non-blocking notes (no action required)
+
+- **The `Q-11-03` citation in § Handoff now resolves.** The Handoff says this spec is written to
+  hold under either answer to items "(5)/(6)/(9)", but `Q-11-03` had only eight items when this
+  spec was written. The Product Manager has since written the Designer's soft-deleted-parent
+  feasibility question into that doc as **item (9)**, exactly as § Open Questions asked, so the
+  citation is now correct as it stands. No edit needed.
+- **The `analyticsLabels.ts` data-const recommendation is endorsed as written** — non-gating, and
+  consistent with the `design-06` precedent for shared label/variant pairs. C4's unit-bearing
+  labels are a good argument for it: those strings now appear on two surfaces and must not drift.
+- **Replay actions on a drill-through from a deleted destination.** A filtered Events list still
+  renders the per-row replay action `design-06` shipped. #11 changes nothing there, and whether
+  replaying to a deleted destination is meaningful is a **#6** question, not this gate's — noted
+  only so it is not mistaken for something C1 introduced.
+- **The colour-resolution note in § Handoff is correct and worth keeping.** It is a technical note
+  for the Principal Engineer with no UI-visible consequence, and this gate makes no ruling on it.
+
+### Corrections landed (Designer, 2026-08-26)
+
+| Correction | Status | Where |
+|---|---|---|
+| **C2** — window stated per figure-bearing block | **Landed, no re-approval needed** | Screen 1 mockup (Proxies/Retry & replay/Latency card subtitles), Screen 2 mockup (Retry & replay/Latency subtitles), Screen 3 mockup (Destinations card subtitle), Components table (new "Card/table window subtitle" row) |
+| **C3** — counts read `0` in an empty window, only rates/measures take "no data" | **Landed, no re-approval needed** | Screen 1 § States, "Zero deliveries in window" bullet, rewritten per element |
+| **C4** — unit named in each of the five labels | **Landed, no re-approval needed** | Screen 1 mockup (Terminal failures (deliveries); four Retry & replay tile labels), Screen 2 mockup (same four tile labels) |
+| **C5** — sample figures corrected to 100%/67% | **Landed, no re-approval needed** | Screen 1 mockup, Screen 2 mockup |
+| **C6** — AC13 pre-#6 exclusion decision recorded | **Landed, no re-approval needed** | § Decisions carried forward, new bullet |
+| **C1** — filter set enumerated per drill-through entry point, outcome filter carried from failure-shaped figures, count-to-rows relationship stated | **Landed and cleared** — section-scoped re-check of Flow E and Screen 4 performed by the Product Manager, 2026-08-26; see § C1 re-check outcome below | Flow B (new step 5), Flow C (steps 3–4 annotated), Flow D (step 3 annotated as total-shaped, no outcome), Flow E (rewritten: entry-point table, count-to-rows statement), Screen 4 mockup and States (Outcome chip, explanatory copy, PE dependency note), Components table (Filter chips row), § Open Questions (new PE feasibility paragraph), § Handoff (`Q-11-03` citation, Outstanding Questions); the underlying feasibility question is raised as **new item (10)** on `docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` |
+
+### C1 re-check outcome (Product Manager, 2026-08-26)
+
+Scope of this re-check was **Flow E and Screen 4 only**, as reserved at § Re-approval.
+C2–C6 were not reopened, and no other section of the spec was re-examined.
+
+**C1 is cleared. Nothing further is required of the Designer.**
+
+- **(a) Filters per entry point — satisfied.** Flow E now enumerates every drill-through
+  entry point in one table, each with its shape and the exact filters it carries, and
+  states why team-level figures (the Dashboard headline, the Dashboard "Retry & replay"
+  tiles, the Dashboard Trend chart) are **not** entry points: no single proxy resolves
+  from them, and a team-wide events list would be the second events surface AC28 forbids.
+  A member starting from a team-level figure still reaches evidence by way of the
+  Proxies table row for the proxy in question, which is a drill-through entry point.
+- **(b) Outcome filter from failure-shaped figures — satisfied.** All three failure-shaped
+  entry points (the Proxies table's Terminal failures (deliveries) cell, the proxy's
+  Retry & replay Terminal failure tile, and the Trend chart's per-day/per-unit table
+  cell) carry an outcome filter at the unit the source figure is denominated in. A member
+  reading a failure figure therefore lands on that figure's failures, not on the whole
+  window — which is what **AC10** asks for.
+- **(c) Count-to-rows relationship — satisfied.** Flow E states that an outcome-filtered
+  list shows the **events containing at least one matching delivery or attempt**, not one
+  row per counted delivery or attempt, and gives both directions of the mismatch (fewer
+  rows than the count; attempt-level matches inside an event whose delivery ultimately
+  succeeded). Screen 4 carries that statement into member-visible copy, rendered only
+  while an Outcome chip is active. Per **AC10** each unit reconciles within its own unit;
+  the copy prevents a member from reading the row count as the figure.
+- **Entry-point classification — confirmed as designed, including the one the Designer
+  flagged.** The Destinations row's **View events** action is correctly **total-shaped**
+  and correctly carries **no outcome filter**: that row's figures are Delivery success,
+  Attempt success and Latency (avg) — rates and a measure over all of that destination's
+  traffic, not a failure count. Attaching an outcome filter there would narrow the list to
+  records the row's own figures do not denominate, which would break AC10's reconciliation
+  rather than serve it. Every other entry point is classified correctly, and the two
+  rate-shaped Dashboard cells are correctly not links.
+- **AC21 / AC28 — nothing forbidden landed.** Screen 4 extends the shipped Events list
+  only: filter chips above an otherwise unchanged table, the existing empty-state card
+  with adjusted copy and a Clear filters link, and the existing event detail at the floor.
+  No second received-events list, no second event-detail view, and **no change whatsoever
+  to the masked payload viewer, its reveal behaviour, or its gate** (settled at
+  PRD-06 AC25 / Q-06-02, and #10's to change).
+
+**Feasibility dependency, noted not held.** Whether the Events list query can filter events
+by delivery/attempt outcome at either grain is a technical question, correctly routed to the
+Principal Engineer as `Q-11-03` **item (10)** rather than assumed. Routing it was the right
+call and is **not** a reason to hold C1: this gate rules on the design as specified. If the
+Principal Engineer finds the filter unachievable as designed, that returns to the Designer as
+a fresh correction — item (10) deliberately pre-approves no fallback, because AC10 requires
+the outcome filter to exist.

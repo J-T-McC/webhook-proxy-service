@@ -10,6 +10,12 @@
   of concern, compounded by F1) and deliberately left to the PE at `Q-11-03(1)` rather than
   scoped into this feature. **Next gate: the Designer** — `## UX Direction` is present and a
   PM-approved `design-11` is a prerequisite for Technical Design.
+- **Amendment A (Product Manager, 2026-08-26)** — two clarifications raised by the `design-11`
+  approval gate: **AC12**'s empty-state rule as it applies to a rate with a **zero denominator**,
+  and the **grain** at which AC16's daily series and AC20's percentile are obliged. **No criterion
+  is added, removed, renumbered or weakened**; both clarify what an existing criterion already
+  required, and both are recorded so the Reviewer does not read a literal phrase against a design
+  the Product Manager approved. See § Amendment A, after the acceptance criteria.
 - **Author:** Product Manager
 - **Date:** 2026-08-26 · **Revised:** 2026-08-26 — the Owner's V7 and V8 rulings rendered into
   **AC13–AC21** (V7) and **AC22** (V8), with **AC33** finalised under the V8 ruling. **AC7, AC9
@@ -571,6 +577,46 @@ definitions settled)**
     or scheduled reports, external analytics or BI integration, a user-configurable metric builder,
     or saved views. No roadmap item claims any of them, and the vision's exclusion of a
     workflow-builder-style UI applies in spirit.
+
+## Amendment A — Product Manager, 2026-08-26
+
+Raised by the `design-11` approval gate. Both clauses clarify an existing criterion; **no criterion
+is added, removed, renumbered or weakened**, and no requirement the Project Owner did not state is
+introduced. Where this section and a criterion's literal wording differ, this section governs.
+
+**(i) AC12 — a rate whose denominator is zero is *undefined*, not `0%`.** § Definitions classifies
+"rates over counts" as **count figures** whose natural empty value is zero. That classification is
+correct for the *counts* and wrong for the *rate computed from them*: `0%` over zero deliveries
+asserts that everything failed, which is exactly the false statement AC12 exists to prevent — the
+same defect AC12 already names for latency. AC12 is therefore read as:
+
+- **Raw counts always read `0`** in an empty window (`0 of 0 delivered`, `0` terminal failures,
+  `0` retries, `0` replays), with an indication of what would populate them. A count figure is
+  never replaced by a "no data" treatment — a count of zero is a true and useful statement.
+- **A rate whose denominator is zero is not rendered as a percentage at all.** It takes the same
+  no-false-number treatment AC12 gives a measure figure (wording such as "No deliveries yet"),
+  never `0%` and never `100%`.
+- **Measure figures are unchanged** — AC20's durations read "no data", never `0`.
+
+*Basis: the UX Direction's "zero traffic is a normal state, not an empty error … with an
+explanation of what would populate them", read together with AC8's requirement that every figure be
+honest about what it counts. Ratifies `design-11`'s flagged design call 2, which raised the conflict
+rather than resolving it silently.*
+
+**(ii) AC15/AC16/AC20 — the grain at which a daily series and a percentile are obliged.** AC15 names
+three grains (team, proxy, destination). AC16 ("each figure is available as a daily series") and
+AC20 ("average **and** a high-percentile figure … for the window and grain") do not name a grain,
+and a literal cross-product reading would oblige a per-destination daily series and a
+per-destination percentile. That cross product was never ruled: the Owner's Tier 3 ruling lists the
+per-destination split and the daily trend as **separate** elements of the tier, not as a matrix, and
+AC16/AC17's granularity is **PM-derived (D-11-4)**, so its scope is the Product Manager's to state.
+AC16 and AC20 are therefore obliged at the **team and proxy** grains. The **destination** grain
+carries the both-unit success/failure figures (AC15, AC13/AC14 in full) and an **average** duration
+for the window; a per-destination daily series and a per-destination percentile are **permitted and
+not required**, and adding either later is additive rather than a scope change.
+
+*This narrows no figure the Owner ruled: every element of Tier 3 remains present, at the grain where
+a member reads it. Ratifies `design-11`'s flagged design call 9.*
 
 ## Out of Scope
 Each points to the item that owns it.

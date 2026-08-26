@@ -1,6 +1,13 @@
 # Question Q-11-03: The stats lifecycle, the aggregation shape, and five schema findings
 
-- **Status:** **OPEN — non-blocking for PRD-11 approval; travels to Technical Design.**
+- **Status:** **OPEN — non-blocking for PRD-11 approval and for the `design-11` gate; travels to
+  Technical Design.** *(Item **(9)** added by the Product Manager on 2026-08-26 at the `design-11`
+  approval gate — the Designer's soft-deleted-parent drill-through feasibility question, folded in
+  here as the Designer asked rather than raised as a separate doc. It blocks nothing: the fallback
+  is pre-approved.)* *(Item **(10)** added by the Designer on 2026-08-26 while landing `design-11`'s
+  **C1** correction — whether the Events list query can filter by delivery/attempt outcome at either
+  grain. Unlike (9), no fallback is pre-approved: C1 requires the filter, so an infeasibility finding
+  here returns to the Designer as a correction, not an additive degrade.)*
   *(Updated 2026-08-26 after the Owner's V7/V8 rulings. **Findings F1–F4 are unaffected and every
   question below still stands.** Three items got sharper rather than softer: **Tier 3's
   per-destination grain** makes item (2) more consequential, **AC20's percentile** makes item (6)
@@ -174,6 +181,51 @@ ADR-012 GC compare-and-set, ADR-015's CAS status transitions, ADR-016's FIFO adv
 ADR-014 `payload_cleaned_at` guard — in particular that no analytics query may take locks or read
 `body`/`headers` on any path.
 
+### (9) Can a drill-through resolve a **soft-deleted** proxy or destination? *(added 2026-08-26 at the `design-11` gate)*
+
+`design-11` (Flow B step 3, Screen 3's Deleted-row **View events** action) assumes that a
+destination or proxy deleted within the window keeps a **working** drill-through link into the
+existing Events list: the list route/controller must be able to resolve a soft-deleted parent for a
+permission-gated read, and filter attempts/deliveries by that parent's id. This is the same
+soft-delete visibility hazard as item (2), but at the *routing and authorization* layer rather than
+the aggregation layer.
+
+PRD-11 **AC6** requires only that the deleted record stays counted, attributable and labelled —
+**not** that it stays navigable. The Product Manager ruled at the design gate that a **View events**
+link on a deleted row is a read of history rather than an action against the deleted object, so it
+is permitted by the UX Direction's "offer no actions against something that no longer exists"; but
+it is not required by any criterion.
+
+**What is asked of you:** say whether the link can stay live without a larger change. If it cannot,
+`design-11` already specifies the fallback — the row's **View events** action degrades to the same
+muted, non-interactive treatment its **Deleted** label already uses — and that degradation is
+**pre-approved**, additive, and needs no design rework or re-approval.
+
+### (10) Can the Events list query filter events by delivery/attempt outcome, at either grain? *(added 2026-08-26, landing `design-11`'s C1 correction)*
+
+`design-11`'s Flow E (drill-through, revised to land correction **C1**) adds an
+**Outcome** filter chip alongside the already-designed window and destination
+chips, carried from every failure-shaped figure (a Proxies-table row's Terminal
+failures cell, a proxy's Retry & replay Terminal failure tile, a trend-chart day/
+unit cell). The list must select events that contain **at least one** delivery (or
+attempt) matching a terminal-failure status, at whichever grain (delivery-level or
+attempt-level) the source figure was denominated in.
+
+The shipped Events list (`resources/js/pages/proxies/events/Index.vue` and its
+controller) carries **no query filter today** — window and destination narrowing
+are assumed straightforward (an indexed timestamp column, and the destination
+relationship the route already resolves for the badge/detail views), but outcome
+narrowing is a join/aggregate shape nothing on this surface has needed before, and
+it needs to work at **both** grains independently.
+
+**What is asked of you:** confirm whether an outcome filter at both grains is
+achievable without a larger change, and say what it costs (an added join, an index,
+or something structurally different). `design-11` designs the chip, its copy, and
+which entry points carry it; it does not assume the query is cheap. If it is not
+achievable as designed, that is a correction that returns to the Designer — this
+question does not pre-approve a fallback the way item (9) does, because C1
+requires the filter to exist (AC10), not merely permits it.
+
 ## Impact if unresolved
 
 None on PRD-11's approval — every criterion it names is now written in full, and both Owner rulings
@@ -182,7 +234,10 @@ correctness and shape risks rather than open questions — and **(6) is the one 
 into `design-11`**, because a rollup activates AC11's as-of requirement on the surface the Designer
 is about to lay out. Items **(1)**, **(3)**, **(4)** and **(7)** now sit *behind* rulings that were
 made on the readings they contain: if any reading is wrong, the ruling above it rests on a false
-premise, so a correction is more valuable than a confirmation and should be stated loudly.
+premise, so a correction is more valuable than a confirmation and should be stated loudly. **Item
+(10)**, unlike (2)/(5)/(6), is not a risk to discover later — `design-11`'s C1 correction already
+depends on its answer for the Outcome filter chip to be buildable as specified; an infeasibility
+finding here is expected to travel straight back to the Designer rather than surface downstream.
 
 ## Answer
 
