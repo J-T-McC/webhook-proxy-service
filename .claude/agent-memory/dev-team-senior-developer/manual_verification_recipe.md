@@ -98,3 +98,21 @@ screenshots showed correct chart line/grid colours immediately, no washed-out mi
 project's `.env` has `APP_URL=http://localhost:8000`, stale/unused for local browsing) — check
 `docker ps` or curl `http://localhost` first rather than trusting `APP_URL` for the Playwright
 `TARGET_URL`.
+
+**Verifying analytics/statistics work: call `App\Services\DeliveryStatistics` directly via
+`sail artisan tinker`** (`app(\App\Services\DeliveryStatistics::class)->unitFiguresForTeam($teamId,
+$window)` etc.) rather than screenshotting the Dashboard — it's the same service the pages read
+from, gives exact numbers to quote in a report, and needs no Playwright session at all. `AnalyticsWindow`'s
+cases are `TwentyFourHours`/`SevenDays`/`ThirtyDays`, not `Day`/`Week`/`Month`.
+
+**`WebhookEvent::factory()->create()` benchmarks ~1300 rows/sec locally via sail** (plain Eloquent,
+no observers) — seeding tens of thousands of fixture rows for a realistic-volume demo seeder is
+cheap; don't under-seed out of an unverified performance worry.
+
+**Seeder-loop gotcha: a per-bucket timestamp computed once outside a per-row loop silently clusters
+every row in that bucket onto the same instant.** Found in `AnalyticsDemoSeeder`'s original
+`seedProxyDeliveries()` — `dayTimestamp($offset)` was called once per day but reused for every
+delivery that day, invisible at `perDay: 2` but would have put e.g. 60 deliveries on the exact same
+minute once volume was raised, defeating any per-hour spread. Check for this pattern whenever a
+seeder loop generates N rows per time-bucket — the per-row timestamp call must be *inside* the
+inner loop.
