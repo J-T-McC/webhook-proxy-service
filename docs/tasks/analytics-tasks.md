@@ -1382,7 +1382,65 @@
     surface (AC28) — no column, badge, action, or pagination change.
 - **Testing:** `tests/Feature/Analytics/ProxyEventDrillThroughTest.php` (new) — one case per
   bullet above, plus the two subquery shapes independently (delivery-grain, attempt-grain).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented the private filter resolver directly in `ProxyEventController`
+  as described — `resolveFilters()` turns `window`/`destination`/`outcome` into (a) a nullable
+  predicate closure and (b) the `EventListFilters` chip descriptors from one place, so the query and
+  the chips can never disagree. `resolveDestination()` is
+  `Destination::withTrashed()->where('proxy_id', $proxy->id)->find($id)` exactly as plan-11 §
+  Validation specifies (`Q-11-03(9)`'s destination half); `resolveOutcomeUnit()` matches
+  `delivery_failed`/`attempt_failed` against the two known tokens, anything else dropping the
+  filter. `applyFilters()` implements both of Architecture E's exact shapes: no outcome active —
+  `window` narrows `webhook_events.received_at`, `destination` (if present) narrows via
+  `whereHas('deliveries', ...)` on `destination_id`; outcome active — the window moves inside a
+  `whereIn` subquery over the failing records at the outcome's own unit (`deliveries.updated_at`
+  delivery-grain, `delivery_attempts.updated_at` via `ingest_id` attempt-grain), narrowed by
+  `destination_id` inside the subquery too when both filters are present — matching the same
+  predicate the source figure used (AC10). The attempt-grain subquery matches on `ingest_id`, never
+  `delivery_id`, so a pre-#6 row (`delivery_id = NULL`) is included by construction, and a replayed
+  attempt (dispatched under the event's existing `ingest_id`, `ProxyEventReplayController`) matches
+  too. `->withQueryString()` is added to the paginator so an active filter survives a page-2
+  navigation.
+
+  **One interpretive call, flagged rather than silently decided — reconciling this task's own AC28
+  bullet with plan-11 § Architecture E's more general prose.** Architecture E states "the window
+  applies to `webhook_events.received_at` when no Outcome chip is active," and `window` "always
+  resolves" (ruling 8) — read completely literally, that would mean every request, including one
+  with no query string at all, gets a default-30-day `received_at` filter applied. But this task's
+  own Acceptance Criteria state, verbatim: "The Events list without any filter parameter renders
+  byte-identical props to today's shipped surface (AC28) — no column, badge, action, or pagination
+  change." Today's shipped surface has no time-window concept at all — every event ever received
+  shows, paginated newest-first — so applying an implicit 30-day cutoff on a bare, no-parameter
+  request would silently drop any event older than 30 days, which is not "byte-identical" under any
+  reading and would be a real regression on a team with older history. `design-11` Screen 4's own
+  state list resolves this the same way independently: "Arrived directly (no filter): no chip row
+  renders — visually identical to today," distinct from "Arrived via drill-through, filters applied"
+  — and every one of Flow E's five named entry points carries `destination` and/or `outcome`
+  alongside `window`; none carries `window` alone. Implemented accordingly: filtering (both the
+  `received_at`/`whereHas` narrowing and the outcome subquery) activates iff `destination` or
+  `outcome` resolved to a real value; a bare request, or one where `destination`/`outcome` both
+  failed to resolve (unknown id, unknown token), runs the pre-#11 query unmodified. `window` itself
+  is still always resolved into `EventListFilters::$window` (ruling 8 holds for the DTO), it simply
+  does not by itself flip the query into "filtered" mode — matching the design's own "arrived
+  directly" state and this task's own literal AC28 bullet exactly, and never diverging from any
+  named Flow E entry point since none of them is `window`-only. Recorded here per the "flag rather
+  than decide" convention in case the Principal Engineer intended literal, unconditional
+  `received_at` narrowing instead.
+
+  `tests/Feature/Analytics/ProxyEventDrillThroughTest.php` (new, 8 tests) covers: the delivery-grain
+  subquery in isolation; the attempt-grain subquery including both the eventual-success case (a
+  failed attempt behind an overall-succeeded delivery) and the pre-#6 `delivery_id = NULL` case,
+  both matching, with a succeeded-only control event excluded; the window-travels-on-`updated_at`
+  case (an event received 40 days ago whose delivery terminalized today still matches the
+  outcome-filtered default 30-day window); the destination-only filter in isolation; the unknown-id
+  and unknown-token drop-the-filter cases (200, no chip, un-narrowed result); the true
+  no-parameter-at-all case (an event received 90 days ago still renders, proving no implicit
+  windowing occurred); and the `withQueryString()` pagination case (20 matching events, page 1 of 2,
+  every rendered pagination link carries `outcome=delivery_failed`).
+
+  Verified: `composer lint`, `composer types:check` (PHPStan level 7, no suppressions),
+  `./vendor/bin/sail test --filter "ProxyEvent"` (55/55, includes this task's 8 plus every
+  pre-existing `ProxyEvents`/`Replay` test unmodified and green); full `./vendor/bin/sail test
+  --parallel` 833/833 (up from 825 after T20).
 
 ## T22 — Deleted-parent drill-through: both halves (AC6; plan § Architecture E, `Q-11-03(9)`)
 - **Description:** No new production code beyond what T8 (`canDrillThrough`) and T21 (destination
