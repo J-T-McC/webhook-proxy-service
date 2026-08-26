@@ -241,11 +241,10 @@ function confirmDelete(): void {
                 <Button
                     v-for="link in proxies.links"
                     :key="link.label"
-                    variant="outline"
+                    :variant="link.active ? 'default' : 'outline'"
                     size="sm"
                     :disabled="!link.url"
                     :aria-current="link.active ? 'page' : undefined"
-                    :class="link.active ? 'bg-accent' : ''"
                     @click="link.url && router.get(link.url)"
                 >
                     <span v-html="link.label" />
