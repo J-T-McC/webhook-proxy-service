@@ -1797,7 +1797,74 @@
 - **Testing:** non-behavioral — a dependency-adoption task. No new test file; check 2's finding is
   itself the verification artifact (recorded in the completion note), and check 4 is a manual
   visual verification against a production build (no frontend test harness, backlog T31).
-- **Completion notes:** _pending_
+- **Completion notes:** **Stopped at check 2 — no package committed, reported back per the task's
+  own condition.** Checks run in order:
+
+  **(1) Resolution — passed.** `pnpm add chart.js @j-t-mcc/vue3-chartjs` resolved `chart.js` at
+  `4.5.1` (satisfies `^4`) and `@j-t-mcc/vue3-chartjs` at `2.1.0`, with **no** peer-dependency
+  warning printed and **no** `--force` used — the wrapper's `vue: ^3.0.0` peer is satisfied by this
+  project's `3.5.40`.
+
+  **(2) Registration and tree-shaking — decisive, and it fails.** Inspected the installed
+  `node_modules/@j-t-mcc/vue3-chartjs/dist/vue3-chartjs.es.js` (and confirmed identically against
+  the published 2.1.0 tarball fetched directly from the registry, independent of what happened to
+  resolve locally). Its first line: `import { registerables as p, Chart as i } from "chart.js";`,
+  and its component `setup()` unconditionally runs
+  `a.registerables !== void 0 && a.Chart.register(...a.registerables)` — i.e. **on every mount, the
+  wrapper imports `chart.js`'s `registerables` export and registers all of it**, unconditionally,
+  regardless of what the consuming app itself registers. The wrapper's `package.json` `exports`
+  field does not literally name the `chart.js/auto` subpath, so a text-only search for that string
+  would have missed this — but `chart.js/auto`'s own published source
+  (`chart.js/auto/auto.js`, fetched and read directly) is, line for line:
+  ```js
+  import {Chart, registerables} from '../dist/chart.js';
+  Chart.register(...registerables);
+  export * from '../dist/chart.js';
+  export default Chart;
+  ```
+  which is the exact same effect the wrapper's own bundled code produces internally. `registerables`
+  is a concrete array literal referencing every controller, element, scale and plugin `chart.js`
+  ships — because it's an eagerly-constructed array (not a set of individually tree-shakeable named
+  exports), importing it at all pulls every one of those classes into the module graph regardless of
+  which ones the array's contents are actually registered with afterward. This is the failure mode
+  check 2 exists to catch, byte-for-byte, whether or not the literal string `chart.js/auto` appears
+  anywhere in the wrapper's source.
+
+  **Measured, not just read (check 3's method, applied here because check 2's finding benefits from
+  a number, not only a source-reading claim):** built two minimal ESM bundles with esbuild
+  (`--bundle --minify`), both manually registering only `LineController`, `LineElement`,
+  `PointElement`, `LinearScale`, `CategoryScale`, `Tooltip`, `Legend` — one importing the wrapper,
+  one importing bare `chart.js` with no wrapper. The wrapper bundle is **218.6 kB raw / 77.6 kB
+  gzip**; the no-wrapper bundle is **159.4 kB raw / 57.0 kB gzip** — a **~59 kB raw / ~20.6 kB
+  gzip** tax purely from the wrapper's own internal auto-registration. Grepping the two bundles for
+  every controller this project's line chart does not use (`BarController`, `BubbleController`,
+  `DoughnutController`, `PieController`, `PolarAreaController`, `RadarController`,
+  `ScatterController`) finds **all seven** in the wrapper bundle and **none** in the no-wrapper one
+  — confirming the tree-shaking loss empirically, not just from reading the import statement.
+
+  **Per the task's own instruction, stopped here.** `chart.js`/`@j-t-mcc/vue3-chartjs` were
+  installed only to run checks 1–2 against the real, currently-published packages rather than
+  against an assumption; `git checkout -- package.json pnpm-lock.yaml` plus `pnpm install
+  --frozen-lockfile` reverted the install afterward (verified: `git status --porcelain -- package.json
+  pnpm-lock.yaml` empty, `node_modules/@j-t-mcc` and `node_modules/chart.js` both absent). **Checks
+  3 and 4 were not run** — they are conditioned on check 2 passing ("Only after all four pass... is
+  `package.json` committed"), and check 3's bundle-delta method was already spent proving check 2's
+  finding above rather than measuring the real app's `pnpm build` delta, which would be meaningless
+  against packages this task is not committing.
+
+  **This is the Owner ruling's own named exit, not a deviation from it**: "if the wrapper pulls
+  `chart.js/auto`, tree-shaking is lost" is stated as the decisive, stop-here condition in both the
+  plan and this task's own text, and that is what was found — functionally, if not by literal import
+  path. Per the task prompt this was run under: **this finding goes to the Project Owner, not
+  decided here.** The named fallback (plan § Dependencies "the alternative... adopt `chart.js`
+  only," roughly forty lines of a local `TrendChart.vue` wrapper doing what
+  `@j-t-mcc/vue3-chartjs`'s own component does — hold a `<canvas>` ref, construct a `Chart` in
+  `onMounted`, `update()` on prop change, `destroy()` on unmount) is a reasonable ruling requiring no
+  plan change beyond dropping one package name, but selecting it is the Owner's call per the task's
+  own instruction, not the Senior Developer's.
+
+  No production file changed by this task. `git status --porcelain` clean at the end of this task;
+  `pnpm types:check` and `pnpm lint:check` re-verified green (unaffected, since nothing changed).
 
 ## T26 — `resources/js/lib/chartTokens.ts`: colour resolution reusing the PR #12 fix (R8; binding constraint 4)
 - **Description:** New module resolving a series colour by reading the token verbatim
