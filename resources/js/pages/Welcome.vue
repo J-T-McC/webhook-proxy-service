@@ -26,7 +26,7 @@ const howItWorks = [
     {
         icon: ListOrdered,
         title: 'Choose your processing',
-        body: 'Async dispatches to every destination in parallel, for the highest throughput. FIFO delivers strictly in the order events were received, when your destinations need that guarantee.',
+        body: 'Async dispatches to every destination in parallel, for the highest throughput. FIFO processes one event at a time per proxy, in the order it was received, before starting the next — the right choice when strict ordering matters more than throughput.',
     },
 ];
 
