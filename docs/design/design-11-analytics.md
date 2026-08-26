@@ -1,15 +1,17 @@
 # Design Spec: Analytics / stats
 
-- **Status:** **Amendment B revision — pending Product Manager re-approval.** PRD-11
-  Amendment B (Product Manager, 2026-08-26) sets the trend series' bucket size **per
-  window** — hourly on the 24-hour window (24 points), daily on the 7- and 30-day
-  windows (7 and 30 points) — and narrows the per-bucket drill-through into Flow E
-  to **day buckets only**; an hourly bucket owes no drill-through. This spec is
-  revised to match. **§ Amendment B changes**, at the end of this document, lists
-  every spot touched and why. **Nothing Amendment B does not name is reopened** —
-  the two-unit labelling rule, the no-verdict rule, the empty-state treatments, the
-  chart colour tokens, and the three-chip row on Screen 4 all stand exactly as the
-  prior approval left them.
+- **Status:** **Fully Approved (Product Manager, 2026-08-26) — the Amendment B revision
+  is approved with no corrections.** PRD-11 Amendment B (Product Manager, 2026-08-26)
+  sets the trend series' bucket size **per window** — hourly on the 24-hour window
+  (24 points), daily on the 7- and 30-day windows (7 and 30 points) — and narrows the
+  per-bucket drill-through into Flow E to **day buckets only**; an hourly bucket owes
+  no drill-through. This spec is revised to match, and the revision was re-gated on
+  2026-08-26 — see **§ Amendment B re-approval (design gate)** at the end of this
+  document for that verdict. **§ Amendment B changes**, immediately above it, lists
+  every spot the Designer touched and why. **Nothing Amendment B does not name is
+  reopened** — the two-unit labelling rule, the no-verdict rule, the empty-state
+  treatments, the chart colour tokens, and the three-chip row on Screen 4 all stand
+  exactly as the prior approval left them.
 - **Prior status (fully approved 2026-08-26; superseded only where Amendment B says
   so):** all six required corrections (C1–C6) landed and cleared (design gate,
   delegated per `CLAUDE.md`). All nine flagged design calls were **accepted as
@@ -21,12 +23,12 @@
   AC12's zero-denominator rate and the grain at which AC16/AC20 are obliged; **amended
   again 2026-08-26 — Amendment B**, the per-window bucket size and the day-grain-only
   drill-through obligation this revision carries)
-- **Approved by / date:** **Product Manager, 2026-08-26**, for everything this
-  revision does not touch. **This revision itself is not yet approved** — it returns
-  to the Product Manager per Amendment B's instruction (the design gate is delegated,
-  and the Designer never approves its own spec). See § Approval record (design gate)
-  at the end of this document for the prior full verdict, the per-call rulings, and
-  the corrections.
+- **Approved by / date:** **Product Manager, 2026-08-26** — twice. The original spec was
+  approved on 2026-08-26 once corrections C1–C6 landed (§ Approval record, § Corrections
+  landed, § C1 re-check outcome). The **Amendment B revision** was approved on 2026-08-26
+  in a delta-scoped re-gate covering only what that revision changed
+  (§ Amendment B re-approval). The design gate is delegated to the Product Manager per
+  `CLAUDE.md`; the Designer never approves its own spec, and did not here.
 
 > **Scope note.** #11 adds **no new page and no new "Analytics" area** (UX Direction —
 > "extend, do not annex"). It makes two existing surfaces show what has always been
@@ -777,12 +779,16 @@ attempt grain. Written into `Q-11-03` as a new item — see § Handoff.
   already-open, non-blocking `Q-11-03` (items (9) and (10)), unaffected by this
   revision; the new-dependency Owner gate is named but not approved here, per
   PRD-11's own Handoff.
-- **Next Agent:** **Product Manager**, to approve this Amendment B revision against
-  PRD-11 Amendment B (design gate, delegated per `CLAUDE.md`) — see § Amendment B
-  changes below for the complete list of what changed and where. On approval, this
-  spec is fully approved again and hands to the **Principal Engineer**, who is
-  amending `plan-11-analytics.md` for the same ruling in parallel and needs nothing
-  further from this revision beyond what § Amendment B changes states.
+- **Next Agent:** was the **Product Manager**, to approve this Amendment B revision
+  against PRD-11 Amendment B (design gate, delegated per `CLAUDE.md`) — see § Amendment B
+  changes below for the complete list of what changed and where.
+  **Done: approved with no corrections, Product Manager, 2026-08-26** (§ Amendment B
+  re-approval). This spec is **fully approved again**, and the next agent is the
+  **Principal Engineer**, who amended `plan-11-analytics.md` for the same ruling in
+  parallel and needs nothing further from this revision beyond what § Amendment B
+  changes states. The hour wording `plan-11` Revision B was waiting on is settled here
+  at all three places it named — see § Amendment B re-approval, "The three strings
+  `plan-11` named".
 
 ## Approval record (design gate)
 
@@ -1200,5 +1206,176 @@ within an already-ruled requirement (Amendment B(ii) states the obligation; this
 the presentation), which is squarely inside the Designer's decision authority. No requirement
 gap and no feasibility doubt surfaced while making them.
 
-**Status:** this revision is **not self-approved** — it returns to the **Product Manager**
-per § Handoff, Next Agent, above.
+**Status:** this revision was **not self-approved** — it returned to the **Product Manager**
+per § Handoff, Next Agent, above, and was **approved with no corrections on 2026-08-26**.
+See § Amendment B re-approval (design gate), immediately below.
+
+## Amendment B re-approval (design gate)
+
+**Approved by: Product Manager · 2026-08-26 · no corrections required.**
+
+**Scope of this gate.** This is a **delta re-approval of the Amendment B revision only**.
+The rest of this spec was fully approved earlier the same day, once corrections C1–C6
+landed and C1 cleared its section-scoped re-check, and nothing else has moved since. What
+was re-read here: the status block, § Decisions carried forward's bucket bullet, the
+Overview paragraph, Flow C step 3, Flow E's preamble and entry-point table, Screen 1's
+Trend and Latency card blocks, Screen 2's trend line, the two new Components rows,
+§ Accessibility's chart bullet, § Handoff, and § Amendment B changes in full. Every one of
+those passages was checked against PRD-11 § Amendment B, which the Product Manager authored.
+**No section outside that list was reopened, and this gate makes no ruling on any of them.**
+
+**Verdict: the revision carries Amendment B faithfully and completely.** Every one of the
+seven locations Amendment B named is changed, the five the Designer found on its own are
+genuine finds that would each have shipped a stale "daily" claim, and the three substantive
+calls the revision had to make inside the ruling are all correct. The rulings on those three
+follow.
+
+### Call 1 — how an hourly row reads without a drill-through: **ACCEPTED as designed**
+
+Amendment B(ii) requires that the absence of a link "must not render a disabled control, a
+dead link, an empty action column that looks like a missing value, or an explanation phrased
+as a limitation". The revision's answer — the rate cells render as **plain values**, same
+weight, colour and typography as any other cell, no underline, no `Link` wrapper, no
+`aria-disabled`, no muted styling, no "unavailable" copy — satisfies that constraint on every
+clause, and satisfies it in the strongest available way: **there is no control at all**, so
+there is nothing that can read as a broken one. Reusing the treatment this spec already gives
+the Dashboard Proxies table's non-linking rate cells (Flow B step 5) and the three
+non-failure-shaped Retry & replay tiles (Flow C step 4) is the right instinct — it invents no
+new visual language, and it means the "not every cell in a stats table is a link" convention
+a member meets on the Dashboard is the same one they meet here.
+
+**On whether a member is left wondering why some rows link and others do not:** they are not,
+because **within any single rendering of the trend table every row is treated identically**.
+The bucket size is a property of the window, so a 24-hour table is all hourly and links
+nowhere, and a 7-day or 30-day table is all daily and links everywhere. A member never sees a
+table where some rows are links and their neighbours are not — the case that would genuinely
+demand an explanation. Across a window switch the treatment does change, but a window switch
+is a full navigation that reloads the surface, and this spec has never obliged a screen to
+explain what a different window would have shown. The Dashboard's trend table, which links at
+neither bucket size (Flow E, "a team-level figure is not a drill-through entry point"), is
+unaffected and stays as the C1 re-check left it.
+
+*This gate deliberately does not require any copy explaining the absence.* Amendment B(ii)
+forbids "an explanation phrased as a limitation", and at this grain any such copy would be one.
+
+### Call 2 — the hour value format and the "Hour" header: **ACCEPTED as designed**
+
+`Aug 25, 2:00 PM` is the right value and a bare `2:00 PM` would have been wrong. The Designer's
+reasoning is exactly the reasoning Amendment B(i) was written to force: a rolling 24-hour
+window ordinarily crosses a calendar-date boundary, so a bare hour-of-day leaves a member to
+work out which of two days a row belongs to **from where it sits in the table** — which is
+precisely what "a member must never have to infer a point's period from its position"
+forbids. The revision's own note that a bare "2 PM" would have satisfied AC8's letter while
+breaching Amendment B(i) is correct, and catching that is the substance of this call rather
+than a restatement of it.
+
+The format reads well in a table cell: it is short, it sorts visually in the order the rows
+are already in, and it carries no punctuation a member has to parse. **The convention that the
+value names the hour the bucket *begins* is accepted**, and it is the same convention a day
+bucket's date already uses for the day it spans, so one rule covers both grains.
+
+**The header change to "Hour" is right.** The first column names the *period* a row covers,
+and at an hourly bucket that period is an hour; "Date" over a row describing one hour would be
+the misleading label, not the safe one. The header naming a period while the value carries a
+date qualifier is not a mismatch — the qualifier is there to disambiguate *which* hour, not to
+redefine what the column holds. "Date" stays at day grain, unchanged.
+
+### Call 3 — the chart axis, and no caption: **ACCEPTED as designed, with the reasoning recorded**
+
+The Designer re-checked a piece of previously-approved reasoning under new conditions instead
+of assuming it still held, found that it holds for day buckets and does not hold unmodified
+for hourly ones, and fixed it at the point of failure. That is the right method and it reached
+the right answer. Qualifying the axis at the tick where the window crosses into a new calendar
+day — rather than adding a caption — keeps the original decision intact instead of trading it
+away, and puts the date where a member needs it and nowhere else.
+
+**This gate is content with no caption**, and records why, so the decision is checkable later
+rather than re-argued:
+
+- the chart canvas is **not the authoritative representation of the data** and never has been
+  (§ Accessibility: the canvas may be `aria-hidden`, and the paired "View as table" is the
+  authoritative accessible representation). Every row of that table is fully date-qualified
+  under call 2, so a member who needs an unambiguous period for any point has one, always;
+- the window is stated independently of the chart, by the page-level `WindowSelector` and by
+  correction **C2**'s per-card "Last {window}" subtitle, so no member depends on the axis to
+  learn what period they are looking at;
+- a date appearing at the midnight tick is a conventional, well-understood axis treatment, and
+  it resolves the whole axis rather than one tick: ticks left of it are the earlier day, ticks
+  right of it the later one.
+
+**One residual, ruled and not returned.** The spec's claim that a member is "never left to
+infer the date from a tick's position" is true of the accessible table absolutely, and true of
+the chart by the day-boundary convention just described — but a tick to the *left* of the
+crossing does take its date from being left of it. **Date-qualifying the first tick as well is
+permitted and not required**, and adding it later is additive rather than a design change.
+This is not a correction: no figure is misread, the authoritative surface is unambiguous, and
+AC8 is discharged by the table and the window subtitle rather than by the axis.
+
+### The three strings `plan-11` named — all three are covered, so no question document is owed
+
+`plan-11-analytics.md` (Revision B) states that if this revision omits an hour wording for any
+of three named strings, a question document goes back to the Designer rather than an
+implementer inventing one. The Principal Engineer escalated this to the design gate. **All
+three are covered by this revision. No question document is required, and no implementer needs
+to invent a string.**
+
+| `plan-11`'s string | Covered where | The wording this spec fixes |
+|---|---|---|
+| **(a)** the chart's accessible summary — `trendChartAriaLabel()` currently renders "**Daily** delivery and attempt success rate…", which is false on the 24-hour window | § Accessibility, "Charts are not the only way to reach the data" | **Bucket-conditional.** "**Hourly** delivery and attempt success rate, last 24 hours — see table below for exact values" on the 24h window; "**Daily** delivery and attempt success rate, last 30 days — see table below for exact values" on the 7d/30d windows. The bucket word and the window phrase both vary; the window phrase is illustrative for 30d and reads "last 7 days" on 7d, as it already did before this revision |
+| **(b)** the trend table's first-column header | Flow C step 3 ("the table's first column follows the same split"); Components table, "Trend accessible table — first column"; Screen 1 and Screen 2 mockups | **"Hour"** at an hourly bucket, **"Date"** at a day bucket. Same component and same rule on both the Dashboard's table and Proxy Show's |
+| **(c)** a point's period label | Flow C step 3; § Amendment B changes, "The accessible table's first column" | **Date-qualified hour** at an hourly bucket — `Aug 25, 2:00 PM`, naming the hour the bucket begins, **never a bare hour-of-day**. Calendar date at a day bucket — `Aug 12, 2026` — unchanged |
+
+**The PE's finding on `trendChartAriaLabel()` is correct and this gate confirms it**: the
+current string is false on the 24-hour window and must not survive into the built surface. The
+replacement is specified above and needs nothing further from the Designer or the Product
+Manager.
+
+**One thing (a) does not cover, named so nobody reads it as covered.** This spec fixes the
+*wording* of the summary and the table; it does not name the chart's **axis tick** strings,
+beyond requiring that the axis states the period in the bucket's own unit and carries the date
+at the day-boundary tick (call 3 above). Tick formatting inside the charting library is an
+implementation detail, not a copy decision, and it is not one of the three strings `plan-11`
+reserved.
+
+### On the historical approval record being left unedited: **the Designer's judgment is accepted**
+
+The revision deliberately left § Approval record, § Corrections landed and § C1 re-check
+outcome untouched, two stale "daily series" lines and all, on the grounds that editing a dated
+record of a past gate would misrepresent what was true at that gate. **That judgment is right
+and this gate adopts it as the rule for this document.** Those sections are not a description
+of the current design; they are the record of a verdict given on 2026-08-26 against the spec as
+it stood that morning, and the phrase "AC16's daily series" is an accurate quotation of what
+AC16 then said. Rewriting it would make the record claim the gate considered something it could
+not have considered, which is a worse defect than a stale word in an archival section — and it
+is the same discipline PRD-11's own amendments follow, where Amendment A and Amendment B are
+appended and govern over the criteria they name rather than rewriting them in place.
+
+**What makes it safe to read:** the status block at the top of this document states that the
+prior status is superseded where Amendment B says so, § Decisions carried forward now states
+the per-window bucket size as a current rule, and § Amendment B changes enumerates every
+touched location. A reader who reaches the historical sections has passed all three. **No
+correction is required, and none is invited** — a later agent must not "tidy" those sections.
+
+### Non-blocking notes (no action required)
+
+- **Empty buckets get more visible at hourly grain, and no new rule is needed.** A sparse proxy
+  on the 24-hour window will have many hours with no traffic, so the zero-denominator rate rule
+  (AC12, PRD-11 Amendment A(i) — not rendered as a percentage at all) and the no-dropped-buckets
+  rule (Amendment B(i)) will fire far more often than they ever did at day grain. Both rules
+  already exist, both already govern, and Amendment B(i) says so explicitly ("AC12 and
+  Amendment A(i) govern its value exactly as they do today"). This gate raises no correction:
+  an empty **day** in a 30-day window posed the identical question under the approved spec, and
+  the answer has not changed. Noted only so it is not mistaken at implementation or review time
+  for something Amendment B left open.
+- **The two new Components rows were the right call.** Adding a bucket-conditional link/non-link
+  row and a bucket-conditional first-column row, rather than folding either into an existing
+  row, means a reader scanning § Components sees both new behaviours named. Both correctly state
+  that no new `ui/*` primitive and no disabled variant is introduced.
+- **§ Handoff's "Outstanding Questions: None" is accurate for this revision.** Bucket size and
+  drill-through availability are both fully specified; `Q-11-03` items (9) and (10) are unchanged
+  and non-blocking; the charting dependency gate was ruled by the Project Owner on 2026-08-26 and
+  is no longer open, though this spec's own Components row still describes it as ungated — a
+  pre-Amendment-B line this gate does not reopen.
+- **Nothing here changes PRD-11.** The review found no defect in Amendment B itself: every
+  question the revision had to answer was answerable inside the amendment as written, and the
+  Designer escalated nothing. `docs/product/prd-11-analytics.md` is untouched by this gate.
