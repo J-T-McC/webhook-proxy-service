@@ -16,6 +16,12 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import proxyEventRoutes from '@/routes/proxies/events';
 import type { ProxyDestination } from '@/types/proxies';
 
@@ -140,8 +146,10 @@ function submit(): void {
                 </AlertDescription>
             </Alert>
 
-            <fieldset class="grid gap-3">
-                <legend class="text-sm font-medium">Choose destinations</legend>
+            <fieldset class="grid gap-3 pt-1">
+                <legend class="mb-1 text-sm font-medium">
+                    Choose destinations
+                </legend>
 
                 <Label class="flex items-center gap-3">
                     <Checkbox
@@ -153,22 +161,37 @@ function submit(): void {
                     <span>Select all</span>
                 </Label>
 
-                <Label
-                    v-for="destination in props.destinations"
-                    :key="destination.id"
-                    class="flex items-center gap-3"
-                >
-                    <Checkbox
-                        :model-value="isChecked(destination.id)"
-                        :disabled="form.processing"
-                        :aria-label="`${destination.http_method} ${destination.url}`"
-                        @update:model-value="toggle(destination.id)"
-                    />
-                    <span class="truncate font-mono text-sm"
-                        >{{ destination.http_method }}
-                        {{ destination.url }}</span
+                <TooltipProvider>
+                    <Label
+                        v-for="destination in props.destinations"
+                        :key="destination.id"
+                        class="flex min-w-0 items-center gap-3"
                     >
-                </Label>
+                        <Checkbox
+                            :model-value="isChecked(destination.id)"
+                            :disabled="form.processing"
+                            :aria-label="`${destination.http_method} ${destination.url}`"
+                            @update:model-value="toggle(destination.id)"
+                        />
+                        <Tooltip>
+                            <TooltipTrigger as-child>
+                                <span
+                                    class="min-w-0 flex-1 truncate font-mono text-sm"
+                                    >{{ destination.http_method }}
+                                    {{ destination.url }}</span
+                                >
+                            </TooltipTrigger>
+                            <TooltipContent class="max-w-xs">
+                                <p
+                                    class="text-left break-all whitespace-normal"
+                                >
+                                    {{ destination.http_method }}
+                                    {{ destination.url }}
+                                </p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </Label>
+                </TooltipProvider>
             </fieldset>
 
             <AlertError
