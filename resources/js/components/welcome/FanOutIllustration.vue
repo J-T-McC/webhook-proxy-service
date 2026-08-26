@@ -636,6 +636,8 @@ interface RenderState {
     isDark: boolean;
     visuals: ThemeVisuals;
     gridLayer: HTMLCanvasElement;
+    scratch: HTMLCanvasElement;
+    reducedMotion: boolean;
 }
 
 function buildGridLayer(
@@ -672,32 +674,63 @@ function buildGridLayer(
 
     ctx.stroke();
 
-    // Edge-fade mask. A circular mask sized off the *shorter* side left the
-    // grid as a blob floating in the middle of a wide canvas; this scales the
-    // circle into an ellipse matching the canvas aspect, so the grid fills the
-    // field and only softens as it approaches the edges.
-    const cx = layer.width / 2;
-    const cy = layer.height / 2;
-    const radius = layer.width * 0.62;
-
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(1, layer.height / layer.width);
-
-    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
-    gradient.addColorStop(0.55, 'rgba(0, 0, 0, 1)');
-    gradient.addColorStop(0.8, 'rgba(0, 0, 0, 0.55)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-    ctx.globalCompositeOperation = 'source-over';
-
+    // Deliberately unmasked. The edge fade is applied per frame in
+    // `compositeGrid` so its radius, centre and softness can drift; baking it in
+    // here would freeze the mask to whatever the layer was built with.
     return layer;
+}
+
+// Draw the cached grid through a slowly drifting elliptical mask. Three
+// out-of-phase sines with non-harmonic periods (5.9s / 4.3s / 7.1s) keep the
+// motion from settling into an obvious loop — the fade breathes and wanders
+// slightly instead of pulsing on a beat. Amplitudes are small on purpose: this
+// should read as the field being alive, not as an animation of its own.
+function compositeGrid(state: RenderState, timeMs: number): void {
+    const { ctx, width, height, dpr, scratch } = state;
+    const scratchCtx = scratch.getContext('2d');
+
+    if (!scratchCtx) {
+        ctx.drawImage(state.gridLayer, 0, 0, width, height);
+
+        return;
+    }
+
+    const w = scratch.width;
+    const h = scratch.height;
+
+    scratchCtx.setTransform(1, 0, 0, 1, 0, 0);
+    scratchCtx.clearRect(0, 0, w, h);
+    scratchCtx.globalCompositeOperation = 'source-over';
+    scratchCtx.drawImage(state.gridLayer, 0, 0, w, h);
+
+    const drift = state.reducedMotion ? 0 : 1;
+    const radiusFactor =
+        0.62 +
+        drift *
+            (0.045 * Math.sin(timeMs / 5900) +
+                0.025 * Math.sin(timeMs / 4300 + 1.1));
+    const cx = w / 2 + drift * w * 0.012 * Math.sin(timeMs / 7100);
+    const cy = h / 2 + drift * h * 0.018 * Math.sin(timeMs / 4300 + 0.6);
+    const inner = 0.5 + drift * 0.06 * Math.sin(timeMs / 5900 + 2.2);
+    const radius = w * radiusFactor;
+
+    scratchCtx.globalCompositeOperation = 'destination-in';
+    scratchCtx.save();
+    scratchCtx.translate(cx, cy);
+    scratchCtx.scale(1, h / w);
+
+    const mask = scratchCtx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    mask.addColorStop(0, 'rgba(0, 0, 0, 1)');
+    mask.addColorStop(inner, 'rgba(0, 0, 0, 1)');
+    mask.addColorStop((inner + 1) / 2, 'rgba(0, 0, 0, 0.55)');
+    mask.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    scratchCtx.fillStyle = mask;
+    scratchCtx.beginPath();
+    scratchCtx.arc(0, 0, radius, 0, Math.PI * 2);
+    scratchCtx.fill();
+    scratchCtx.restore();
+
+    ctx.drawImage(scratch, 0, 0, w / dpr, h / dpr);
 }
 
 function drawRoundedRect(
@@ -890,10 +923,10 @@ function drawHotSegment(
 // Base scene: grid, idle connection lines, resting junction dots, and every
 // node — drawn every frame before any per-entry overlay, and the entirety
 // of the reduced-motion static frame (see drawEventArrival below).
-function drawBaseScene(state: RenderState) {
+function drawBaseScene(state: RenderState, timeMs: number) {
     const { ctx, geo, paths, tokens, visuals } = state;
     ctx.clearRect(0, 0, state.width, state.height);
-    ctx.drawImage(state.gridLayer, 0, 0, state.width, state.height);
+    compositeGrid(state, timeMs);
 
     const idleColor = withAlpha(tokens.mutedForeground, visuals.idleLineAlpha);
     const idleWidth = visuals.idleLineWidth * geo.scale;
@@ -1171,8 +1204,13 @@ function drawPulse(
 // One motion-safe animated frame: idle base scene, then every active entry's
 // overlay (event highlights, travelling heat bands, charge pulses, destination
 // arrivals) for this schema at this local time.
-function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
-    drawBaseScene(state);
+function drawAnimatedFrame(
+    state: RenderState,
+    schema: Schema,
+    localT: number,
+    timeMs: number,
+) {
+    drawBaseScene(state, timeMs);
     drawModeLegend(state, schema.id);
 
     const { paths, tokens, visuals } = state;
@@ -1255,7 +1293,7 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
 // Event 2's queued window don't share a moment where nothing else is
 // mid-flight), so it is composed directly instead.
 function drawStaticFrame(state: RenderState) {
-    drawBaseScene(state);
+    drawBaseScene(state, 0);
     drawModeLegend(state, 'fifo');
     drawEventArrival(state, 2, ARRIVAL_IN_MS + 200, 3000);
 }
@@ -1308,6 +1346,12 @@ function buildRenderState(
         visuals.gridLineAlpha,
     );
 
+    // Scratch layer for the per-frame grid mask. Reused rather than allocated
+    // each frame; rebuilt only on resize or theme change alongside the grid.
+    const scratch = document.createElement('canvas');
+    scratch.width = Math.round(width * dpr);
+    scratch.height = Math.round(height * dpr);
+
     return {
         ctx,
         width,
@@ -1319,6 +1363,8 @@ function buildRenderState(
         isDark,
         visuals,
         gridLayer,
+        scratch,
+        reducedMotion: prefersReducedMotion.value,
     };
 }
 
@@ -1338,7 +1384,7 @@ function tick(now: number) {
     const schema = isAsync ? ASYNC_SCHEMA : FIFO_SCHEMA;
     const localT = isAsync ? elapsed : elapsed - ASYNC_SCHEMA.duration;
 
-    drawAnimatedFrame(state, schema, localT);
+    drawAnimatedFrame(state, schema, localT, now - startTime);
     rafId = requestAnimationFrame(tick);
 }
 
