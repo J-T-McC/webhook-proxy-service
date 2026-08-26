@@ -110,3 +110,13 @@ work. Click the `SelectTrigger` by its `id` to open it, then
 value back via the trigger's rendered text (`SelectValue`'s `innerText`), not
 `inputValue()`. See [[manual_verification_recipe]] for the rest of the seed/verify/cleanup
 recipe — this is the Select-specific piece it doesn't cover.
+
+`components/ui/collapsible`'s `Collapsible` accepts a `default-open` boolean prop
+(reka-ui `CollapsibleRootProps.defaultOpen`) for a section that should render expanded
+without controlled `v-model:open` state (item #11 T17's Trend table, rendered open
+until the chart lands beside it at T27/M6). Playwright verification gotcha: if it's
+already open by default, clicking its `CollapsibleTrigger` button *closes* it — a
+manual-verification script that unconditionally clicks "View as table" before reading
+the table will see 0 rows and wrongly look like a densification bug. Read the content
+directly without clicking when `default-open` is set; only click to test the
+collapse/expand toggle itself.
