@@ -236,29 +236,49 @@ export function buildGridLayer(
         return layer;
     }
 
-    const cell = GRID_CELL * dpr;
+    // The cell size is derived from the canvas rather than fixed, so the grid
+    // divides it into a whole number of cells and the outermost lines land
+    // exactly on the border. Two goals have to hold at once and they constrain
+    // each other: lines meeting the frame requires a whole cell count, while the
+    // junction sitting mid-cell (the diagrams place it at exact centre) requires
+    // that count to be ODD. Rounding to the nearest odd count satisfies both and
+    // keeps the cell within a few percent of its nominal size — at the common
+    // desktop width the drift is imperceptible, and the payoff is a grid that
+    // meets its frame cleanly on the screen most people will see.
+    const nearestOdd = (n: number) => {
+        const rounded = Math.max(1, Math.round(n));
 
-    // Phase the grid so the canvas centre lands in the middle of a cell rather
-    // than wherever the dimensions happen to put it. The diagrams place their
-    // junction at exact centre, and an unphased grid left it sitting off-square
-    // — close enough to alignment to read as a mistake.
-    const phase = (centre: number) =>
-        (((centre - cell / 2) % cell) + cell) % cell;
-    const offsetX = phase(layer.width / 2);
-    const offsetY = phase(layer.height / 2);
+        return rounded % 2 === 0 ? rounded + 1 : rounded;
+    };
+
+    const nominal = GRID_CELL * dpr;
+    const cols = nearestOdd(layer.width / nominal);
+    const rows = nearestOdd(layer.height / nominal);
+    const cellX = layer.width / cols;
+    const cellY = layer.height / rows;
 
     ctx.strokeStyle = withAlpha(borderColor, gridAlpha);
     ctx.lineWidth = 1;
     ctx.beginPath();
 
-    for (let x = offsetX - cell; x <= layer.width + cell; x += cell) {
-        ctx.moveTo(Math.round(x) + 0.5, 0);
-        ctx.lineTo(Math.round(x) + 0.5, layer.height);
+    for (let i = 0; i <= cols; i++) {
+        // Inset the outermost lines by half a pixel so they sit inside the
+        // canvas rather than being clipped in half by its edge.
+        const x = Math.min(
+            layer.width - 0.5,
+            Math.max(0.5, Math.round(i * cellX) + 0.5),
+        );
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, layer.height);
     }
 
-    for (let y = offsetY - cell; y <= layer.height + cell; y += cell) {
-        ctx.moveTo(0, Math.round(y) + 0.5);
-        ctx.lineTo(layer.width, Math.round(y) + 0.5);
+    for (let j = 0; j <= rows; j++) {
+        const y = Math.min(
+            layer.height - 0.5,
+            Math.max(0.5, Math.round(j * cellY) + 0.5),
+        );
+        ctx.moveTo(0, y);
+        ctx.lineTo(layer.width, y);
     }
 
     ctx.stroke();
