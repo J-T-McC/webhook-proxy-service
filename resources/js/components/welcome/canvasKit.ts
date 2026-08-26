@@ -398,3 +398,247 @@ export function compositeGrid(
     ctx.drawImage(scratch, 0, 0, w / dpr, h / dpr);
     ctx.restore();
 }
+
+// ---------------------------------------------------------------------------
+// Shared drawing primitives
+//
+// Both diagrams draw the same marks — a charge pulse, a travelling heat band, a
+// node's edge lighting up, a node label. They were written twice and had already
+// begun to diverge in ways that were not deliberate (one gained a colour shift
+// in its pulse tail that the other never got). What genuinely differs between
+// the diagrams is geometry and timeline, not how a mark is drawn.
+// ---------------------------------------------------------------------------
+
+/** Per-theme values every diagram needs. Each extends this with its own. */
+export interface BaseVisuals {
+    gridLineAlpha: number;
+    idleLineWidth: number;
+    idleLineAlpha: number;
+    pulseCoreWidth: number;
+    pulseTailLength: number;
+    bloomBlur: number;
+    bloomAlpha: number;
+    edgeWidth: number;
+    edgeAlpha: number;
+    edgeBlur: number;
+    nodeStrokeAlpha: number;
+    labelAlpha: number;
+}
+
+export interface PulseOptions {
+    table: PathTable;
+    /** 0..1 along the path. */
+    headT: number;
+    headColor: string;
+    tailColor: string;
+    coreWidth: number;
+    tailLength: number;
+    bloomBlur: number;
+    bloomAlpha: number;
+    isDark: boolean;
+}
+
+// Drawn as a single continuous stroke with a gradient `strokeStyle`, not as
+// discrete alpha-stepped mini-segments — a stepped approach reads as a row of
+// beads rather than one current-like streak. The head burns in the leading
+// colour and the trail cools through the second as it fades; that colour shift
+// does as much work as the alpha ramp in making this read as current rather
+// than a moving shape.
+export function drawPulse(
+    ctx: CanvasRenderingContext2D,
+    options: PulseOptions,
+): void {
+    const headLen = lengthAtT(options.table, options.headT);
+    const headPoint = pointAtLength(options.table, headLen);
+    const tailPoint = pointAtLength(
+        options.table,
+        headLen - options.tailLength,
+    );
+
+    const gradient = ctx.createLinearGradient(
+        headPoint.x,
+        headPoint.y,
+        tailPoint.x,
+        tailPoint.y,
+    );
+    const stops = 16;
+
+    for (let i = 0; i <= stops; i++) {
+        const frac = i / stops;
+        gradient.addColorStop(
+            frac,
+            withAlpha(
+                frac < 0.55 ? options.headColor : options.tailColor,
+                1 - ease('out', frac),
+            ),
+        );
+    }
+
+    const samples = 20;
+
+    ctx.save();
+    ctx.globalCompositeOperation = glowBlend(options.isDark);
+    ctx.beginPath();
+    ctx.moveTo(headPoint.x, headPoint.y);
+
+    for (let i = 1; i <= samples; i++) {
+        const point = pointAtLength(
+            options.table,
+            headLen - (i / samples) * options.tailLength,
+        );
+        ctx.lineTo(point.x, point.y);
+    }
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = options.coreWidth;
+    ctx.strokeStyle = gradient;
+    ctx.shadowBlur = options.bloomBlur;
+    ctx.shadowColor = withAlpha(options.headColor, options.bloomAlpha);
+    ctx.stroke();
+    ctx.restore();
+}
+
+export interface HeatBandOptions {
+    spec: PathSpec;
+    /** 0..1 — where the charge currently is. */
+    head: number;
+    peakAlpha: number;
+    width: number;
+    color: string;
+    isDark: boolean;
+    /** How far behind the head the band fades out, as a fraction of the path. */
+    trail?: number;
+}
+
+// A travelling heat band: the wire is at rest everywhere except around the
+// charge, where it peaks and drains off behind. Fully transparent outside the
+// lit zone so the base wire shows through untouched — ending the band at an idle
+// accent alpha instead tinted the whole pipe the instant the segment went hot,
+// which read as the wire switching on rather than lighting along its length.
+//
+// The gradient runs p0 to p1, an approximation on curved paths but visually
+// indistinguishable at the curvatures these diagrams use.
+export function drawHeatBand(
+    ctx: CanvasRenderingContext2D,
+    options: HeatBandOptions,
+): void {
+    const { spec, head, color } = options;
+    const trail = options.trail ?? 0.34;
+    const LEAD = 0.05;
+    const gradient = ctx.createLinearGradient(
+        spec.p0.x,
+        spec.p0.y,
+        spec.p1.x,
+        spec.p1.y,
+    );
+
+    const trailStop = Math.min(0.998, Math.max(0, head - trail));
+    const headStop = Math.min(0.999, Math.max(trailStop + 0.001, head));
+    const leadStop = Math.min(1, headStop + LEAD);
+
+    gradient.addColorStop(0, withAlpha(color, 0));
+    gradient.addColorStop(trailStop, withAlpha(color, 0));
+    // A soft shoulder partway up the trail keeps the band from reading as a
+    // hard-edged wipe.
+    gradient.addColorStop(
+        trailStop + (headStop - trailStop) * 0.55,
+        withAlpha(color, options.peakAlpha * 0.45),
+    );
+    gradient.addColorStop(headStop, withAlpha(color, options.peakAlpha));
+
+    if (leadStop < 1) {
+        gradient.addColorStop(leadStop, withAlpha(color, 0));
+        gradient.addColorStop(1, withAlpha(color, 0));
+    }
+
+    ctx.save();
+    ctx.globalCompositeOperation = glowBlend(options.isDark);
+    ctx.beginPath();
+    ctx.moveTo(spec.p0.x, spec.p0.y);
+
+    if (spec.kind === 'line') {
+        ctx.lineTo(spec.p1.x, spec.p1.y);
+    } else {
+        ctx.quadraticCurveTo(spec.c.x, spec.c.y, spec.p1.x, spec.p1.y);
+    }
+
+    ctx.lineCap = 'round';
+    ctx.lineWidth = options.width;
+    ctx.strokeStyle = gradient;
+    ctx.stroke();
+    ctx.restore();
+}
+
+export interface NodeEdgeOptions {
+    center: Point;
+    width: number;
+    height: number;
+    radius: number;
+    /** A colour, or a gradient when the edge drains directionally. */
+    stroke: string | CanvasGradient;
+    lineWidth: number;
+    blur: number;
+    shadowColor: string;
+    isDark: boolean;
+}
+
+// A node's own border lighting up — used for a delivery arriving, an event
+// waiting to dispatch, and a terminal failure. Nothing expands outward: an
+// earlier expanding ring read as an explosion and fought the calm of the pulse.
+export function drawNodeEdge(
+    ctx: CanvasRenderingContext2D,
+    options: NodeEdgeOptions,
+): void {
+    ctx.save();
+    ctx.globalCompositeOperation = glowBlend(options.isDark);
+    ctx.beginPath();
+    ctx.roundRect(
+        options.center.x - options.width / 2,
+        options.center.y - options.height / 2,
+        options.width,
+        options.height,
+        options.radius,
+    );
+    ctx.lineWidth = options.lineWidth;
+    ctx.strokeStyle = options.stroke;
+    ctx.shadowBlur = options.blur;
+    ctx.shadowColor = options.shadowColor;
+    ctx.stroke();
+    ctx.restore();
+}
+
+// Node labels. Tracked uppercase monospace: body copy set inside diagram boxes
+// read as body copy, monospace reads as a schematic. The illustrations are
+// aria-hidden with surrounding prose carrying the meaning, so this text is
+// decorative — it exists so the nodes do not read as blank boxes.
+export function drawNodeLabel(
+    ctx: CanvasRenderingContext2D,
+    center: Point,
+    text: string,
+    color: string,
+    fontPx: number,
+    tracking: number,
+): void {
+    ctx.save();
+    ctx.font = `500 ${fontPx}px ${DIAGRAM_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    applyTracking(ctx, tracking);
+    ctx.fillText(text.toUpperCase(), center.x, center.y);
+    ctx.restore();
+}
+
+// The longest label a node has to hold decides its type size, so a label can
+// never overflow its box at any viewport. In tracked uppercase monospace a glyph
+// advances at roughly 0.72em.
+export function labelSizeFor(
+    text: string,
+    nodeWidth: number,
+    nominalPx: number,
+): number {
+    const maxByWidth = (nodeWidth * 0.82) / (text.length * 0.72);
+
+    return Math.max(7, Math.round(Math.min(nominalPx, maxByWidth)));
+}

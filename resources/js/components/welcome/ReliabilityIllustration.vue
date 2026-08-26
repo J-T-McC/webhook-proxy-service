@@ -1,20 +1,22 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import {
     applyTracking,
-    buildGridLayer,
     buildPathTable,
     compositeGrid,
     DIAGRAM_FONT,
+    drawHeatBand,
+    drawNodeEdge,
+    drawNodeLabel,
+    drawPulse,
     drawRoundedRect,
     ease,
-    glowBlend,
-    lengthAtT,
-    pointAtLength,
-    readTokens,
+    labelSizeFor,
     withAlpha,
 } from './canvasKit';
-import type { PathSpec, PathTable, Point, Tokens } from './canvasKit';
+import type { BaseVisuals } from './canvasKit';
+import type { PathSpec, PathTable, Point } from './canvasKit';
+import type { CanvasBase } from './useCanvasIllustration';
+import { useCanvasIllustration } from './useCanvasIllustration';
 
 // ---------------------------------------------------------------------------
 // What this draws
@@ -128,20 +130,10 @@ function computeGeometry(width: number, height: number): Geometry {
     };
 }
 
-interface ThemeVisuals {
-    gridLineAlpha: number;
-    idleLineAlpha: number;
-    idleLineWidth: number;
-    pulseCoreWidth: number;
-    pulseTailLength: number;
-    bloomBlur: number;
-    bloomAlpha: number;
-    edgeWidth: number;
-    edgeAlpha: number;
-    edgeBlur: number;
-    nodeStrokeAlpha: number;
-    labelAlpha: number;
-}
+// Everything this diagram needs beyond the shared base. It adds nothing today —
+// the retry sequence draws the same marks as the fan-out, only in a different
+// order and with failure in --destructive.
+type ThemeVisuals = BaseVisuals;
 
 const DARK_VISUALS: ThemeVisuals = {
     gridLineAlpha: 0.16,
@@ -173,18 +165,8 @@ const LIGHT_VISUALS: ThemeVisuals = {
     labelAlpha: 1,
 };
 
-interface RenderState {
-    ctx: CanvasRenderingContext2D;
-    width: number;
-    height: number;
-    dpr: number;
+interface RenderState extends CanvasBase<ThemeVisuals> {
     geo: Geometry;
-    tokens: Tokens;
-    isDark: boolean;
-    visuals: ThemeVisuals;
-    gridLayer: HTMLCanvasElement;
-    scratch: HTMLCanvasElement;
-    reducedMotion: boolean;
 }
 
 function activeStep(localT: number): Step {
@@ -195,22 +177,6 @@ function activeStep(localT: number): Step {
     }
 
     return TIMELINE[TIMELINE.length - 1];
-}
-
-function drawNodeLabel(state: RenderState, center: Point, text: string): void {
-    const { ctx, geo, tokens, visuals } = state;
-    const nominal = 11 * geo.scale;
-    const maxByWidth = (geo.nodeW * 0.82) / (text.length * 0.72);
-    const fontPx = Math.max(7, Math.round(Math.min(nominal, maxByWidth)));
-
-    ctx.save();
-    ctx.font = `500 ${fontPx}px ${DIAGRAM_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = withAlpha(tokens.mutedForeground, visuals.labelAlpha);
-    applyTracking(ctx, fontPx * (geo.compact ? 0.04 : 0.12));
-    ctx.fillText(text, center.x, center.y);
-    ctx.restore();
 }
 
 // The phase caption, top-left in the same treatment the fan-out diagram uses
@@ -246,124 +212,71 @@ function drawCaption(state: RenderState, step: Step): void {
     ctx.restore();
 }
 
-function drawPulse(
-    state: RenderState,
-    headT: number,
-    headColor: string,
-    tailColor: string,
-): void {
-    const { ctx, geo, visuals, isDark } = state;
-    const lineWidth = visuals.pulseCoreWidth * geo.scale;
-    const tailLength = visuals.pulseTailLength * geo.scale;
-    const headLen = lengthAtT(geo.table, headT);
-    const headPoint = pointAtLength(geo.table, headLen);
-    const tailPoint = pointAtLength(geo.table, headLen - tailLength);
-
-    const gradient = ctx.createLinearGradient(
-        headPoint.x,
-        headPoint.y,
-        tailPoint.x,
-        tailPoint.y,
-    );
-    const stops = 16;
-
-    for (let i = 0; i <= stops; i++) {
-        const frac = i / stops;
-        const alpha = 1 - ease('out', frac);
-        gradient.addColorStop(
-            frac,
-            withAlpha(frac < 0.55 ? headColor : tailColor, alpha),
-        );
-    }
-
-    const samples = 20;
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(isDark);
-    ctx.beginPath();
-    ctx.moveTo(headPoint.x, headPoint.y);
-
-    for (let i = 1; i <= samples; i++) {
-        const point = pointAtLength(
-            geo.table,
-            headLen - (i / samples) * tailLength,
-        );
-        ctx.lineTo(point.x, point.y);
-    }
-
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = gradient;
-    ctx.shadowBlur = visuals.bloomBlur * geo.scale;
-    ctx.shadowColor = withAlpha(headColor, visuals.bloomAlpha);
-    ctx.stroke();
-    ctx.restore();
+// Thin wrappers over the shared primitives — they bind this diagram's geometry
+// and theme table so the scene code below reads as a sequence of beats rather
+// than as argument plumbing.
+function pulse(state: RenderState, head: number): void {
+    const { geo, visuals, tokens } = state;
+    drawPulse(state.ctx, {
+        table: geo.table,
+        headT: head,
+        headColor: tokens.accentTo,
+        tailColor: tokens.accentFrom,
+        coreWidth: visuals.pulseCoreWidth * geo.scale,
+        tailLength: visuals.pulseTailLength * geo.scale,
+        bloomBlur: visuals.bloomBlur * geo.scale,
+        bloomAlpha: visuals.bloomAlpha,
+        isDark: state.isDark,
+    });
 }
 
-// A travelling heat band, transparent outside the lit zone so the base wire
-// shows through — the same treatment the fan-out diagram uses.
-function drawHeatBand(state: RenderState, head: number, color: string): void {
-    const { ctx, geo, visuals, isDark } = state;
-    const { p0, p1 } = geo.path as { p0: Point; p1: Point };
-    const gradient = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
-    const TRAIL = 0.34;
-    const trailStop = Math.min(0.998, Math.max(0, head - TRAIL));
-    const headStop = Math.min(0.999, Math.max(trailStop + 0.001, head));
-    const leadStop = Math.min(1, headStop + 0.05);
-
-    gradient.addColorStop(0, withAlpha(color, 0));
-    gradient.addColorStop(trailStop, withAlpha(color, 0));
-    gradient.addColorStop(
-        trailStop + (headStop - trailStop) * 0.55,
-        withAlpha(color, 0.2),
-    );
-    gradient.addColorStop(headStop, withAlpha(color, 0.45));
-
-    if (leadStop < 1) {
-        gradient.addColorStop(leadStop, withAlpha(color, 0));
-        gradient.addColorStop(1, withAlpha(color, 0));
-    }
-
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(isDark);
-    ctx.beginPath();
-    ctx.moveTo(p0.x, p0.y);
-    ctx.lineTo(p1.x, p1.y);
-    ctx.lineCap = 'round';
-    ctx.lineWidth = visuals.idleLineWidth * 1.6 * geo.scale;
-    ctx.strokeStyle = gradient;
-    ctx.stroke();
-    ctx.restore();
+function heat(state: RenderState, head: number, color: string): void {
+    const { geo, visuals } = state;
+    drawHeatBand(state.ctx, {
+        spec: geo.path,
+        head,
+        peakAlpha: 0.45,
+        width: visuals.idleLineWidth * 1.6 * geo.scale,
+        color,
+        isDark: state.isDark,
+    });
 }
 
-function drawNodeEdge(
+function edge(
     state: RenderState,
     center: Point,
     color: string,
     intensity: number,
 ): void {
-    const { ctx, geo, visuals, isDark } = state;
-
     if (intensity <= 0) {
         return;
     }
 
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(isDark);
-    ctx.beginPath();
-    ctx.roundRect(
-        center.x - geo.nodeW / 2,
-        center.y - geo.nodeH / 2,
-        geo.nodeW,
-        geo.nodeH,
-        geo.cornerR,
+    const { geo, visuals } = state;
+    drawNodeEdge(state.ctx, {
+        center,
+        width: geo.nodeW,
+        height: geo.nodeH,
+        radius: geo.cornerR,
+        stroke: withAlpha(color, visuals.edgeAlpha * intensity),
+        lineWidth: visuals.edgeWidth * geo.scale,
+        blur: visuals.edgeBlur * geo.scale * intensity,
+        shadowColor: withAlpha(color, visuals.bloomAlpha * intensity),
+        isDark: state.isDark,
+    });
+}
+
+function label(state: RenderState, center: Point, text: string): void {
+    const { geo, tokens, visuals } = state;
+    const fontPx = labelSizeFor(text, geo.nodeW, 11 * geo.scale);
+    drawNodeLabel(
+        state.ctx,
+        center,
+        text,
+        withAlpha(tokens.mutedForeground, visuals.labelAlpha),
+        fontPx,
+        fontPx * (geo.compact ? 0.04 : 0.12),
     );
-    ctx.lineWidth = visuals.edgeWidth * geo.scale;
-    ctx.strokeStyle = withAlpha(color, visuals.edgeAlpha * intensity);
-    ctx.shadowBlur = visuals.edgeBlur * geo.scale * intensity;
-    ctx.shadowColor = withAlpha(color, visuals.bloomAlpha * intensity);
-    ctx.stroke();
-    ctx.restore();
 }
 
 function drawScene(state: RenderState, localT: number, timeMs: number): void {
@@ -412,8 +325,8 @@ function drawScene(state: RenderState, localT: number, timeMs: number): void {
         );
     }
 
-    drawNodeLabel(state, geo.source, 'DELIVERY');
-    drawNodeLabel(state, geo.target, 'DESTINATION');
+    label(state, geo.source, 'DELIVERY');
+    label(state, geo.target, 'DESTINATION');
 
     const isReplay = step.phase === 'replay';
 
@@ -421,9 +334,9 @@ function drawScene(state: RenderState, localT: number, timeMs: number): void {
         const head = ease('inout', progress);
         // A replay is charged like any other delivery; only its outcome differs,
         // so it travels in the same colours rather than announcing itself.
-        drawHeatBand(state, head, tokens.accentFrom);
-        drawPulse(state, head, tokens.accentTo, tokens.accentFrom);
-        drawNodeEdge(
+        heat(state, head, tokens.accentFrom);
+        pulse(state, head);
+        edge(
             state,
             geo.source,
             tokens.accentFrom,
@@ -438,7 +351,7 @@ function drawScene(state: RenderState, localT: number, timeMs: number): void {
             progress < 0.12
                 ? progress / 0.12
                 : 1 - ease('out', (progress - 0.12) / 0.88);
-        drawNodeEdge(state, geo.target, tokens.destructive, intensity);
+        edge(state, geo.target, tokens.destructive, intensity);
     }
 
     if (step.phase === 'waiting') {
@@ -446,20 +359,20 @@ function drawScene(state: RenderState, localT: number, timeMs: number): void {
         // wire and stalls, restarting as the wait stretches. The stall is the
         // point — nothing is being delivered while this plays.
         const creep = ease('out', Math.min(1, progress * 1.6)) * 0.22;
-        drawHeatBand(state, creep, tokens.mutedForeground);
+        heat(state, creep, tokens.mutedForeground);
     }
 
     if (step.phase === 'terminal') {
         // Held, not decaying: a terminal failure is a state the delivery stays
         // in until someone acts on it.
         const intensity = progress < 0.1 ? progress / 0.1 : 1;
-        drawNodeEdge(state, geo.target, tokens.destructive, intensity);
+        edge(state, geo.target, tokens.destructive, intensity);
     }
 
     if (step.phase === 'delivered') {
         const intensity =
             progress < 0.08 ? progress / 0.08 : 1 - progress * 0.5;
-        drawNodeEdge(state, geo.target, tokens.accentFrom, intensity);
+        edge(state, geo.target, tokens.accentFrom, intensity);
     }
 
     drawCaption(state, step);
@@ -469,147 +382,23 @@ function drawScene(state: RenderState, localT: number, timeMs: number): void {
 // Component
 // ---------------------------------------------------------------------------
 
-const containerRef = useTemplateRef<HTMLDivElement>('container');
-const canvasRef = useTemplateRef<HTMLCanvasElement>('canvas');
-const prefersReducedMotion = ref(false);
-
-let state: RenderState | null = null;
-let rafId: number | null = null;
-let startTime = 0;
-let resizeObserver: ResizeObserver | null = null;
-let mutationObserver: MutationObserver | null = null;
-let motionQuery: MediaQueryList | null = null;
-
-function buildRenderState(
-    canvas: HTMLCanvasElement,
-    container: HTMLDivElement,
-): RenderState | null {
-    const ctx = canvas.getContext('2d');
-    const rect = container.getBoundingClientRect();
-
-    if (!ctx || rect.width === 0 || rect.height === 0) {
-        return null;
-    }
-
-    const dpr = window.devicePixelRatio || 1;
-    const width = rect.width;
-    const height = rect.height;
-
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const tokens = readTokens();
-    const isDark = document.documentElement.classList.contains('dark');
-    const visuals = isDark ? DARK_VISUALS : LIGHT_VISUALS;
-    const scratch = document.createElement('canvas');
-    scratch.width = Math.round(width * dpr);
-    scratch.height = Math.round(height * dpr);
-
-    return {
-        ctx,
-        width,
-        height,
-        dpr,
-        geo: computeGeometry(width, height),
-        tokens,
-        isDark,
-        visuals,
-        gridLayer: buildGridLayer(
-            width,
-            height,
-            dpr,
-            tokens.mutedForeground,
-            visuals.gridLineAlpha,
+// The composable binds the template refs by name (`ref="container"` /
+// `ref="canvas"`), so nothing needs to come back out of it here.
+useCanvasIllustration<ThemeVisuals, RenderState>({
+    visualsFor: (isDark) => (isDark ? DARK_VISUALS : LIGHT_VISUALS),
+    gridAlpha: (visuals) => visuals.gridLineAlpha,
+    extend: (base) => ({
+        ...base,
+        geo: computeGeometry(base.width, base.height),
+    }),
+    drawFrame: (state, elapsed) => drawScene(state, elapsed % LOOP_MS, elapsed),
+    // The terminal moment: the single frame that says the most without motion.
+    drawStatic: (state) =>
+        drawScene(
+            state,
+            TIMELINE.find((step) => step.phase === 'terminal')!.start + 1,
+            0,
         ),
-        scratch,
-        reducedMotion: prefersReducedMotion.value,
-    };
-}
-
-function tick(now: number) {
-    if (!state) {
-        return;
-    }
-
-    drawScene(state, (now - startTime) % LOOP_MS, now - startTime);
-    rafId = requestAnimationFrame(tick);
-}
-
-function drawStaticFrame() {
-    if (!state) {
-        return;
-    }
-
-    // The terminal moment: the one frame that says the most without motion.
-    drawScene(
-        state,
-        TIMELINE.find((s) => s.phase === 'terminal')!.start + 1,
-        0,
-    );
-}
-
-function startOrRestart() {
-    if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-    }
-
-    if (!state) {
-        return;
-    }
-
-    if (prefersReducedMotion.value) {
-        drawStaticFrame();
-
-        return;
-    }
-
-    startTime = performance.now();
-    rafId = requestAnimationFrame(tick);
-}
-
-function rebuild() {
-    const canvas = canvasRef.value;
-    const container = containerRef.value;
-
-    if (!canvas || !container) {
-        return;
-    }
-
-    state = buildRenderState(canvas, container);
-    startOrRestart();
-}
-
-onMounted(() => {
-    motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    prefersReducedMotion.value = motionQuery.matches;
-    motionQuery.addEventListener('change', () => {
-        prefersReducedMotion.value = motionQuery?.matches ?? false;
-        rebuild();
-    });
-
-    rebuild();
-
-    if (containerRef.value) {
-        resizeObserver = new ResizeObserver(() => rebuild());
-        resizeObserver.observe(containerRef.value);
-    }
-
-    mutationObserver = new MutationObserver(() => rebuild());
-    mutationObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['class'],
-    });
-});
-
-onUnmounted(() => {
-    if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-    }
-
-    resizeObserver?.disconnect();
-    mutationObserver?.disconnect();
 });
 </script>
 

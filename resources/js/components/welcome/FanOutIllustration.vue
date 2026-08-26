@@ -12,29 +12,25 @@
 // AdvanceProxyFifoQueue's docblock) — FIFO admits at most one event in
 // flight per proxy at a time; Async admits both concurrently. Every fact a
 // viewer needs is carried by the DOM legend below, never by canvas text.
-import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 import {
     applyTracking,
-    buildGridLayer,
     buildPathTable,
     compositeGrid,
     DIAGRAM_FONT,
+    drawHeatBand,
+    drawNodeEdge,
+    drawNodeLabel,
+    drawPulse,
     drawRoundedRect,
     ease,
-    glowBlend,
-    lengthAtT,
-    pointAtLength,
+    labelSizeFor,
     quadControlPoint,
-    readTokens,
     withAlpha,
 } from './canvasKit';
-import type {
-    EasingName,
-    PathSpec,
-    PathTable,
-    Point,
-    Tokens,
-} from './canvasKit';
+import type { BaseVisuals } from './canvasKit';
+import type { EasingName, PathSpec, PathTable, Point } from './canvasKit';
+import type { CanvasBase } from './useCanvasIllustration';
+import { useCanvasIllustration } from './useCanvasIllustration';
 
 // ---------------------------------------------------------------------------
 // Timeline schema (design spec "Timeline schema" section)
@@ -404,22 +400,12 @@ function buildEventPaths(eventIndex: 0 | 1, geo: Geometry): EventPaths {
 // "Charge pulse, line, grid, and node rendering" table) — never the same
 // figures reused with a token swap. All px-shaped values here are at the
 // 560px reference width and get `* geometry.scale` at draw time.
-interface ThemeVisuals {
-    gridLineAlpha: number;
-    idleLineWidth: number;
-    idleLineAlpha: number;
+// What this diagram needs beyond the shared base: a heated-wire treatment, the
+// queued event's edge, and the junction ring.
+interface ThemeVisuals extends BaseVisuals {
     hotLineWidth: number;
     hotLineAlpha: number;
-    pulseCoreWidth: number;
-    pulseTailLength: number;
-    bloomBlur: number;
-    bloomAlpha: number;
-    arrivalEdgeWidth: number;
-    arrivalEdgeAlpha: number;
-    arrivalEdgeBlur: number;
     queuedEdgeAlpha: number;
-    nodeStrokeAlpha: number;
-    labelAlpha: number;
     junctionAlpha: number;
 }
 
@@ -433,9 +419,9 @@ const DARK_VISUALS: ThemeVisuals = {
     pulseTailLength: 82,
     bloomBlur: 20,
     bloomAlpha: 0.55,
-    arrivalEdgeWidth: 2,
-    arrivalEdgeAlpha: 0.95,
-    arrivalEdgeBlur: 18,
+    edgeWidth: 2,
+    edgeAlpha: 0.95,
+    edgeBlur: 18,
     queuedEdgeAlpha: 0.8,
     nodeStrokeAlpha: 0.45,
     labelAlpha: 0.9,
@@ -452,9 +438,9 @@ const LIGHT_VISUALS: ThemeVisuals = {
     pulseTailLength: 78,
     bloomBlur: 8,
     bloomAlpha: 0.26,
-    arrivalEdgeWidth: 2,
-    arrivalEdgeAlpha: 0.9,
-    arrivalEdgeBlur: 8,
+    edgeWidth: 2,
+    edgeAlpha: 0.9,
+    edgeBlur: 8,
     queuedEdgeAlpha: 0.85,
     nodeStrokeAlpha: 0.9,
     labelAlpha: 1,
@@ -468,19 +454,9 @@ const NODE_STROKE_WIDTH = 1;
 // resize/theme change, read every rAF frame.
 // ---------------------------------------------------------------------------
 
-interface RenderState {
-    ctx: CanvasRenderingContext2D;
-    width: number;
-    height: number;
-    dpr: number;
+interface RenderState extends CanvasBase<ThemeVisuals> {
     geo: Geometry;
     paths: [EventPaths, EventPaths];
-    tokens: Tokens;
-    isDark: boolean;
-    visuals: ThemeVisuals;
-    gridLayer: HTMLCanvasElement;
-    scratch: HTMLCanvasElement;
-    reducedMotion: boolean;
 }
 
 // Draw the cached grid through a drifting elliptical mask. Four out-of-phase
@@ -509,35 +485,6 @@ function strokeSegment(
     ctx.lineWidth = width;
     ctx.strokeStyle = color;
     ctx.stroke();
-}
-
-// Additive compositing for anything that emits light, so overlapping pulses and
-// the junction genuinely accumulate brightness instead of painting over each
-// other. Dark only: on a white field `lighter` drives everything to white and
-// the illustration washes out, so light theme composites normally.
-
-// Node labels. Drawn into the canvas with the app's own resolved font stack so
-// they match the page rather than approximating it. The illustration is
-// aria-hidden and the surrounding prose carries the meaning, so this text is
-// decorative — it exists to stop the nodes reading as blank boxes.
-function drawNodeLabel(
-    ctx: CanvasRenderingContext2D,
-    center: Point,
-    text: string,
-    color: string,
-    fontPx: number,
-    compact: boolean,
-) {
-    ctx.save();
-    ctx.font = `500 ${fontPx}px ${DIAGRAM_FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = color;
-    // Tracking is a luxury of having room; on compact it eats the width the
-    // label needs.
-    applyTracking(ctx, fontPx * (compact ? 0.04 : 0.12));
-    ctx.fillText(text.toUpperCase(), center.x, center.y);
-    ctx.restore();
 }
 
 // `letterSpacing` is well supported in current Chrome and Safari but not
@@ -579,80 +526,83 @@ function drawModeLegend(state: RenderState, activeId: Schema['id']): void {
 const INGEST_LABELS = ['Event', 'Event'];
 const DEST_LABELS = ['Destination', 'Destination', 'Destination'];
 
-// A travelling heat band: the wire is at rest everywhere except around the
-// charge's current position, where it peaks and then drains off behind. The
-// gradient runs p0 to p1, which is an approximation on the quadratic legs but
-// visually indistinguishable at these curvatures.
-function drawHotSegment(
+// Base scene: grid, idle connection lines, resting junction dots, and every
+// node — drawn every frame before any per-entry overlay, and the entirety
+// of the reduced-motion static frame (see drawEventArrival below).
+// Thin wrappers over the shared primitives, binding this diagram's geometry and
+// theme table so the frame code reads as a sequence of marks rather than as
+// argument plumbing.
+function label(state: RenderState, center: Point, text: string): void {
+    const { geo, tokens, visuals } = state;
+    const fontPx = labelSizeFor(text, geo.nodeW, 11 * geo.scale);
+    drawNodeLabel(
+        state.ctx,
+        center,
+        text,
+        withAlpha(tokens.mutedForeground, visuals.labelAlpha),
+        fontPx,
+        // Tracking is a luxury of having room; on compact it eats the width the
+        // label needs.
+        fontPx * (geo.compact ? 0.04 : 0.12),
+    );
+}
+
+function pulse(state: RenderState, table: PathTable, headT: number): void {
+    const { geo, visuals, tokens } = state;
+    drawPulse(state.ctx, {
+        table,
+        headT,
+        headColor: tokens.accentTo,
+        tailColor: tokens.accentFrom,
+        coreWidth: visuals.pulseCoreWidth * geo.scale,
+        tailLength: visuals.pulseTailLength * geo.scale,
+        bloomBlur: visuals.bloomBlur * geo.scale,
+        bloomAlpha: visuals.bloomAlpha,
+        isDark: state.isDark,
+    });
+}
+
+function heat(
     state: RenderState,
     spec: PathSpec,
     head: number,
     hot: number,
-    color: string,
 ): void {
-    const { ctx, geo, visuals } = state;
-    const peakAlpha = visuals.hotLineAlpha * hot;
-    const width =
-        (visuals.idleLineWidth +
-            (visuals.hotLineWidth - visuals.idleLineWidth) * hot) *
-        geo.scale;
-
-    // Outside the lit band the gradient is fully transparent, so the base grey
-    // wire shows through untouched. Ending the band at the idle accent alpha
-    // instead tinted the whole pipe the instant the segment went hot, which
-    // read as the wire switching on rather than lighting along its length.
-    const TRAIL = 0.34;
-    const LEAD = 0.05;
-    const gradient = ctx.createLinearGradient(
-        spec.p0.x,
-        spec.p0.y,
-        spec.p1.x,
-        spec.p1.y,
-    );
-
-    const trailStop = Math.min(0.998, Math.max(0, head - TRAIL));
-    const headStop = Math.min(0.999, Math.max(trailStop + 0.001, head));
-    const leadStop = Math.min(1, headStop + LEAD);
-
-    if (trailStop > 0) {
-        gradient.addColorStop(0, withAlpha(color, 0));
-    }
-
-    gradient.addColorStop(trailStop, withAlpha(color, 0));
-    // A soft shoulder partway up the trail keeps the band from reading as a
-    // hard-edged wipe.
-    gradient.addColorStop(
-        trailStop + (headStop - trailStop) * 0.55,
-        withAlpha(color, peakAlpha * 0.45),
-    );
-    gradient.addColorStop(headStop, withAlpha(color, peakAlpha));
-
-    if (leadStop < 1) {
-        gradient.addColorStop(leadStop, withAlpha(color, 0));
-        gradient.addColorStop(1, withAlpha(color, 0));
-    }
-
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state.isDark);
-    ctx.beginPath();
-    ctx.moveTo(spec.p0.x, spec.p0.y);
-
-    if (spec.kind === 'line') {
-        ctx.lineTo(spec.p1.x, spec.p1.y);
-    } else {
-        ctx.quadraticCurveTo(spec.c.x, spec.c.y, spec.p1.x, spec.p1.y);
-    }
-
-    ctx.lineCap = 'round';
-    ctx.lineWidth = width;
-    ctx.strokeStyle = gradient;
-    ctx.stroke();
-    ctx.restore();
+    const { geo, visuals, tokens } = state;
+    drawHeatBand(state.ctx, {
+        spec,
+        head,
+        peakAlpha: visuals.hotLineAlpha * hot,
+        width:
+            (visuals.idleLineWidth +
+                (visuals.hotLineWidth - visuals.idleLineWidth) * hot) *
+            geo.scale,
+        color: tokens.accentFrom,
+        isDark: state.isDark,
+    });
 }
 
-// Base scene: grid, idle connection lines, resting junction dots, and every
-// node — drawn every frame before any per-entry overlay, and the entirety
-// of the reduced-motion static frame (see drawEventArrival below).
+function edge(
+    state: RenderState,
+    center: Point,
+    stroke: string | CanvasGradient,
+    blur: number,
+    shadowColor: string,
+): void {
+    const { geo, visuals } = state;
+    drawNodeEdge(state.ctx, {
+        center,
+        width: geo.nodeW,
+        height: geo.nodeH,
+        radius: geo.cornerR,
+        stroke,
+        lineWidth: visuals.edgeWidth * geo.scale,
+        blur,
+        shadowColor,
+        isDark: state.isDark,
+    });
+}
+
 function drawBaseScene(state: RenderState, timeMs: number) {
     const { ctx, geo, paths, tokens, visuals } = state;
     ctx.clearRect(0, 0, state.width, state.height);
@@ -712,14 +662,6 @@ function drawBaseScene(state: RenderState, timeMs: number) {
     );
     const nodeStrokeWidth = NODE_STROKE_WIDTH * geo.scale;
 
-    const labelColor = withAlpha(tokens.mutedForeground, visuals.labelAlpha);
-    // Longest label is DESTINATION (11 chars). In tracked uppercase monospace a
-    // glyph advances at roughly 0.72em, so cap the size at what the node can
-    // actually hold and let it be smaller than the nominal 11px if it must.
-    const nominal = 11 * geo.scale;
-    const maxByWidth = (geo.nodeW * 0.82) / (11 * 0.72);
-    const fontPx = Math.max(7, Math.round(Math.min(nominal, maxByWidth)));
-
     geo.ingest.forEach((ingest, i) => {
         drawRoundedRect(
             ctx,
@@ -731,14 +673,7 @@ function drawBaseScene(state: RenderState, timeMs: number) {
             nodeStroke,
             nodeStrokeWidth,
         );
-        drawNodeLabel(
-            ctx,
-            ingest,
-            INGEST_LABELS[i],
-            labelColor,
-            fontPx,
-            geo.compact,
-        );
+        label(state, ingest, INGEST_LABELS[i]);
     });
 
     geo.dest.forEach((dest, i) => {
@@ -752,14 +687,7 @@ function drawBaseScene(state: RenderState, timeMs: number) {
             nodeStroke,
             nodeStrokeWidth,
         );
-        drawNodeLabel(
-            ctx,
-            dest,
-            DEST_LABELS[i],
-            labelColor,
-            fontPx,
-            geo.compact,
-        );
+        label(state, dest, DEST_LABELS[i]);
     });
 }
 
@@ -796,15 +724,12 @@ function drawEventArrival(
     const fadeIn = Math.min(1, elapsed / ARRIVAL_IN_MS);
     const baseAlpha = visuals.queuedEdgeAlpha * ease('out', fadeIn);
 
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state.isDark);
-    ctx.beginPath();
-    ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
-    ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
+    let stroke: string | CanvasGradient;
+    let blur: number;
 
     if (!draining) {
-        ctx.strokeStyle = withAlpha(tokens.accentFrom, baseAlpha);
-        ctx.shadowBlur = visuals.arrivalEdgeBlur * 0.6 * geo.scale * fadeIn;
+        stroke = withAlpha(tokens.accentFrom, baseAlpha);
+        blur = visuals.edgeBlur * 0.6 * geo.scale * fadeIn;
     } else {
         // Drains left-to-right, as though the charge held in the node is being
         // drawn out into the pipe leaving its right edge.
@@ -855,14 +780,17 @@ function drawEventArrival(
             gradient.addColorStop(clamped, withAlpha(tokens.accentFrom, alpha));
         }
 
-        ctx.strokeStyle = gradient;
-        ctx.shadowBlur =
-            visuals.arrivalEdgeBlur * 0.6 * geo.scale * (1 - sweep);
+        stroke = gradient;
+        blur = visuals.edgeBlur * 0.6 * geo.scale * (1 - sweep);
     }
 
-    ctx.shadowColor = withAlpha(tokens.accentFrom, visuals.bloomAlpha * 0.7);
-    ctx.stroke();
-    ctx.restore();
+    edge(
+        state,
+        center,
+        stroke,
+        blur,
+        withAlpha(tokens.accentFrom, visuals.bloomAlpha * 0.7),
+    );
 }
 
 function drawArrivalRingAndWash(
@@ -870,7 +798,7 @@ function drawArrivalRingAndWash(
     entry: ArrivalRingEntry,
     localT: number,
 ) {
-    const { ctx, geo, tokens, visuals } = state;
+    const { geo, tokens, visuals } = state;
     const elapsed = localT - entry.start;
     const duration = entry.end - entry.start;
     const dest = geo.dest[entry.dest - 1];
@@ -900,84 +828,13 @@ function drawArrivalRingAndWash(
                       ),
                   ),
               );
-    const x = dest.x - geo.nodeW / 2;
-    const y = dest.y - geo.nodeH / 2;
-
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state.isDark);
-    ctx.beginPath();
-    ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
-    ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
-    ctx.strokeStyle = withAlpha(
-        tokens.accentFrom,
-        visuals.arrivalEdgeAlpha * glow,
+    edge(
+        state,
+        dest,
+        withAlpha(tokens.accentFrom, visuals.edgeAlpha * glow),
+        visuals.edgeBlur * geo.scale * glow,
+        withAlpha(tokens.accentFrom, visuals.bloomAlpha * glow),
     );
-    ctx.shadowBlur = visuals.arrivalEdgeBlur * geo.scale * glow;
-    ctx.shadowColor = withAlpha(tokens.accentFrom, visuals.bloomAlpha * glow);
-    ctx.stroke();
-    ctx.restore();
-}
-
-// Drawn as a single continuous stroke with a gradient `strokeStyle` (not
-// discrete alpha-stepped mini-segments) — a stepped approach reads as a
-// row of beads rather than one current-like streak, which is exactly the
-// "shooting ball" look this redesign exists to fix. The gradient's stops
-// follow the same `1 − out(t)` ramp the spec specifies; bloom is applied to
-// the whole stroke in one shadow pass, which concentrates naturally near
-// the bright head since the tail's alpha is already low there.
-function drawPulse(
-    state: RenderState,
-    table: PathTable,
-    headT: number,
-    headColor: string,
-    tailColor: string,
-    bloomColor: string,
-) {
-    const { ctx, geo, visuals } = state;
-    const lineWidth = visuals.pulseCoreWidth * geo.scale;
-    const tailLength = visuals.pulseTailLength * geo.scale;
-    const headLen = lengthAtT(table, headT);
-    const headPoint = pointAtLength(table, headLen);
-    const tailPoint = pointAtLength(table, headLen - tailLength);
-
-    const gradient = ctx.createLinearGradient(
-        headPoint.x,
-        headPoint.y,
-        tailPoint.x,
-        tailPoint.y,
-    );
-    const stops = 16;
-
-    // frac 0 = head, frac 1 = tail end. The head burns cyan and the trail
-    // cools through violet as it fades — the colour shift does as much work as
-    // the alpha ramp in making this read as current rather than a moving shape.
-    for (let i = 0; i <= stops; i++) {
-        const frac = i / stops;
-        const alpha = 1 - ease('out', frac);
-        const hue = frac < 0.55 ? headColor : tailColor;
-        gradient.addColorStop(frac, withAlpha(hue, alpha));
-    }
-
-    const samples = 20;
-    ctx.beginPath();
-    ctx.moveTo(headPoint.x, headPoint.y);
-
-    for (let i = 1; i <= samples; i++) {
-        const frac = i / samples;
-        const point = pointAtLength(table, headLen - frac * tailLength);
-        ctx.lineTo(point.x, point.y);
-    }
-
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state.isDark);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = gradient;
-    ctx.shadowBlur = visuals.bloomBlur * geo.scale;
-    ctx.shadowColor = bloomColor;
-    ctx.stroke();
-    ctx.restore();
 }
 
 // One motion-safe animated frame: idle base scene, then every active entry's
@@ -992,10 +849,7 @@ function drawAnimatedFrame(
     drawBaseScene(state, timeMs);
     drawModeLegend(state, schema.id);
 
-    const { paths, tokens, visuals } = state;
-    const headColor = tokens.accentTo;
-    const tailColor = tokens.accentFrom;
-    const bloomColor = withAlpha(tokens.accentTo, visuals.bloomAlpha);
+    const { paths } = state;
 
     for (const entry of schema.entries) {
         if (entry.kind === 'queued') {
@@ -1035,24 +889,11 @@ function drawAnimatedFrame(
                 // same left-to-right release the queued node's border uses.
                 // Lighting the entire segment uniformly made the pulse
                 // invisible against its own lit path.
-                drawHotSegment(
-                    state,
-                    eventPaths[entry.segment].spec,
-                    t,
-                    hot,
-                    tokens.accentFrom,
-                );
+                heat(state, eventPaths[entry.segment].spec, t, hot);
             }
 
             if (active) {
-                drawPulse(
-                    state,
-                    eventPaths[entry.segment].table,
-                    t,
-                    headColor,
-                    tailColor,
-                    bloomColor,
-                );
+                pulse(state, eventPaths[entry.segment].table, t);
             }
 
             continue;
@@ -1081,172 +922,32 @@ function drawStaticFrame(state: RenderState) {
 // Component
 // ---------------------------------------------------------------------------
 
-const containerRef = useTemplateRef<HTMLDivElement>('container');
-const canvasRef = useTemplateRef<HTMLCanvasElement>('canvas');
+// The composable binds the template refs by name (`ref="container"` /
+// `ref="canvas"`), so nothing needs to come back out of it here.
+useCanvasIllustration<ThemeVisuals, RenderState>({
+    visualsFor: (isDark) => (isDark ? DARK_VISUALS : LIGHT_VISUALS),
+    gridAlpha: (visuals) => visuals.gridLineAlpha,
+    extend: (base) => {
+        const geo = computeGeometry(base.width, base.height);
 
-const prefersReducedMotion = ref(false);
+        return {
+            ...base,
+            geo,
+            paths: [buildEventPaths(0, geo), buildEventPaths(1, geo)],
+        };
+    },
+    drawFrame: (state, elapsed) => {
+        const local = elapsed % TOTAL_LOOP;
+        const isAsync = local < ASYNC_SCHEMA.duration;
 
-let state: RenderState | null = null;
-let rafId: number | null = null;
-let startTime = 0;
-let resizeObserver: ResizeObserver | null = null;
-let mutationObserver: MutationObserver | null = null;
-let motionQuery: MediaQueryList | null = null;
-
-function buildRenderState(
-    canvas: HTMLCanvasElement,
-    container: HTMLElement,
-): RenderState | null {
-    const ctx = canvas.getContext('2d');
-
-    if (!ctx) {
-        return null;
-    }
-
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const geo = computeGeometry(width, height);
-    const tokens = readTokens();
-    const isDark = document.documentElement.classList.contains('dark');
-    const visuals = isDark ? DARK_VISUALS : LIGHT_VISUALS;
-    // Grid rides on muted-foreground, not --border: on dark, --border is
-    // hsl(0 0% 14.9%) against an hsl(0 0% 3.9%) field, so a low-alpha grid drawn
-    // in it is invisible.
-    const gridLayer = buildGridLayer(
-        width,
-        height,
-        dpr,
-        tokens.mutedForeground,
-        visuals.gridLineAlpha,
-    );
-
-    // Scratch layer for the per-frame grid mask. Reused rather than allocated
-    // each frame; rebuilt only on resize or theme change alongside the grid.
-    const scratch = document.createElement('canvas');
-    scratch.width = Math.round(width * dpr);
-    scratch.height = Math.round(height * dpr);
-
-    return {
-        ctx,
-        width,
-        height,
-        dpr,
-        geo,
-        paths: [buildEventPaths(0, geo), buildEventPaths(1, geo)],
-        tokens,
-        isDark,
-        visuals,
-        gridLayer,
-        scratch,
-        reducedMotion: prefersReducedMotion.value,
-    };
-}
-
-function redrawStatic() {
-    if (state) {
-        drawStaticFrame(state);
-    }
-}
-
-function tick(now: number) {
-    if (!state) {
-        return;
-    }
-
-    const elapsed = (now - startTime) % TOTAL_LOOP;
-    const isAsync = elapsed < ASYNC_SCHEMA.duration;
-    const schema = isAsync ? ASYNC_SCHEMA : FIFO_SCHEMA;
-    const localT = isAsync ? elapsed : elapsed - ASYNC_SCHEMA.duration;
-
-    drawAnimatedFrame(state, schema, localT, now - startTime);
-    rafId = requestAnimationFrame(tick);
-}
-
-function startOrRestart() {
-    if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-    }
-
-    if (!state) {
-        return;
-    }
-
-    if (prefersReducedMotion.value) {
-        redrawStatic();
-
-        return;
-    }
-
-    startTime = performance.now();
-    rafId = requestAnimationFrame(tick);
-}
-
-function handleResize() {
-    const canvas = canvasRef.value;
-    const container = containerRef.value;
-
-    if (!canvas || !container) {
-        return;
-    }
-
-    state = buildRenderState(canvas, container);
-    startOrRestart();
-}
-
-function handleThemeChange() {
-    const canvas = canvasRef.value;
-    const container = containerRef.value;
-
-    if (!canvas || !container) {
-        return;
-    }
-
-    state = buildRenderState(canvas, container);
-
-    if (prefersReducedMotion.value) {
-        redrawStatic();
-    }
-}
-
-function handleMotionPreferenceChange(matches: boolean) {
-    prefersReducedMotion.value = matches;
-    startOrRestart();
-}
-
-onMounted(() => {
-    motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    prefersReducedMotion.value = motionQuery.matches;
-    motionQuery.addEventListener('change', (event) =>
-        handleMotionPreferenceChange(event.matches),
-    );
-
-    handleResize();
-
-    if (containerRef.value) {
-        resizeObserver = new ResizeObserver(() => handleResize());
-        resizeObserver.observe(containerRef.value);
-    }
-
-    mutationObserver = new MutationObserver(() => handleThemeChange());
-    mutationObserver.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['class'],
-    });
-});
-
-onUnmounted(() => {
-    if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-    }
-
-    resizeObserver?.disconnect();
-    mutationObserver?.disconnect();
+        drawAnimatedFrame(
+            state,
+            isAsync ? ASYNC_SCHEMA : FIFO_SCHEMA,
+            isAsync ? local : local - ASYNC_SCHEMA.duration,
+            elapsed,
+        );
+    },
+    drawStatic: (state) => drawStaticFrame(state),
 });
 </script>
 
