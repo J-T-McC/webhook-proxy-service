@@ -109,6 +109,16 @@ cases are `TwentyFourHours`/`SevenDays`/`ThirtyDays`, not `Day`/`Week`/`Month`.
 no observers) — seeding tens of thousands of fixture rows for a realistic-volume demo seeder is
 cheap; don't under-seed out of an unverified performance worry.
 
+**When a page has more than one `<table>`, a bare `page.locator('table thead th').first()` or
+`table tbody tr` grabs across every table on the page, not just the one under test** — e.g. Proxy
+Show has a Trend table above a Destinations table, so a naive row count silently included both.
+Scope to the specific table via its nearest ancestor that also contains the identifying marker
+(e.g. `page.locator('figure[aria-label]').locator('xpath=ancestor::div[.//table][1]').locator('table')`
+to reach the table that shares a card with a known `<figure aria-label>`), and cross-check the
+combined-vs-scoped counts against the expected per-table numbers when in doubt (found via T32's
+verification: a "26 rows" combined count on a 24-point trend table + 2-row destinations table
+still confirms 24 once you know to subtract).
+
 **Seeder-loop gotcha: a per-bucket timestamp computed once outside a per-row loop silently clusters
 every row in that bucket onto the same instant.** Found in `AnalyticsDemoSeeder`'s original
 `seedProxyDeliveries()` — `dayTimestamp($offset)` was called once per day but reused for every
