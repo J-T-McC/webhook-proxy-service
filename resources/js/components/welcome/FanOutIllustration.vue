@@ -717,6 +717,14 @@ function strokeSegment(
     ctx.stroke();
 }
 
+// Additive compositing for anything that emits light, so overlapping pulses and
+// the junction genuinely accumulate brightness instead of painting over each
+// other. Dark only: on a white field `lighter` drives everything to white and
+// the illustration washes out, so light theme composites normally.
+function glowBlend(state: RenderState): GlobalCompositeOperation {
+    return state.isDark ? 'lighter' : 'source-over';
+}
+
 // Node labels. Drawn into the canvas with the app's own resolved font stack so
 // they match the page rather than approximating it. The illustration is
 // aria-hidden and the surrounding prose carries the meaning, so this text is
@@ -791,15 +799,18 @@ function drawHotSegment(
         ctx.quadraticCurveTo(spec.c.x, spec.c.y, spec.p1.x, spec.p1.y);
     }
 
+    ctx.save();
+    ctx.globalCompositeOperation = glowBlend(state);
     ctx.lineCap = 'round';
     ctx.lineWidth = width;
     ctx.strokeStyle = gradient;
     ctx.stroke();
+    ctx.restore();
 }
 
 // Base scene: grid, idle connection lines, resting junction dots, and every
 // node — drawn every frame before any per-entry overlay, and the entirety
-// of the reduced-motion static frame (see drawQueuedNode below).
+// of the reduced-motion static frame (see drawEventArrival below).
 function drawBaseScene(state: RenderState) {
     const { ctx, geo, paths, tokens, visuals } = state;
     ctx.clearRect(0, 0, state.width, state.height);
@@ -877,47 +888,54 @@ function drawBaseScene(state: RenderState) {
 // received. `progress` runs 0 → 1 across the queued window so the border can
 // ease in when the event starts waiting and release just before it departs,
 // rather than snapping on and off.
-function drawQueuedNode(
+// The highlight marks the moment an event *arrives*, not the whole time it
+// waits. It fades in, holds briefly, then drains left-to-right into the pipe —
+// after which the node sits idle until its dispatch. Holding the border lit for
+// the entire queued window made a FIFO straggler glow for five unbroken seconds,
+// which read as a stuck state rather than an event landing.
+const ARRIVAL_IN_MS = 300;
+const ARRIVAL_HOLD_MS = 260;
+const ARRIVAL_OUT_MS = 380;
+const ARRIVAL_TOTAL_MS = ARRIVAL_IN_MS + ARRIVAL_HOLD_MS + ARRIVAL_OUT_MS;
+
+function drawEventArrival(
     state: RenderState,
     event: 1 | 2,
-    localT: number,
-    start: number,
-    end: number,
+    elapsed: number,
 ): void {
+    if (elapsed < 0 || elapsed > ARRIVAL_TOTAL_MS) {
+        return;
+    }
+
     const { ctx, geo, tokens, visuals } = state;
     const center = geo.ingest[event - 1];
-    const duration = end - start;
-    const elapsed = localT - start;
-
-    // Release is a fixed wall-clock beat, not a fraction of the queued window —
-    // Event 2 under FIFO waits several times longer than Event 1 does, and a
-    // proportional release would make its hand-off crawl while Event 1's snaps.
-    const RELEASE_MS = 380;
-    const releaseStart = Math.max(0, duration - RELEASE_MS);
-    const fadeIn = Math.min(1, elapsed / 320);
-
     const x = center.x - geo.nodeW / 2;
     const y = center.y - geo.nodeH / 2;
+    const draining = elapsed > ARRIVAL_IN_MS + ARRIVAL_HOLD_MS;
+    const fadeIn = Math.min(1, elapsed / ARRIVAL_IN_MS);
     const baseAlpha = visuals.queuedEdgeAlpha * ease('out', fadeIn);
 
     ctx.save();
+    ctx.globalCompositeOperation = glowBlend(state);
     ctx.beginPath();
     ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
     ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
 
-    if (elapsed < releaseStart) {
+    if (!draining) {
         ctx.strokeStyle = withAlpha(tokens.accentFrom, baseAlpha);
-        ctx.shadowBlur = visuals.arrivalEdgeBlur * 0.6 * geo.scale;
+        ctx.shadowBlur = visuals.arrivalEdgeBlur * 0.6 * geo.scale * fadeIn;
     } else {
-        // The border does not simply dim — it drains left-to-right, as though
-        // the charge sitting in the node is being drawn out into the pipe that
-        // leaves from its right edge. A moving soft edge sweeps across the
-        // node's width; everything behind it has already left.
-        const sweep = ease('inout', (elapsed - releaseStart) / RELEASE_MS);
+        // Drains left-to-right, as though the charge held in the node is being
+        // drawn out into the pipe leaving its right edge.
+        const sweep = ease(
+            'inout',
+            (elapsed - ARRIVAL_IN_MS - ARRIVAL_HOLD_MS) / ARRIVAL_OUT_MS,
+        );
         const SOFT = 0.22;
         const gradient = ctx.createLinearGradient(x, y, x + geo.nodeW, y);
         const lead = Math.min(1, Math.max(0, sweep + SOFT));
         const trail = Math.min(1, Math.max(0, sweep - SOFT));
+        const remaining = baseAlpha * (1 - sweep * 0.35);
 
         gradient.addColorStop(0, withAlpha(tokens.accentFrom, 0));
 
@@ -925,14 +943,8 @@ function drawQueuedNode(
             gradient.addColorStop(trail, withAlpha(tokens.accentFrom, 0));
         }
 
-        gradient.addColorStop(
-            lead,
-            withAlpha(tokens.accentFrom, baseAlpha * (1 - sweep * 0.35)),
-        );
-        gradient.addColorStop(
-            1,
-            withAlpha(tokens.accentFrom, baseAlpha * (1 - sweep * 0.35)),
-        );
+        gradient.addColorStop(lead, withAlpha(tokens.accentFrom, remaining));
+        gradient.addColorStop(1, withAlpha(tokens.accentFrom, remaining));
 
         ctx.strokeStyle = gradient;
         ctx.shadowBlur =
@@ -966,6 +978,7 @@ function drawArrivalRingAndWash(
     const y = dest.y - geo.nodeH / 2;
 
     ctx.save();
+    ctx.globalCompositeOperation = glowBlend(state);
     ctx.beginPath();
     ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
     ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
@@ -1029,6 +1042,8 @@ function drawPulse(
         ctx.lineTo(point.x, point.y);
     }
 
+    ctx.save();
+    ctx.globalCompositeOperation = glowBlend(state);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = lineWidth;
@@ -1036,7 +1051,7 @@ function drawPulse(
     ctx.shadowBlur = visuals.bloomBlur * geo.scale;
     ctx.shadowColor = bloomColor;
     ctx.stroke();
-    ctx.shadowBlur = 0;
+    ctx.restore();
 }
 
 // One motion-safe animated frame: idle base scene, then every active
@@ -1053,13 +1068,7 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
     for (const entry of schema.entries) {
         if (entry.kind === 'queued') {
             if (localT >= entry.start && localT < entry.end) {
-                drawQueuedNode(
-                    state,
-                    entry.event,
-                    localT,
-                    entry.start,
-                    entry.end,
-                );
+                drawEventArrival(state, entry.event, localT - entry.start);
             }
 
             continue;
@@ -1123,7 +1132,7 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
 // mid-flight), so it is composed directly instead.
 function drawStaticFrame(state: RenderState) {
     drawBaseScene(state);
-    drawQueuedNode(state, 2, 1200, 0, 6000);
+    drawEventArrival(state, 2, ARRIVAL_IN_MS + ARRIVAL_HOLD_MS / 2);
 }
 
 // ---------------------------------------------------------------------------
