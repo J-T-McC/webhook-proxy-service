@@ -99,9 +99,9 @@ const EVENT_JOURNEY: JourneyStep[] = [
         end: 1630,
         easing: 'inout',
     },
-    { kind: 'arrivalRing', dest: 1, start: 1430, end: 1690, easing: 'out' },
-    { kind: 'arrivalRing', dest: 2, start: 1530, end: 1790, easing: 'out' },
-    { kind: 'arrivalRing', dest: 3, start: 1630, end: 1890, easing: 'out' },
+    { kind: 'arrivalRing', dest: 1, start: 1430, end: 2330, easing: 'out' },
+    { kind: 'arrivalRing', dest: 2, start: 1530, end: 2430, easing: 'out' },
+    { kind: 'arrivalRing', dest: 3, start: 1630, end: 2530, easing: 'out' },
 ];
 
 // Global pacing multiplier. The first build ran the full two-phase loop in
@@ -121,11 +121,11 @@ const PENDING_LEAD = 1800;
 // this long under FIFO, which is the zero-gap handoff the mode actually promises.
 const EVENT_SETTLE = 1960 * TIME_SCALE;
 
-// Event 2 leaves while Event 1 is barely clear of its own ingest node, so both
-// left-hand wires carry a pulse at the same time. That simultaneous left side is
-// the Async claim at its most legible; a larger offset pushed the overlap into
-// the fan-out half where the shared paths make it harder to read as two events.
-const ASYNC_OFFSET = 150 * TIME_SCALE;
+// Event 2 leaves while Event 1 is still on its ingest leg, so both left-hand
+// wires carry a pulse at once — but far enough behind that they read as two
+// separate events rather than one wide pulse. 150ms was too tight and looked
+// like a single synchronized pair.
+const ASYNC_OFFSET = 330 * TIME_SCALE;
 
 function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
     return EVENT_JOURNEY.map((step): TimelineEntry => {
@@ -154,7 +154,7 @@ function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
 const ASYNC_SCHEMA: Schema = {
     id: 'async',
     label: 'Async',
-    duration: 2500 * TIME_SCALE + PENDING_LEAD,
+    duration: 2850 * TIME_SCALE + PENDING_LEAD,
     entries: [
         { event: 1, kind: 'queued', start: 0, end: PENDING_LEAD },
         {
@@ -174,7 +174,7 @@ const ASYNC_SCHEMA: Schema = {
 const FIFO_SCHEMA: Schema = {
     id: 'fifo',
     label: 'FIFO',
-    duration: 4150 * TIME_SCALE + PENDING_LEAD,
+    duration: 4500 * TIME_SCALE + PENDING_LEAD,
     entries: [
         { event: 1, kind: 'queued', start: 0, end: PENDING_LEAD },
         {
@@ -824,32 +824,65 @@ function drawBaseScene(state: RenderState) {
 function drawQueuedNode(
     state: RenderState,
     event: 1 | 2,
-    progress: number,
+    localT: number,
+    start: number,
+    end: number,
 ): void {
     const { ctx, geo, tokens, visuals } = state;
     const center = geo.ingest[event - 1];
+    const duration = end - start;
+    const elapsed = localT - start;
 
-    // Fast ease-in, long hold, quick release as the dispatch moment arrives.
-    const RELEASE_FROM = 0.88;
-    const intensity =
-        progress < 0.12
-            ? ease('out', progress / 0.12)
-            : progress > RELEASE_FROM
-              ? 1 - ease('out', (progress - RELEASE_FROM) / (1 - RELEASE_FROM))
-              : 1;
+    // Release is a fixed wall-clock beat, not a fraction of the queued window —
+    // Event 2 under FIFO waits several times longer than Event 1 does, and a
+    // proportional release would make its hand-off crawl while Event 1's snaps.
+    const RELEASE_MS = 560;
+    const releaseStart = Math.max(0, duration - RELEASE_MS);
+    const fadeIn = Math.min(1, elapsed / 320);
 
     const x = center.x - geo.nodeW / 2;
     const y = center.y - geo.nodeH / 2;
+    const baseAlpha = visuals.queuedEdgeAlpha * ease('out', fadeIn);
 
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
     ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
-    ctx.strokeStyle = withAlpha(
-        tokens.accentFrom,
-        visuals.queuedEdgeAlpha * intensity,
-    );
-    ctx.shadowBlur = visuals.arrivalEdgeBlur * 0.6 * geo.scale * intensity;
+
+    if (elapsed < releaseStart) {
+        ctx.strokeStyle = withAlpha(tokens.accentFrom, baseAlpha);
+        ctx.shadowBlur = visuals.arrivalEdgeBlur * 0.6 * geo.scale;
+    } else {
+        // The border does not simply dim — it drains left-to-right, as though
+        // the charge sitting in the node is being drawn out into the pipe that
+        // leaves from its right edge. A moving soft edge sweeps across the
+        // node's width; everything behind it has already left.
+        const sweep = ease('inout', (elapsed - releaseStart) / RELEASE_MS);
+        const SOFT = 0.22;
+        const gradient = ctx.createLinearGradient(x, y, x + geo.nodeW, y);
+        const lead = Math.min(1, Math.max(0, sweep + SOFT));
+        const trail = Math.min(1, Math.max(0, sweep - SOFT));
+
+        gradient.addColorStop(0, withAlpha(tokens.accentFrom, 0));
+
+        if (trail > 0) {
+            gradient.addColorStop(trail, withAlpha(tokens.accentFrom, 0));
+        }
+
+        gradient.addColorStop(
+            lead,
+            withAlpha(tokens.accentFrom, baseAlpha * (1 - sweep * 0.35)),
+        );
+        gradient.addColorStop(
+            1,
+            withAlpha(tokens.accentFrom, baseAlpha * (1 - sweep * 0.35)),
+        );
+
+        ctx.strokeStyle = gradient;
+        ctx.shadowBlur =
+            visuals.arrivalEdgeBlur * 0.6 * geo.scale * (1 - sweep);
+    }
+
     ctx.shadowColor = withAlpha(tokens.accentFrom, visuals.bloomAlpha * 0.7);
     ctx.stroke();
     ctx.restore();
@@ -881,11 +914,11 @@ function drawArrivalRingAndWash(
     ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
     ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
     ctx.strokeStyle = withAlpha(
-        tokens.accentTo,
+        tokens.accentFrom,
         visuals.arrivalEdgeAlpha * glow,
     );
     ctx.shadowBlur = visuals.arrivalEdgeBlur * geo.scale * glow;
-    ctx.shadowColor = withAlpha(tokens.accentTo, visuals.bloomAlpha * glow);
+    ctx.shadowColor = withAlpha(tokens.accentFrom, visuals.bloomAlpha * glow);
     ctx.stroke();
     ctx.restore();
 }
@@ -967,7 +1000,9 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
                 drawQueuedNode(
                     state,
                     entry.event,
-                    (localT - entry.start) / (entry.end - entry.start),
+                    localT,
+                    entry.start,
+                    entry.end,
                 );
             }
 
@@ -1030,7 +1065,7 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
 // mid-flight), so it is composed directly instead.
 function drawStaticFrame(state: RenderState) {
     drawBaseScene(state);
-    drawQueuedNode(state, 2, 0.5);
+    drawQueuedNode(state, 2, 1200, 0, 6000);
 }
 
 // ---------------------------------------------------------------------------
