@@ -856,7 +856,67 @@
   in the diff still cites the retired NULL-columns rationale; the #7 diff contains no new migration
   file.
 - **Testing:** the full-suite run itself, plus the grep-based docs audit.
-- **Completion notes:** _pending_
+- **Completion notes:** **Full gate run — all green:** `./vendor/bin/sail test --parallel` (759
+  passed, 2820 assertions — unchanged from T12's baseline, no rot); `composer lint` (Pint, clean);
+  `composer types:check` (PHPStan level 7, 0 errors); `pnpm lint:check` (clean, repo-wide — the
+  T6-documented concurrent-worktree pollution is gone); `pnpm types:check` (clean); `pnpm
+  format:check` (clean); `pnpm run build` (succeeded against a fresh rebuild — see the emitted
+  chunk list, including `ProxyForm-*.js`/`Show-*.js`/`Edit-*.js`).
+
+  **Docs cross-check:** grepped `app/`, `resources/js/`, and `tests/` for the literal retired
+  phrase ("a simple-mode proxy's columns are always NULL") and for every citation of "ADR-015
+  Decision 3" to find any instance still asserting its superseded persistence invariant ("Simple-
+  mode proxies always hold NULL/NULL … the controller clears"). T10's `Show.vue:101-105` fix was
+  already in place and correctly cites the T5/T1 suppression mechanism and ADR-018 Decision 4. No
+  further instance of the retired invariant was found anywhere in the diff or the pre-existing
+  tree: `RetryBackoffStrategy.php:6`, `DeliveryResource.php:14`, `RetryPolicy.php:13`,
+  `ProxyResource.php`, `ProxyFormResource.php`, both Form Requests' docblocks (T1), and
+  `ProxyUpdateTest.php:227` all cite ADR-015 Decision 3 only for provenance/the single-resolver
+  rule (reaffirmed, unchanged) or already cite ADR-018 for the persistence-invariant supersession.
+  `ProxyForm.vue:159`'s "A Simple-mode submission ALWAYS sends null" comment describes the T9
+  client-side normalisation of the outgoing request, not persisted-column state, and is accurate
+  as written. No corrections were required beyond T10's own.
+
+  **AC4 positive proof:** `git diff --stat f72153f..HEAD -- database/migrations/` returns empty —
+  no migration file appears anywhere in the #7 diff (27 files changed, 1999 insertions(+), 189
+  deletions(-), confirmed by `git diff --name-only f72153f..HEAD`).
+
+  **Load-bearing invariants — all verified by inspection:**
+  - *Three-reader invariant:* `grep -rn "retry_attempt_limit\|retry_backoff_strategy" app/`
+    confirms the only two raw-column reads (`$proxy->retry_attempt_limit` /
+    `$proxy->retry_backoff_strategy`) are inside `RetryPolicy::configuredAttemptLimitFor()`/
+    `configuredStrategyFor()` (`RetryPolicy.php:48,59`), plus `ProxyFormResource::toArray()`
+    (`ProxyFormResource.php:36-37`) — exactly three. Every other hit is a `$fillable`/`@property`/
+    cast declaration (`Proxy.php`), a validation-rule key on request input (Form Requests), a
+    `$data[...]` read from validated request input in the controller (not the model column), or
+    `ProxyResource` delegating to `RetryPolicy` rather than reading the column itself. No fourth
+    reader exists.
+  - *`ProxyFormResource` single-caller invariant:* `grep -rn "ProxyFormResource" app/
+    resources/js/` shows exactly one instantiation, `ProxyController::edit()`
+    (`ProxyController.php:146`) — confirmed inside the `edit()` method body, not `create()`/
+    `index()`/`show()`.
+  - *`RetryPolicy` sole reader of all seven `retry.*` keys:* `grep -rn "config('retry\.\|config(\"retry\." app/`
+    shows the only executable read is `config("retry.{$key}")` inside
+    `RetryPolicy::positiveConfigInt()`; `SweepDueRetries.php` contains no `config(` call at all
+    (T11 already routed it through `sweepGraceSeconds()`). All seven keys in `config/retry.php`
+    (`default_attempt_limit`, `max_attempt_limit`, `exponential_base_seconds`,
+    `exponential_multiplier`, `exponential_max_delay_seconds`, `fixed_interval_seconds`,
+    `sweep_grace_seconds`) are read exclusively via `positiveConfigInt()` call sites inside
+    `RetryPolicy.php`.
+  - *`PipelineFactory` untouched:* `git diff f72153f..HEAD -- app/Pipeline/PipelineFactory.php`
+    returns zero diff lines — not the enum branches, not the reserved `#8`/`#9`/`#12` comments.
+  - *Excluded Senior-Developer items absent from the diff:* `git diff f72153f..HEAD --
+    app/Actions/DeliverToDestination.php` and `-- bootstrap/app.php` both return zero diff lines.
+    Confirmed both fixes already exist on `main` independently of #7 —
+    `bootstrap/app.php:36` calls `trustProxies(...)`, and `DeliverToDestination.php:197`'s comment
+    confirms the trashed-inclusive soft-delete handling is in place.
+
+  No defects found; no corrections beyond re-confirming T10's prior fix were needed. #7 is ready
+  for hand-off to the Reviewer.
+
+  Verified: `./vendor/bin/sail test --parallel` (759 passed, 2820 assertions); `composer lint`
+  (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors); `pnpm lint:check` (clean);
+  `pnpm types:check` (clean); `pnpm format:check` (clean); `pnpm run build` (succeeds).
 
 ---
 
