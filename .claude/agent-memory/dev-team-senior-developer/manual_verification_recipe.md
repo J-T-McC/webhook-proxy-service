@@ -39,5 +39,14 @@ recipe:
 Record the concrete seed shape, the exact selector/assertion, and the observed output verbatim in
 the task's completion notes — "manually verified" with no steps is not verification.
 
+**Standing trap (review-07 Finding 8): a fresh-build claim can actually be served from the Vite
+dev server, not the build you just ran.** If `public/hot` exists on disk and a `pnpm run dev`
+process is still running, Laravel's Vite helper serves assets from the dev server regardless of
+what `pnpm run build` just wrote to `public/build` — a "verified against a fresh build" claim in
+that state is false, and this exact trap once hid a production-only bug (`withAlpha`, PR #12).
+Before trusting any live/manual verification pass: `ls public/hot` (should not exist) and confirm
+no dev server is running; if `public/hot` is present, remove it or stop the dev process before
+running `pnpm run build` and re-checking.
+
 See also [[frontend_checks]] for the scoped-eslint / stale-worktree gotcha that often comes up in the
 same tasks that require this recipe.
