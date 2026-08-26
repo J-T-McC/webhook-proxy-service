@@ -104,7 +104,13 @@ const EVENT_JOURNEY: JourneyStep[] = [
     { kind: 'arrivalRing', dest: 3, start: 1270, end: 1530, easing: 'out' },
 ];
 
-const EVENT_SETTLE = 1600;
+// Global pacing multiplier. The first build ran the full two-phase loop in
+// 6.1s, which cycled the legend often enough that the label switching read as
+// flicker. Every duration below is authored at the original tempo and scaled
+// here, so pacing stays a single knob rather than 20 scattered numbers.
+const TIME_SCALE = 2.5;
+
+const EVENT_SETTLE = 1600 * TIME_SCALE;
 
 function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
     return EVENT_JOURNEY.map((step): TimelineEntry => {
@@ -113,8 +119,8 @@ function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
                 event,
                 kind: 'travel',
                 segment: step.segment as SegmentKey,
-                start: step.start + offset,
-                end: step.end + offset,
+                start: step.start * TIME_SCALE + offset,
+                end: step.end * TIME_SCALE + offset,
                 easing: step.easing,
             };
         }
@@ -123,8 +129,8 @@ function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
             event,
             kind: 'arrivalRing',
             dest: step.dest as 1 | 2 | 3,
-            start: step.start + offset,
-            end: step.end + offset,
+            start: step.start * TIME_SCALE + offset,
+            end: step.end * TIME_SCALE + offset,
             easing: step.easing,
         };
     });
@@ -136,8 +142,11 @@ function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
 const ASYNC_SCHEMA: Schema = {
     id: 'async',
     label: 'Async',
-    duration: 2500,
-    entries: [...buildEventJourney(1, 0), ...buildEventJourney(2, 500)],
+    duration: 2500 * TIME_SCALE,
+    entries: [
+        ...buildEventJourney(1, 0),
+        ...buildEventJourney(2, 500 * TIME_SCALE),
+    ],
 };
 
 // Event 2 stays queued (static, muted) at its own ingest node until Event 1
@@ -147,7 +156,7 @@ const ASYNC_SCHEMA: Schema = {
 const FIFO_SCHEMA: Schema = {
     id: 'fifo',
     label: 'FIFO',
-    duration: 3600,
+    duration: 3600 * TIME_SCALE,
     entries: [
         ...buildEventJourney(1, 0),
         { event: 2, kind: 'queued', start: 0, end: EVENT_SETTLE },
@@ -155,7 +164,7 @@ const FIFO_SCHEMA: Schema = {
     ],
 };
 
-const TOTAL_LOOP = ASYNC_SCHEMA.duration + FIFO_SCHEMA.duration; // 6100ms
+const TOTAL_LOOP = ASYNC_SCHEMA.duration + FIFO_SCHEMA.duration; // 15250ms at TIME_SCALE 2.5
 
 // ---------------------------------------------------------------------------
 // Easing — three named cubic-beziers, used everywhere in this illustration
@@ -395,17 +404,21 @@ function computeGeometry(width: number, height: number): Geometry {
         height,
         scale,
         ingest: [
-            { x: width * 0.08, y: height * 0.3 },
-            { x: width * 0.08, y: height * 0.7 },
+            { x: width * 0.1, y: height * 0.28 },
+            { x: width * 0.1, y: height * 0.72 },
         ],
+        // One shared junction, not one per event. Two junctions each fanning to
+        // the same three destinations produced six crossing lines — a tangle
+        // that read as noise. A single fan point is also the truthful shape:
+        // a proxy's destination set is one set, whichever event is passing.
         junction: [
-            { x: width * 0.42, y: height * 0.3 },
-            { x: width * 0.42, y: height * 0.7 },
+            { x: width * 0.45, y: height * 0.5 },
+            { x: width * 0.45, y: height * 0.5 },
         ],
         dest: [
-            { x: width * 0.88, y: height * 0.2 },
-            { x: width * 0.88, y: height * 0.5 },
-            { x: width * 0.88, y: height * 0.8 },
+            { x: width * 0.87, y: height * 0.18 },
+            { x: width * 0.87, y: height * 0.5 },
+            { x: width * 0.87, y: height * 0.82 },
         ],
         nodeW,
         nodeH,
@@ -424,19 +437,26 @@ type EventPaths = Record<SegmentKey, SegmentPaths>;
 function buildEventPaths(eventIndex: 0 | 1, geo: Geometry): EventPaths {
     const ingestPoint = geo.ingest[eventIndex];
     const junctionPoint = geo.junction[eventIndex];
+    // Wires meet a node's edge, never its centre. Running them to the centre
+    // drew the pulse straight through the node's label.
+    const edge = geo.nodeW / 2;
 
     const ingestJunction: PathSpec = {
         kind: 'line',
-        p0: ingestPoint,
+        p0: { x: ingestPoint.x + edge, y: ingestPoint.y },
         p1: junctionPoint,
     };
 
-    const toDest = geo.dest.map((destPoint): PathSpec => ({
-        kind: 'quad',
-        p0: junctionPoint,
-        p1: destPoint,
-        c: quadControlPoint(junctionPoint, destPoint, geo.height),
-    }));
+    const toDest = geo.dest.map((destPoint): PathSpec => {
+        const endPoint = { x: destPoint.x - edge, y: destPoint.y };
+
+        return {
+            kind: 'quad',
+            p0: junctionPoint,
+            p1: endPoint,
+            c: quadControlPoint(junctionPoint, endPoint, geo.height),
+        };
+    });
 
     const build = (spec: PathSpec): SegmentPaths => ({
         spec,
@@ -461,6 +481,8 @@ interface Tokens {
     border: string;
     primary: string;
     mutedForeground: string;
+    accentFrom: string;
+    accentTo: string;
 }
 
 function readTokens(): Tokens {
@@ -471,6 +493,8 @@ function readTokens(): Tokens {
         border: styles.getPropertyValue('--border').trim(),
         primary: styles.getPropertyValue('--primary').trim(),
         mutedForeground: styles.getPropertyValue('--muted-foreground').trim(),
+        accentFrom: styles.getPropertyValue('--illustration-from').trim(),
+        accentTo: styles.getPropertyValue('--illustration-to').trim(),
     };
 }
 
@@ -504,42 +528,39 @@ interface ThemeVisuals {
     pulseTailLength: number;
     bloomBlur: number;
     bloomAlpha: number;
-    ringDeltaRadius: number;
-    ringPeakAlpha: number;
-    ringStrokeWidth: number;
-    destWashAlpha: number;
+    arrivalEdgeWidth: number;
+    arrivalEdgeAlpha: number;
+    arrivalEdgeBlur: number;
 }
 
 const DARK_VISUALS: ThemeVisuals = {
-    gridLineAlpha: 0.08,
+    gridLineAlpha: 0.14,
     idleLineWidth: 1.5,
-    idleLineAlpha: 0.15,
-    hotLineWidth: 2.5,
-    hotLineAlpha: 0.55,
+    idleLineAlpha: 0.22,
+    hotLineWidth: 2,
+    hotLineAlpha: 0.3,
     pulseCoreWidth: 3,
     pulseTailLength: 64,
     bloomBlur: 14,
     bloomAlpha: 0.4,
-    ringDeltaRadius: 16,
-    ringPeakAlpha: 0.55,
-    ringStrokeWidth: 1.5,
-    destWashAlpha: 0.08,
+    arrivalEdgeWidth: 2,
+    arrivalEdgeAlpha: 0.95,
+    arrivalEdgeBlur: 18,
 };
 
 const LIGHT_VISUALS: ThemeVisuals = {
-    gridLineAlpha: 0.05,
+    gridLineAlpha: 0.1,
     idleLineWidth: 1.5,
-    idleLineAlpha: 0.25,
-    hotLineWidth: 2.5,
-    hotLineAlpha: 0.65,
+    idleLineAlpha: 0.3,
+    hotLineWidth: 2,
+    hotLineAlpha: 0.4,
     pulseCoreWidth: 3,
     pulseTailLength: 64,
     bloomBlur: 5,
     bloomAlpha: 0.18,
-    ringDeltaRadius: 16,
-    ringPeakAlpha: 0.4,
-    ringStrokeWidth: 1.5,
-    destWashAlpha: 0.08,
+    arrivalEdgeWidth: 2,
+    arrivalEdgeAlpha: 0.9,
+    arrivalEdgeBlur: 8,
 };
 
 const JUNCTION_ALPHA = 0.4; // same both themes — static anchor, always drawn
@@ -563,6 +584,7 @@ interface RenderState {
     isDark: boolean;
     visuals: ThemeVisuals;
     gridLayer: HTMLCanvasElement;
+    fontFamily: string;
 }
 
 function buildGridLayer(
@@ -659,6 +681,30 @@ function strokeSegment(
     ctx.stroke();
 }
 
+// Node labels. Drawn into the canvas with the app's own resolved font stack so
+// they match the page rather than approximating it. The illustration is
+// aria-hidden and the surrounding prose carries the meaning, so this text is
+// decorative — it exists to stop the nodes reading as blank boxes.
+function drawNodeLabel(
+    ctx: CanvasRenderingContext2D,
+    center: Point,
+    text: string,
+    color: string,
+    fontPx: number,
+    fontFamily: string,
+) {
+    ctx.save();
+    ctx.font = `500 ${fontPx}px ${fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    ctx.fillText(text, center.x, center.y);
+    ctx.restore();
+}
+
+const INGEST_LABELS = ['Event 1', 'Event 2'];
+const DEST_LABELS = ['Destination 1', 'Destination 2', 'Destination 3'];
+
 // Base scene: grid, idle connection lines, resting junction dots, and every
 // node — drawn every frame before any per-entry overlay, and the entirety
 // of the reduced-motion static frame (see drawQueuedDot below).
@@ -667,7 +713,7 @@ function drawBaseScene(state: RenderState) {
     ctx.clearRect(0, 0, state.width, state.height);
     ctx.drawImage(state.gridLayer, 0, 0, state.width, state.height);
 
-    const idleColor = withAlpha(tokens.border, visuals.idleLineAlpha);
+    const idleColor = withAlpha(tokens.mutedForeground, visuals.idleLineAlpha);
     const idleWidth = visuals.idleLineWidth * geo.scale;
 
     for (const eventPaths of paths) {
@@ -685,10 +731,13 @@ function drawBaseScene(state: RenderState) {
         ctx.fill();
     }
 
-    const nodeStroke = withAlpha(tokens.border, 1);
+    const nodeStroke = withAlpha(tokens.mutedForeground, 0.45);
     const nodeStrokeWidth = NODE_STROKE_WIDTH * geo.scale;
 
-    for (const ingest of geo.ingest) {
+    const labelColor = withAlpha(tokens.mutedForeground, 0.9);
+    const fontPx = Math.round(12 * geo.scale);
+
+    geo.ingest.forEach((ingest, i) => {
         drawRoundedRect(
             ctx,
             ingest,
@@ -699,9 +748,17 @@ function drawBaseScene(state: RenderState) {
             nodeStroke,
             nodeStrokeWidth,
         );
-    }
+        drawNodeLabel(
+            ctx,
+            ingest,
+            INGEST_LABELS[i],
+            labelColor,
+            fontPx,
+            state.fontFamily,
+        );
+    });
 
-    for (const dest of geo.dest) {
+    geo.dest.forEach((dest, i) => {
         drawRoundedRect(
             ctx,
             dest,
@@ -712,7 +769,15 @@ function drawBaseScene(state: RenderState) {
             nodeStroke,
             nodeStrokeWidth,
         );
-    }
+        drawNodeLabel(
+            ctx,
+            dest,
+            DEST_LABELS[i],
+            labelColor,
+            fontPx,
+            state.fontFamily,
+        );
+    });
 }
 
 function drawQueuedDot(state: RenderState, event: 1 | 2) {
@@ -737,26 +802,26 @@ function drawArrivalRingAndWash(
     const decay = ease(entry.easing, normalized);
     const dest = geo.dest[entry.dest - 1];
 
-    const washAlpha = visuals.destWashAlpha * (1 - decay);
-    drawRoundedRect(
-        ctx,
-        dest,
-        geo.nodeW,
-        geo.nodeH,
-        geo.cornerR,
-        withAlpha(tokens.primary, washAlpha),
-        'transparent',
-        0,
-    );
+    // Edge glow only. The node's own border brightens to the accent and blooms,
+    // then eases back — nothing expands outward and the interior is untouched.
+    // The earlier expanding ring read as an explosion at each destination,
+    // which fought the calm of the travelling pulse.
+    const glow = 1 - decay;
+    const x = dest.x - geo.nodeW / 2;
+    const y = dest.y - geo.nodeH / 2;
 
-    const ringAlpha = visuals.ringPeakAlpha * (1 - decay);
-    const baseRadius = geo.nodeH / 2;
-    const radius = baseRadius + visuals.ringDeltaRadius * geo.scale * decay;
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(dest.x, dest.y, radius, 0, Math.PI * 2);
-    ctx.lineWidth = visuals.ringStrokeWidth * geo.scale;
-    ctx.strokeStyle = withAlpha(tokens.primary, ringAlpha);
+    ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
+    ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
+    ctx.strokeStyle = withAlpha(
+        tokens.accentTo,
+        visuals.arrivalEdgeAlpha * glow,
+    );
+    ctx.shadowBlur = visuals.arrivalEdgeBlur * geo.scale * glow;
+    ctx.shadowColor = withAlpha(tokens.accentTo, visuals.bloomAlpha * glow);
     ctx.stroke();
+    ctx.restore();
 }
 
 // Drawn as a single continuous stroke with a gradient `strokeStyle` (not
@@ -770,7 +835,8 @@ function drawPulse(
     state: RenderState,
     table: PathTable,
     headT: number,
-    coreColor: string,
+    headColor: string,
+    tailColor: string,
     bloomColor: string,
 ) {
     const { ctx, geo, visuals } = state;
@@ -788,10 +854,14 @@ function drawPulse(
     );
     const stops = 16;
 
+    // frac 0 = head, frac 1 = tail end. The head burns cyan and the trail
+    // cools through violet as it fades — the colour shift does as much work as
+    // the alpha ramp in making this read as current rather than a moving shape.
     for (let i = 0; i <= stops; i++) {
         const frac = i / stops;
         const alpha = 1 - ease('out', frac);
-        gradient.addColorStop(frac, withAlpha(coreColor, alpha));
+        const hue = frac < 0.55 ? headColor : tailColor;
+        gradient.addColorStop(frac, withAlpha(hue, alpha));
     }
 
     const samples = 20;
@@ -821,8 +891,9 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
     drawBaseScene(state);
 
     const { ctx, paths, tokens, visuals } = state;
-    const coreColor = tokens.primary;
-    const bloomColor = withAlpha(tokens.primary, visuals.bloomAlpha);
+    const headColor = tokens.accentTo;
+    const tailColor = tokens.accentFrom;
+    const bloomColor = withAlpha(tokens.accentTo, visuals.bloomAlpha);
 
     for (const entry of schema.entries) {
         if (entry.kind === 'queued') {
@@ -845,11 +916,14 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
                 const hotAlpha = visuals.hotLineAlpha;
                 const width = idleWidth + (hotWidth - idleWidth) * hot;
                 const alpha = idleAlpha + (hotAlpha - idleAlpha) * hot;
+                // The heated line takes the accent rather than the neutral
+                // border colour, so the wire itself carries the charge instead
+                // of just getting brighter grey.
                 strokeSegment(
                     ctx,
                     eventPaths[entry.segment].spec,
                     width,
-                    withAlpha(tokens.border, alpha),
+                    withAlpha(tokens.accentFrom, alpha),
                 );
             }
 
@@ -862,7 +936,8 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
                     state,
                     eventPaths[entry.segment].table,
                     t,
-                    coreColor,
+                    headColor,
+                    tailColor,
                     bloomColor,
                 );
             }
@@ -939,11 +1014,14 @@ function buildRenderState(
     const tokens = readTokens();
     const isDark = document.documentElement.classList.contains('dark');
     const visuals = isDark ? DARK_VISUALS : LIGHT_VISUALS;
+    // Grid rides on muted-foreground, not --border: on dark, --border is
+    // hsl(0 0% 14.9%) against an hsl(0 0% 3.9%) field, so a low-alpha grid drawn
+    // in it is invisible.
     const gridLayer = buildGridLayer(
         width,
         height,
         dpr,
-        tokens.border,
+        tokens.mutedForeground,
         visuals.gridLineAlpha,
     );
 
@@ -958,6 +1036,7 @@ function buildRenderState(
         isDark,
         visuals,
         gridLayer,
+        fontFamily: getComputedStyle(document.body).fontFamily,
     };
 }
 

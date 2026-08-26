@@ -124,6 +124,13 @@
     --sidebar-border: hsl(0 0% 91%);
     --sidebar-ring: hsl(217.2 91.2% 59.8%);
     --sidebar: hsl(0 0% 98%);
+
+    /* Landing-illustration accents. Scoped to the marketing fan-out diagram —
+       the app UI palette above stays greyscale by design and is untouched.
+       Light values are deeper and less luminous than dark so they hold contrast
+       against a white field instead of blooming out. */
+    --illustration-from: hsl(258 72% 54%);
+    --illustration-to: hsl(190 82% 42%);
 }
 
 .dark {
@@ -160,6 +167,11 @@
     --sidebar-border: hsl(0 0% 15.9%);
     --sidebar-ring: hsl(217.2 91.2% 59.8%);
     --sidebar: hsl(240 5.9% 10%);
+
+    /* Landing-illustration accents — brighter and more saturated than light,
+       since they sit on a near-black field and carry the bloom. */
+    --illustration-from: hsl(258 90% 68%);
+    --illustration-to: hsl(190 95% 58%);
 }
 
 @layer base {
