@@ -808,7 +808,46 @@
   confirm the two-tier headline, the bridge sentence, the zero-traffic "No deliveries yet" state
   (seed a team with a proxy and no deliveries), and window-selector navigation across `24h`/`7d`/
   `30d`, in both light and dark theme.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented the page-level `WindowSelector` (three `Button`-wrapped `Link`s,
+  `aria-current="true"` on the active window, full-page Inertia navigation carrying `?window=`) and
+  the "Deliveries" card (two-tier `dl`/`dt`/`dd` headline + bridge sentence) directly in
+  `Dashboard.vue`, per this task's own Files list (no separate `WindowSelector.vue` — T14 doesn't
+  name one, and design-11 only names the widget conceptually; reused if T19 needs the identical
+  markup, out of scope here). Removed exactly the first of the four existing `PlaceholderPattern`
+  blocks (the first grid cell), leaving the other three in place for T15–T17 to remove in turn.
+  Every label/caption/rate/bridge-sentence string comes from `analyticsLabels.ts` (T12) — no
+  zero-state branching was needed in the template beyond what `formatRate()`/`bridgeSentence()`
+  already encode (`rate === null` → "No deliveries yet"; `bridgeFailedAttempts === 0` → sentence
+  omitted via `v-if`), which is exactly the point of centralising that logic in T12 rather than
+  duplicating a zero-check per card across T14–T20.
+
+  **Manual verification** (recipe in agent memory `manual_verification_recipe.md`): removed
+  `public/hot` (present at session start — the review-07 Finding 8 standing trap), ran `pnpm run
+  build`, seeded two throwaway teams via `sail tinker` — one with the canonical fixture (one
+  delivery, three attempts: two failed, one succeeded) on a real proxy/destination, one with a
+  proxy and zero deliveries — logged in via a real Playwright login flow (`User::factory()`'s
+  default password `password`) against `http://localhost` (Sail).
+
+  - **Has-traffic team:** headline read exactly `100%` / "1 of 1 delivered · last 30 days" and
+    `33%` / "1 of 3 attempts succeeded · last 30 days" — the canonical fixture's correct
+    delivery/attempt split (T4's completion notes already flagged the task doc's own worked
+    example as internally inconsistent; this run reconfirms `UnitFigure::$rate` reads 33%, not
+    67%, for 1-of-3 succeeded). Bridge sentence read "2 attempts failed before these deliveries
+    succeeded — see Retry & replay below." Clicking `7d` navigated to
+    `.../dashboard?window=7d` and `aria-current="true"` moved to the clicked button. Verified
+    visually in both light and dark theme (screenshots inspected) — headline, captions, bridge
+    sentence and window buttons all render correctly and legibly in both.
+  - **Zero-traffic team (proxy exists, no deliveries):** headline read `No deliveries yet` for the
+    rate and "0 of 0 delivered · last 30 days" for the count caption (Amendment A(i) — a rate, not
+    a count, reads "no data"); no bridge-sentence paragraph rendered at all (0 elements matched),
+    confirming the `v-if="bridgeText"` omission.
+
+  Cleaned up both throwaway teams/users (`forceDelete()`, children before parents) via a second
+  `sail tinker` call afterward.
+
+  Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green. Backend suite
+  unaffected by this frontend-only task; not re-run here (T13's own commit already left it green,
+  see below for T15–T17's shared re-verification).
 
 ## T15 — `Dashboard.vue`: Proxies breakdown table (AC6, AC15, correction C2/C4/C5; plan flagged design call 5)
 - **Description:** "Proxies" card: `Table` listing `props.proxies` (T13's `ProxyBreakdownRow[]`) —
