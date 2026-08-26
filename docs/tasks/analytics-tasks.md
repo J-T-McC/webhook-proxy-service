@@ -1576,7 +1576,81 @@
 - **Testing:** manual verification (no harness) — `pnpm run build`, arrive via each T23 entry
   point, confirm chip rendering/removal/labels, the explanatory copy, and the empty-filtered state
   (filter to a combination with zero matches), both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented directly in `resources/js/pages/proxies/events/Index.vue`, the
+  page's own new `filters: EventListFilters` prop (T21) driving everything below — no separate
+  `FilterChips.vue` component (the task's own Files list names only this one file; the composition
+  is small enough, and single-surface enough, to stay inline, matching design-11's own "no existing
+  chip/tag primitive... built from `Badge` + a button" guidance literally).
+
+  **Chip row** (`hasActiveFilters` computed — `true` iff `filters.destination !== null ||
+  filters.outcome !== null`, matching T21's own "arrived directly" reading, so the chip row and the
+  query narrowing can never disagree about whether filtering is active): up to three `Badge`s —
+  Window (always present once the row renders, reading `windowLabel()` from `analyticsLabels.ts`,
+  T12, so the wording stays in lockstep with `AnalyticsWindow::label()`), Destination (`v-if`
+  `filters.destination`), Outcome (`v-if` `filters.outcome`, reading the server-resolved `label`
+  verbatim — "Terminal failure (deliveries)"/"(attempts)" — prefixed with "Outcome: " in the
+  template, per design-11 Screen 4's exact chip text). Each chip's remove control is a real
+  `<button type="button">` (native `Enter`/`Space` handling, matching T15's sortable-header
+  precedent) carrying a discernible `aria-label` — `"Remove window filter"`, `` `Remove destination
+  filter: ${url}` `` (the destination's own url, per design-11 § Accessibility's exact wording),
+  `"Remove outcome filter"` — never a bare icon-only `×`; the visible `×` glyph sits alongside the
+  label, not instead of it.
+
+  **`filterHref(remove)`** rebuilds the Events list URL from the *currently active* filter values
+  minus the one being removed, so a removal is a genuine re-navigation (design-11 § Interactions —
+  "not a client-side row filter") rather than client-side chip hiding; `remove: 'all'` (the
+  "Clear filters" link) drops every parameter, landing on the bare, unfiltered route. `outcome`'s
+  round-trip back to a query token (`outcomeQueryToken()`: `'delivery'` → `'delivery_failed'`,
+  `'attempt'` → `'attempt_failed'`) is the inverse of `ProxyEventController::resolveOutcomeUnit()`
+  (T21) — the only place that mapping exists on the frontend, since every other frontend href (T23)
+  only ever *sets* the token, never needs to read one back out of a resolved `unit`.
+
+  **Explanatory line** (`outcomeExplanatoryLine` computed, `null` when no Outcome chip is active):
+  the delivery-grain wording is design-11 Screen 4's exact copy, verbatim; the attempt-grain wording
+  is the same sentence with "delivery" swapped for "attempt" — T24's own task text names this as an
+  open substitution ("adjusted per attempt-grain wording, C1(b))") without spelling out the second
+  sentence, and a straightforward parallel construction is the only reading available, so it was
+  implemented rather than escalated.
+
+  **Empty-filtered state**: the existing "No events yet" card branches on `hasActiveFilters` — a
+  filtered-empty arrival reads "No events match these filters" plus adjusted helper text and a
+  **Clear filters** `Link` (`filterHref('all')`) in place of the unfiltered card's "View ingest URL"
+  button (swapped, not appended — a member who drilled in via a filter needs to clear it, not find
+  the ingest URL); an unfiltered empty arrival is byte-identical to the pre-#11 card. The chip row
+  itself sits above this branch unconditionally, so it stays visible in the empty-filtered case
+  exactly as the AC requires.
+
+  **Manual verification** (recipe in agent memory `manual_verification_recipe.md`): `public/hot`
+  absent already (confirmed), ran `pnpm run build`, seeded a throwaway team via `sail tinker` with
+  one proxy, two destinations, and two events (one with a failed delivery to destination A, one with
+  a succeeded delivery to destination B). Logged in via Playwright:
+
+  - **Arrived unfiltered:** `[aria-label="Active filters"]` matched 0 elements, both events rendered
+    in the table — visually and structurally identical to the pre-#11 surface (AC28).
+  - **Outcome filter** (`?outcome=delivery_failed`): chip row read exactly `"Window: last 30 days ×
+    Outcome: Terminal failure (deliveries) ×"`, the delivery-grain explanatory line rendered, and
+    the table showed exactly the one matching event — screenshots inspected in both light and dark
+    theme (both legible, chip and remove-glyph contrast fine in dark).
+  - **Removing the Outcome chip:** clicking its remove button navigated to `?window=30d` (the
+    `outcome` parameter genuinely dropped from the URL, not hidden client-side) and, since neither
+    `destination` nor `outcome` remained resolved, the chip row disappeared entirely on the next
+    render — confirming `window` alone never keeps the row "active," matching T21's own reading.
+  - **Destination filter:** chip read `"Window: last 30 days × Destination: POST
+    https://a.example.com/hook ×"`, and the destination remove button's `aria-label` read exactly
+    `"Remove destination filter: https://a.example.com/hook"`.
+  - **Empty-filtered state** (`?outcome=attempt_failed`, matching nothing in this fixture): heading
+    read "No events match these filters," a **Clear filters** link was present, the chip row (and
+    the attempt-grain explanatory line, "...matching attempt...") stayed visible above the empty
+    card, and clicking **Clear filters** navigated to the bare `/events` route with no query string
+    at all.
+
+  Cleaned up the throwaway team/proxy/destinations/events/deliveries/user afterward
+  (`forceDelete()`, children before parents).
+
+  Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green (one file needed a
+  Prettier re-format after the manual edit, applied and re-verified).
+  `./vendor/bin/sail test --filter "ProxyEvent"` re-run as a sanity check (55/55, unchanged) — this
+  task touches no production PHP file.
 
 ---
 
