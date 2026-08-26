@@ -10,6 +10,10 @@
   retry/backoff on the Action's job" seam and ADR-003's terminal-event hook for #13)
 - **Companions:** ADR-016 (FIFO composition; carries the ADR-011 supersessions this design
   requires) · ADR-017 (replay dispatch and the payload read surface)
+- **Partially superseded by:** **ADR-018** (Accepted, Project Owner 2026-08-25) supersedes **one
+  position of Decision 3** — the "simple-mode proxies always hold NULL/NULL" persistence
+  invariant — moving the enhanced-only gate from persistence to resolution. Annotated inline
+  at Decision 3. Everything else in this ADR stands unchanged.
 
 ## Question
 PRD-06 requires every failed destination delivery to be retried automatically on a bounded
@@ -67,6 +71,17 @@ default".** `retry_attempt_limit` (`TINYINT UNSIGNED NULL`, 1–10) and `retry_b
 (`VARCHAR NULL`, cast to `App\Enums\RetryBackoffStrategy { Exponential, Fixed }`). Simple-mode
 proxies always hold NULL/NULL (validation rejects, and the controller clears, values when
 `mode = simple`) — the system default applies to them fixed and silently (AC1/AC2).
+
+> **[Decision 3, the "always hold NULL/NULL" sentence — SUPERSEDED by ADR-018
+> (Accepted, Project Owner 2026-08-25).]** The Owner's Q-07-01(b) ruling (2026-08-21, carried by
+> PRD-07 AC14) preserves a persisted retry policy dormant on a simple-mode proxy, so the
+> controller no longer clears and a simple proxy **may** hold non-NULL values. The *guarantee*
+> is unchanged — a simple proxy is still governed by the fixed system default — but its
+> mechanism moves from persistence to resolution: `RetryPolicy` establishes
+> `mode === ProxyMode::Enhanced` before reading either column. The rest of this Decision,
+> including "`RetryPolicy` is the **single resolver** … no other consumer reads the columns or
+> `config('retry.*')`", is untouched and is what ADR-018 rests on.
+> ADR-018 is Accepted, so the resolution-time gate governs from #7 onward.
 `App\Services\RetryPolicy` is the **single resolver** (the `RetentionPolicy` pattern):
 `attemptLimitFor(Proxy)` (config default 5, hard-clamped to the cap 10),
 `strategyFor(Proxy)` (default exponential), `delayBefore(Proxy, int $attemptNumber)`. No other

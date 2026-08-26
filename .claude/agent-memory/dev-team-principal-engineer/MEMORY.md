@@ -1,2 +1,2 @@
-- [Project structure](project_structure.md) — ADRs in docs/architecture/ (001–014); ingest→dispatch seam; payload-table LONGBLOB/MySQL-only + json-can't-be-encrypted gotchas; native TeamRole/TeamPermission/HasTeams seam
+- [Project structure](project_structure.md) — ADRs in docs/architecture/ (001–018); ingest→dispatch seam; payload-table LONGBLOB/MySQL-only + json-can't-be-encrypted gotchas; mode/single-resolver seams + soft-deleted-proxy null gotcha; native TeamRole/TeamPermission/HasTeams seam
 - [Plan & ADR house format](plan_and_adr_house_format.md) — house deviations from the plugin templates; the Owner gate carve-out from PE self-certification; the Owner-amendment (§ Revision A / partial supersession) response pattern
