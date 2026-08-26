@@ -31,6 +31,29 @@
   binding, all unamended, and none is superseded. The candidates were walked one by one against
   the ADR bar — see § *Why no ADR was warranted here when the previous item needed one*.
 - **Approved by / date:** Principal Engineer, 2026-08-26 — **partial**, see Status.
+- **Revised:** **Revision A**, Principal Engineer, 2026-08-26 — answering
+  `docs/questions/prd-11-q-11-04-trend-day-drill-through.md`. See § *Revision A* immediately below.
+
+## Revision A — what changed here, and why (Principal Engineer, 2026-08-26)
+
+The Senior Developer paused the Trend-chart portion of **T23** and raised **`Q-11-04`**: the
+approved design requires the Proxy Show trend table's rows to drill through **per day**, and this
+plan as certified gave the Events list resolver no mechanism for narrowing to a single calendar
+day. That is a genuine shape disagreement between two approved documents, not an ambiguity, and it
+is resolved here on my own plan authority rather than escalated — it is an API-contract call, which
+is the Principal Engineer's decision authority, and it trips none of `CLAUDE.md`'s
+major-decision triggers (see § *Technical rulings* 10 for that walk, item by item).
+
+**This revision reopens nothing.** Neither Owner-approval flag is touched: the four-index change
+set is unchanged, the charting dependency ruling is unchanged, and no requirement, acceptance
+criterion, design decision or prior technical ruling is reinterpreted. No new ADR.
+
+| Section | Prior position | Now |
+|---|---|---|
+| §§ *Architecture E*, *API*, *Services & Actions*, *Validation* | The Events list filter resolver takes **exactly three** query parameters — `window`, `destination`, `outcome` — and nothing narrows the window to a single day | It takes **four**. **`date`** (ISO `Y-m-d`, optional) replaces the window's range bound with that single calendar day. An absent or malformed value means **no day-narrowing**, never a 422 — see § *Technical rulings* 10 |
+| § *Technical rulings* 8 | Names `destination` and `outcome` as sharing the `window` parameter's drop-the-filter-rather-than-fail rule | Names `date` as well, under the same rule and for the same reason (amended in place) |
+| § *API*, the `EventListFilters` prop shape | `window`, `destination`, `outcome` | Gains `day` (ISO `Y-m-d` or `null`), rendered as the **value of the existing Window chip** — not as a fourth chip |
+| § *Handoff*, Outstanding Questions | None | Still none. `Q-11-04` is **RESOLVED** here, and T23's fifth entry point is unblocked |
 
 ## Overview
 
@@ -207,6 +230,14 @@ remains exactly right and unchanged. Window and destination filtering need no su
 destination is a column on the fact rows and the window applies to `webhook_events.received_at`
 when no Outcome chip is active (§ *Technical rulings* 3).
 
+**A single-day drill-through narrows the same bound rather than adding a second one** (Revision A;
+§ *Technical rulings* 10). The Proxy Show trend table's per-day, per-unit rows carry an optional
+`date` parameter, and when it resolves it **replaces** the range the window would otherwise have
+given — the half-open interval `[that day 00:00, the next day 00:00)` in the application timezone —
+on whichever column ruling 3 already selected. There is no second window predicate, no branch of
+its own, and no new index: the day is a strictly narrower range over the same
+`(proxy_id, status, updated_at)` index the Outcome drill-through already reads.
+
 **Deleted parents at this layer split** (`Q-11-03(9)`): a **deleted destination**'s *View events*
 link stays live, because the destination travels as a query filter on a live proxy's route and
 soft delete preserves the id. A **deleted proxy** takes `design-11`'s pre-approved degradation —
@@ -324,12 +355,14 @@ the team-scoped, policy-gated binding). The residual `TeamScope` predicate on `D
 harmless duplication; **no analytics query may call `withoutGlobalScope(TeamScope::class)`**.
 
 **8. An absent or unrecognised `window` query parameter falls back to the 30-day default; it never
-raises a validation error.** These are GET read surfaces with no form and no error bag, and a
-member who edits a URL, follows a stale link or lands on a truncated one must get the page, not a
-422. The parameter is resolved through a backed enum (`AnalyticsWindow`) with a default, which is
-validation by construction rather than trust. The same rule applies to `destination` and `outcome`
-on the Events list: an id that does not belong to this proxy, or an unknown outcome token, drops
-the filter rather than failing the request — with the chip absent, so the surface never claims a
+raises a validation error.** *(Amended 2026-08-26 — Revision A: extended to name `date`.)* These
+are GET read surfaces with no form and no error bag, and a member who edits a URL, follows a stale
+link or lands on a truncated one must get the page, not a 422. The parameter is resolved through a
+backed enum (`AnalyticsWindow`) with a default, which is validation by construction rather than
+trust. The same rule applies to `destination`, `outcome` **and `date`** on the Events list: an id
+that does not belong to this proxy, an unknown outcome token, or a value that is not an exact
+`Y-m-d` date drops that filter rather than failing the request — with the chip absent, or in
+`date`'s case with the Window chip reading the unnarrowed window, so the surface never claims a
 filter it did not apply.
 
 **9. Day buckets are days in the application timezone.** No per-user timezone exists anywhere in
@@ -337,6 +370,87 @@ the schema, so there is nothing to render them in; `DATE(updated_at)` in the app
 is the only honest bucket available, and inventing a per-user timezone would be new capture and a
 new requirement. AC8's obligation is met by the window statement the design already requires on
 every figure-bearing block (C2), not by a timezone note.
+
+**10. The trend table's per-day drill-through travels as a fourth optional query parameter,
+`date`, which replaces the window's range bound with that single calendar day.** *(Added
+2026-08-26 — Revision A. Answers `Q-11-04`.)*
+
+`design-11` Flow C step 3 and the Flow E entry-point table both require the Proxy Show trend
+chart's "View as table" rows to link into the Events list with the window "narrowed to that single
+day", at the clicked row's unit. This plan as certified defined the resolver as taking exactly
+three parameters and gave that narrowing no mechanism. Routing a date through the existing `window`
+parameter is not available: under ruling 8 it would resolve to the 30-day default and answer a
+different question without saying so, which is precisely the silently-wrong answer ruling 3 forbids.
+The mechanism is therefore named here rather than left to implementation.
+
+- **Name and value.** `date`, an ISO-8601 calendar date in `Y-m-d` form. It is the same string
+  `SeriesPoint.date` already carries, so a trend row's link is built from that row's own `date`
+  value verbatim and there is no second date format to keep in step with the first.
+- **Resolution.** Parsed strictly — the value must round-trip through `Y-m-d` exactly, so
+  `2026-8-4`, a timestamp, a relative word or any other shape is not a date here. **An absent or
+  malformed `date` means no day-narrowing:** the request resolves exactly as it does today, with
+  the range the resolved `AnalyticsWindow` gives it. It never raises a validation error and never
+  returns a 422, for the reason ruling 8 gives for the other three parameters.
+- **Effect.** A resolved `date` **replaces** the window's range bound with the half-open interval
+  `[that day 00:00, the next day 00:00)` in the application timezone — the same partition ruling
+  9's `DATE(updated_at)` bucket produces, which is what makes a day cell's figure and that day's
+  drill-through describe the same records (AC10, at the day grain). The bound must be written
+  half-open — `>= start` and `< end` — and not with an inclusive `whereBetween`, so that no instant
+  at a day boundary belongs to two days or to neither.
+- **Which column it bounds.** Whichever column ruling 3 already selects, with no branch of its own:
+  `deliveries.updated_at` or `delivery_attempts.updated_at` inside the outcome subquery when an
+  outcome resolved, `webhook_events.received_at` when none did.
+- **Composition.** Conjunctive, and identical to the way `destination` and `outcome` compose with
+  each other: all four parameters are resolved independently, each applies independently, and one
+  that cannot be resolved is dropped without disturbing the others. A well-formed `date` that falls
+  outside the resolved window is neither an error nor dropped — it narrows to that day, which is
+  what "narrowed to that single day" says. The entry point never produces one, so that case arises
+  only from a hand-edited or stale URL, and narrowing to a day with nothing in it is visible ("No
+  events match these filters") where silently widening back to the whole window would not be.
+- **`window` still travels.** It is still resolved, still emitted, and still the period a member
+  returns to when the day filter is removed; it simply does not bound the query while a `date` is
+  resolved.
+- **The "arrived directly, no filter" short-circuit widens to four.** The resolver returns no
+  predicate only when `destination`, `outcome` **and** `date` all failed to resolve. A `date` on
+  its own is a real narrowing and must run.
+
+*User-visible consequence, stated so the Designer and the Reviewer need not infer it: the day is
+not a fourth chip.* `design-11` Screen 4 fixes the chip row at three — window, destination, outcome,
+"up to three at once" — and Flow E describes the day as **the window** narrowed rather than as a
+new filter. A resolved `date` is therefore rendered as the value of the existing Window chip, in
+that screen's already-approved `[Window: {value} ×]` template, and that chip's `×` drops `window`
+and `date` together. The value rendered is the same day string the trend table's own Date column
+renders for that row, sourced from `resources/js/data/analyticsLabels.ts` per R6, so the two
+surfaces cannot disagree about how a day is written. This uses the approved chip template and the
+approved three-chip row rather than adding to either, so **nothing here returns to the Designer**.
+If the Designer later prefers distinct wording for a day-narrowed Window chip, that is a copy
+change with no query, parameter or plan consequence, and it does not reopen this ruling.
+
+*Scope: the entry point is the Proxy Show trend table only.* Flow E's table names "Proxy Show Trend
+chart's 'View as table' row" (Screen 2, Flow C step 3), and the C1 re-check states that the
+**Dashboard's** Trend chart is not a drill-through entry point at all, because no single proxy
+resolves from a team-grained series. The Dashboard trend table's rows therefore carry no link, and
+T23's listing of `Dashboard.vue` among its files covers that page's Terminal-failures cell, not its
+trend rows.
+
+*The chart canvas gains nothing from this ruling.* Flow C step 3 says the canvas "carries no click
+target, only its accessible table does"; Implementation Note 14 makes the canvas `aria-hidden`; and
+T27's acceptance criteria already require no `tabindex` and no click handler on it. This ruling
+governs the accessible table's links. **T27 and T28 need nothing further from it beyond leaving
+those links working**, which T28's own acceptance criteria already require. Giving the canvas a
+per-point click target would be a design change, not an implementation choice.
+
+*Why this needs no Owner gate and no ADR, walked item by item.* Against `CLAUDE.md`'s
+major-decision list: **no new dependency**; **no stack change**; **no data-model change** — the day
+bound reads a strictly narrower range of the same `(proxy_id, status, updated_at)` indexes the
+Owner approved, and adds no column, no index and no migration; **no security surface** — the
+parameter carries no authorization, cannot widen any result set, and is either parsed into a date
+or discarded before it reaches a query, on a route already gated by `EnsureTeamMembership`,
+`ApplyTeamScope` and `ProxyPolicy::view`; **nothing irreversible** — removing the parameter removes
+the behaviour. Against the ADR bar walked in § *Why no ADR was warranted here*: it decides no
+persisted shape, adds no entity, and is an application of ruling 3 to a narrower range rather than
+a new decision about the data. It is an API-contract call inside the Principal Engineer's own
+decision authority, and it is ruled here rather than escalated.
 
 ## Data Model
 
@@ -451,7 +565,7 @@ Three existing GET routes gain optional query parameters; nothing gains a mutati
 |---|---|---|
 | `GET /{current_team}/dashboard` (`dashboard`) | new props | `?window=24h\|7d\|30d` (default `30d`) |
 | `GET /{current_team}/proxies/{proxy}` (`proxies.show`) | new props | `?window=…` — carried from the Dashboard so the period survives the drill-down (design § Interactions) |
-| `GET /{current_team}/proxies/{proxy}/events` (`proxies.events.index`) | new filter props | `?window=…`, `?destination={id}`, `?outcome=delivery_failed\|attempt_failed` |
+| `GET /{current_team}/proxies/{proxy}/events` (`proxies.events.index`) | new filter props | `?window=…`, `?destination={id}`, `?outcome=delivery_failed\|attempt_failed`, `?date=Y-m-d` (Revision A — § *Technical rulings* 10) |
 
 **Prop shapes.** Computed figures are readonly DTOs in `App\Data\Analytics\*` — the `Data/` layer,
 not `Http/Resources/`, because they serialize a computation rather than an Eloquent model; keys are
@@ -474,10 +588,13 @@ camelCase, matching `ProxyPermissions`/`TeamPermissions` rather than the snake_c
   `attempt: UnitFigure`, `terminalFailures: int`, `canDrillThrough: bool`.
 - `DestinationBreakdownRow` — `id`, `url`, `httpMethod`, `isDeleted: bool`, `delivery`, `attempt`,
   `latencyAverageMs: int|null`.
-- `EventListFilters` (Events list) — the active chips: `window`, `destination` (`id`, `url`,
-  `httpMethod`, `isDeleted`) or `null`, `outcome` (`unit`, `label`) or `null`. A filter that could
-  not be resolved is **absent**, so a chip never claims a narrowing the query did not apply
-  (§ *Technical rulings* 8).
+- `EventListFilters` (Events list) — the active chips: `window`, `day` (ISO `Y-m-d`) or `null`,
+  `destination` (`id`, `url`, `httpMethod`, `isDeleted`) or `null`, `outcome` (`unit`, `label`) or
+  `null`. A filter that could not be resolved is **absent**, so a chip never claims a narrowing the
+  query did not apply (§ *Technical rulings* 8). **`day` is not a fourth chip** — when it is
+  non-`null` the Window chip renders the day instead of the window's own label, and its `×` drops
+  both (Revision A, § *Technical rulings* 10). `window` is emitted whether or not `day` is, because
+  it is the period the member returns to.
 
 `canDrillThrough` exists for exactly one reason and is worth naming so it is not mistaken for
 display-logic creep: it is `false` for a soft-deleted proxy, encoding `Q-11-03(9)`'s ruling that a
@@ -510,8 +627,9 @@ change; it exists so an unrecognised query parameter is impossible to propagate 
 validated against.
 
 **`App\Http\Controllers\ProxyEventController`** gains a private filter resolver that turns the
-three query parameters into (a) query predicates and (b) the `EventListFilters` chip descriptors,
-from one place, so the chips and the query can never disagree about what was applied.
+**four** query parameters — `window`, `destination`, `outcome` and `date` (Revision A) — into
+(a) query predicates and (b) the `EventListFilters` chip descriptors, from one place, so the chips
+and the query can never disagree about what was applied.
 
 Unchanged and untouched: `ProcessIngestedWebhook`, `DeliverStep`, `DeliverToDestination`,
 `RetryDelivery`, `SweepDueRetries`, `AdvanceProxyFifoQueue`, `SweepStalledFifoDispatches`,
@@ -521,8 +639,9 @@ Unchanged and untouched: `ProcessIngestedWebhook`, `DeliverStep`, `DeliverToDest
 ## Validation
 
 There is nothing to validate in the Form Request sense: #11 accepts no input, writes nothing, and
-adds no mutation. Three read-parameter rules stand in its place, all resolved in the controller
-before the service is called, none of which can fail the request (§ *Technical rulings* 8):
+adds no mutation. **Four** read-parameter rules stand in its place (the fourth added at Revision
+A), all resolved in the controller before the service is called, none of which can fail the request
+(§ *Technical rulings* 8):
 
 - **`window`** — `AnalyticsWindow::tryFrom($value) ?? AnalyticsWindow::default()`. Absent,
   malformed and hostile values all resolve to 30 days.
@@ -535,6 +654,12 @@ before the service is called, none of which can fail the request (§ *Technical 
 - **`outcome`** — matched against the two known tokens (`delivery_failed`, `attempt_failed`).
   Anything else ⇒ no filter and no chip. The token also decides which of the two subqueries runs
   (§ *Architecture E*); there is no third grain and no free-text status.
+- **`date`** *(Revision A)* — parsed strictly as `Y-m-d`, accepted only if it round-trips through
+  that format exactly. Resolved ⇒ it replaces the window's range bound with that single calendar
+  day, half-open, in the application timezone. Absent or malformed ⇒ **no day-narrowing**, the
+  window's own range stands, and the Window chip reads the window rather than a day. Never a 422
+  and never an exception: the value either becomes a date object or is discarded, so no unparsed
+  string ever reaches a query (§ *Technical rulings* 10).
 
 **Authorization is unchanged and is stated here because "no new gate" is itself a criterion
 (AC24, D-11-2).** The Dashboard sits inside the team-prefixed group behind `auth`, `verified`,
@@ -771,6 +896,21 @@ defect; none is stylistic.
     `docs/standards/planning.md`. DTO collection types carry `list<...>` annotations so level 7
     stays satisfied without suppressions.
 
+**Day narrowing (added at Revision A)**
+
+19. **The `date` bound is half-open, and it shares ruling 3's column rather than adding a second
+    window predicate.** Compute the day's `[start, next-day-start)` pair in the application
+    timezone and substitute it for the pair the window would otherwise have produced, at the one
+    place that pair is built. Do not add a range clause beside the existing one, do not
+    special-case the outcome branches, and do not use an inclusive `whereBetween` for the day
+    itself. Widen the resolver's "arrived directly, no filter" short-circuit so that it also
+    requires `date` to be unresolved (§ *Technical rulings* 10).
+20. **A day is rendered one way across the feature.** The trend table's Date column and the
+    day-narrowed Window chip use the same formatter, sourced from
+    `resources/js/data/analyticsLabels.ts` (R6). The chip is the existing Window chip carrying a
+    day as its value — **not** a fourth chip, and not a re-worded template
+    (§ *Technical rulings* 10).
+
 ## Test strategy
 
 Backend only — the project has no frontend test framework (R4, backlog **T31**). Tests are
@@ -855,6 +995,17 @@ PHPUnit class-based under `tests/Feature` and `tests/Unit`, grouped by acceptanc
   event received outside the window **is** returned by the failure drill-through.
 - Filters survive pagination (`withQueryString`), and an unknown `destination` or `outcome` value
   drops the filter, renders no chip, and returns 200.
+- **Day narrowing (`date`, Revision A / § *Technical rulings* 10).** A `date` inside the window
+  returns exactly the records the trend table's cell for that day counted, at both units — the day
+  cell's figure and its drill-through describe the same record set (AC10 at the day grain),
+  asserted against a fixture with records on the day before, the day itself and the day after.
+  Boundary records at `00:00:00` and at the last instant before the next midnight fall on the
+  correct side exactly once (the half-open bound). An absent, empty, malformed
+  (`2026-8-4`, `yesterday`, a timestamp) or hostile `date` yields **no day-narrowing** and a 200,
+  never a 422 — and never widens or errors. A well-formed `date` outside the resolved window
+  narrows to that day rather than being dropped. `date` composes with `destination` and with each
+  `outcome` unit conjunctively, and survives pagination. `?date=` alone, with no `destination` and
+  no `outcome`, still narrows (the "arrived directly" short-circuit does not swallow it).
 - The Events list without filters renders byte-identically to today's props (the shipped surface
   is unchanged, AC28).
 
@@ -937,12 +1088,17 @@ flag 1 costs the feature a chart, not a milestone.
   `proxies/Show.vue`, `proxies/events/Index.vue`, `resources/css/app.css`,
   `components/welcome/canvasKit.ts`, `vite.config.ts`, `config/inertia.php`, `package.json`.
 - **Outputs:** this plan; the completed Answer block in
-  `docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (**RESOLVED**). **No ADR** —
+  `docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (**RESOLVED**); and, at
+  Revision A, the completed Answer block in
+  `docs/questions/prd-11-q-11-04-trend-day-drill-through.md` (**RESOLVED**). **No ADR** —
   see below. **No new question document**: nothing in PRD-11 or `design-11` needed a ruling from
   the Product Manager or the Designer.
 - **Dependencies:** one new pnpm dependency pair, gated (§ *Dependencies*). No Composer change, no
   stack change, no new service, no infrastructure.
-- **Outstanding Questions:** **none.** `Q-11-01`, `Q-11-02` and `Q-11-03` are all resolved. The
+- **Outstanding Questions:** **none.** `Q-11-01`, `Q-11-02`, `Q-11-03` and — at Revision A —
+  **`Q-11-04`** are all resolved. `Q-11-04` is answered by § *Technical rulings* 10, which unblocks
+  the fifth entry point of **T23** (the Proxy Show trend table's per-day, per-unit rows) without
+  changing any other task; **T27 and T28 need nothing from it**. The
   two contingencies the design gate left for me are **pulled and recorded**: the latency
   substitute is **not** triggered (a true percentile is feasible) and the "as of" caption is
   **omitted** (figures are live). Item (10) **holds as designed**, so nothing returns to the
@@ -1046,6 +1202,10 @@ bar and none clears it:
 - **The latency grain (per-attempt, not per-delivery)** — resolves an internal inconsistency in an
   already-settled definition, in the direction the definition's own exclusion clause and the
   approved on-screen caption both point. It changes no requirement.
+- **The `date` query parameter** *(added at Revision A)* — an optional read filter on an existing
+  GET route, narrowing an existing bound over indexes that already exist. It decides no persisted
+  shape, adds no entity, and is removable by deleting one parameter. The full walk against both the
+  ADR bar and `CLAUDE.md`'s Owner-gate list is in § *Technical rulings* 10.
 
 **And the ADRs this feature touches, walked explicitly so the answer is "considered", not
 "overlooked":** **ADR-003** — its "retained on their own lifecycle" wording is aspirational and
@@ -1086,8 +1246,39 @@ list.** The Owner must rule on (1) the charting dependency, choosing between ado
 as recommended and adopting `chart.js` alone, and (2) the four-index change set exactly as
 enumerated in § *Data Model*. Everything else in this plan needs no further sign-off.
 
+### Re-certification at Revision A (Principal Engineer, 2026-08-26)
+
+I have added § *Technical rulings* 10, amended ruling 8 in place, and brought §§ *Architecture E*,
+*API*, *Services & Actions*, *Validation*, *Implementation Notes* and *Test strategy* into line with
+it, so that the plan and the answer to `Q-11-04` cannot drift apart. The authorising basis is my own
+plan authority over API contracts under `CLAUDE.md`'s delegated plan gate — **not** an Owner ruling,
+and none was sought, because the change trips no item on `CLAUDE.md`'s major-decision list; that
+walk is in ruling 10 itself.
+
+Three things this revision explicitly does **not** do, stated so the Reviewer can check the absence:
+it does not reopen either Owner-approval flag (the four-index change set and the two-package
+charting dependency stand exactly as ruled on 2026-08-26); it does not change, add, remove, weaken
+or renumber a PRD acceptance criterion; and it does not amend `design-11` — ruling 10 uses Screen
+4's already-approved chip template and its approved three-chip row, and it implements Flow C step 3
+and the Flow E entry-point table as written rather than reinterpreting either. **Nothing returns to
+the Designer or to the Product Manager.**
+
+Every ADR this feature touches was re-walked at this revision, one by one, and **none needs
+amending**: the ruling adds an optional read filter over a narrower range of indexes that already
+exist, writes nothing, and changes no persisted shape — so ADR-003, ADR-012, ADR-014, ADR-015,
+ADR-016, ADR-017 and ADR-018 stand exactly as § *Why no ADR was warranted here* leaves them, and no
+new ADR is warranted either. No approved **copy** changes: the Window chip's template and the
+outcome chip's wording are unchanged, and the only new string is a rendered date value, which is
+data rather than copy.
+
+**Revision A is self-certified in full, on the same terms as the original certification** — the
+carve-out above it concerns the two Owner flags, which were ruled before this revision and are not
+touched by it.
+
 - **Next Agent:** **Task Planner — unblocked.** Both Owner flags were ruled on 2026-08-26
   (§ *Owner rulings on both flags*), so the earlier sequencing constraint no longer applies:
   **M1–M7 may all be broken down and sequenced** — M1 under the approved four-index change set,
-  M6/M7 under the approved two-package charting dependency.
+  M6/M7 under the approved two-package charting dependency. **At Revision A the immediate next
+  agent is the Senior Developer**, to finish the one entry point **T23** paused on, under
+  § *Technical rulings* 10; no task needs re-planning and no new task is created.
 
