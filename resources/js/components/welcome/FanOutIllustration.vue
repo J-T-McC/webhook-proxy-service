@@ -532,6 +532,7 @@ interface ThemeVisuals {
     arrivalEdgeWidth: number;
     arrivalEdgeAlpha: number;
     arrivalEdgeBlur: number;
+    queuedEdgeAlpha: number;
 }
 
 const DARK_VISUALS: ThemeVisuals = {
@@ -547,6 +548,7 @@ const DARK_VISUALS: ThemeVisuals = {
     arrivalEdgeWidth: 2,
     arrivalEdgeAlpha: 0.95,
     arrivalEdgeBlur: 18,
+    queuedEdgeAlpha: 0.8,
 };
 
 const LIGHT_VISUALS: ThemeVisuals = {
@@ -562,10 +564,10 @@ const LIGHT_VISUALS: ThemeVisuals = {
     arrivalEdgeWidth: 2,
     arrivalEdgeAlpha: 0.9,
     arrivalEdgeBlur: 8,
+    queuedEdgeAlpha: 0.85,
 };
 
 const JUNCTION_ALPHA = 0.4; // same both themes — static anchor, always drawn
-const QUEUED_ALPHA = 0.5; // same both themes — idle event, low in the ladder
 const NODE_STROKE_WIDTH = 1;
 const GRID_CELL = 32; // fixed logical px — does not scale with the diagram
 
@@ -718,7 +720,7 @@ const DEST_LABELS = ['Destination 1', 'Destination 2', 'Destination 3'];
 
 // Base scene: grid, idle connection lines, resting junction dots, and every
 // node — drawn every frame before any per-entry overlay, and the entirety
-// of the reduced-motion static frame (see drawQueuedDot below).
+// of the reduced-motion static frame (see drawQueuedNode below).
 function drawBaseScene(state: RenderState) {
     const { ctx, geo, paths, tokens, visuals } = state;
     ctx.clearRect(0, 0, state.width, state.height);
@@ -791,13 +793,43 @@ function drawBaseScene(state: RenderState) {
     });
 }
 
-function drawQueuedDot(state: RenderState, event: 1 | 2) {
-    const { ctx, geo, tokens } = state;
+// A queued event lights its own node's border, the mirror of what a
+// destination does on arrival: violet edge = waiting to dispatch, cyan edge =
+// received. `progress` runs 0 → 1 across the queued window so the border can
+// ease in when the event starts waiting and release just before it departs,
+// rather than snapping on and off.
+function drawQueuedNode(
+    state: RenderState,
+    event: 1 | 2,
+    progress: number,
+): void {
+    const { ctx, geo, tokens, visuals } = state;
     const center = geo.ingest[event - 1];
+
+    // Fast ease-in, long hold, quick release as the dispatch moment arrives.
+    const RELEASE_FROM = 0.88;
+    const intensity =
+        progress < 0.12
+            ? ease('out', progress / 0.12)
+            : progress > RELEASE_FROM
+              ? 1 - ease('out', (progress - RELEASE_FROM) / (1 - RELEASE_FROM))
+              : 1;
+
+    const x = center.x - geo.nodeW / 2;
+    const y = center.y - geo.nodeH / 2;
+
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(center.x, center.y, geo.junctionR, 0, Math.PI * 2);
-    ctx.fillStyle = withAlpha(tokens.mutedForeground, QUEUED_ALPHA);
-    ctx.fill();
+    ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
+    ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
+    ctx.strokeStyle = withAlpha(
+        tokens.accentFrom,
+        visuals.queuedEdgeAlpha * intensity,
+    );
+    ctx.shadowBlur = visuals.arrivalEdgeBlur * 0.6 * geo.scale * intensity;
+    ctx.shadowColor = withAlpha(tokens.accentFrom, visuals.bloomAlpha * 0.7);
+    ctx.stroke();
+    ctx.restore();
 }
 
 function drawArrivalRingAndWash(
@@ -909,7 +941,11 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
     for (const entry of schema.entries) {
         if (entry.kind === 'queued') {
             if (localT >= entry.start && localT < entry.end) {
-                drawQueuedDot(state, entry.event);
+                drawQueuedNode(
+                    state,
+                    entry.event,
+                    (localT - entry.start) / (entry.end - entry.start),
+                );
             }
 
             continue;
@@ -971,7 +1007,7 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
 // mid-flight), so it is composed directly instead.
 function drawStaticFrame(state: RenderState) {
     drawBaseScene(state);
-    drawQueuedDot(state, 2);
+    drawQueuedNode(state, 2, 0.5);
 }
 
 // ---------------------------------------------------------------------------
