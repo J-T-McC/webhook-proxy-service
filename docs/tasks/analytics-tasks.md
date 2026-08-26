@@ -1879,6 +1879,57 @@
   `onMounted`-only construction, no click target on the canvas, and no automated vulnerability
   scanning for this package in this repository.
 
+  **T25 resumed at check 3 (Senior Developer, 2026-08-26).** `pnpm add chart.js
+  @j-t-mcc/vue3-chartjs` reinstalled `chart.js@4.5.1` and `@j-t-mcc/vue3-chartjs@2.1.0` fresh (check
+  1 re-confirmed: no peer warning, no `--force`).
+
+  **(3) Bundle impact, measured against the real application.** Built the app twice with `pnpm run
+  build` (`public/hot` absent both times) — once immediately before this reinstall and once after —
+  and summed every emitted JS chunk's reported raw/gzip size from Vite's own build output. **Before:
+  901.97 kB raw / 278.28 kB gzip total. After: 901.97 kB raw / 278.28 kB gzip total — zero-byte
+  delta**, and `diff` of the two full build logs shows no asset changed size or hash. This is the
+  honest number for the application as it exists right now: T26–T28 (`chartTokens.ts`,
+  `TrendChart.vue`, and wiring it into `Dashboard.vue`/`proxies/Show.vue`) have not landed yet, so
+  nothing in the entry graph imports `chart.js` or the wrapper, and Rollup drops an unimported
+  dependency entirely rather than partially. This is consistent with, not contradictory to, check
+  2's finding: check 2's ~59 kB raw / ~20.6 kB gzip tax is the cost of the wrapper's own
+  auto-registration *once something imports it*; today nothing does. The real, consuming-code delta
+  will be visible once T27/T28 wire `TrendChart.vue` into both pages and is worth a fresh measurement
+  then (left as a note for T28's completion notes / T29's whole-surface pass, not re-asserted as a
+  T25 acceptance criterion, since T25's own AC only requires *this* check's gzip delta recorded,
+  which it is).
+
+  **(4) Theming in both themes, verified against a production build.** `--chart-1`/`--chart-2` exist
+  already (`resources/css/app.css`, unchanged by this task) and are consumed by nothing else in the
+  app yet, so T26's dedicated module does not exist at this point in the task sequence either.
+  Verified the substance of the check directly — the same round-trip technique T26 will wrap — against
+  a real production build (`pnpm run build`, `public/hot` removed, confirmed served from
+  `/build/assets/*.js` with no Vite dev-server script present, via a headless Playwright session
+  against the running `sail` app at `/login`, which loads `app.css` without needing auth):
+  - **Raw token values are minified**, exactly the PR #12 scenario: authored `hsl(12 76% 61%)` /
+    `hsl(173 58% 39%)` (light) and `hsl(220 70% 50%)` / `hsl(160 60% 45%)` (dark) in `app.css` are
+    delivered as `#e76e50` / `#2a9d90` (light) and `#2662d9` / `#2eb88a` (dark) in the compiled CSS —
+    confirmed both by grepping the built CSS asset and by `getComputedStyle` in the browser.
+  - **The canvas `fillStyle` round-trip** (`ctx.fillStyle = '#000000'; ctx.fillStyle = token; read
+    ctx.fillStyle back`) — the exact mechanism `canvasKit.ts`'s `withAlpha()` already uses in
+    production for the welcome illustrations — resolves both tokens to a valid, distinct colour in
+    each theme (trivially, since the minifier already emitted hex and the round-trip is a no-op on
+    hex input; the technique matters for whichever format a future minifier or palette change
+    produces, which is exactly why T26 uses it rather than a pattern-matcher).
+  - **Non-text contrast** (WCAG 1.4.11, `design-11` § Accessibility, checked against resolved colour
+    not token string): `--card` is `#ffffff` (light) / `#0a0a0a` (dark, from `hsl(0 0% 3.9%)`).
+    Contrast ratios: light `--chart-1` vs card **3.11:1**, light `--chart-2` vs card **3.32:1**, dark
+    `--chart-1` vs card **3.61:1**, dark `--chart-2` vs card **7.86:1** — all four clear the 3:1
+    non-text minimum, though **light `--chart-1` clears it by only 0.11**, worth flagging rather than
+    silently passing: it is a pre-existing token pair `design-11` chose, not a value this task
+    introduces, so there is nothing to fix here, but a future token-palette change should re-check
+    this pair specifically.
+
+  `package.json` and `pnpm-lock.yaml` committed with both packages in `dependencies`
+  (`chart.js@^4.5.1` per pnpm's caret-range write, `@j-t-mcc/vue3-chartjs@^2.1.0`). `pnpm
+  lint:check`, `pnpm types:check`, and `pnpm run build` all still pass after the dependency change.
+
+
 ## T26 — `resources/js/lib/chartTokens.ts`: colour resolution reusing the PR #12 fix (R8; binding constraint 4)
 - **Description:** New module resolving a series colour by reading the token verbatim
   (`getComputedStyle(document.documentElement).getPropertyValue('--chart-1')` /
