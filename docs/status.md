@@ -111,6 +111,32 @@ plus both Owner flags ruled, 2026-08-26);
   is the task that names the removal — T16's card placement displaced it and the dead import
   had to go for `pnpm lint:check` to stay green. Both tasks' completion notes record this so
   a later reader does not go looking in the wrong commit.
+- **M4 complete — T18 through T20 landed and committed** (Senior Developer, 2026-08-26),
+  preceded by one Owner-reported fix. Proxy Show (Screens 2 and 3) is built:
+  `ProxyController::show()`'s `window`/`statistics`/`destinations` props, the Analytics card,
+  and the extended Destinations table. Verified green afterwards: `composer lint`,
+  `composer types:check` (0 errors), `pnpm lint:check`, `pnpm types:check`,
+  `pnpm format:check`, and the full suite at **825/825** (up from 817). **Next task is T21**
+  (M5, Events list and drill-through). Four things worth carrying forward.
+  First, **the Owner-reported fix**: the Dashboard Proxies table's action-column header
+  rendered visible "View" text; it is now `sr-only`, the column and its action unchanged.
+  The reading rests on `design-11` line 271, which writes that table as
+  `Proxy | Delivery success | Attempt success | Terminal failures (deliveries) | (View)` —
+  four bare labels and one parenthesised entry, which is an unlabelled action column rather
+  than a fifth labelled header. `resources/js/pages/proxies/Index.vue`'s **visible** `Actions`
+  header is a genuine counter-precedent and was deliberately left alone. Recorded as a rework
+  note on T15 rather than in `docs/fixes/`, because it corrects in-flight implementation
+  output rather than shipped or reviewed code.
+  Second, **T20's Destinations table keeps a visible `Actions` header**, unlike Screen 1 —
+  design-11 writes that one unparenthesised. The two screens differ on purpose.
+  Third, **T19 included the trend/series table even though T19's own task text omits it.**
+  Design-11's mockup, Flow C and T28's own back-reference all require it on this screen, and
+  no other M4 task could have built it. This is a task-text omission, not a design change.
+  Fourth, **T19 kept the window selector visible in the zero-traffic collapsed state.**
+  Design-11's text says the entire card collapses to one message, but also calls the selector
+  page-level; removing it would strand a member on an empty window with no way to check
+  another. **This one is a genuine reading of design intent rather than a settled ruling —
+  it is the one M4 decision the Owner or the Designer may want to overturn.**
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
