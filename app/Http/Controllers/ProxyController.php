@@ -6,6 +6,7 @@ use App\Data\ProxyPermissions;
 use App\Enums\ProxyMode;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
+use App\Http\Resources\ProxyFormResource;
 use App\Http\Resources\ProxyResource;
 use App\Models\Destination;
 use App\Models\Proxy;
@@ -138,8 +139,11 @@ class ProxyController extends Controller
     {
         $this->authorize('update', $proxy);
 
+        // ProxyFormResource is the single Amendment-A carve-out: it emits the
+        // raw retry columns regardless of mode, so the Edit form can pre-fill
+        // a dormant policy. No other caller may use it (AC14(b)).
         return Inertia::render('proxies/Edit', [
-            'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
+            'proxy' => ProxyFormResource::make($proxy->loadMissing('destinations')),
         ]);
     }
 

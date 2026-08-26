@@ -379,7 +379,48 @@
   `tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php` (Senior Developer's call
   within these constraints, per the T22/T45 house convention in `docs/tasks/retry-replay-tasks.md`)
   — plus the required `ProxyIndexShowTest.php` rewrite named above.
-- **Completion notes:** _pending_
+- **Completion notes:** `ProxyResource::toArray()`'s two retry keys now resolve through
+  `app(RetryPolicy::class)->configuredAttemptLimitFor()`/`configuredStrategyFor()` (T1's gate)
+  instead of the raw `$this->retry_attempt_limit`/`retry_backoff_strategy` columns — an Enhanced
+  proxy still emits its column values, a Simple proxy emits `null` for both, always, regardless of
+  any dormant value. New `App\Http\Resources\ProxyFormResource extends ProxyResource`, with a
+  docblock naming Amendment A, AC14(b)'s four binding conditions, and the single-caller rule,
+  overrides both keys back to the raw persisted columns (`$this->retry_attempt_limit`/
+  `retry_backoff_strategy` directly) irrespective of mode. `ProxyController::edit()` now returns
+  `ProxyFormResource::make(...)` — its only change; `create()`/`index()`/`show()` are untouched.
+  Confirmed by grep that `ProxyEventController`'s events index/detail (which also embed
+  `ProxyResource`) automatically inherit the same suppression with no code of their own.
+
+  **Test file choice:** new `tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php`
+  (not an extension of `RetryPolicyFormAcceptanceTest.php`). Rationale: that file's existing scope
+  is store/update persistence semantics (plus one pre-existing Enhanced-proxy presentation test
+  that needed no change); T5's concern — read-surface suppression across Index/Show/Edit/events,
+  plus the single-caller invariant on a brand-new resource class — is a distinct axis, and keeping
+  it in its own file avoids diluting the persistence file's focus as #7 (and any future read-surface
+  work) grows it. Added 5 tests: the headline Simple-with-dormant-vs-Simple-never-configured
+  identical-suppression case on Index **and** Show (asserted over both proxies, so "identically" is
+  the assertion, not an inference); the same dormant proxy's Edit payload emitting the raw 8/`fixed`;
+  the events index/detail pages (`ProxyEventController`) also suppressing the dormant values, proving
+  the inherited-gate property AC14(b) requires; a reflection-based static check that
+  `ProxyFormResource` has exactly one caller in `app/` (`ProxyController.php`), so a second caller
+  anywhere in the codebase fails this test immediately rather than waiting on review; and a sanity
+  pin that `ProxyFormResource extends ProxyResource`.
+
+  **Additional stale-assumption test fixed (the one the plan named, no others found):** grepped the
+  whole suite for `retry_attempt_limit`/`retry_backoff_strategy` usage (18 files) and specifically for
+  any `assertInertia` assertion against a Simple proxy's raw retry values on Index/Show — only
+  `ProxyIndexShowTest.php::test_index_and_show_expose_retry_policy_fields` (line 143) matched, exactly
+  as the plan predicted; every other hit either asserts DB/model state directly (store/update tests)
+  or already uses an Enhanced proxy (`RetryPolicyFormAcceptanceTest`'s own presentation test,
+  unmodified). Renamed to
+  `test_index_and_show_suppress_a_simple_proxys_dormant_retry_policy_fields` and rewritten to assert
+  `null`/`null` for the same Simple proxy holding 4/`fixed`, per AC14(b) — no second unnamed instance
+  found this time (unlike T1's `RetryPolicyFormAcceptanceTest`/`ProxyUpdateTest` pair).
+
+  Verified: `./vendor/bin/sail test --filter "ProxyRetryFieldPresentationAcceptanceTest|ProxyIndexShowTest|RetryPolicyFormAcceptanceTest"`
+  (27 passed, 271 assertions); full suite `./vendor/bin/sail test --parallel` (753 passed, 2808
+  assertions — up from 748/2742 by T5's 5 new tests, the renamed test carrying no count change);
+  `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T6 — Frontend types for the carve-out (Amendment A; plan §Services & Actions "Frontend")
 - **Description:** `ProxyDetail`/`ProxyListItem` (`resources/js/types/proxies.ts`) keep their two

@@ -140,7 +140,16 @@ class ProxyIndexShowTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('proxy.processing_mode', 'async'));
     }
 
-    public function test_index_and_show_expose_retry_policy_fields(): void
+    /**
+     * AC14(b): a Simple proxy's retry columns are suppressed on Index and Show
+     * even when it holds a dormant policy from a prior Enhanced save — the
+     * mode gate always wins on these read surfaces, unlike Edit
+     * (`ProxyFormResource`, T5). This test previously seeded a default-mode
+     * (Simple) proxy and asserted the raw 4/`fixed` were emitted verbatim;
+     * that assumption is retired by ADR-018, so the test now asserts the
+     * dormant-suppression outcome instead.
+     */
+    public function test_index_and_show_suppress_a_simple_proxys_dormant_retry_policy_fields(): void
     {
         $user = $this->actingUser();
         $proxy = Proxy::factory()->createQuietly([
@@ -153,16 +162,16 @@ class ProxyIndexShowTest extends TestCase
             ->get(route('proxies.index', ['current_team' => $this->teamSlug($user)]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->where('proxies.data.0.retry_attempt_limit', 4)
-                ->where('proxies.data.0.retry_backoff_strategy', 'fixed')
+                ->where('proxies.data.0.retry_attempt_limit', null)
+                ->where('proxies.data.0.retry_backoff_strategy', null)
             );
 
         $this->actingAs($user)
             ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $proxy->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->where('proxy.retry_attempt_limit', 4)
-                ->where('proxy.retry_backoff_strategy', 'fixed')
+                ->where('proxy.retry_attempt_limit', null)
+                ->where('proxy.retry_backoff_strategy', null)
             );
     }
 
