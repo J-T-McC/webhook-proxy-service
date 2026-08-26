@@ -2133,6 +2133,18 @@
 ## M7 — Whole-surface verification pass
 
 ## T29 — Production-build verification pass and final compliance sweep (R4; binding constraint 8; plan M7)
+- **Sequencing note (added at plan-11 Revision B / M8, Task Planner, 2026-08-26):** This task's
+  position in the sequence moved. It was written and ordered as M7, following directly after M6
+  (T25–T28), and its Dependencies below now also name **T30** and **T32** (M8) for that reason: M8
+  is the fix for the 24-hour trend chart's single-point rendering that prompted Amendment B, and
+  this task's own manual matrix already requires walking all three windows, including `24h`. Run
+  before M8 lands, that walk would have inspected the pre-Revision-B `24h` series — one or two
+  calendar-day points on an otherwise empty chart — and recorded it as correct, which is exactly
+  the defect Amendment B exists to correct. Nothing else about this task changes; its Description,
+  Acceptance Criteria and Testing sections stand exactly as originally written below, and its
+  existing "across all three windows (24h/7d/30d)" and "every Implementation Note... confirmed by
+  inspection" language already covers M8's added Implementation Notes 21–23 and the hourly-bucket
+  behaviour without needing a rewrite.
 - **Description:** The closing task, blocked by M6. Two parts. **(1) Automated:** full
   `composer lint`, `composer types:check`, `pnpm lint:check`, `pnpm types:check`, and
   `./vendor/bin/sail test` (whole suite) green; a targeted re-check that the Implementation Notes
@@ -2150,7 +2162,7 @@
   deliveries in window, zero traffic for a proxy, zero traffic for a destination, empty-filtered
   Events list), with non-text contrast on the trend-chart lines checked per `design-11` §
   Accessibility.
-- **Dependencies:** T11, T17, T20, T22, T24, T28
+- **Dependencies:** T11, T17, T20, T22, T24, T28, T30, T32
 - **Files:** none production; verification only
 - **Acceptance Criteria:**
   - All five automated checks pass with the full suite included.
@@ -2184,4 +2196,217 @@
   fallback is pre-approved and requires no further Owner sign-off, only a package-name change
   recorded in T25's completion note.
 - **Next Agent:** Senior Developer, starting at T1.
+
+---
+
+## M8 — Amendment B bucket work (appended at plan-11 Revision B, 2026-08-26; nothing above renumbered)
+
+> **Why this milestone exists.** The Project Owner observed the 24-hour trend chart rendering a
+> single point at the far left of an otherwise empty chart — correct under the original
+> specification (one point per calendar day; a 24-hour window can only ever yield one or two
+> points), so the specification was wrong, not the code. PRD-11 `## Amendment B` (Product Manager,
+> `D-11-8`, `D-11-9`) rules that bucket size depends on the window — hourly on `24h` (24 points),
+> daily on `7d`/`30d` — and that the per-bucket drill-through is obliged at day buckets only, an
+> hourly row owing none and never carrying a day-grained one (a direct AC10 breach, forbidden
+> outright). `plan-11-analytics.md` Revision B carries the mechanism at Technical rulings 11–13,
+> amending rulings 9 and 10 in place. Both Owner-approval flags stand exactly as ruled and are not
+> reopened by this milestone; it adds no index, no column, no table, no route and no export.
+>
+> **Split, per plan § Handoff:** a **backend** task (T30) that depends on nothing, and a
+> **frontend** task (T32) that depends on T30 and on the Designer's pending `design-11` update for
+> the hour wording — that update is in flight in parallel with this breakdown and had not landed
+> Product Manager re-approval at the time these tasks were written. **T29 (M7) now runs after both**
+> — see the sequencing note added to T29 above.
+
+## T30 — `SeriesBucket`, bucket-aware `AnalyticsWindow`, and the one window definition across `DeliveryStatistics` and `ProxyEventController` (AC8, AC10, AC16, AC17, Amendment B(i); plan Technical rulings 11, 12; plan §§ Services & Actions, Data Model bucket-expression verification, Test strategy)
+- **Description:** New `App\Enums\SeriesBucket` string-backed enum, cases `Hour = 'hour'` and
+  `Day = 'day'`. Not persisted anywhere; nothing outside `AnalyticsWindow::bucket()` may construct
+  one from a window value. `App\Enums\AnalyticsWindow` gains three members: `bucket(): SeriesBucket`
+  (`Hour` for `TwentyFourHours`, `Day` for `SevenDays`/`ThirtyDays`), `bucketCount(): int` (24, 7,
+  30), and `start(CarbonImmutable $now): CarbonImmutable` — the window's inclusive start, exactly
+  the table in plan Technical ruling 12: `24h` → `$now->startOfHour()->subHours(23)`; `7d` →
+  `$now->startOfDay()->subDays(6)`; `30d` → `$now->startOfDay()->subDays(29)`. `interval()` is
+  removed from the enum, along with both of its callers — leaving a second, subtly different window
+  definition in the enum is how the divergence ruling 12 closes would come back.
+
+  In `DeliveryStatistics`, the per-day grouping helper becomes a per-**bucket** helper, keyed on
+  `AnalyticsWindow::bucket()`'s expression and nowhere else: an hour-truncating expression at `24h`
+  (`SUBSTRING(updated_at, 1, 13)`, portable form — see the verification requirement below), the
+  unchanged `DATE(updated_at)` at `7d`/`30d`. Densification walks `bucketCount()` bucket starts
+  (not a day range), formatting each into both the SQL bucket key it matches and the `bucketStart`
+  string it emits, from one Carbon value, so the two cannot drift. The two window-start helpers
+  (`windowStart()`/`seriesWindowStart()`) collapse into one call to `AnalyticsWindow::start()`,
+  used by every figure, the series, and — via `ProxyEventController`'s existing single
+  `$start`/`$end` build point — the Events list's window filter, so a record the headline figure
+  counts and a record the series' buckets partition are drawn from the same range (Amendment B(i)'s
+  partition property; the pre-existing calendar-vs-rolling divergence ruling 12 closes).
+
+  `SeriesPoint` gains `bucketStart: string` (local ISO-8601 `Y-m-d\TH:i:s`, present at both bucket
+  sizes) and `date` becomes `string|null` — `null` at every hourly-bucket point (there is no correct
+  day value to emit), the point's own `Y-m-d` string, unchanged, at every day-bucket point. This is
+  how hourly link suppression is expressed in the data rather than in display logic — a row builds
+  a link when and only when it has a `date` (T32 reads it; this task only produces it). `bucketStart`
+  is never a `date`-parameter value and `date` is never used to derive a point's period — they are
+  deliberately not merged (plan § API). `StatisticsPanel` gains `bucket: SeriesBucket`
+  (serializes as `'hour'`/`'day'`), which exists for labelling and axis formatting only — **it is
+  not, and must not become, the hourly-link gate**; two signals for one decision is how they drift
+  apart, and `SeriesPoint.date` is the only signal T32 may read for that decision.
+- **Dependencies:** none — modifies files already built by T2–T24; no new task blocks it.
+- **Files:** `app/Enums/SeriesBucket.php` (new), `app/Enums/AnalyticsWindow.php`,
+  `app/Data/Analytics/SeriesPoint.php`, `app/Data/Analytics/StatisticsPanel.php`,
+  `app/Services/DeliveryStatistics.php`, `app/Http/Controllers/ProxyEventController.php`
+- **Acceptance Criteria:**
+  - `SeriesBucket` has exactly the two cases `Hour`/`Day`; no code outside
+    `AnalyticsWindow::bucket()` constructs one from a window value (a tokenized-source check
+    mirroring T9's `mode`/`processing_mode`-absence technique, not a plain grep that could
+    false-positive on a doc-comment).
+  - `AnalyticsWindow::bucket()`, `bucketCount()` and `start()` return exactly the values named
+    above for all three windows; `interval()` no longer exists on the enum and no caller of it
+    remains anywhere in the codebase.
+  - The series densifies to exactly `bucketCount()` points per window, at both grains it is obliged
+    at (team, proxy) — 24 at `24h`, 7 at `7d`, 30 at `30d` — every bucket present with zero counts
+    and `rate === null` when it carries no traffic. **No empty bucket is dropped and nothing may
+    shorten the series to the buckets that happen to carry traffic.**
+  - **Bucket boundaries are half-open at both sizes.** A record resolved at exactly the top of an
+    hour/day falls in that bucket, not the previous one; one resolved at the last instant before
+    the boundary falls in the earlier bucket, not the next. Asserted at both an hour and a day
+    boundary — no `whereBetween` stands in for either.
+  - **The bucket expression is verified on both engines this suite runs on before being relied on
+    — MySQL 8 under Sail and SQLite locally — not assumed from the plan's own text.** If
+    `SUBSTRING(updated_at, 1, 13)` does not produce identical bucket keys on both engines, adopt the
+    pre-approved driver-selected fallback (`DATE_FORMAT(updated_at, '%Y-%m-%d %H')` on MySQL,
+    `strftime('%Y-%m-%d %H', updated_at)` on SQLite) in the same single place `bucket()` is
+    consulted, and record in the completion note which form was adopted and on what evidence — a
+    later reader must not have to re-derive it from the SQL.
+  - **Timezone agreement is asserted by a test that runs through the database, not only in PHP.**
+    With a known application timezone, a record written at a known instant lands in the bucket that
+    instant belongs to, checked at hourly grain — a session-timezone mismatch displaces every
+    hourly point, where it displaced only a minority of daily ones.
+  - **The partition property (Amendment B(i); the test that would have caught the divergence ruling
+    12 closes).** Summing the series' per-bucket counts, at each unit, equals the window's own
+    single-number figure for the same unit, subject and window — on all three windows.
+  - **`ProxyEventController`'s resolved window bound is the same value `AnalyticsWindow::start()`
+    gives the service for an identical window and `now()`.** Asserted by a dedicated test comparing
+    the Events list's resolved range against `DeliveryStatistics`'s figure over the same fixture, so
+    the drill-through and the figure it was reached from can never silently disagree — the plan
+    names this as easy to miss and worth its own acceptance criterion.
+  - `SeriesPoint.date` is `null` at every hourly-bucket point and the point's own `Y-m-d` string at
+    every day-bucket point; `SeriesPoint.bucketStart` is non-null and present at both bucket sizes.
+  - `StatisticsPanel.bucket` reads `Hour` on the `24h` window and `Day` on `7d`/`30d`, at both team
+    and proxy grain.
+  - Every pre-existing test asserting the superseded "one point per calendar day, every window"
+    shape (`DeliveryStatisticsSeriesTest` and any Events-list window-bound test built against
+    `windowStart()`/`seriesWindowStart()`) is updated to the bucket-aware shape rather than left
+    asserting behaviour this task removes, and the full suite stays green.
+  - No index, column, table, route, or export is added anywhere in the diff; the change is confined
+    to the Files listed above and their tests (Owner flag 2 is not reopened — verified by inspection
+    of the diff, not merely asserted).
+- **Testing:** `tests/Unit/Enums/SeriesBucketTest.php` (new) — the exact two-case set. Extend
+  `tests/Unit/Enums/AnalyticsWindowTest.php` — `bucket()`/`bucketCount()`/`start()` per window,
+  `interval()` absent. Extend `tests/Unit/Services/DeliveryStatisticsSeriesTest.php` — bucket count
+  per window, the partition-property test, the half-open-boundary test at both bucket sizes, the
+  timezone-agreement test, and the both-engines bucket-key assertion (run under Sail for MySQL;
+  document the SQLite verification method used, since this suite's SQLite runs are local rather than
+  Sail-orchestrated). New `tests/Feature/Analytics/AnalyticsWindowConsistencyTest.php` — the
+  `ProxyEventController`-vs-`DeliveryStatistics` window-agreement test.
+- **Completion notes:** _pending_
+
+> **T31 is deliberately unused in this file.** This document refers to "backlog T31" — the
+> deferred frontend test harness on `docs/tasks/walking-skeleton-tasks.md` — in seven places,
+> unqualified, including in the completion notes of tasks that are already finished. Numbering
+> M8's frontend task T31 would have put two different meanings of "T31" inside one document.
+> The number is skipped rather than reused; nothing above or below is renumbered.
+
+## T32 — Frontend: bucket-aware types, labels, trend-table columns and row keys, `TrendChart.vue` axis/summary, hourly link suppression on Proxy Show (AC8, AC10, AC16; plan Technical ruling 13; plan Implementation Notes 20–23)
+- **Description:** Depends on T30's `bucket`/`bucketStart`/nullable-`date` shape shipping, and —
+  separately — on the pending `design-11` update (the seven places PRD-11 `## Amendment B` routes
+  to the Designer, plus the `trendChartAriaLabel()` string named below) reaching Product Manager
+  re-approval. **That approval has since landed — `design-11` was re-approved by the Product
+  Manager on 2026-08-26, the Amendment B delta accepted with no corrections, and all three
+  reserved strings (the bucket-conditional accessible summary, the "Hour"/"Date" first-column
+  header, and the date-qualified point label) are covered, so no question document is owed.**
+  The instruction below stands as written for any wording this task finds is still missing —
+  verify `docs/design/design-11-analytics.md`'s approval record
+  before writing any hour-wording string, and do not start the wording portion of this task until
+  it has landed.**
+
+  `resources/js/types/analytics.ts` — mirror T30's DTO changes exactly: `SeriesPoint.bucketStart:
+  string`, `SeriesPoint.date: string | null`, `StatisticsPanel.bucket: 'hour' | 'day'`.
+
+  `resources/js/data/analyticsLabels.ts` gains a bucket-aware form of every unit-bearing and
+  period-bearing label `StatisticsPanel.bucket` selects between: the trend table's first-column
+  header, a point's own period label, and the chart's axis label and accessible summary — no
+  `.vue` file may hold a free-standing string for any of them. This replaces the hardcoded
+  `trendChartAriaLabel()` string, **"Daily delivery and attempt success rate…", which is already
+  known false on the 24-hour window and is named here so no implementer re-derives or reinvents it.**
+  **The wording is the Designer's, not the implementer's**: take the hour strings verbatim from the
+  approved `design-11` update. **If that update does not supply an hour wording for the
+  first-column header, the point period label, or the chart's axis/summary text, stop and raise a
+  question document to the Designer — do not invent a string.** This is the same rule the plan
+  states for this exact gap (Implementation Note 22).
+
+  Both trend tables (`Dashboard.vue`, `proxies/Show.vue`) key their row `v-for` on
+  `point.bucketStart`, **not** `point.date` — `date` is `null` on every hourly row today, and
+  keying on it would collapse 24 distinct rows into one.
+
+  On Proxy Show, the per-day drill-through link (`trendDayHref`, T23) is built **when and only
+  when `point.date` is present** — exactly the existing gate, now exercised by real hourly data for
+  the first time rather than a new condition. An hourly row (`point.date === null`) renders its
+  Delivery success and Attempt success cells as **plain text**: no `<Link>`, no `<button>`, no
+  `aria-disabled`, no muted placeholder control, no empty action cell, and no explanatory note
+  phrased as a limitation — Amendment B(ii) requires exactly this, restated here because "render
+  nothing" is the kind of instruction an implementer improves on. **Gate on `point.date` alone —
+  never on `props.statistics.bucket` or any other second signal.** Dashboard's trend table carries
+  no link at any bucket size (Technical ruling 10's scope — the Dashboard's team-grained trend is
+  not a drill-through entry point at all) and is unaffected by this link-logic change, but it still
+  needs the bucket-aware header and period label like every other trend surface.
+
+  `TrendChart.vue`'s axis ticks and `aria-label` summary switch on `props.bucket`
+  (`StatisticsPanel.bucket`, passed down from the page), sourced from the same `analyticsLabels.ts`
+  functions the tables use, so the chart and its accessible fallback cannot describe the window
+  differently from each other.
+- **Dependencies:** T30 (types and data shape); the `design-11` Amendment B revision's Product
+  Manager re-approval (external to this task list — not itself a task here; verify before
+  implementing any wording)
+- **Files:** `resources/js/types/analytics.ts`, `resources/js/data/analyticsLabels.ts`,
+  `resources/js/pages/Dashboard.vue`, `resources/js/pages/proxies/Show.vue`,
+  `resources/js/components/TrendChart.vue`
+- **Acceptance Criteria:**
+  - `SeriesPoint`/`StatisticsPanel` TypeScript types match T30's PHP DTOs exactly
+    (`bucketStart: string`, `date: string | null`, `bucket: 'hour' | 'day'`); `pnpm types:check`
+    passes.
+  - Both trend tables' row `:key` is `point.bucketStart`; neither table's `v-for` key is
+    `point.date` anywhere in the diff.
+  - Both trend tables' first-column header and each row's period label are bucket-aware — the day
+    form on `7d`/`30d` reads exactly as it does today, and the `24h` form is the Designer's hour
+    wording, sourced from `analyticsLabels.ts` with no free-standing string in either `.vue` file.
+  - On Proxy Show, an hourly row (`point.date === null`) renders its Delivery success and Attempt
+    success cells as plain text with no link, no button, no disabled/muted control, and no
+    explanatory note; a day row (`point.date` present) is byte-for-byte unchanged from its current
+    T23 behaviour.
+  - **The hourly-link gate reads `point.date` and nothing else** — no code path consults
+    `props.statistics.bucket` (or any other field) to decide whether a row's cells build a link.
+  - On Dashboard, no trend row carries a link at either bucket size (unchanged from T23's scope
+    ruling) — confirmed by inspection, not merely assumed unaffected.
+  - `TrendChart.vue`'s axis and `aria-label` summary read correctly on all three windows, including
+    a corrected, bucket-aware `24h` string — `trendChartAriaLabel()` (or its bucket-aware
+    replacement) never renders the word "Daily" on the 24-hour window.
+  - If any of the three named strings (trend table first-column header, point period label, chart
+    axis/summary) is missing from the approved `design-11` revision at the time this task runs, no
+    string is invented anywhere in the diff — a question document to the Designer is raised instead
+    and named in the completion note.
+  - No new page, route, capture, or export is added anywhere in the diff — this task is display-only
+    against props T30 already emits.
+  - `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green.
+- **Testing:** no frontend test harness (backlog **T31** on `docs/tasks/walking-skeleton-tasks.md`
+  — a different document's task carrying the same number as this one by coincidence of continued
+  numbering in two separate files; the two are unrelated and this note exists so a later reader does
+  not conflate them). **Manual verification required, `pnpm run build` with `public/hot` removed
+  first**: on the `24h` window, confirm the trend table renders 24 distinct rows (not collapsed to
+  one), the first-column header and every row's period label read the Designer's approved hour
+  wording, every row's rate cells render as plain text with no link or control on Proxy Show, and
+  the chart's axis and accessible summary read correctly with no "Daily" wording anywhere; on
+  `7d`/`30d`, confirm the day rows and their existing per-day links are unchanged; both light and
+  dark theme.
+- **Completion notes:** _pending_
 
