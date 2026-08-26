@@ -18,6 +18,14 @@ metadata:
 - `webhook_events` indexes are `(team_id, created_at)` and `(proxy_id, created_at)` — a bare `created_at` range scan has no index; scan per team/proxy.
 - The `AdvanceProxyFifoQueue` claim locks only `status IN (pending, claimed)` rows under `(proxy_id, status, webhook_event_id)`; work touching only `settled` rows occupies a disjoint index range.
 
+**Retention GC hold set (`PurgeExpiredPayloads::applyHolds()`) — gotchas for any lifecycle work:**
+- Six conjunctive holds H0–H5, written **once** and applied to both the selection `SELECT` and the erase `UPDATE`'s own `WHERE` (the compare-and-set). H5 arrived with #6/ADR-015 D7. Never add a hold to only one of the two.
+- **One config knob, two different anchors.** `retention.dispatch_horizon_minutes` bounds H4 against `webhook_events.created_at` **and** H5's `pending` clause against `deliveries.created_at`. Because any collectable event is already ≥ the retention window old, **H4's age branch is unreachable in practice** — the knob materially governs H5 only.
+- **Corollary that traps people:** for the *original* dispatch, `deliveries` rows are created at ingest, so the H5 age test runs at ingest+window — **no horizon value can ever close an original-dispatch hold gap**; it's unbounded-hold or nothing. Tuning the horizon only helps rows created *late* (replay dispatches, whose `deliveries` rows are minted at replay time).
+- **Unbounded holds are rejected by name, three times** (ADR-012 §Alternatives, ADR-015 D7, ADR-016 D2): a never-settling row immortalizes a payload, contra PRD-05 AC6. Don't re-propose one.
+- **Nothing terminalizes a stranded Async `pending` delivery.** `SweepDueRetries` touches only `retrying`; `SweepStalledFifoDispatches` pass (c) only *reads* non-terminal deliveries. FIFO self-heals (lease reaper → re-`DeliverStep` inline), Async does not. Assume `pending` can persist forever on Async.
+- Async attempt-1 jobs (`DeliverStep` → `DeliverToDestination`) **carry their bytes** in the `DeliveryUnit`; only `ProcessIngestedWebhook` (ingest entry *and* replay) re-reads the stored row. That asymmetry is what makes most GC-vs-dispatch races harmless — if attempt-1 ever moves to by-reference, every such argument inverts.
+
 **Native team authorization seam** (hand-rolled Jetstream-style, no auth library):
 - `App\Enums\TeamRole` (Owner/Admin/Member) — `permissions(): array<TeamPermission>` static bundle per role; `Owner => TeamPermission::cases()`. Also `hasPermission()`, `level()`/`isAtLeast()`, `assignable()`.
 - `App\Enums\TeamPermission` — string-backed, namespaced (`team:`, `member:`, `invitation:`). Team-admin only until #2 adds `proxy:` cases.
