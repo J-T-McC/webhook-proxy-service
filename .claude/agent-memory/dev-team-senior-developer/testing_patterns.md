@@ -128,3 +128,22 @@ rules live in `docs/standards/testing.md`, not repeated here.
   every fixture-creation call that sets the gated column without the gating one, not just the files
   the task's Files list names — add the gating attribute explicitly to the fixture (the correct fix
   under the new invariant, not a workaround).
+- **`Model::factory()->createManyQuietly($count)` does NOT accept an attributes array as a second
+  argument** — the real signature is `createManyQuietly(int|iterable|null $records = null)`, same
+  shape as `createMany()`. Passing `createManyQuietly(2, ['status' => X])` silently ignores the
+  second argument and creates records with plain factory defaults (a status-dependent count then
+  reads 0, not "2 records in status X"). Chain `->state([...])->createManyQuietly($count)` instead.
+- **Asserting "this class's code never references X" (a column name, a model class) via a plain
+  `str_contains($source, 'X')`/`assertStringNotContainsString` false-positives the moment the
+  class's own doc-block documents that very invariant in prose** (e.g. "this class never reads
+  `processing_mode`" — the string `processing_mode` is right there in the comment). Strip comments
+  first with the tokenizer before the substring check: `foreach (token_get_all($source) as $token)
+  { if (is_array($token) && in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true)) continue; $code
+  .= is_array($token) ? $token[1] : $token; }`, then assert against `$code`, not `$source`.
+- **A `withTrashed()`/soft-delete query on a model using `BelongsToCurrentTeam`'s `TeamScope` still
+  carries the scope's own implicit `current_team_id` filter** (only `SoftDeletingScope` is removed
+  by `withTrashed()`) — harmless in a real authenticated request (the passed team id always matches
+  session current-team by construction) and a non-issue in a unit test with no `actingAs()` (no
+  authenticated user ⇒ `TeamScope` no-ops entirely, so the test's own explicit `where('team_id',
+  ...)` is the only thing providing isolation — actually the more rigorous test design for proving
+  a service's own explicit scoping works, independent of session state).

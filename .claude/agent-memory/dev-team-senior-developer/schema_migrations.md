@@ -70,3 +70,29 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   misleading errors unrelated to the migration under test. `migrate:fresh` → inspect
   `information_schema` → isolated `migrate:rollback --step=1` → inspect again → `migrate` is the
   reliable up/down/up proof.
+- **Adding a composite index whose leftmost column is a plain (non-unique) FK column can ALSO
+  silently drop that FK's pre-existing auto-generated single-column support index** — not only the
+  UNIQUE case above. If a column got its index only implicitly (`foreignId(...)->constrained()`
+  with no explicit `->index()`/`->unique()` in that or a later migration), adding
+  `$table->index(['that_col', ...])` later makes InnoDB drop the old auto index as redundant in the
+  same `ALTER TABLE`, in this project's MySQL 8.4 (verified via `SHOW CREATE TABLE` before/after,
+  and reproduced against a throwaway table). A literal `down()` that `dropIndex`s the new composite
+  then fails with 1553 ("needed in a foreign key constraint") — nothing else covers the FK.
+  Reversible `down()` must restore an equivalent single-column `$table->index(['that_col'])` BEFORE
+  dropping the composite one — and guard that restoration with
+  `Schema::hasIndex($table, ['that_col'])` so a repeat `down()` (e.g. a parallel test worker
+  re-running the same rollback test across separate `sail test --parallel` invocations against its
+  persisted database) doesn't hit "Duplicate key name" on the second run. A column that already had
+  an EXPLICIT index/composite index from an earlier migration (e.g. `(proxy_id, status)`) is
+  unaffected — that index isn't the auto-generated kind InnoDB reclaims. Used for T1 of #11's
+  `deliveries.team_id`/`deliveries.proxy_id` composite analytics indexes.
+- **DDL inside a `RefreshDatabase`-wrapped test escapes the per-test transaction sandbox on
+  MySQL** (implicit commit on DDL) and mutates the real test database directly, not just within
+  that test's rollback-at-teardown boundary. A migration-rollback test (`migrate:rollback` +
+  `migrate` inside one test method) is therefore only "clean" if it's actually idempotent/safe to
+  run more than once — `sail test --parallel` persists one MySQL database per worker
+  (`testing_test_1..N`) and only re-migrates on a migration-file checksum change, so a second full
+  suite run against the same worker DBs re-executes any such test's DDL against schema state the
+  FIRST run already mutated. Reset all worker DBs (`for i in 1..N: DB_DATABASE=testing_test_$i
+  artisan migrate:fresh`) and run `sail test --parallel` twice in a row to prove idempotency, not
+  just once.
