@@ -74,6 +74,25 @@ plus both Owner flags ruled, 2026-08-26);
 - **Next gate: Implementation (Senior Developer) — unblocked, all of M1–M7.** Requirements,
   UX Design, Technical Design and Task Planning are all closed, and **no open question or
   outstanding approval remains on #11**. Task lists carry no approval gate.
+- **Implementation progress: M1 and M2 complete — T1 through T11 landed and committed**
+  (Senior Developer, 2026-08-26). `composer lint`, `composer types:check` (PHPStan level 7,
+  zero errors, no suppressions) and the full suite at 810/810 all verified green afterwards.
+  **Next task is T12** (M3, Dashboard) — the first task that touches the frontend, and
+  therefore the first that carries the manual-verification requirement. Five deviations were
+  flagged rather than decided, all recorded in `docs/tasks/analytics-tasks.md`'s completion
+  notes and none of them blocking. Two are worth carrying here because a later reader could
+  otherwise mistake them for defects. First, **T1's `down()` is not four bare `dropIndex`
+  calls**: InnoDB silently reclaims `deliveries.team_id`/`proxy_id`'s automatic
+  foreign-key-support index once the composite index covers it, so dropping the composite
+  outright fails with error 1553 — the rollback restores an equivalent single-column index
+  first, guarded by `Schema::hasIndex()` so it is safe to run twice. **The forward schema is
+  untouched: still exactly the four indexes the Owner approved.** Second, the task doc's
+  miniature "canonical 100%/67%" fixture (one delivery, three attempts, one succeeded) is
+  internally inconsistent — 67% is that fixture's *failure* share, while `UnitFigure::$rate`
+  is a success rate throughout, which reads ≈33%. Implemented against the correct value.
+  **This does not disturb design-11's canonical pair**, which is a different and larger
+  fixture (42 of 42 delivered = 100% delivery success, 28 of 42 = 67% attempt success) and
+  still stands as correction C5 landed it.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
