@@ -77,8 +77,7 @@ plus both Owner flags ruled, 2026-08-26);
 - **Implementation progress: M1 and M2 complete — T1 through T11 landed and committed**
   (Senior Developer, 2026-08-26). `composer lint`, `composer types:check` (PHPStan level 7,
   zero errors, no suppressions) and the full suite at 810/810 all verified green afterwards.
-  **Next task is T12** (M3, Dashboard) — the first task that touches the frontend, and
-  therefore the first that carries the manual-verification requirement. Five deviations were
+  Five deviations were
   flagged rather than decided, all recorded in `docs/tasks/analytics-tasks.md`'s completion
   notes and none of them blocking. Two are worth carrying here because a later reader could
   otherwise mistake them for defects. First, **T1's `down()` is not four bare `dropIndex`
@@ -93,6 +92,25 @@ plus both Owner flags ruled, 2026-08-26);
   **This does not disturb design-11's canonical pair**, which is a different and larger
   fixture (42 of 42 delivered = 100% delivery success, 28 of 42 = 67% attempt success) and
   still stands as correction C5 landed it.
+- **M3 complete — T12 through T17 landed and committed** (Senior Developer, 2026-08-26).
+  The Dashboard (Screen 1) is built: `resources/js/data/analyticsLabels.ts` as the single
+  source of every unit-bearing label, `DashboardController`'s `statistics`/`proxies` props,
+  the two-tier headline and bridge sentence, the sortable Proxies table, the Retry & replay
+  tiles and Latency card, and the Trend accessible table. Verified green afterwards:
+  `composer lint`, `composer types:check` (0 errors), `pnpm lint:check`, `pnpm types:check`,
+  `pnpm format:check`, and the full suite at **817/817** (up from 810; T13 added seven
+  tests). **Next task is T18** (M4, Proxy Show). Three things worth carrying forward.
+  First, **every manual verification in M3 was run against a production build with
+  `public/hot` removed** — the marker was present at session start, was removed before the
+  first build, and stayed removed, so review-07 Finding 8 did not bite. Second, **T15 reads
+  `Q-11-03(9)`'s deleted-proxy degradation as plural**: a deleted proxy's row keeps its
+  figures and gains a muted **Deleted** badge but loses *both* the name link and the
+  Terminal-failures drill-through link, because `withTrashed()` on either path would surface
+  the shipped **Replay** affordance against a deleted parent. Third, **the last
+  `PlaceholderPattern` usage came out in T16's commit rather than T17's**, even though T17
+  is the task that names the removal — T16's card placement displaced it and the dead import
+  had to go for `pnpm lint:check` to stay green. Both tasks' completion notes record this so
+  a later reader does not go looking in the wrong commit.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
