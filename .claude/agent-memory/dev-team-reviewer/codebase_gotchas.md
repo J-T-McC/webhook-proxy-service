@@ -121,3 +121,44 @@ metadata:
   `$user->hasTeamPermission($team, …)`; a role literal (`role === Member`) in a policy/controller
   is a standards violation (permission-based, never role-based). Ownership is a second axis modeled
   as `-any` bundle permissions, not a role check.
+- **A conditional-key `array_merge($data, $cond ? [...] : [])` does NOT omit a key already
+  present in `$data`.** Whenever a controller claims to "omit column X from the write unless
+  Y", check whether the base array is the validated request data — if X is fillable and
+  validation lets `null` through, `Model::make($data)` assigns it and the INSERT/UPDATE writes
+  it anyway. Only an explicit array literal (or `Arr::except`) actually omits. Found in
+  `ProxyController::store()` at review-07: the comment states the omission rule, the code
+  implements it only in `update()`. Grade the comment, not just the behaviour — a create is
+  harmless, an update would not be.
+- **`ProxyForm.vue`'s `watch(isEnhanced, …)` is now SYMMETRIC** (fixed 2026-08-26, plan-07
+  Revision A ruling 4(b)): Enhanced→Simple still clears both retry fields, and Simple→Enhanced
+  re-seeds them unconditionally from `props.initial` (the immutable mount seed), so an in-session
+  round trip no longer destroys a persisted policy. Deliberate consequences to know before
+  "improving" it: in-session *typed* values still do not survive a round trip (the mount seed
+  wins), and the re-seed must never write a default literal — an unconfigured proxy must
+  round-trip to unconfigured or it silently becomes a configured one that stops following the
+  system default. Generalise: whenever a form seeds initial state from persistence AND a watcher
+  clears fields on a toggle, walk the toggle-BACK path and check what a save then writes.
+- **A proxy update/create REQUIRES `destinations` (`required|array|min:1`)** — a factory-built
+  proxy has none, so every form save in a live check is silently rejected. And an Inertia
+  validation redirect is **also `303`**, so "303 and the values are still there" is *vacuous*
+  evidence. Attach a destination, and prove the save landed by also editing `name` and checking
+  the row's `name`/`updated_at` plus a redirect to the Show page. Cost me a wrong pass at the #7
+  re-review before I caught it.
+- **`public/hot` exists and a Vite dev server has run for days on 5174** — so Laravel's `@vite`
+  serves **dev-server modules**, not `public/build`. `pnpm run build` before a live check
+  therefore proves nothing about what the browser executes (the modules come from
+  `http://[::1]:5174/resources/js/...`). Either stop the dev server, or log the requested module
+  URLs and additionally grep the freshly built chunk for the new logic — do both and say which
+  one an assertion rests on.
+- **Reka `SelectTrigger` DOES receive `aria-describedby`/`aria-invalid` from the template and
+  computes its accessible name from `<Label for=…>` — verified live at review-07**
+  (`role="combobox"`, name matches via `getByRole('combobox', { name })`). This is the
+  opposite of the `CheckboxRoot` trap above; do not assume every Reka primitive drops attrs.
+  House pattern for a form field here: `id` + `aria-describedby="<x>-help <x>-error"` +
+  `:aria-invalid`, a `p#<x>-help`, and an `InputError` wrapped in `span#<x>-error` (the span
+  is legitimately empty when there is no error).
+- **Cleaner live-check login than swapping user 1's password:** seed a throwaway user with
+  `User::factory()->create()` then `forceFill(['password' => '<plain>'])->save()` (the
+  `hashed` cast hashes it once — never `Hash::make()`), drive the real `/login` form, and
+  `forceDelete()` the user, its team, its `team_members` row and any seeded proxies/destinations
+  afterwards. Leaves user 1 untouched, so a concurrent agent's session is not disturbed.

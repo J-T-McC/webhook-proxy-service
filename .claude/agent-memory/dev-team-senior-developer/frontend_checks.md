@@ -66,3 +66,47 @@ and forwards it verbatim onto the underlying button (verified in
 carries it there through the `components/ui/checkbox/Checkbox.vue` wrapper with no extra work.
 No frontend a11y test harness exists in this project — verify via source read of the rendered
 node_modules output, or a real browser/DOM check, not assumption (review-06 Major 3).
+
+`eslint.config.js`'s `ignores: ['vendor', 'node_modules', ...]` entries are bare (top-level-only)
+patterns, not `**/vendor/**` — a nested checkout under the repo root (e.g. a concurrent agent's git
+worktree under `.claude/worktrees/*/vendor/**`) is NOT excluded and floods `pnpm lint:check` (bare
+`eslint .`) with tens of thousands of unrelated errors. If `lint:check` explodes with errors rooted
+outside `resources/js`/`app`, check for a stray sibling worktree/vendor copy before assuming your
+diff broke something — confirm your own files are clean with a scoped `npx eslint <files>` and don't
+edit the shared ignore list as a workaround (out of scope for a task diff, and other agents may be
+mid-session against it).
+
+`truncate` inside a flex/grid ancestor chain silently no-ops without `min-w-0` at
+*every* level in that chain (the flex/grid item itself, and any flex/grid ancestor
+wrapping it, e.g. a `<Label class="flex items-center gap-3">` that is itself a grid
+item of a `<fieldset class="grid gap-3">`) — flex/grid items default to `min-width:
+auto`, which floors shrinking at content width. Add `min-w-0` (and usually `flex-1`
+on the truncating element so it actually claims the row) rather than assuming
+`overflow-hidden`'s own `overflow != visible` exempts it; verify with a
+deliberately-long content value in a live browser, not just visually-short fixtures.
+`<legend>` is excluded from its `<fieldset>`'s grid/flex layout by the HTML rendering
+spec (the UA builds an anonymous "fieldset content box" around every child except
+`legend`, and *that* box becomes the grid/flex container) — a `gap-*` utility on the
+fieldset never reaches the legend; give the legend its own explicit margin instead.
+Only fix this where a `legend` is directly followed by an *interactive* row (reads as
+crowded); a `legend` followed by a plain description `<p>` reads fine as-is and
+doesn't need the same treatment (`ReplayDialog.vue` vs. `DestinationRows.vue`/
+`ProxyForm.vue`'s Retry-policy fieldset, fix `replay-dialog-layout.md`).
+
+`Tooltip`/`TooltipProvider`/`TooltipTrigger`/`TooltipContent` (`components/ui/tooltip`,
+reka-ui-backed) composes cleanly inside a `Dialog` — `TooltipContent` renders through
+its own `TooltipPortal`, same mechanism as `DialogContent`'s `DialogPortal`, so
+hover-opening a tooltip doesn't fight the dialog's focus trap. Existing usage pattern
+in this repo wraps each `Tooltip` (or a `v-for` group of them) in one `TooltipProvider`
+(`teams/Index.vue`, `teams/Edit.vue`, `AppHeader.vue`) — no app-wide provider exists.
+`TooltipContent` ships `w-fit` with no width ceiling — for content whose length is
+data-driven (e.g. a URL), add an explicit `max-w-*` plus `whitespace-normal break-all`
+so it wraps instead of overflowing the viewport on narrow/no-space sides.
+
+Driving a reka-ui `Select` (e.g. `#mode`, `#retry_backoff_strategy`) via Playwright for a
+manual-verification pass: it's not a native `<select>`, so `page.selectOption()` doesn't
+work. Click the `SelectTrigger` by its `id` to open it, then
+`page.getByRole('option', { name: <item label>, exact: true }).click()`. Read the current
+value back via the trigger's rendered text (`SelectValue`'s `innerText`), not
+`inputValue()`. See [[manual_verification_recipe]] for the rest of the seed/verify/cleanup
+recipe — this is the Select-specific piece it doesn't cover.

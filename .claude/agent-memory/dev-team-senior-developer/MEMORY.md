@@ -1,5 +1,5 @@
 - [Testing patterns](testing_patterns.md) — role-attach, actingUser personal-team-Owner helper, createQuietly, no RefreshDatabase; auditing pre-existing un-faked tests when filling in a real job body behind a prior no-op stub
-- [Frontend checks](frontend_checks.md) — pnpm types:check/lint:check/format:check triad + Prettier-on-Vue gotcha
+- [Frontend checks](frontend_checks.md) — pnpm types:check/lint:check/format:check triad, Prettier-on-Vue gotcha, flex/grid min-w-0 truncate + legend/fieldset gap gotchas, Tooltip-in-Dialog composition
 - [Schema & migrations](schema_migrations.md) — LONGBLOB via raw ALTER (binary()→blob), MySQL JSON key order, information_schema tests, team_id on ingest, encrypted-cast NULL passthrough, drop-and-readd for json→encrypted
 - [Laravel Actions gotchas](laravel_actions_gotchas.md) — AsCommand needs explicit Actions::registerCommands(), Carbon\Carbon* import paths (now() is CarbonImmutable), AsJob-only actions have no ::run()
 - [Config sanity guards](config_sanity_guards.md) — guard at the value's resolver seam or at action entry; fail loudly; test blank/non-numeric env via putenv+require; guard every config key a formula reads, not just the ones named at authoring time
@@ -7,3 +7,5 @@
 - [Soft-delete relation pattern](soft_delete_relation_pattern.md) — belongsTo to a SoftDeletes parent resolves null; fetch trashed-inclusive at the call site (established precedent), never widen the non-nullable consumer; check @property-read nullability annotations match reality
 - [Infra: deploy target undefined](infra_deploy_target_undefined.md) — no hosting platform decided yet; bootstrap/app.php trustProxies(at: '*') is an interim placeholder, revisit once a deploy target is chosen
 - [Frontend illustration/animation](frontend_illustration_animation.md) — SVG/CSS keyframe patterns; canvas+rAF: cubic-bezier solver, gradient-stroke pulses (not beaded segments), arc-length tables, MutationObserver theme repaint
+- [Worktree live verification](worktree_live_verification.md) — Sail mounts only the primary checkout; verify a worktree's changes via local composer install + throwaway mysql db + artisan serve, never sail, when another agent owns the primary checkout's branch
+- [Manual verification recipe](manual_verification_recipe.md) — no frontend test harness: seed via sail tinker (invert id vs. field-under-test to prove derivation), check via scoped headless Playwright selectors, clean up after
