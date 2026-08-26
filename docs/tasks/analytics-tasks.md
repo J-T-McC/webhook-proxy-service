@@ -585,7 +585,34 @@
     writes, either table).
 - **Testing:** `tests/Feature/Analytics/AnchorInvariantTest.php` (new) — the three cases above,
   each asserting `updated_at` byte-identical (not merely "not much different") before and after.
-- **Completion notes:** _pending_
+- **Completion notes:** Test-only, as scoped — no production file touched. All three cases drive
+  real production entry points rather than reproducing their query shape:
+
+  - **Delivery CAS no-op** reuses the exact scenario `DeliverToDestinationTest::
+    test_a_racing_duplicate_terminal_settle_fires_no_duplicate_event_and_schedules_nothing`
+    already established (raw-`UPDATE` a delivery straight to `Failed`, simulating a settler that
+    already won the terminal CAS, then drive a fresh, later attempt — `attempt_number = 5` — of
+    the *same* delivery through `DeliverToDestination::run()`). That attempt has no existing row,
+    so `resume()`'s early-return never fires; it reaches `settleDelivery()`/`transition()` for
+    real, and the CAS (`WHERE status IN ('pending','retrying')`) affects zero rows against the
+    already-`Failed` delivery — proving the no-op at the SQL level `transition()` actually runs,
+    not merely that `resume()` short-circuits first.
+  - **Attempt redelivery no-op** reuses `DeliverToDestinationTest::
+    test_redelivery_after_success_is_a_no_op`'s exact pattern (`DeliverToDestination::run($unit)`
+    twice with the identical unit) — the second call resolves via `resume()`'s early return
+    (`status !== Dispatched`) — with a raw `updated_at` capture added before/after.
+  - **GC read-only** mirrors `PurgeExpiredPayloadsTest::expiredEventFor()`'s fixture shape (an
+    event 31 days old, past the 30-day default retention window) plus a terminal `Delivery` and a
+    resolved `DeliveryAttempt` linked to it via `webhook_event_id`/`ingest_id`. Asserts the event
+    really was cleaned (`payload_cleaned_at` set) — proving this is a genuine GC run over live,
+    collectable rows, not a run that skipped everything — while both fact rows' `updated_at`
+    values stay byte-identical (H5's "terminal deliveries hold nothing" plus ADR-012 Decision 5's
+    "GC reads, never writes, either table").
+
+  All three assertions compare a raw `DB::table(...)->value('updated_at')` string captured before
+  and after (`assertSame`), not a Carbon comparison with implicit tolerance — genuinely
+  byte-identical, per the task's own wording. `composer lint`, `composer types:check` (PHPStan
+  level 7), and `./vendor/bin/sail test --parallel` all green (806/806).
 
 ## T11 — Separation and lifecycle: AC1, AC2, AC3, AC4, AC5 (plan § Test strategy "Separation and lifecycle")
 - **Description:** The integration-level tests proving #11's central premise — statistics survive
