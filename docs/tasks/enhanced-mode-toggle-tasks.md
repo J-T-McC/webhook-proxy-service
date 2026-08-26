@@ -436,7 +436,39 @@
   T5's endpoint change is live (TypeScript types are a compile-time check, not a runtime gate).
 - **Testing:** `pnpm types:check`, `pnpm lint:check`, `pnpm format:check`. No behavioural test — this
   task changes type declarations only, not executable logic.
-- **Completion notes:** _pending_
+- **Completion notes:** `ProxyDetail`/`ProxyListItem`'s `retry_attempt_limit`/`retry_backoff_strategy`
+  docblocks (`resources/js/types/proxies.ts`) now read "the per-proxy override in force; null
+  whenever the system default governs, including a Simple proxy holding a dormant policy" (AC14(b);
+  ADR-018 Decision 4), retiring the stale "null = unconfigured" framing that predates T5's mode gate.
+  New `ProxyFormProxy` interface (mirrors `ProxyFormResource`'s shape exactly — `id`, `name`, `mode`,
+  `processing_mode`, `response_status`, `response_body`, both retry fields, `destinations`) carries a
+  docblock naming Amendment A and pointing at `ProxyDetail`/`ProxyListItem` as the suppressed
+  counterpart; each cross-references the other via `{@link}`. `Edit.vue`'s local `EditProxy` interface
+  is deleted — its prop type and the `defineOptions` layout callback's `proxy` param both switch to
+  the imported `ProxyFormProxy`; the now-unused `DestinationRow`/`ProcessingMode`/`ProxyMode`/
+  `ProxyResponseStatus`/`RetryBackoffStrategy` imports are dropped from `Edit.vue` (all now folded
+  into `ProxyFormProxy`'s own definition). No other file references `EditProxy`. No runtime code
+  changed — the `:initial="{...}"` binding passed to `ProxyForm` is untouched, unpacking the same
+  fields from `props.proxy` as before.
+
+  **Gate note (environment, not a defect in this diff):** `pnpm lint:check` (bare `eslint .`) fails
+  repo-wide — 39,750 errors, entirely inside `.claude/worktrees/agent-a510df03e0c9cf676/vendor/**`
+  and `vite.config.ts`, a separate git worktree another concurrently-running agent has checked out
+  under this repo's own directory tree (its own vendor copy, not excluded by this project's
+  `eslint.config.js` `ignores: ['vendor', ...]`, which only matches a top-level `vendor` dir, not a
+  nested one three levels down). Confirmed via a scoped `npx eslint resources/js/pages/proxies/Edit.vue
+  resources/js/types/proxies.ts` — zero errors — that this diff introduces nothing new; the failure
+  predates and is unrelated to T6, and editing the shared `eslint.config.js` ignore list is out of
+  this task's scope (and would touch a file another agent may rely on mid-session). `pnpm format:check`
+  needed one real fix in-scope: `Edit.vue`'s hand-edited `defineOptions`/prop-type block needed
+  `./node_modules/.bin/prettier --write resources/js/pages/proxies/Edit.vue` (multi-line object type
+  reformatting) — now clean.
+
+  Verified: `pnpm types:check` (clean); `pnpm format:check` (clean, after the one Prettier fix above);
+  `pnpm lint:check` scoped to the two touched files via `npx eslint` (clean) — full-repo invocation
+  blocked by the unrelated concurrent-worktree pollution described above; full backend suite
+  `./vendor/bin/sail test --parallel` re-run as a safety check though this task is frontend-only (753
+  passed, 2808 assertions, unchanged from T5).
 
 ---
 

@@ -4,35 +4,20 @@ import { computed } from 'vue';
 import ProxyForm from '@/pages/proxies/ProxyForm.vue';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
-import type {
-    DestinationRow,
-    ProcessingMode,
-    ProxyMode,
-    ProxyResponseStatus,
-    RetryBackoffStrategy,
-} from '@/types/proxies';
-
-interface EditProxy {
-    id: number;
-    name: string;
-    mode: ProxyMode;
-    processing_mode: ProcessingMode;
-    response_status: ProxyResponseStatus | null;
-    response_body: string | null;
-    retry_attempt_limit: number | null;
-    retry_backoff_strategy: RetryBackoffStrategy | null;
-    destinations: DestinationRow[];
-}
+import type { ProxyFormProxy } from '@/types/proxies';
 
 const props = defineProps<{
-    proxy: EditProxy;
+    proxy: ProxyFormProxy;
 }>();
 
 const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
 defineOptions({
-    layout: (options: { currentTeam?: Team | null; proxy: EditProxy }) => ({
+    layout: (options: {
+        currentTeam?: Team | null;
+        proxy: ProxyFormProxy;
+    }) => ({
         breadcrumbs: [
             {
                 title: 'Proxies',
