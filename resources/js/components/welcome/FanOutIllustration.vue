@@ -75,33 +75,33 @@ const EVENT_JOURNEY: JourneyStep[] = [
         kind: 'travel',
         segment: 'ingest-junction',
         start: 0,
-        end: 420,
+        end: 780,
         easing: 'inout',
     },
     {
         kind: 'travel',
         segment: 'junction-dest1',
-        start: 420,
-        end: 1070,
+        start: 780,
+        end: 1430,
         easing: 'inout',
     },
     {
         kind: 'travel',
         segment: 'junction-dest2',
-        start: 490,
-        end: 1170,
+        start: 850,
+        end: 1530,
         easing: 'inout',
     },
     {
         kind: 'travel',
         segment: 'junction-dest3',
-        start: 565,
-        end: 1270,
+        start: 925,
+        end: 1630,
         easing: 'inout',
     },
-    { kind: 'arrivalRing', dest: 1, start: 1070, end: 1330, easing: 'out' },
-    { kind: 'arrivalRing', dest: 2, start: 1170, end: 1430, easing: 'out' },
-    { kind: 'arrivalRing', dest: 3, start: 1270, end: 1530, easing: 'out' },
+    { kind: 'arrivalRing', dest: 1, start: 1430, end: 1690, easing: 'out' },
+    { kind: 'arrivalRing', dest: 2, start: 1530, end: 1790, easing: 'out' },
+    { kind: 'arrivalRing', dest: 3, start: 1630, end: 1890, easing: 'out' },
 ];
 
 // Global pacing multiplier. The first build ran the full two-phase loop in
@@ -110,7 +110,22 @@ const EVENT_JOURNEY: JourneyStep[] = [
 // here, so pacing stays a single knob rather than 20 scattered numbers.
 const TIME_SCALE = 2.5;
 
-const EVENT_SETTLE = 1600 * TIME_SCALE;
+// Both phases open with every event sitting queued, border lit, before anything
+// dispatches. Without it the first dispatch left at t=0 and the pending state
+// was never legible on Event 1 at all — you only ever saw it on the FIFO
+// straggler. Real milliseconds, deliberately outside TIME_SCALE: this is a
+// "long enough to read" beat, not part of the motion's tempo.
+const PENDING_LEAD = 1800;
+
+// How long Event 1's whole journey takes, in scaled ms — Event 2 waits exactly
+// this long under FIFO, which is the zero-gap handoff the mode actually promises.
+const EVENT_SETTLE = 1960 * TIME_SCALE;
+
+// Event 2 leaves while Event 1 is barely clear of its own ingest node, so both
+// left-hand wires carry a pulse at the same time. That simultaneous left side is
+// the Async claim at its most legible; a larger offset pushed the overlap into
+// the fan-out half where the shared paths make it harder to read as two events.
+const ASYNC_OFFSET = 150 * TIME_SCALE;
 
 function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
     return EVENT_JOURNEY.map((step): TimelineEntry => {
@@ -136,36 +151,44 @@ function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
     });
 }
 
-// Event 2 departs while Event 1 is still travelling its first leg. The offset
-// is small enough that the two journeys visibly overlap for most of their
-// length — that overlap IS the Async claim — but non-zero, so it reads as two
-// independent events rather than one synchronized pair.
 const ASYNC_SCHEMA: Schema = {
     id: 'async',
     label: 'Async',
-    duration: 2500 * TIME_SCALE,
+    duration: 2500 * TIME_SCALE + PENDING_LEAD,
     entries: [
-        ...buildEventJourney(1, 0),
-        ...buildEventJourney(2, 500 * TIME_SCALE),
+        { event: 1, kind: 'queued', start: 0, end: PENDING_LEAD },
+        {
+            event: 2,
+            kind: 'queued',
+            start: 0,
+            end: PENDING_LEAD + ASYNC_OFFSET,
+        },
+        ...buildEventJourney(1, PENDING_LEAD),
+        ...buildEventJourney(2, PENDING_LEAD + ASYNC_OFFSET),
     ],
 };
 
-// Event 2 stays queued (static, muted) at its own ingest node until Event 1
-// fully settles at 1600ms — a precise zero-gap handoff, the one place this
-// diagram stays exact rather than organic, because the zero gap is the
-// truthful claim.
+// Event 2 stays queued at its own ingest node until Event 1 has fully settled —
+// the one place this diagram is exact rather than organic, because the zero gap
+// is the truthful claim.
 const FIFO_SCHEMA: Schema = {
     id: 'fifo',
     label: 'FIFO',
-    duration: 3600 * TIME_SCALE,
+    duration: 4150 * TIME_SCALE + PENDING_LEAD,
     entries: [
-        ...buildEventJourney(1, 0),
-        { event: 2, kind: 'queued', start: 0, end: EVENT_SETTLE },
-        ...buildEventJourney(2, EVENT_SETTLE),
+        { event: 1, kind: 'queued', start: 0, end: PENDING_LEAD },
+        {
+            event: 2,
+            kind: 'queued',
+            start: 0,
+            end: PENDING_LEAD + EVENT_SETTLE,
+        },
+        ...buildEventJourney(1, PENDING_LEAD),
+        ...buildEventJourney(2, PENDING_LEAD + EVENT_SETTLE),
     ],
 };
 
-const TOTAL_LOOP = ASYNC_SCHEMA.duration + FIFO_SCHEMA.duration; // 15250ms at TIME_SCALE 2.5
+const TOTAL_LOOP = ASYNC_SCHEMA.duration + FIFO_SCHEMA.duration; // ~24.2s at TIME_SCALE 2.5
 
 // ---------------------------------------------------------------------------
 // Easing — three named cubic-beziers, used everywhere in this illustration
