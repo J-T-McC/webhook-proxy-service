@@ -867,7 +867,60 @@
   unit (C4).
 - **Testing:** manual verification (no harness) — `pnpm run build`, confirm sort toggling, the
   deleted-proxy row, and the zero-traffic row treatment, both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented the "Proxies" card directly in `Dashboard.vue` — client-side
+  sortable `Table` over `props.proxies` (T13's `ProxyBreakdownRow[]`), default alphabetical by
+  `name` ascending (flagged design call 5 — never worst-first). Each sortable `TableHead` wraps a
+  `<button type="button">` (native Enter/Space handling, no bespoke keyboard code needed) carrying
+  `aria-sort` on the `TableHead` itself and a `▲`/`▼` indicator beside the active column's label;
+  clicking the same header again flips direction, clicking a different header resets to ascending.
+  Rate cells use the new `compactRateText()` helper (added to `analyticsLabels.ts`, T12's file — a
+  `"96% (42/42)"`/`RATE_NO_DATA_LABEL` formatter) rather than plain `formatRate()`, matching design
+  correction C4/Screen 3's compact convention so a later T20 Destinations table reads identically
+  rather than inventing its own cell format — same drift-prevention reasoning T12 already
+  documented for the column-header labels.
+
+  **Both the proxy-name link and the Terminal-failures link are gated on `canDrillThrough`**, not
+  independently — per plan-11 § API's own reading of `Q-11-03(9)` ("a deleted proxy's row keeps its
+  figures but not its links", plural), not merely the "no link to manage it" language that,
+  read in isolation, could be misread as muting only an edit affordance. A deleted row therefore
+  renders its name and Terminal-failures count as plain text and its View cell as a muted em-dash,
+  while every figure stays intact. The Terminal-failures link and the View link both carry `window`
+  only today (`proxyEventRoutes.index`/`proxyRoutes.show` with `?window=`); T23 adds
+  `&outcome=delivery_failed` to the former once T21's filter resolver exists to read it — this task
+  builds the link Flow B step 5 names, T23 "wires" it the rest of the way, exactly as this task's
+  own description phrases it.
+
+  Replaced the two remaining grid-cell `PlaceholderPattern` blocks (T14 removed the first of four)
+  with this card in one edit rather than one at a time — the 3-column small-tile grid the
+  placeholders lived in doesn't fit a full-width table, so the grid wrapper itself had to go, not
+  just its contents. One placeholder (the large `min-h-[100vh]` block) remains for T16/T17.
+
+  **Manual verification:** `public/hot` removed, `pnpm run build`, seeded a team with four proxies
+  via `sail tinker` — "Zulu Proxy" (3 failed deliveries), "Alpha Proxy" (1 succeeded), "Mike Proxy"
+  (zero traffic), "Delta Proxy" (1 succeeded, then soft-deleted) — deliberately named so alphabetical
+  order and any accidental id/insertion-order sort would disagree, proving the sort genuinely reads
+  `name`. Logged in via Playwright:
+  - Default order: Alpha, Delta, Mike, Zulu — alphabetical, confirming default sort and that the
+    deleted proxy still appears in its natural alphabetical position.
+  - Clicking the "Proxy" header once reversed to Zulu, Mike, Delta, Alpha (`aria-sort="descending"`
+    on that header); clicking again returned to ascending order — the toggle-on-repeat-click
+    behaviour.
+  - Clicking "Terminal failures (deliveries)" sorted ascending by that count (Alpha/Delta/Mike all
+    `0`, Zulu `3` last), independent confirmation the column-click sort reads the clicked column,
+    not just re-running the previous one.
+  - Delta's row (deleted) rendered the muted **Deleted** badge beside its name, its figures intact
+    (`100% (1/1)` both units), no `<a>` element anywhere in that row (`0` links), and its View cell
+    read `—`.
+  - Mike's row (zero traffic) read `No deliveries yet` on both rate columns and `0` on Terminal
+    failures — the count/rate split from correction C3, already free from `compactRateText()`
+    without a template-level branch.
+  - Screenshots inspected in both light and dark theme — table renders legibly, badge and muted
+    dash visually distinct without relying on colour alone.
+
+  Cleaned up the throwaway team/proxies/deliveries/attempts afterward (`forceDelete()`, including
+  `Proxy::withTrashed()` for the soft-deleted row).
+
+  Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green.
 
 ## T16 — `Dashboard.vue`: Retry & replay tiles + Latency block (AC12, AC19, AC20, correction C3/C4; plan Technical ruling 5)
 - **Description:** "Retry & replay" card: four stat tiles — Eventual success (deliveries), Terminal

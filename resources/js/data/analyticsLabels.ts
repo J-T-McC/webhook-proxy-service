@@ -79,6 +79,23 @@ export function formatRate(rate: number | null): string {
     return `${Math.round(rate * 100)}%`;
 }
 
+/**
+ * A `UnitFigure`-shaped rate rendered compactly as `"96% (42/42)"` (design-11
+ * Screen 3's convention for a breakdown-table cell), or
+ * {@link RATE_NO_DATA_LABEL} alone when the rate is `null` — never `0% (0/0)`.
+ */
+export function compactRateText(figure: {
+    rate: number | null;
+    succeeded: number;
+    total: number;
+}): string {
+    if (figure.rate === null) {
+        return RATE_NO_DATA_LABEL;
+    }
+
+    return `${formatRate(figure.rate)} (${figure.succeeded}/${figure.total})`;
+}
+
 /** The delivery headline/table caption — `"42 of 42 delivered · last 30 days"`. */
 export function deliveryCaption(
     succeeded: number,
