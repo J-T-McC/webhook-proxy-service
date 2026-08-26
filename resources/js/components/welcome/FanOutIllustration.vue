@@ -13,6 +13,28 @@
 // flight per proxy at a time; Async admits both concurrently. Every fact a
 // viewer needs is carried by the DOM legend below, never by canvas text.
 import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import {
+    applyTracking,
+    buildGridLayer,
+    buildPathTable,
+    compositeGrid,
+    DIAGRAM_FONT,
+    drawRoundedRect,
+    ease,
+    glowBlend,
+    lengthAtT,
+    pointAtLength,
+    quadControlPoint,
+    readTokens,
+    withAlpha,
+} from './canvasKit';
+import type {
+    EasingName,
+    PathSpec,
+    PathTable,
+    Point,
+    Tokens,
+} from './canvasKit';
 
 // ---------------------------------------------------------------------------
 // Timeline schema (design spec "Timeline schema" section)
@@ -20,8 +42,6 @@ import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 
 type SegmentKey =
     'ingest-junction' | 'junction-dest1' | 'junction-dest2' | 'junction-dest3';
-
-type EasingName = 'inout' | 'out' | 'decay';
 
 interface TravelEntry {
     event: 1 | 2;
@@ -218,68 +238,6 @@ const TOTAL_LOOP = ASYNC_SCHEMA.duration + FIFO_SCHEMA.duration; // ~24.2s at TI
 // + bisection-fallback approach browsers use for CSS `cubic-bezier()`) —
 // native canvas has no equivalent of CSS easing, so this is the minimum
 // math needed to honor the spec's named curves without a library.
-function cubicBezierEasing(
-    p1x: number,
-    p1y: number,
-    p2x: number,
-    p2y: number,
-): (x: number) => number {
-    const a = (aa1: number, aa2: number) => 1 - 3 * aa2 + 3 * aa1;
-    const b = (aa1: number, aa2: number) => 3 * aa2 - 6 * aa1;
-    const c = (aa1: number) => 3 * aa1;
-
-    const calc = (t: number, aa1: number, aa2: number) =>
-        ((a(aa1, aa2) * t + b(aa1, aa2)) * t + c(aa1)) * t;
-
-    const slope = (t: number, aa1: number, aa2: number) =>
-        3 * a(aa1, aa2) * t * t + 2 * b(aa1, aa2) * t + c(aa1);
-
-    function tForX(x: number): number {
-        let t = x;
-
-        for (let i = 0; i < 8; i++) {
-            const currentSlope = slope(t, p1x, p2x);
-
-            if (Math.abs(currentSlope) < 1e-6) {
-                break;
-            }
-
-            const currentX = calc(t, p1x, p2x) - x;
-            t -= currentX / currentSlope;
-            t = Math.min(1, Math.max(0, t));
-        }
-
-        return t;
-    }
-
-    return (x: number): number => {
-        if (x <= 0) {
-            return 0;
-        }
-
-        if (x >= 1) {
-            return 1;
-        }
-
-        return calc(tForX(x), p1y, p2y);
-    };
-}
-
-const easeInOut = cubicBezierEasing(0.65, 0, 0.35, 1);
-const easeOut = cubicBezierEasing(0.22, 1, 0.36, 1);
-const easeDecay = cubicBezierEasing(0.32, 0, 0.67, 0);
-
-function ease(name: EasingName, t: number): number {
-    if (name === 'out') {
-        return easeOut(t);
-    }
-
-    if (name === 'decay') {
-        return easeDecay(t);
-    }
-
-    return easeInOut(t);
-}
 
 // Derived rule: a segment's connection line brightens over the first 150ms
 // the pulse occupies it, holds hot while the pulse travels, then releases
@@ -315,111 +273,9 @@ function heatEnvelope(localT: number, start: number, end: number): number {
 // vertical center — a soft outward curve rather than a sharp elbow)
 // ---------------------------------------------------------------------------
 
-interface Point {
-    x: number;
-    y: number;
-}
-
-type PathSpec =
-    | { kind: 'line'; p0: Point; p1: Point }
-    | { kind: 'quad'; p0: Point; p1: Point; c: Point };
-
-function pointOnPath(path: PathSpec, t: number): Point {
-    if (path.kind === 'line') {
-        return {
-            x: path.p0.x + (path.p1.x - path.p0.x) * t,
-            y: path.p0.y + (path.p1.y - path.p0.y) * t,
-        };
-    }
-
-    const mt = 1 - t;
-
-    return {
-        x: mt * mt * path.p0.x + 2 * mt * t * path.c.x + t * t * path.p1.x,
-        y: mt * mt * path.p0.y + 2 * mt * t * path.c.y + t * t * path.p1.y,
-    };
-}
-
-interface PathTablePoint {
-    t: number;
-    x: number;
-    y: number;
-    len: number;
-}
-
-interface PathTable {
-    points: PathTablePoint[];
-    totalLength: number;
-}
-
 // Sampled once per resize (endpoints move with the diagram's continuous
 // scaling) so the pulse's 64px tail can walk backward by real arc length
 // rather than by the (non-uniform-speed) Bézier parameter.
-function buildPathTable(path: PathSpec, samples = 48): PathTable {
-    const points: PathTablePoint[] = [];
-    let prev = pointOnPath(path, 0);
-    let cumulative = 0;
-    points.push({ t: 0, x: prev.x, y: prev.y, len: 0 });
-
-    for (let i = 1; i <= samples; i++) {
-        const t = i / samples;
-        const p = pointOnPath(path, t);
-        cumulative += Math.hypot(p.x - prev.x, p.y - prev.y);
-        points.push({ t, x: p.x, y: p.y, len: cumulative });
-        prev = p;
-    }
-
-    return { points, totalLength: cumulative };
-}
-
-function lengthAtT(table: PathTable, t: number): number {
-    const clamped = Math.min(1, Math.max(0, t));
-    const lastIndex = table.points.length - 1;
-    const idx = clamped * lastIndex;
-    const lo = Math.floor(idx);
-    const hi = Math.min(lastIndex, lo + 1);
-    const frac = idx - lo;
-
-    return (
-        table.points[lo].len +
-        (table.points[hi].len - table.points[lo].len) * frac
-    );
-}
-
-function pointAtLength(table: PathTable, targetLength: number): Point {
-    const target = Math.min(table.totalLength, Math.max(0, targetLength));
-    const pts = table.points;
-    let lo = 0;
-    let hi = pts.length - 1;
-
-    while (lo < hi - 1) {
-        const mid = (lo + hi) >> 1;
-
-        if (pts[mid].len < target) {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-
-    const span = pts[hi].len - pts[lo].len;
-    const frac = span > 0 ? (target - pts[lo].len) / span : 0;
-
-    return {
-        x: pts[lo].x + (pts[hi].x - pts[lo].x) * frac,
-        y: pts[lo].y + (pts[hi].y - pts[lo].y) * frac,
-    };
-}
-
-function quadControlPoint(p0: Point, p1: Point, canvasHeight: number): Point {
-    const straightMidY = (p0.y + p1.y) / 2;
-    const canvasCenterY = canvasHeight / 2;
-
-    return {
-        x: (p0.x + p1.x) / 2,
-        y: straightMidY + (canvasCenterY - straightMidY) * 0.15,
-    };
-}
 
 interface Geometry {
     width: number;
@@ -541,43 +397,8 @@ function buildEventPaths(eventIndex: 0 | 1, geo: Geometry): EventPaths {
 // theme change; no hex is ever written in code.
 // ---------------------------------------------------------------------------
 
-interface Tokens {
-    card: string;
-    border: string;
-    primary: string;
-    mutedForeground: string;
-    accentFrom: string;
-    accentTo: string;
-}
-
-function readTokens(): Tokens {
-    const styles = getComputedStyle(document.documentElement);
-
-    return {
-        card: styles.getPropertyValue('--card').trim(),
-        border: styles.getPropertyValue('--border').trim(),
-        primary: styles.getPropertyValue('--primary').trim(),
-        mutedForeground: styles.getPropertyValue('--muted-foreground').trim(),
-        accentFrom: styles.getPropertyValue('--illustration-from').trim(),
-        accentTo: styles.getPropertyValue('--illustration-to').trim(),
-    };
-}
-
 // The only place a numeric alpha is combined with a token — always an
 // opacity of an existing color, never a new one.
-function withAlpha(hslString: string, alpha: number): string {
-    const match = /hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\s*\)/.exec(
-        hslString,
-    );
-
-    if (!match) {
-        return hslString;
-    }
-
-    const [, h, s, l] = match;
-
-    return `hsl(${h} ${s}% ${l}% / ${alpha})`;
-}
 
 // Dark and light carry separate numeric values throughout (per spec's
 // "Charge pulse, line, grid, and node rendering" table) — never the same
@@ -641,7 +462,6 @@ const LIGHT_VISUALS: ThemeVisuals = {
 };
 
 const NODE_STROKE_WIDTH = 1;
-const GRID_CELL = 32; // fixed logical px — does not scale with the diagram
 
 // ---------------------------------------------------------------------------
 // Render state — plain objects outside Vue's reactivity; recomputed on
@@ -663,130 +483,12 @@ interface RenderState {
     reducedMotion: boolean;
 }
 
-function buildGridLayer(
-    width: number,
-    height: number,
-    dpr: number,
-    borderColor: string,
-    gridAlpha: number,
-): HTMLCanvasElement {
-    const layer = document.createElement('canvas');
-    layer.width = Math.round(width * dpr);
-    layer.height = Math.round(height * dpr);
-
-    const ctx = layer.getContext('2d');
-
-    if (!ctx) {
-        return layer;
-    }
-
-    const cell = GRID_CELL * dpr;
-    ctx.strokeStyle = withAlpha(borderColor, gridAlpha);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-
-    for (let x = 0; x <= layer.width; x += cell) {
-        ctx.moveTo(x + 0.5, 0);
-        ctx.lineTo(x + 0.5, layer.height);
-    }
-
-    for (let y = 0; y <= layer.height; y += cell) {
-        ctx.moveTo(0, y + 0.5);
-        ctx.lineTo(layer.width, y + 0.5);
-    }
-
-    ctx.stroke();
-
-    // Deliberately unmasked. The edge fade is applied per frame in
-    // `compositeGrid` so its radius, centre and softness can drift; baking it in
-    // here would freeze the mask to whatever the layer was built with.
-    return layer;
-}
-
 // Draw the cached grid through a drifting elliptical mask. Four out-of-phase
 // sines with non-harmonic periods (4.3s / 3.1s / 5.3s / 6.7s) keep the motion
 // from settling into an obvious loop — the fade wanders rather than pulsing on a
 // beat. Radius, centre and softness move the mask's geometry; the alpha breath
 // does most of the perceptual work, since a brightness change is far easier to
 // notice at the edge of vision than a boundary shifting a few pixels.
-function compositeGrid(state: RenderState, timeMs: number): void {
-    const { ctx, width, height, dpr, scratch } = state;
-    const scratchCtx = scratch.getContext('2d');
-
-    if (!scratchCtx) {
-        ctx.drawImage(state.gridLayer, 0, 0, width, height);
-
-        return;
-    }
-
-    const w = scratch.width;
-    const h = scratch.height;
-
-    scratchCtx.setTransform(1, 0, 0, 1, 0, 0);
-    scratchCtx.clearRect(0, 0, w, h);
-    scratchCtx.globalCompositeOperation = 'source-over';
-    scratchCtx.drawImage(state.gridLayer, 0, 0, w, h);
-
-    const drift = state.reducedMotion ? 0 : 1;
-    const radiusFactor =
-        0.62 +
-        drift *
-            (0.1 * Math.sin(timeMs / 4300) +
-                0.055 * Math.sin(timeMs / 3100 + 1.1));
-    const cx = w / 2 + drift * w * 0.035 * Math.sin(timeMs / 5300);
-    const cy = h / 2 + drift * h * 0.045 * Math.sin(timeMs / 3100 + 0.6);
-    const inner = 0.48 + drift * 0.13 * Math.sin(timeMs / 4300 + 2.2);
-    const radius = w * radiusFactor;
-
-    scratchCtx.globalCompositeOperation = 'destination-in';
-    scratchCtx.save();
-    scratchCtx.translate(cx, cy);
-    scratchCtx.scale(1, h / w);
-
-    const mask = scratchCtx.createRadialGradient(0, 0, 0, 0, 0, radius);
-    mask.addColorStop(0, 'rgba(0, 0, 0, 1)');
-    mask.addColorStop(inner, 'rgba(0, 0, 0, 1)');
-    mask.addColorStop((inner + 1) / 2, 'rgba(0, 0, 0, 0.55)');
-    mask.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    scratchCtx.fillStyle = mask;
-    scratchCtx.beginPath();
-    scratchCtx.arc(0, 0, radius, 0, Math.PI * 2);
-    scratchCtx.fill();
-    scratchCtx.restore();
-
-    // Brightness breath, applied to the whole masked layer.
-    const breath =
-        1 +
-        drift *
-            (0.22 * Math.sin(timeMs / 6700) +
-                0.1 * Math.sin(timeMs / 3100 + 2.7));
-
-    ctx.save();
-    ctx.globalAlpha = Math.min(1.35, Math.max(0.6, breath));
-    ctx.drawImage(scratch, 0, 0, w / dpr, h / dpr);
-    ctx.restore();
-}
-
-function drawRoundedRect(
-    ctx: CanvasRenderingContext2D,
-    center: Point,
-    w: number,
-    h: number,
-    r: number,
-    fill: string,
-    stroke: string,
-    strokeWidth: number,
-) {
-    const x = center.x - w / 2;
-    const y = center.y - h / 2;
-    ctx.beginPath();
-    ctx.roundRect(x, y, w, h, r);
-    ctx.fillStyle = fill;
-    ctx.fill();
-    ctx.lineWidth = strokeWidth;
-    ctx.strokeStyle = stroke;
-    ctx.stroke();
-}
 
 function strokeSegment(
     ctx: CanvasRenderingContext2D,
@@ -813,9 +515,6 @@ function strokeSegment(
 // the junction genuinely accumulate brightness instead of painting over each
 // other. Dark only: on a white field `lighter` drives everything to white and
 // the illustration washes out, so light theme composites normally.
-function glowBlend(state: RenderState): GlobalCompositeOperation {
-    return state.isDark ? 'lighter' : 'source-over';
-}
 
 // Node labels. Drawn into the canvas with the app's own resolved font stack so
 // they match the page rather than approximating it. The illustration is
@@ -844,11 +543,6 @@ function drawNodeLabel(
 // `letterSpacing` is well supported in current Chrome and Safari but not
 // universal; where it is missing the text simply renders untracked rather than
 // throwing, which is an acceptable degradation for a decorative diagram.
-function applyTracking(ctx: CanvasRenderingContext2D, px: number): void {
-    if ('letterSpacing' in ctx) {
-        ctx.letterSpacing = `${px}px`;
-    }
-}
 
 // The mode legend, drawn top-left inside the canvas. The active mode sits at
 // full weight with the other dimmed beneath it, so a viewer landing mid-loop can
@@ -884,9 +578,6 @@ function drawModeLegend(state: RenderState, activeId: Schema['id']): void {
 // technical diagram rather than as body copy set inside a box.
 const INGEST_LABELS = ['Event', 'Event'];
 const DEST_LABELS = ['Destination', 'Destination', 'Destination'];
-
-const DIAGRAM_FONT =
-    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 
 // A travelling heat band: the wire is at rest everywhere except around the
 // charge's current position, where it peaks and then drains off behind. The
@@ -942,7 +633,7 @@ function drawHotSegment(
     }
 
     ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state);
+    ctx.globalCompositeOperation = glowBlend(state.isDark);
     ctx.beginPath();
     ctx.moveTo(spec.p0.x, spec.p0.y);
 
@@ -965,7 +656,14 @@ function drawHotSegment(
 function drawBaseScene(state: RenderState, timeMs: number) {
     const { ctx, geo, paths, tokens, visuals } = state;
     ctx.clearRect(0, 0, state.width, state.height);
-    compositeGrid(state, timeMs);
+    compositeGrid(
+        ctx,
+        state.gridLayer,
+        state.scratch,
+        state.dpr,
+        timeMs,
+        state.reducedMotion,
+    );
 
     const idleColor = withAlpha(tokens.mutedForeground, visuals.idleLineAlpha);
     const idleWidth = visuals.idleLineWidth * geo.scale;
@@ -1083,7 +781,7 @@ function drawEventArrival(
     const baseAlpha = visuals.queuedEdgeAlpha * ease('out', fadeIn);
 
     ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state);
+    ctx.globalCompositeOperation = glowBlend(state.isDark);
     ctx.beginPath();
     ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
     ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
@@ -1190,7 +888,7 @@ function drawArrivalRingAndWash(
     const y = dest.y - geo.nodeH / 2;
 
     ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state);
+    ctx.globalCompositeOperation = glowBlend(state.isDark);
     ctx.beginPath();
     ctx.roundRect(x, y, geo.nodeW, geo.nodeH, geo.cornerR);
     ctx.lineWidth = visuals.arrivalEdgeWidth * geo.scale;
@@ -1255,7 +953,7 @@ function drawPulse(
     }
 
     ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state);
+    ctx.globalCompositeOperation = glowBlend(state.isDark);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = lineWidth;
