@@ -2,6 +2,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ListOrdered, Split, Webhook } from '@lucide/vue';
 import { computed } from 'vue';
+import AppearanceTabs from '@/components/AppearanceTabs.vue';
 import { Button } from '@/components/ui/button';
 import FanOutIllustration from '@/components/welcome/FanOutIllustration.vue';
 import ReliabilityIllustration from '@/components/welcome/ReliabilityIllustration.vue';
@@ -55,7 +56,8 @@ const reliabilitySteps = [
 
     <div class="min-h-screen bg-background text-foreground">
         <header class="mx-auto max-w-6xl px-6 py-6">
-            <nav class="flex items-center justify-end gap-4 text-sm">
+            <nav class="flex items-center justify-end gap-3 text-sm">
+                <AppearanceTabs class="mr-1" />
                 <Link
                     v-if="$page.props.auth.user"
                     :href="dashboardUrl"
