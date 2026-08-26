@@ -70,15 +70,21 @@ class ProxyController extends Controller
             // Proxy #[Fillable]), so the `destinations` key is ignored and the
             // ingest token/hash stay server-minted, never from input. The two
             // retry keys are added to the array only when the submitted mode
-            // is Enhanced (ADR-018 Decision 3, review-06 Minor 8(b)) — a
-            // Simple-mode create never writes either column, not a value, not
-            // NULL; on create this is behaviourally identical to writing NULL
-            // (there is nothing yet to preserve), but the code reads as the
-            // same one rule `update()` applies, rather than two. `?? null`
-            // lets an omitted/absent value default to NULL (AC2/AC20) when the
-            // mode IS Enhanced — Proxy::make() only assigns keys present in
-            // $data, so this is set explicitly rather than relying on
-            // mass-assignment omission.
+            // is Enhanced (ADR-018 Decision 3, review-06 Minor 8(b)); on a
+            // Simple submission the conditional yields [], so
+            // array_merge($data, []) is just $data — and $data still carries
+            // both retry keys as NULL (validation permits null under
+            // prohibited_if, and the client normalises both to null on every
+            // Simple submission). So a Simple-mode create still writes both
+            // columns as NULL, same as an omission would produce, since
+            // there is nothing yet to preserve on a create; this mirrors
+            // `update()`'s omission in outcome, not in mechanism — `update()`
+            // is where the omission actually matters, because it is the only
+            // path that could otherwise clobber a proxy's existing preserved
+            // values. `?? null` lets an omitted/absent value default to NULL
+            // (AC2/AC20) when the mode IS Enhanced — Proxy::make() only
+            // assigns keys present in $data, so this is set explicitly rather
+            // than relying on mass-assignment omission.
             $proxy = Proxy::make(array_merge(
                 $data,
                 $data['mode'] === ProxyMode::Enhanced->value ? [

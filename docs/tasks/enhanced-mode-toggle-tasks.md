@@ -148,11 +148,16 @@
   the only place either retry column is read to decide what governs a proxy); `attemptLimitFor()`/
   `strategyFor()` now route through them, with the existing `[1, max_attempt_limit]` clamp and
   `positiveConfigInt()` guards unchanged and applied after the gate. `delayBefore()`/
-  `worstCaseSpan()` are byte-for-byte unchanged. `ProxyController::store()`/`update()` now omit
-  both retry keys from the write array entirely unless the submitted mode is Enhanced
-  (`$data['mode'] === ProxyMode::Enhanced->value`) — a Simple-mode save never writes either column,
-  not a value, not NULL; an Enhanced-mode save writes exactly what was submitted, `?? null` still
-  clearing to the unconfigured sentinel. `prohibited_if:mode,simple` is unchanged in both Form
+  `worstCaseSpan()` are byte-for-byte unchanged. `ProxyController::update()`'s write array now
+  omits both retry keys entirely unless the submitted mode is Enhanced
+  (`$data['mode'] === ProxyMode::Enhanced->value`) — a Simple-mode update never writes either
+  column, not a value, not NULL, so a proxy's existing persisted values survive verbatim.
+  `store()` takes the same conditional shape for symmetry of intent, but on create this is
+  behaviourally a no-op: `array_merge($data, [])` is just `$data`, and `$data` still carries both
+  retry keys as `null` on a Simple submission, so a Simple-mode create writes both columns as NULL
+  — harmless (there is nothing yet to preserve) but not the same "never writes" guarantee `update()`
+  gives (corrected at T15, review-07 Finding 2). An Enhanced-mode save writes exactly what was
+  submitted, `?? null` still clearing to the unconfigured sentinel. `prohibited_if:mode,simple` is unchanged in both Form
   Requests — only their docblocks were rewritten, from the retired T30-era "clears on switch"
   framing to ADR-018 Decision 3's purpose (a Simple-mode save can never change a dormant policy it
   cannot see). `PipelineFactory` was not touched.
@@ -1008,6 +1013,38 @@
   build` succeeded (996 ms) immediately before the manual-verification pass. Seeded fixtures
   (3 proxies, 1 user, 1 personal team) removed after verification; the shared dev database was
   confirmed clean by re-running the full suite (still 759/2820) after cleanup.
+
+---
+
+## T15 — Fix Finding 2 (Minor): `store()`'s comment states a rule the code does not implement
+- **Description:** `ProxyController::store()`'s comment (and T1's completion note, above) claimed
+  a Simple-mode create "never writes either column, not a value, not NULL." False:
+  `array_merge($data, [])` is `$data`, and `$data` carries both retry keys as `null` (validation
+  permits null under `prohibited_if`, and T9's client normalisation sends both as null on every
+  Simple submission), so `Proxy::make()` assigns them and the INSERT writes both columns as NULL.
+  Harmless in effect (a create has nothing to preserve; the column default is NULL either way) —
+  fixed the comment to describe what the code actually does, per the Reviewer's second remedy
+  option (review-07 Finding 2, Recommendation 2). `store()`'s behaviour is unchanged; `update()`
+  was already correct and is where the omission rule matters.
+- **Dependencies:** none
+- **Files:** `app/Http/Controllers/ProxyController.php` (comment only), `docs/tasks/enhanced-mode-toggle-tasks.md` (T1's completion note, corrected)
+- **Acceptance Criteria:** the `store()` comment accurately states that a Simple-mode create still
+  writes both retry columns as NULL (harmless, since create has nothing to preserve), not that it
+  omits them; `store()`'s actual behaviour is byte-for-byte unchanged; T1's completion note no
+  longer repeats the false claim.
+- **Testing:** comment-only change; no new test. Full backend suite re-run to confirm no
+  behavioural change (unmodified pass count).
+- **Completion notes:** Rewrote the `store()` comment in `app/Http/Controllers/ProxyController.php`
+  to state plainly that on a Simple submission `array_merge($data, [])` is just `$data`, which
+  still carries both retry keys as `null`, so a Simple-mode create writes both columns as NULL —
+  harmless because create has nothing yet to preserve, and identical in outcome to omission on
+  create, but not the same mechanism as `update()`'s conditional-array omission, which is where
+  the omission rule actually matters (it is the only path that could otherwise clobber a proxy's
+  existing preserved values). Corrected T1's completion note above to scope the "never writes
+  either column" guarantee to `update()` only, with `store()`'s actual NULL-write behaviour on
+  create stated alongside it. No code path changed — `store()`'s output is byte-for-byte identical
+  before and after this task. Gates: `./vendor/bin/sail test --parallel` (759 passed, 2820
+  assertions, unmodified); `composer lint` clean; `composer types:check` (PHPStan L7) 0 errors.
 
 ---
 
