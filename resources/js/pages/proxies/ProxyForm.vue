@@ -156,12 +156,23 @@ function submit(): void {
             data.response_status === '' ? null : Number(data.response_status),
         response_body: data.response_body === '' ? null : data.response_body,
         // Same idiom for the retry fields: blank/sentinel → null (unconfigured).
+        // A Simple-mode submission ALWAYS sends null for both, regardless of
+        // the fields' in-memory state — required because the Edit form's
+        // initial state is seeded from the persisted values whatever the
+        // proxy's mode (T5/T6), while `watch(isEnhanced, ...)` above only
+        // clears fields on an in-session change, never on mount. Without this,
+        // opening Edit on a Simple proxy holding a dormant retry policy and
+        // saving without touching Mode would submit the dormant values
+        // alongside mode: 'simple' and be 422'd by prohibited_if on a field
+        // the form does not render (plan Risk 4). This is a normalisation,
+        // not a gate — the server's omission rule (T1) is authoritative
+        // regardless of what a Simple submission carries.
         retry_attempt_limit:
-            data.retry_attempt_limit === ''
+            data.mode === 'simple' || data.retry_attempt_limit === ''
                 ? null
                 : Number(data.retry_attempt_limit),
         retry_backoff_strategy:
-            data.retry_backoff_strategy === ''
+            data.mode === 'simple' || data.retry_backoff_strategy === ''
                 ? null
                 : data.retry_backoff_strategy,
     })).submit(props.method, props.action, {

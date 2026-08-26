@@ -602,7 +602,37 @@
   completion notes. (T2's `prohibited_if`-still-bites test already proves the server-side rule fires
   when the client does *not* normalise — this task's manual check proves the client mitigation
   actually prevents hitting that path from the real form.)
-- **Completion notes:** _pending_
+- **Completion notes:** `ProxyForm.vue`'s existing `form.transform()` now sends `null` for
+  `retry_attempt_limit`/`retry_backoff_strategy` whenever `data.mode === 'simple'`, in addition to the
+  existing blank/sentinel-based normalisation — so a Simple-mode submission carries `null` for both
+  regardless of the fields' in-memory state (e.g. a dormant value seeded from `props.initial` at mount,
+  which `watch(isEnhanced, ...)` never clears since it only fires on an in-session change). An
+  Enhanced-mode submission is unaffected — its existing blank-string/sentinel → `null` normalisation
+  logic is unchanged. A code comment at the transform explains the plan Risk 4 failure mode this
+  closes and that this is a normalisation, not a gate — T1's server-side omission rule governs
+  regardless of what the client sends.
+
+  **Manual verification (plan Risk 4):** seeded a Simple proxy holding a dormant retry policy (id 10,
+  `retry_attempt_limit = 4`, `retry_backoff_strategy = 'fixed'`) in the T7/T8 throwaway team via `sail
+  tinker`, then re-ran `pnpm run build`. Via the `playwright` skill: opened Edit on proxy 10 — confirmed
+  the Retry policy fieldset (`#retry_attempt_limit`) does not render (mode is Simple, `design-06` Flow
+  F gating unchanged). Clicked **Save changes** without touching Mode; captured the actual PUT request
+  body via a Playwright request listener:
+  `{"name":"T9 Dormant Simple Proxy","mode":"simple","processing_mode":"async","response_status":null,
+  "response_body":null,"retry_attempt_limit":null,"retry_backoff_strategy":null,"destinations":[]}` —
+  both retry fields `null` despite the dormant `4`/`fixed` sitting in unrendered form state at mount.
+  The response was `303` (Inertia's normal redirect-on-success), not `422` — the save succeeded.
+  Re-queried the database directly via `sail tinker`: `retry_attempt_limit = 4`,
+  `retry_backoff_strategy = 'fixed'`, `mode = 'simple'` — the persisted dormant values are byte-for-byte
+  unchanged after the save, confirming both that the client normalisation prevented the 422 T2's
+  `prohibited_if` test proves would otherwise fire, and that the server-side omission rule (T1) is what
+  actually preserved the values (the client sent `null`, not the dormant `4`/`fixed`, and T1's Simple
+  write-path omits both keys entirely regardless).
+
+  Verified: `pnpm lint:check` (clean, repo-wide); `pnpm types:check` (clean); `pnpm format:check`
+  (clean, no reformat needed this time); `pnpm run build` (succeeds); `composer lint` (Pint, clean);
+  `composer types:check` (PHPStan level 7, 0 errors); full backend suite
+  `./vendor/bin/sail test --parallel` (759 passed, 2820 assertions, unchanged — frontend-only task).
 
 ---
 
