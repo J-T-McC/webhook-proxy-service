@@ -13,6 +13,25 @@
   Questions were put to the Owner and ACCEPTED as specified** — see the
   ruling recorded there. Implementation may proceed against this spec as
   written.
+- **Correction (Designer, 2026-08-25, same day as approval — factual error
+  caught by the Project Owner, not a re-approval):** Illustration 1's FIFO
+  panel was factually wrong. It animated FIFO's ordering guarantee on the
+  **destination** axis (a single dot visiting Destination 1, then 2, then
+  3, with a queued dot waiting for a destination's turn). Per-proxy FIFO is
+  **event**-level ordered, not per-destination — ADR-011 §Impact explicitly
+  rules per-`(proxy, destination)` ordering out of scope, and
+  `AdvanceProxyFifoQueue`'s docblock states the guarantee is "at most one
+  in-flight **event** per proxy." **Fixed:** the FIFO panel now animates
+  events queuing and processing one at a time per proxy, while each event
+  still fans out to all configured destinations exactly as before; the two
+  affected Copy strings (the Panel B caption, and "How it works" step 3's
+  body) are rewritten to match. The Async panel's substance was already
+  correct (parallel fan-out per event) and is unchanged; it now also shows
+  multiple events overlapping, so the two panels stay a true, matched
+  contrast on the same (event) axis. Status remains **Approved** and the
+  Owner's approval above is unchanged — this is a correction under that
+  approval, not a re-approval request. Full verification trail: see
+  **Factual Audit (2026-08-25)** at the end of this spec.
 
 ## Purpose & Audience
 
@@ -148,8 +167,11 @@ Owner rules otherwise on a flagged item.
   `dashboardUrl`) replaces both CTAs.
 - Illustration captions (real text under each panel, not SVG-only):
   - Panel A: **"Async — every destination receives it at once."**
-  - Panel B: **"FIFO — destinations receive it strictly in order, one at a
-    time."**
+  - Panel B: **"FIFO — one event at a time per proxy, processed in the order
+    received."** *(Corrected 2026-08-25 — was "destinations receive it
+    strictly in order, one at a time," which misstated the guarantee as
+    per-destination. See the Correction note above and the Factual Audit
+    section.)*
 
 **Section C — "How it works" (`h2`):** **"How it works"**
 1. (`h3`) **"Ingest"** — *"Create a proxy and get a unique ingest URL. Point
@@ -158,9 +180,15 @@ Owner rules otherwise on a flagged item.
    of that proxy's destinations, in the same structure, however many you've
    configured."*
 3. (`h3`) **"Choose your processing"** — *"Async dispatches to every
-   destination in parallel, for the highest throughput. FIFO delivers
-   strictly in the order events were received, when your destinations need
-   that guarantee."*
+   destination in parallel, for the highest throughput. FIFO processes one
+   event at a time per proxy, in the order it was received, before starting
+   the next — the right choice when strict ordering matters more than
+   throughput."* *(Corrected 2026-08-25 — the prior wording, "FIFO delivers
+   strictly in the order events were received," was true but left the
+   per-event, one-at-a-time exclusivity ambiguous when read against the
+   preceding "dispatches to every destination in parallel" sentence; this
+   version states the event-level guarantee explicitly. See the Factual
+   Audit section.)*
 
 **Section D — "Reliability" (`h2`):** **"Nothing gets lost, even when a
 destination is down."**
@@ -185,51 +213,93 @@ see Open Questions #4.
 
 ## Illustration 1 — Fan-out: Async vs. FIFO (Hero)
 
+> **Corrected 2026-08-25** — see the header Correction note and the Factual
+> Audit section at the end of this spec. The FIFO panel below replaces an
+> earlier version that animated the ordering guarantee on the
+> **destination** axis (one dot visiting Destination 1, then 2, then 3).
+> That is not what per-proxy FIFO guarantees. It is **event**-level:
+> at most one inbound event in flight per proxy at a time, regardless of how
+> many destinations that event fans out to. The Async panel is unchanged in
+> substance (parallel fan-out per event was always correct); it is extended
+> here only to also show multiple events overlapping, so the two panels
+> remain a true, matched contrast on the same axis.
+
 **What it must be honest to:** one inbound webhook, fanned out to N
-configured destinations; Async dispatches in parallel; FIFO dispatches
-strictly one at a time, ordered, with a visible "waiting" beat — the
-"ordered-means-waiting trade-off" already described in the Processing
-field's help text (`ProxyForm.vue`).
+configured destinations; Async dispatches in parallel **and admits more
+than one event in flight per proxy at once** (no cross-event serialization);
+FIFO admits **at most one event in flight per proxy at a time** — a second
+event waits until the first fully settles before its own processing even
+begins. This is an **event-level** ordering/exclusivity guarantee, not a
+per-destination one:
+- `docs/architecture/adr-011-per-proxy-fifo-dispatch-mechanism.md:38` —
+  "Per-proxy FIFO is **event-level** ordered."
+- Same ADR, line 130 — per-`(proxy, destination)` ordering is explicitly
+  **out of scope**, not built.
+- `app/Actions/AdvanceProxyFifoQueue.php`'s docblock — the advancer
+  "guarantees at most one in-flight **event** per proxy."
+- The app's own Processing field help text (`ProxyForm.vue`) already frames
+  it this way: "FIFO delivers this proxy's events in the order they were
+  received."
+
+Destinations *do* happen to run one after another inside a single FIFO
+event (`app/Actions/DeliverStep.php:71` calls `DeliverToDestination::run()`
+inline, in a loop) — but that is a side effect of inline delivery, not the
+contract being sold, and this illustration does not assert it. Async's
+per-destination parallel fan-out (`DeliverStep.php:63`,
+`DeliverToDestination::dispatch(...)`) is unaffected and remains exactly as
+before.
 
 **Structure — one panel, reused twice (Panel A "Async", Panel B "FIFO"):**
-- An **Ingest** node (small rounded-rect, label "Webhook") on the left.
+- An **Ingest** node on the left holding up to three discrete inbound
+  **event** markers (small dots, unlabeled or numbered `1`/`2`/`3` —
+  deliberately generic events arriving at this one proxy; not destinations).
 - A pipe (rounded stroke) running right to a small circular **Proxy**
   junction node.
 - Three pipes fanning out from the junction to three **Destination** nodes
   stacked vertically on the right (small rounded-rects, unlabeled or
   numbered `1`/`2`/`3` — deliberately generic, no invented company/service
-  names).
-- A traveling dot (`r≈6`) represents an in-flight event.
+  names; unchanged from the prior version — every event, in both modes,
+  still fans out to all of the proxy's configured destinations, and that
+  part was never the error).
+- A traveling dot (`r≈6`) per in-flight **event** represents that event's
+  journey from Ingest through the junction to its destination fan-out.
 
 **Panel A — Async — motion:**
-- Loop length: **2.4s**, `linear`/`ease-in-out`, infinite.
-- 0%–35%: dot travels Ingest → Proxy junction.
-- 35%: dot "splits" into three dots (or: the single dot's arrival at the
-  junction immediately spawns three, each already positioned at the
-  junction, opacity 0→1).
-- 35%–85%: all three dots travel simultaneously, each along its own pipe, to
-  its destination — same easing, same duration, so they visibly arrive
-  together.
-- 85%: each destination node's border/background briefly highlights (a
-  100–150ms flash) to read as "delivered," then returns to its resting
-  style.
-- 85%–100%: hold, then reset (dots fade out at the junction, ready to
-  restart at 0%).
+- Loop length: **3.6s**, `linear`, infinite; **three events, staggered by
+  1.2s (20% of the loop) each**, so they visibly overlap in flight — the
+  true Async guarantee (no per-proxy serialization across events).
+- **Event 1** occupies 0%–45% of the loop: 0%–15% Ingest → Proxy junction;
+  15%–35% junction → all three destinations simultaneously (parallel
+  fan-out, unchanged from the prior version); 35% each destination's brief
+  highlight flash (100–150ms) reads as "delivered," then returns to resting
+  style; 35%–45% dots fade.
+- **Event 2** occupies 20%–65% of the loop — identical shape, offset by
+  +20% — so it departs Ingest while Event 1 is still mid-flight. This
+  overlap is the point of the panel.
+- **Event 3** occupies 40%–85% of the loop — offset by +40%. Between 40%
+  and 45% all three events are simultaneously in some stage of flight, the
+  clearest overlap beat in the loop.
+- 85%–100%: hold on an empty pipe, then reset.
 
 **Panel B — FIFO — motion:**
-- Loop length: **4.2s** (longer — sequential dispatch genuinely takes
-  longer, and the illustration should not compress that away).
-- 0%–20%: dot travels Ingest → Proxy junction.
-- 20%–45%: dot travels junction → Destination 1 only. On arrival, that
-  node's brief highlight flash plays (same as Panel A).
-- Simultaneously, from 20% onward, a second **static, muted** dot appears
-  sitting at the junction (a "queued" indicator, not traveling) to make the
-  wait visible — this is the visual answer to "ordered means waiting."
-- 45%–70%: the queued dot now travels junction → Destination 2, arrives,
-  flashes. A new muted "queued" dot appears at the junction for the item
-  still waiting for pipe 3.
-- 70%–95%: that dot travels junction → Destination 3, arrives, flashes.
-- 95%–100%: hold, then reset.
+- Loop length: **5.4s** (longer — genuinely serialized, event-by-event
+  processing takes longer, and the illustration should not compress that
+  away).
+- **Event 1** occupies 0%–30% of the loop: 0%–10% Ingest → Proxy junction;
+  10%–25% junction → all three destinations (same simultaneous-flash
+  treatment as Panel A — this illustration does not assert *how* the three
+  destination sends are ordered relative to each other, only that the whole
+  event settles before the next one starts); 25% each destination's brief
+  highlight flash; 25%–30% dots fade/settle.
+- **From 0% onward**, Events 2 and 3 render as **static, muted dots queued
+  at the Ingest node** (not traveling) — the visual answer to "ordered means
+  waiting," now anchored to a **queued event**, not a queued destination.
+- **Event 2** only begins traveling at **30%** (the moment Event 1 fully
+  settles) and occupies 30%–60% of the loop, identical shape to Event 1.
+  Event 3 remains queued and muted throughout.
+- **Event 3** only begins traveling at **60%** (the moment Event 2 settles)
+  and occupies 60%–90% of the loop.
+- 90%–100%: hold, then reset.
 
 **Both panels sit side-by-side on `lg:` and up** (see Responsive Behavior),
 each with its caption directly beneath it, always visible (not tied to
@@ -342,16 +412,20 @@ Respecting `prefers-reduced-motion: reduce` is not optional per
 `docs/standards/design.md`'s accessibility baseline; both illustrations
 specify an explicit **static** replacement, not merely "animation off":
 
-**Illustration 1 (fan-out) — reduced-motion state:**
-- Both panels render **frozen at their "delivered" moment**: Panel A shows
-  all three dots already resting at their destinations, all three
-  destination nodes in their brief-highlight resting style simultaneously —
-  reading as "all three, at once."
-- Panel B shows the three destination nodes each carrying a small static
-  order badge (`1`, `2`, `3`) on their pipes instead of a queued dot,
-  communicating sequence without motion.
-- The existing captions (already real text, always visible) carry the
-  "at once" vs. "in order, one at a time" distinction regardless.
+**Illustration 1 (fan-out vs. one-event-at-a-time) — reduced-motion state:**
+- Panel A (Async) renders frozen mid-overlap: **two event dots visible at
+  once, at different stages** — one already resting at all three
+  destinations (delivered, all three destination nodes in their
+  brief-highlight resting style), a second still on the Ingest → junction
+  pipe — reading as "more than one event can be in flight at once."
+- Panel B (FIFO) renders frozen at a settled moment: **one event dot resting
+  at all three destinations** (delivered), and the remaining queued events
+  rendered as **static, muted dots at the Ingest node**, each carrying a
+  small order badge (`2`, `3`) — communicating "one event at a time, the
+  rest wait their turn" without motion.
+- The existing captions (already real text, always visible) carry the "more
+  than one at once" vs. "one event at a time, in order" distinction
+  regardless.
 
 **Illustration 2 (retry/backoff/replay) — reduced-motion state:**
 - Renders as a **static horizontal (or, on narrow viewports, vertical)
@@ -510,3 +584,127 @@ judgment call, flagged for the **Project Owner's** explicit accept/reject
 - **Next Agent:** **Senior Developer** — implements this page directly
   (small-change flow; no Principal Engineer technical design phase), then
   to **Reviewer** per the standard small-change path.
+
+## Factual Audit (2026-08-25)
+
+Triggered by the Project Owner catching a factual error in Illustration 1's
+FIFO panel (see the header Correction note). Every product-facing claim in
+this spec was re-checked against the named ADRs and the actual code, not
+re-derived from memory. Recorded here so the Senior Developer and any future
+reviewer have a source for each claim, and so this class of error — asserting
+a guarantee on the wrong axis — doesn't recur unnoticed.
+
+**Corrected:**
+1. **Illustration 1, Panel B (FIFO).** Was: ordering guaranteed on the
+   *destination* axis (dot visits Destination 1 → 2 → 3 in order). Actually:
+   ordering/exclusivity is guaranteed on the *event* axis — at most one
+   inbound event in flight per proxy at a time. Source:
+   `docs/architecture/adr-011-per-proxy-fifo-dispatch-mechanism.md:38` ("Per-proxy
+   FIFO is event-level ordered") and `:130` (per-`(proxy, destination)`
+   ordering explicitly out of scope); `app/Actions/AdvanceProxyFifoQueue.php`
+   docblock ("at most one in-flight event per proxy"); corroborated by
+   `app/Actions/DeliverStep.php:63` (Async dispatches per destination in
+   parallel, `::dispatch`) vs. `:71` (FIFO runs each destination inline,
+   `::run`, inside the same event) and `ProxyForm.vue`'s Processing help text
+   ("FIFO delivers this proxy's events in the order they were received").
+   Fixed in the Illustration 1 section above.
+2. **Hero caption, Panel B.** Was: "FIFO — destinations receive it strictly
+   in order, one at a time." Rewritten to state the event-level guarantee.
+   Same sources as above.
+3. **"How it works" step 3 body.** Was technically defensible ("FIFO
+   delivers strictly in the order events were received") but ambiguous
+   against the destination-parallel Async sentence immediately before it.
+   Rewritten to state one-event-at-a-time explicitly, unambiguously. Same
+   sources as above.
+
+**Confirmed correct, with source (no change needed):**
+- **Headline** ("Ingest once. Deliver everywhere.") and the general framing
+  of ingest → fan-out — `docs/product/vision.md` ("Ingest and fan out"),
+  `docs/product/roadmap.md` item #1.
+- **Subhead clause "fanned out to every destination you configure"** —
+  matches the ADR-001 pipeline spine and `DeliverStep`'s fan-out over the
+  dispatch's `deliveries` rows (one per live destination).
+- **Subhead clause "automatically retried on failure"** —
+  `docs/architecture/adr-015-delivery-retry-mechanism.md` Decision 5
+  (CAS status transition + delayed `RetryDelivery` job + `SweepDueRetries`
+  sweeper); `app/Services/RetryPolicy.php` implements the same backoff
+  formula the ADR specifies.
+- **Subhead clause "replayable on demand"** —
+  `docs/architecture/adr-017-replay-dispatch-and-payload-read-surface.md`
+  Decision 1 (manual replay dispatch); `POST
+  /proxies/{proxy}/events/{event}/replay` exists in `routes/web.php`.
+- **Subhead clause "full visibility into every delivery attempt"** —
+  verified this is scoped to per-event/per-destination attempt visibility
+  (not the separate, unbuilt #11 analytics/dashboard aggregate stats).
+  Feature #6 (retry & replay) is **Done** and merged to `main` per
+  `docs/status.md` (PR #8, `e1c2894`, 2026-08-25), and ships exactly this:
+  `GET /proxies/{proxy}/events`, `.../events/{event}`, and
+  `.../events/{event}/payload` (ADR-017 Decision 5) plus
+  `resources/js/pages/proxies/events/{Index,Show}.vue`. The claim is true of
+  what is shipped today, and is not conflated with the unbuilt #11 dashboard
+  (correctly excluded elsewhere in this spec's Purpose & Audience section).
+- **"How it works" step 1 (Ingest)** — unique per-proxy ingest URL, no
+  sender-side changes — matches roadmap item #1 and ADR-006 (ingest-URL
+  generation & security).
+- **"How it works" step 2 (Fan out)** — "delivered to all of that proxy's
+  destinations, in the same structure" — matches roadmap R3 (all
+  destinations receive the same structure) and `DeliverStep`'s fan-out over
+  every live destination.
+- **"How it works" step 3 (Async half)** — "dispatches to every destination
+  in parallel, for the highest throughput" — matches `DeliverStep.php:63`
+  (`DeliverToDestination::dispatch(...)` per destination, queued). Unaffected
+  by the FIFO error; not implicated, per the Owner's brief.
+- **Section D headline and intro paragraph** ("Nothing gets lost, even when
+  a destination is down"; "every delivery... tracked on its own... retried
+  automatically on a bounded backoff... instead of hammering... or giving up
+  immediately") — matches ADR-015 Decision 1 (`deliveries`, one row per
+  dispatch × destination) and Decision 4 (bounded, growing backoff:
+  exponential default 60s/300s/1500s/~2h/6h-flat, worst case ≈32.6h; fixed
+  interval alternative). Confirmed against the live formula in
+  `app/Services/RetryPolicy.php` (`min(base * multiplier^(N-2), cap)`),
+  which matches the ADR verbatim.
+- **Section D 4-step list, step 1** ("Delivery attempted... the moment it's
+  due") — matches `DeliverStep`'s immediate attempt-1 dispatch at pipeline
+  entry.
+- **Section D 4-step list, step 2** ("Retried automatically... a short wait,
+  then a longer one, up to a set limit") — matches ADR-015 Decision 3 (policy:
+  attempt limit 1–10, default 5) and Decision 4 (growing backoff). Confirmed:
+  the schedule genuinely grows (1m → 5m → 25m → ~2h → 6h-flat for the
+  exponential default).
+- **Section D 4-step list, step 3** ("Marked terminally failed... never
+  hidden or silently dropped") — matches ADR-015 Decision 1: "`failed` IS
+  the AC4 terminal state — a stored fact, never a derivation," and the
+  shipped "Terminally failed" badge (`resources/js/data/proxyDeliveryStates.ts`).
+- **Section D 4-step list, step 4** ("Replayed on demand... to some or all
+  of the proxy's destinations") — matches roadmap R4 and ADR-017 Decision 1
+  (destination-subset selection at replay).
+- **Illustration 2's sequence** (attempt → fail → backoff → fail → backoff
+  (longer) → fail → terminal → manual replay → delivered) — the *mechanism*
+  is confirmed: bounded, growing backoff (ADR-015 Decision 4, `RetryPolicy`);
+  an explicit, stored terminal state, never inferred (ADR-015 Decision 1);
+  manual replay as a new dispatch through the same pipeline, capable of
+  succeeding (ADR-017 Decision 1). One illustrative simplification is worth
+  recording: the panel shows **3** failed attempts before terminal, while the
+  system default attempt limit is **5**
+  (`config('retry.default_attempt_limit')` = 5, `config/retry.php`). No copy
+  in this spec asserts an exact attempt count — the 4-step list says only "up
+  to a set limit" — so this is the same kind of arbitrary, illustrative count
+  as Illustration 1's three destinations (Open Questions #5, already
+  Owner-accepted as non-binding). Not corrected as a factual error for that
+  reason, but flagged here for visibility.
+- **"No mapping (#8), no analytics/dashboard (#11), no notifications (#13)"
+  exclusion** (Purpose & Audience) — confirmed against `docs/status.md`:
+  items #8, #11, #13 are all still **Backlog**, not started.
+
+**Not reopened / no new Owner flag required:** the corrected FIFO panel stays
+within every constraint the Owner already accepted — still exactly two
+panels, both simultaneously visible, no interactive toggle, existing tokens
+only, no new npm dependency, three destinations per event (the already-
+accepted illustrative count). Only the *animation concept* for Panel B
+changed (event-axis instead of destination-axis), not the panel count,
+interaction model, token usage, or dependency footprint, so none of the five
+originally-ruled judgment calls under Open Questions is reopened by this
+correction.
+
+**Unverifiable claims:** none found. Every claim above traces to a named ADR,
+a named code path, or `docs/status.md`'s shipped-feature record.
