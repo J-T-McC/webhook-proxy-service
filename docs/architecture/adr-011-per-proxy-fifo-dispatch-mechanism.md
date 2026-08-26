@@ -1,6 +1,6 @@
 # ADR-011: Per-proxy FIFO dispatch mechanism (claim-based single-advancer) and the `processing_mode` attribute
 
-- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint)
+- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. Everything else stands, Accepted and operative.**
 - **Author:** Principal Engineer
 - **Date:** 2026-08-04
 - **Feature:** prd-04-queued-processing (realizes ADR-005 at build time; serves #6)
@@ -52,6 +52,13 @@ pending rows and no live claim, and resets orphaned (expired-lease) claims back 
 `pending`. `WithoutOverlapping("proxy:{id}")` on the advancer is a thundering-herd
 reducer, **not** the guard.
 
+> **[P1, P2 — SUPERSEDED by ADR-016 (Accepted, Project Owner 2026-08-12).]** P1: the order key
+> becomes the `fifo_dispatches` row's own `id` (order-identical for capture-created rows;
+> admits #6 replay rows at the back of the line). P2: `UNIQUE(webhook_event_id)` is replaced by
+> `UNIQUE(dispatch_uuid)` (capture idempotency preserved; one event may hold original + replay
+> ordering rows). The claim-based single-advancer, lease/sweeper, and sidecar placement are
+> unchanged.
+
 **(3) Pipeline-entry dispatch is by reference; delivery carries its payload.** The
 pipeline-entry action is dispatched **by reference** — `ProcessIngestedWebhook::
 dispatch($ingestId)` — and rebuilds its `PipelineContext` on the worker from the
@@ -67,6 +74,11 @@ destination_id, attempt_number)`** index on `delivery_attempts` plus a
 skip-if-already-settled check in `DeliverToDestination` makes delivery idempotent
 under the queue's inherent at-least-once redelivery (AC9). This is **redelivery
 correctness, not the #6 retry feature.**
+
+> **[P3 — SUPERSEDED by ADR-016 (Accepted, Project Owner 2026-08-12).]** The idempotency
+> **mechanism** stands; the key becomes `UNIQUE(delivery_id, attempt_number)` (ADR-015),
+> because a #6 replay legitimately reuses `(ingest_id, destination_id, 1)`. The old index is
+> dropped by the #6 migration.
 
 ## Alternatives
 - **Mutex only (`WithoutOverlapping("proxy:{id}")`, no claim row)** — serialises

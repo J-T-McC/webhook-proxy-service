@@ -30,3 +30,13 @@ follow the value's own resolution seam, not one central validator file:
 
 See [[laravel-actions-gotchas]] for the related `AsCommand`/`Actions::registerCommands()` gotcha in
 the same feature.
+
+**Guard every numeric config key a formula reads, not just the ones a task/plan named at
+authoring time** — review-06 Major 2 (`RetryPolicy::exponentialDelaySeconds()`) found two of six
+`config('retry.*')` keys deliberately excluded from the guard as "engineering constants," but a
+blank/non-numeric env value for either still casts to `0` via a bare `(int) config(...)`, and
+`min($delay, 0)` (or any multiply/divide-by-config formula) silently collapses the whole
+computation to zero or infinity rather than throwing. When adding a config-sanity guard, audit
+every `config('...')` read inside the same formula/method, not just the subset the originating
+task text enumerates — the exclusion itself is usually the defect, not a deliberate scope
+boundary.

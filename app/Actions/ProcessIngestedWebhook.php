@@ -2,6 +2,9 @@
 
 namespace App\Actions;
 
+use App\Enums\DeliveryStatus;
+use App\Enums\DispatchKind;
+use App\Models\Delivery;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use App\Pipeline\PipelineContext;
@@ -30,8 +33,10 @@ class ProcessIngestedWebhook
 
     public function __construct(private PipelineFactory $factory) {}
 
-    public function handle(string $ingestId): void
+    public function handle(string $ingestId, ?string $dispatchUuid = null): void
     {
+        $dispatchUuid ??= $ingestId;
+
         $event = WebhookEvent::query()->where('ingest_id', $ingestId)->firstOrFail();
 
         if ($event->payload_cleaned_at !== null) {
@@ -44,12 +49,38 @@ class ProcessIngestedWebhook
         // soft-delete of its proxy must still deliver (ADR-011 Decision 3).
         $proxy = Proxy::withTrashed()->findOrFail($event->proxy_id);
 
+        // Create the dispatch's ORIGINAL `deliveries` rows — one per LIVE
+        // destination (ruling 2 — new selection uses live destinations only).
+        // `firstOrCreate` on the (dispatch_uuid, destination_id) unique key (T3)
+        // makes a redelivery for the same dispatch idempotent: no duplicate rows.
+        // Gated on `$dispatchUuid === $ingestId` (T8's identifying shape of the
+        // original dispatch): a replay (T24) mints its own distinct
+        // `dispatch_uuid` and pre-creates its OWN `deliveries` rows for the
+        // user's CHOSEN destination subset before dispatching here — this loop
+        // must never widen that selection by backfilling every other live
+        // destination with an extra (wrongly `kind = original`) row (AC10).
+        if ($dispatchUuid === $ingestId) {
+            foreach ($proxy->destinations as $destination) {
+                Delivery::query()->firstOrCreate(
+                    ['dispatch_uuid' => $dispatchUuid, 'destination_id' => $destination->id],
+                    [
+                        'team_id' => $proxy->team_id,
+                        'proxy_id' => $proxy->id,
+                        'webhook_event_id' => $event->id,
+                        'kind' => DispatchKind::Original,
+                        'status' => DeliveryStatus::Pending,
+                    ],
+                );
+            }
+        }
+
         $ctx = new PipelineContext(
             ingestId: $event->ingest_id,
             proxy: $proxy,
             method: $event->method,
             headers: $event->headers,
             rawBody: $event->body,
+            dispatchUuid: $dispatchUuid,
         );
 
         $this->runPipeline($ctx);

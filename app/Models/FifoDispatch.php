@@ -12,15 +12,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * One FIFO ordering row per received event, for FIFO proxies only (ADR-011
- * Decision 2). Holds claim/lease state only — no payload or delivery outcome.
- * `webhook_event_id` is the monotonic order key (UNIQUE). The atomic `FOR UPDATE`
- * claim over these rows (AdvanceProxyFifoQueue) is the FIFO correctness primitive.
+ * One FIFO ordering row per dispatch, for FIFO proxies only (ADR-011 Decision
+ * 2, ADR-016 Decision 3). Holds claim/lease state only — no payload or
+ * delivery outcome. `dispatch_uuid` is the dispatch identity (UNIQUE);
+ * `webhook_event_id` keeps a plain (non-unique) index — retry/replay
+ * composition allows more than one ordering row per event. The atomic `FOR
+ * UPDATE` claim over these rows (AdvanceProxyFifoQueue) is the FIFO
+ * correctness primitive.
  *
  * @property int $id
  * @property int $team_id
  * @property int $proxy_id
  * @property int $webhook_event_id
+ * @property string $dispatch_uuid
  * @property FifoDispatchStatus $status
  * @property Carbon|null $claimed_at
  * @property Carbon|null $lease_expires_at
@@ -34,6 +38,7 @@ use Illuminate\Support\Carbon;
     'team_id',
     'proxy_id',
     'webhook_event_id',
+    'dispatch_uuid',
     'status',
     'claimed_at',
     'lease_expires_at',

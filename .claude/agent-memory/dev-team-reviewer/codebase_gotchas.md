@@ -64,6 +64,59 @@ metadata:
   Ordering by the index's trailing column instead keeps the same plan without the filesort. Verify
   optimizer claims with a populated scratch table + `ANALYZE`; an EXPLAIN on an empty table picks
   `PRIMARY` and is worthless evidence.
+- **A partial config-sanity guard is the recurring shape of this repo's config bug.** The
+  house remedy (fail-loud `RuntimeException` naming key + value at the single read seam) tends
+  to get applied to the keys a task's Description enumerates and skipped on the rest, with a
+  docblock explicitly calling the remainder "engineering constants… read plainly". Whenever a
+  resolver class implements it, enumerate EVERY `config('<ns>.*')` int it reads and check each
+  one — the unguarded ones are where the zero-value collapse lives (found in `RetryPolicy`:
+  a blank `*_max_delay_seconds` makes `min($delay, 0)` zero out every backoff). Probe with
+  `artisan tinker --execute="config([...]); …"` rather than arguing it theoretically.
+  **Enumerate by config NAMESPACE, not by class** — grep `(int) config(` across `app/` in one
+  pass. Scoping the sweep to the resolver class misses sibling keys read elsewhere (missed
+  `retry.sweep_grace_seconds` in `SweepDueRetries` this way at review-06).
+- **Severity test for an unguarded config int: does zero COLLAPSE an invariant, or merely
+  remove a margin?** Collapse (backoff → 0, cutoff → `now()`, `LIMIT 0` loop) breaches an AC or
+  destroys data ⇒ **Major**. Losing an anti-race grace period whose race is already arbitrated
+  by a unique key, with the residual cost already accepted in the plan's Risk list ⇒ **Minor**.
+  Say which invariant survives, or the grading looks inconsistent with the neighbouring Major.
+- **`reka-ui` `CheckboxRoot` renders `<button role="checkbox">`** (`as` defaults to `"button"`),
+  so wrapping it in `<Label>` gives it NO accessible name — HTML-AAM's name chain for `button`
+  is aria-labelledby → aria-label → subtree → title, and the indicator icon is the whole
+  subtree. Same trap applies to any Reka primitive rendering a button with a role. Require an
+  explicit `aria-label`/`aria-labelledby`; `aria-label` on `<Checkbox>` DOES reach the button
+  (CheckboxRoot reads `$attrs["aria-label"]`; the wrapper SFC is single-root with no
+  `inheritAttrs: false`) — confirmed live, name computes correctly. `Login.vue`'s "Remember me"
+  still has the un-named-checkbox bug (pre-existing, unfixed as of 2026-08-22). a11y is the one
+  class of frontend defect the automated gates cannot catch — everything else is covered by
+  `vue-tsc` + server-side Inertia prop assertions.
+- **Never accept a source trace as proof of a computed accessible name — do the live check.**
+  An accessible name is computed by the browser from HTML-AAM's chain; the whole reason such
+  findings arise is that markup which reads correctly to a competent reviewer computes to
+  empty. Accepting a trace re-runs the reasoning that produced the defect. Recipe that works
+  here: `pnpm run build` FIRST (checked-in `public/build` is routinely months stale and a live
+  check against it proves nothing — grep the bundle for your new string to confirm freshness;
+  `/public/build` is gitignored so rebuilding is safe), then Playwright headless →
+  `locator.ariaSnapshot()` plus `getByRole('checkbox', { name, exact: true })` counts and an
+  `{ name: '', exact: true }` count to prove zero unnamed controls. `page.accessibility.snapshot()`
+  is REMOVED in the installed Playwright — use `ariaSnapshot()`.
+- **Logging into the local app for a live check.** Forging a Laravel session cookie does not
+  work (tried: encrypter + `CookieValuePrefix` + DB session row → still bounced to `/login`).
+  What works: temporarily swap user 1's password, drive the real login form, then restore the
+  saved hash. Trap: `User::casts()` has `'password' => 'hashed'`, so `Hash::make()` +
+  `forceFill` **double-hashes** and login fails silently — assign the PLAIN string. Also
+  `waitForURL('**/dashboard')`, not `waitForLoadState('networkidle')`, which races an Inertia
+  redirect and reads the stale URL. Dev DB is `laravel` on sail; `QUEUE_CONNECTION=redis` with
+  no worker container running, so exercising a write flow enqueues without sending real
+  outbound HTTP. Revert everything after (rows, queue keys `laravel-database-queues:*`, password).
+- **A design spec can be internally non-univocal** — check the Flows section against the
+  Screens section before ruling a Flow/plan clash a genuine spec conflict. design-06's Flow D
+  said "no navigation away" while its own Screen 4 delegated the mechanism to the implementer;
+  the real defect was the redirect *destination*, not the redirect. Resolve inside the spec's
+  own text where possible rather than escalating an amendment.
+- **A Post/Redirect/Get target must be the page that owns the affordance** (`back()` or the
+  originating route), never a parent page — `to_route('proxies.show')` from an events-page
+  action strands the user away from the state they just changed.
 - **Authorization idiom:** every proxy/team decision is a Policy gating on `TeamPermission` via
   `$user->hasTeamPermission($team, …)`; a role literal (`role === Member`) in a policy/controller
   is a standards violation (permission-based, never role-based). Ownership is a second axis modeled

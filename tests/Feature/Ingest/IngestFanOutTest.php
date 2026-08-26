@@ -96,7 +96,11 @@ class IngestFanOutTest extends TestCase
         $this->ingest($proxy->ingest_token, '{}')->assertStatus(202);
 
         Http::assertSent(fn ($r) => $r->url() === 'https://ok.test/hook');
-        $this->assertSame(2, DeliveryAttempt::count());
+        // T14: still un-faked, so the failing destination's scheduled `RetryDelivery`
+        // also drains inline under sync, cascading through the system-default
+        // attempt limit (5, config/retry.php) before terminalizing — 5 for the
+        // failing destination + 1 for the healthy one.
+        $this->assertSame(6, DeliveryAttempt::count());
     }
 
     public function test_exactly_one_attempt_per_destination_with_outcome_metadata_and_no_payload(): void

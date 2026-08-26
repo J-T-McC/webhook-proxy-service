@@ -37,14 +37,19 @@ enum TeamRole: string
                 TeamPermission::DeleteProxy,
                 TeamPermission::UpdateAnyProxy,
                 TeamPermission::DeleteAnyProxy,
+                // Replay (ADR-017 Decision 4): no ownership limit applies (AC14).
+                TeamPermission::ReplayProxy,
             ],
             // Full proxy CRUD but NO -any bypass: Member acts only on proxies they
             // created (ADR-009 Amendment A2.2). Team-admin permissions unchanged.
+            // Replay is the one proxy action with no ownership limit at all (AC14) —
+            // granted here directly, not via a bypass case.
             self::Member => [
                 TeamPermission::ViewProxy,
                 TeamPermission::CreateProxy,
                 TeamPermission::UpdateProxy,
                 TeamPermission::DeleteProxy,
+                TeamPermission::ReplayProxy,
             ],
         };
     }

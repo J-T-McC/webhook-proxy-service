@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\SweepDueRetries;
 use App\Actions\SweepStalledFifoDispatches;
 use App\Models\TeamInvitation;
 use Illuminate\Support\Facades\Schedule;
@@ -21,6 +22,12 @@ Schedule::call(function () {
 Schedule::call(fn () => SweepStalledFifoDispatches::run())
     ->everyMinute()
     ->description('Sweep stalled FIFO dispatches');
+
+// Retry liveness net (ADR-015 Decision 5): re-dispatch retries whose delayed job
+// was dropped or lost. Fixed cadence — not a tunable, mirroring the FIFO sweeper.
+Schedule::call(fn () => SweepDueRetries::run())
+    ->everyMinute()
+    ->description('Sweep due retries');
 
 // Retention garbage collection (AC5; ADR-012 Decision 7): erase expired stored
 // payloads in place, daily, off-peak. Fixed cadence — not a tunable, matching

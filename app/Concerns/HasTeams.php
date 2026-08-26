@@ -197,6 +197,7 @@ trait HasTeams
             canDeleteProxy: $role?->hasPermission(TeamPermission::DeleteProxy) ?? false,
             canUpdateAnyProxy: $role?->hasPermission(TeamPermission::UpdateAnyProxy) ?? false,
             canDeleteAnyProxy: $role?->hasPermission(TeamPermission::DeleteAnyProxy) ?? false,
+            canReplayProxy: $role?->hasPermission(TeamPermission::ReplayProxy) ?? false,
         );
     }
 

@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\AttemptStatus;
+use App\Enums\DeliveryStatus;
 use App\Enums\FifoDispatchStatus;
 use App\Models\Team;
 use App\Services\RetentionPolicy;
@@ -30,8 +31,12 @@ use RuntimeException;
  * **H2** no `fifo_dispatches` row for the event with a non-`settled` status;
  * **H3** no `delivery_attempts` row for the event's `ingest_id` with status
  * `dispatched`; **H4** if the event has zero `delivery_attempts` rows, it must
- * be older than `retention.dispatch_horizon_minutes`. `fifo_dispatches` and
- * `delivery_attempts` are read-only here (ADR-012 Decision 5).
+ * be older than `retention.dispatch_horizon_minutes`; **H5** (ADR-015 Decision
+ * 7) no `deliveries` row for the event with status `retrying`, or status
+ * `pending` younger than `retention.dispatch_horizon_minutes` — terminal
+ * (`succeeded`/`failed`) deliveries hold nothing (AC18). `fifo_dispatches`,
+ * `delivery_attempts`, and `deliveries` are read-only here (ADR-012
+ * Decision 5).
  *
  * `RetentionPolicy::cutoffFor($team)` is computed once per team, from the
  * `Team` already in hand for the batch — never per row via `expiresAt()`'s
@@ -213,6 +218,18 @@ class PurgeExpiredPayloads
                         ->from('delivery_attempts')
                         ->whereColumn('delivery_attempts.ingest_id', 'webhook_events.ingest_id');
                 })->orWhere('created_at', '<=', $horizon);
-            }); // H4
+            }) // H4
+            ->whereNotExists(function (Builder $q) use ($horizon): void {
+                $q->select('id')
+                    ->from('deliveries')
+                    ->whereColumn('deliveries.webhook_event_id', 'webhook_events.id')
+                    ->where(function (Builder $qq) use ($horizon): void {
+                        $qq->where('status', DeliveryStatus::Retrying->value)
+                            ->orWhere(function (Builder $qqq) use ($horizon): void {
+                                $qqq->where('status', DeliveryStatus::Pending->value)
+                                    ->where('created_at', '>', $horizon);
+                            });
+                    });
+            }); // H5
     }
 }

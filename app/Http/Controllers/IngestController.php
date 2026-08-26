@@ -70,6 +70,7 @@ class IngestController extends Controller
                         'team_id' => $proxy->team_id,
                         'proxy_id' => $proxy->id,
                         'webhook_event_id' => $event->id,
+                        'dispatch_uuid' => $ingestId,
                         'status' => FifoDispatchStatus::Pending,
                     ]);
                 }

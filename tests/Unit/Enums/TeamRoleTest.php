@@ -29,6 +29,13 @@ class TeamRoleTest extends TestCase
         $this->assertTrue($role->hasPermission(TeamPermission::DeleteProxy));
     }
 
+    #[DataProvider('roleProvider')]
+    public function test_every_role_holds_replay_with_no_ownership_limit(TeamRole $role): void
+    {
+        // AC14; ADR-017 Decision 4 — all three roles, no `-any` bypass involved.
+        $this->assertTrue($role->hasPermission(TeamPermission::ReplayProxy));
+    }
+
     public function test_ownership_bypass_cases_differentiate_the_roles(): void
     {
         // AC6: Owner/Admin unrestricted via -any bypass; Member without it.

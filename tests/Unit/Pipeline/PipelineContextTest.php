@@ -58,4 +58,43 @@ class PipelineContextTest extends TestCase
         $ctx->payload = 'mutated';
         $this->assertSame('mutated', $ctx->payload);
     }
+
+    public function test_dispatch_uuid_defaults_to_the_ingest_id_when_omitted(): void
+    {
+        $proxy = Proxy::factory()->create();
+
+        $ctx = new PipelineContext(
+            ingestId: 'abc',
+            proxy: $proxy,
+            method: 'POST',
+            headers: [],
+            rawBody: 'raw',
+        );
+
+        $this->assertSame('abc', $ctx->dispatchUuid);
+    }
+
+    public function test_dispatch_uuid_can_be_supplied_independently_of_the_ingest_id(): void
+    {
+        $proxy = Proxy::factory()->create();
+
+        $ctx = new PipelineContext(
+            ingestId: 'abc',
+            proxy: $proxy,
+            method: 'POST',
+            headers: [],
+            rawBody: 'raw',
+            dispatchUuid: 'replay-uuid',
+        );
+
+        $this->assertSame('abc', $ctx->ingestId);
+        $this->assertSame('replay-uuid', $ctx->dispatchUuid);
+    }
+
+    public function test_dispatch_uuid_is_readonly(): void
+    {
+        $this->assertTrue(
+            (new ReflectionProperty(PipelineContext::class, 'dispatchUuid'))->isReadOnly(),
+        );
+    }
 }

@@ -1,2 +1,2 @@
-- [Review gates](review_gates.md) — which lint/type/test commands are runnable in this sandbox and how the review docs are named
-- [Codebase gotchas](codebase_gotchas.md) — non-obvious authorization/serialization traps to check on review
+- [Review gates](review_gates.md) — runnable lint/type/test/build commands, review-doc naming, and how rework/re-reviews are recorded
+- [Codebase gotchas](codebase_gotchas.md) — authorization/serialization/config traps, and how to run a live browser a11y check

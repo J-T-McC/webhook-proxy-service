@@ -9,6 +9,7 @@ import type {
     ProcessingMode,
     ProxyMode,
     ProxyResponseStatus,
+    RetryBackoffStrategy,
 } from '@/types/proxies';
 
 interface EditProxy {
@@ -18,6 +19,8 @@ interface EditProxy {
     processing_mode: ProcessingMode;
     response_status: ProxyResponseStatus | null;
     response_body: string | null;
+    retry_attempt_limit: number | null;
+    retry_backoff_strategy: RetryBackoffStrategy | null;
     destinations: DestinationRow[];
 }
 
@@ -85,6 +88,8 @@ defineOptions({
                 processingMode: props.proxy.processing_mode,
                 responseStatus: props.proxy.response_status,
                 responseBody: props.proxy.response_body,
+                retryAttemptLimit: props.proxy.retry_attempt_limit,
+                retryBackoffStrategy: props.proxy.retry_backoff_strategy,
                 destinations: props.proxy.destinations,
             }"
         />

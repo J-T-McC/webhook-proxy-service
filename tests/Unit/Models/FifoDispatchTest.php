@@ -10,11 +10,33 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class FifoDispatchTest extends TestCase
 {
-    public function test_webhook_event_id_has_a_single_column_unique_index(): void
+    public function test_webhook_event_id_has_a_plain_non_unique_index_and_no_unique_index(): void
+    {
+        $indexes = collect(DB::select(
+            'SELECT INDEX_NAME, NON_UNIQUE, COUNT(*) AS cols
+             FROM information_schema.STATISTICS
+             WHERE TABLE_NAME = ? AND TABLE_SCHEMA = DATABASE()
+             GROUP BY INDEX_NAME, NON_UNIQUE',
+            ['fifo_dispatches'],
+        ));
+
+        $webhookEventIdIndexes = $indexes->filter(
+            fn ($i) => str_contains(strtolower((string) $i->INDEX_NAME), 'webhook_event_id'),
+        );
+
+        $unique = $webhookEventIdIndexes->first(fn ($i) => (int) $i->NON_UNIQUE === 0);
+        $plain = $webhookEventIdIndexes->first(fn ($i) => (int) $i->NON_UNIQUE === 1 && (int) $i->cols === 1);
+
+        $this->assertNull($unique, 'UNIQUE(webhook_event_id) must have been dropped (T6).');
+        $this->assertNotNull($plain, 'Expected a plain single-column index on webhook_event_id (FK support).');
+    }
+
+    public function test_dispatch_uuid_has_a_single_column_unique_index(): void
     {
         $indexes = DB::select(
             'SELECT INDEX_NAME, COUNT(*) AS cols
@@ -25,19 +47,41 @@ class FifoDispatchTest extends TestCase
         );
 
         $unique = collect($indexes)->first(
-            fn ($i) => str_contains(strtolower($i->INDEX_NAME), 'webhook_event_id'),
+            fn ($i) => str_contains(strtolower($i->INDEX_NAME), 'dispatch_uuid'),
         );
 
-        $this->assertNotNull($unique, 'Expected a unique index on webhook_event_id.');
-        $this->assertSame(1, (int) $unique->cols, 'webhook_event_id unique index must be single-column.');
+        $this->assertNotNull($unique, 'Expected a unique index on dispatch_uuid.');
+        $this->assertSame(1, (int) $unique->cols, 'dispatch_uuid unique index must be single-column.');
     }
 
-    public function test_duplicate_webhook_event_id_is_rejected(): void
+    public function test_duplicate_dispatch_uuid_is_rejected(): void
     {
         $dispatch = FifoDispatch::factory()->create();
 
         $this->expectException(QueryException::class);
-        FifoDispatch::factory()->create(['webhook_event_id' => $dispatch->webhook_event_id]);
+        FifoDispatch::factory()->create(['dispatch_uuid' => $dispatch->dispatch_uuid]);
+    }
+
+    public function test_two_rows_for_the_same_webhook_event_id_are_now_accepted(): void
+    {
+        $first = FifoDispatch::factory()->create();
+
+        $second = FifoDispatch::factory()->create([
+            'webhook_event_id' => $first->webhook_event_id,
+            'proxy_id' => $first->proxy_id,
+            'team_id' => $first->team_id,
+            'dispatch_uuid' => (string) Str::uuid(),
+        ]);
+
+        $this->assertSame($first->webhook_event_id, $second->webhook_event_id);
+        $this->assertNotSame($first->dispatch_uuid, $second->dispatch_uuid);
+    }
+
+    public function test_dispatch_uuid_backfills_to_the_events_ingest_id(): void
+    {
+        $dispatch = FifoDispatch::factory()->create();
+
+        $this->assertSame($dispatch->webhookEvent->ingest_id, $dispatch->dispatch_uuid);
     }
 
     public function test_composite_proxy_status_event_index_exists(): void

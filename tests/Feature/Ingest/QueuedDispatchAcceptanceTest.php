@@ -84,7 +84,10 @@ class QueuedDispatchAcceptanceTest extends TestCase
         $this->ingest($proxy)->assertStatus(200)->assertSee('ACK');
 
         // Delivery ran and recorded a failure — but the response above was unchanged.
-        $this->assertSame(1, DeliveryAttempt::count());
+        // T14: still un-faked (the point of this test), so a failure's scheduled
+        // `RetryDelivery` also drains inline under sync, cascading through the
+        // system-default attempt limit (5, config/retry.php) before terminalizing.
+        $this->assertSame(5, DeliveryAttempt::count());
         $this->assertSame('failed', DeliveryAttempt::firstOrFail()->status->value);
     }
 

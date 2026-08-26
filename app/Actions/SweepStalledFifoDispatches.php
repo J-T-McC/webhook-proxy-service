@@ -2,19 +2,27 @@
 
 namespace App\Actions;
 
+use App\Enums\DeliveryStatus;
 use App\Enums\FifoDispatchStatus;
 use App\Models\FifoDispatch;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 /**
- * The FIFO liveness net (ADR-005 (b), ADR-011 Decision 2). Scheduled every minute
- * (routes/console.php). In order:
+ * The FIFO liveness net (ADR-005 (b), ADR-011 Decision 2; ADR-016 Decision 4).
+ * Scheduled every minute (routes/console.php). In order:
  *  (a) Orphaned-claim reaper — resets every `claimed` row whose lease has expired
  *      (a worker died mid-event) back to `pending`, clearing claim/lease timestamps.
- *      An unexpired claim is left untouched.
- *  (b) Idle-proxy nudge — for each distinct proxy with ≥1 `pending` row and no live
- *      claim, dispatches exactly one {@see AdvanceProxyFifoQueue} to restart its line
- *      (covers a self-dispatch that was dropped by the WithoutOverlapping reducer).
+ *      An unexpired claim is left untouched. An `awaiting_retry` row has no lease
+ *      and is structurally invisible to this pass — never reaped.
+ *  (b) Idle-proxy nudge — for each distinct proxy with ≥1 `pending` row, no live
+ *      claim, AND no `awaiting_retry` row (held, not idle), dispatches exactly one
+ *      {@see AdvanceProxyFifoQueue} to restart its line (covers a self-dispatch that
+ *      was dropped by the WithoutOverlapping reducer).
+ *  (c) Stuck-hold release — an `awaiting_retry` row whose dispatch has zero
+ *      non-terminal `deliveries` left (the crash window between a `RetryDelivery`
+ *      execution settling the last open delivery and the fifo-row transition it
+ *      would normally trigger, T17) is compare-and-set to `settled` and the
+ *      advancer nudged, closing that window.
  *
  * Correctness still rests on the atomic claim in AdvanceProxyFifoQueue — this only
  * guarantees liveness, never ordering.
@@ -37,21 +45,52 @@ class SweepStalledFifoDispatches
                 'lease_expires_at' => null,
             ]);
 
-        // (b) Nudge idle proxies: distinct proxy_id with >=1 pending row and no live
-        // claim. One dispatch per proxy (not per pending row).
+        // (b) Nudge idle proxies: distinct proxy_id with >=1 pending row, no live
+        // claim, and no held (awaiting_retry) row. One dispatch per proxy (not per
+        // pending row).
         $proxyIds = FifoDispatch::query()
             ->where('status', FifoDispatchStatus::Pending)
             ->whereNotIn('proxy_id', function ($query) use ($now): void {
                 $query->select('proxy_id')
                     ->from('fifo_dispatches')
-                    ->where('status', FifoDispatchStatus::Claimed->value)
-                    ->where('lease_expires_at', '>', $now);
+                    ->where(function ($busy) use ($now): void {
+                        $busy
+                            ->where(function ($liveClaim) use ($now): void {
+                                $liveClaim
+                                    ->where('status', FifoDispatchStatus::Claimed->value)
+                                    ->where('lease_expires_at', '>', $now);
+                            })
+                            ->orWhere('status', FifoDispatchStatus::AwaitingRetry->value);
+                    });
             })
             ->distinct()
             ->pluck('proxy_id');
 
         foreach ($proxyIds as $proxyId) {
             AdvanceProxyFifoQueue::dispatch((int) $proxyId);
+        }
+
+        // (c) Release stuck holds: an awaiting_retry row whose dispatch's deliveries
+        // are all terminal — the settler crashed after settling the last delivery
+        // but before transitioning the fifo row (T17's normal completion path).
+        $stuckHolds = FifoDispatch::query()
+            ->where('status', FifoDispatchStatus::AwaitingRetry)
+            ->whereNotIn('dispatch_uuid', function ($query): void {
+                $query->select('dispatch_uuid')
+                    ->from('deliveries')
+                    ->whereIn('status', [DeliveryStatus::Pending->value, DeliveryStatus::Retrying->value]);
+            })
+            ->get(['id', 'proxy_id', 'dispatch_uuid']);
+
+        foreach ($stuckHolds as $stuckHold) {
+            $affected = FifoDispatch::query()
+                ->whereKey($stuckHold->id)
+                ->where('status', FifoDispatchStatus::AwaitingRetry)
+                ->update(['status' => FifoDispatchStatus::Settled, 'settled_at' => $now]);
+
+            if ($affected > 0) {
+                AdvanceProxyFifoQueue::dispatch($stuckHold->proxy_id);
+            }
         }
     }
 }

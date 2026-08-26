@@ -4,9 +4,11 @@ namespace Tests\Unit\Models;
 
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
+use App\Enums\RetryBackoffStrategy;
 use App\Models\Proxy;
 use App\Models\Team;
 use App\Models\User;
+use App\Models\WebhookEvent;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -216,5 +218,90 @@ class ProxyTest extends TestCase
         $fresh = $proxy->fresh();
         $this->assertInstanceOf(ProcessingMode::class, $fresh->processing_mode);
         $this->assertSame(ProcessingMode::Fifo, $fresh->processing_mode);
+    }
+
+    public function test_retry_policy_columns_are_nullable_with_no_schema_default(): void
+    {
+        foreach (['retry_attempt_limit', 'retry_backoff_strategy'] as $name) {
+            $column = DB::selectOne(
+                'SELECT IS_NULLABLE, COLUMN_DEFAULT
+                 FROM information_schema.COLUMNS
+                 WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+                ['proxies', $name],
+            );
+
+            $this->assertNotNull($column, "Expected a {$name} column on proxies.");
+            $this->assertSame('YES', strtoupper((string) $column->IS_NULLABLE), "{$name} must be nullable.");
+            $this->assertNull($column->COLUMN_DEFAULT, "{$name} must have no schema default (RetryPolicy owns the system default).");
+        }
+    }
+
+    public function test_retry_attempt_limit_is_unsigned_tinyint(): void
+    {
+        $column = DB::selectOne(
+            'SELECT DATA_TYPE, COLUMN_TYPE
+             FROM information_schema.COLUMNS
+             WHERE TABLE_NAME = ? AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+            ['proxies', 'retry_attempt_limit'],
+        );
+
+        $this->assertNotNull($column, 'Expected a retry_attempt_limit column on proxies.');
+        $this->assertSame('tinyint', strtolower((string) $column->DATA_TYPE));
+        $this->assertStringContainsString('unsigned', strtolower((string) $column->COLUMN_TYPE));
+    }
+
+    public function test_existing_proxy_row_has_null_retry_policy(): void
+    {
+        // A factory-made proxy (no retry policy supplied) simulates a pre-#6 row:
+        // the migration writes no value, so both columns stay NULL (AC1, no backfill).
+        $proxy = Proxy::factory()->createQuietly();
+
+        $this->assertNull($proxy->retry_attempt_limit);
+        $this->assertNull($proxy->retry_backoff_strategy);
+    }
+
+    public function test_retry_backoff_strategy_round_trips_through_the_enum_cast(): void
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'retry_attempt_limit' => 8,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+
+        $fresh = $proxy->fresh();
+        $this->assertSame(8, $fresh->retry_attempt_limit);
+        $this->assertInstanceOf(RetryBackoffStrategy::class, $fresh->retry_backoff_strategy);
+        $this->assertSame(RetryBackoffStrategy::Fixed, $fresh->retry_backoff_strategy);
+
+        // Unset stays null through the cast.
+        $unset = Proxy::factory()->createQuietly();
+        $this->assertNull($unset->fresh()->retry_backoff_strategy);
+    }
+
+    // T23 (AC15-AC17; plan §API) — Proxy::webhookEvents(): HasMany.
+
+    public function test_webhook_events_resolves_the_proxys_captured_events(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        $resolved = $proxy->webhookEvents;
+
+        $this->assertCount(1, $resolved);
+        $this->assertTrue($resolved->first()->is($event));
+    }
+
+    public function test_webhook_events_excludes_another_proxys_events(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $otherProxy = Proxy::factory()->createQuietly(['team_id' => $proxy->team_id]);
+        WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $otherProxy->id,
+            'team_id' => $otherProxy->team_id,
+        ]);
+
+        $this->assertCount(0, $proxy->webhookEvents);
     }
 }

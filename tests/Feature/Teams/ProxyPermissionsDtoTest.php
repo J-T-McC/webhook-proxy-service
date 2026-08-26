@@ -38,6 +38,8 @@ class ProxyPermissionsDtoTest extends TestCase
         // Member acts only on proxies they created — no ownership bypass.
         $this->assertFalse($permissions->canUpdateAnyProxy);
         $this->assertFalse($permissions->canDeleteAnyProxy);
+        // Replay has no ownership limit at all (AC14; ADR-017 Decision 4).
+        $this->assertTrue($permissions->canReplayProxy);
     }
 
     /**
@@ -62,6 +64,7 @@ class ProxyPermissionsDtoTest extends TestCase
         $this->assertTrue($permissions->canDeleteProxy);
         $this->assertTrue($permissions->canUpdateAnyProxy);
         $this->assertTrue($permissions->canDeleteAnyProxy);
+        $this->assertTrue($permissions->canReplayProxy);
     }
 
     public function test_a_non_member_gets_all_false(): void
@@ -77,5 +80,6 @@ class ProxyPermissionsDtoTest extends TestCase
         $this->assertFalse($permissions->canDeleteProxy);
         $this->assertFalse($permissions->canUpdateAnyProxy);
         $this->assertFalse($permissions->canDeleteAnyProxy);
+        $this->assertFalse($permissions->canReplayProxy);
     }
 }

@@ -132,6 +132,9 @@ class RetentionInFlightHoldsAcceptanceTest extends TestCase
                 'team_id' => $event->team_id,
                 'proxy_id' => $event->proxy_id,
                 'webhook_event_id' => $event->id,
+                // dispatch_uuid is NOT NULL (T6); the anchoring event's ingest_id is the
+                // T6/T7 identity invariant, so the fixture stays consistent with it.
+                'dispatch_uuid' => $event->ingest_id,
                 'status' => FifoDispatchStatus::Pending->value,
                 'created_at' => now(),
                 'updated_at' => now(),

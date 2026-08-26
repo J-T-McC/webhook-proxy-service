@@ -43,6 +43,8 @@ defineOptions({
                 processingMode: 'async',
                 responseStatus: null,
                 responseBody: null,
+                retryAttemptLimit: null,
+                retryBackoffStrategy: null,
                 destinations: [{ url: '', http_method: 'POST' }],
             }"
         />

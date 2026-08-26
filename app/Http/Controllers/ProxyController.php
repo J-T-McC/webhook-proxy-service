@@ -64,10 +64,17 @@ class ProxyController extends Controller
 
         $proxy = DB::transaction(function () use ($data, $tokens): Proxy {
             // Pass the validated payload straight to mass-assignment: only
-            // name/mode are fillable (see Proxy #[Fillable]), so the `destinations`
-            // key is ignored and the ingest token/hash stay server-minted, never
-            // from input.
-            $proxy = Proxy::make($data);
+            // name/mode/processing_mode/retry_*/response_* are fillable (see
+            // Proxy #[Fillable]), so the `destinations` key is ignored and the
+            // ingest token/hash stay server-minted, never from input. `?? null`
+            // on the retry fields lets an omitted/simple-mode-rejected value
+            // default to NULL (AC2/AC20) — Proxy::make() only assigns keys
+            // present in $data, so this is set explicitly rather than relying
+            // on mass-assignment omission.
+            $proxy = Proxy::make(array_merge($data, [
+                'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
+                'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
+            ]));
             $tokens->assignTo($proxy);
             $proxy->save();
 
@@ -140,14 +147,21 @@ class ProxyController extends Controller
         $data = $request->validated();
 
         DB::transaction(function () use ($data, $proxy): void {
-            // Persist response config alongside name/mode. `?? null` lets an
-            // omitted/explicit-null field clear a previously configured value (AC3).
+            // Persist response/retry config alongside name/mode. `?? null` lets
+            // an omitted/explicit-null field clear a previously configured value
+            // (AC3, AC20). For the retry fields, an enhanced->simple mode switch
+            // clears both automatically: the request rejects any non-null value
+            // when `mode = simple` (T29's `prohibited_if`), so validated data
+            // never carries a value to persist in that case — this line just
+            // writes exactly what validation returned.
             $proxy->update([
                 'name' => $data['name'],
                 'mode' => $data['mode'],
                 'processing_mode' => $data['processing_mode'],
                 'response_status' => $data['response_status'] ?? null,
                 'response_body' => $data['response_body'] ?? null,
+                'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
+                'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
             ]);
 
             $keptIds = [];
@@ -226,6 +240,7 @@ class ProxyController extends Controller
                 canDeleteProxy: false,
                 canUpdateAnyProxy: false,
                 canDeleteAnyProxy: false,
+                canReplayProxy: false,
             );
         }
 

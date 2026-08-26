@@ -45,3 +45,4 @@ source of truth; `docs/status.md` tracks all features — ask the orchestrator
   commit requires an explicit ask.
 - Commit messages should be short with additional context added via list items below the header message
 - Commits follow Conventional Commits: `type(scope): summary` where type ∈ feat, fix, docs, refactor, chore, test, build, ci. Header short and imperative; context as list items below.
+- When prompting to run a command, keep its description to a very short phrase saying what it does — enough to approve or deny at a glance, no restating the command or explaining why.

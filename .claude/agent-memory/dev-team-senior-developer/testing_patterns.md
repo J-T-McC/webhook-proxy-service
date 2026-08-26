@@ -91,3 +91,111 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   `Queue::fake()` and assert step-by-step (one `::run()` call settles/claims one row — the
   self-dispatch is captured, not recursed; see the existing note above on testing a
   self-dispatching queue action).
+- **`QUEUE_CONNECTION=sync` (phpunit.xml) means ANY un-faked dispatch — including a
+  `->delay(...)`'d one — runs `handle()` synchronously in-process the moment `dispatch()` is
+  called** (`SyncQueue::later()` just calls `push()`, ignoring the delay; the delay is a
+  no-op under `sync`). Before adding a new delayed dispatch inside an existing action (e.g. a
+  retry-scheduling call inside `DeliverToDestination::send()`), audit every pre-existing test
+  that exercises the triggering branch WITHOUT `Queue::fake()` — they will now really execute
+  the dispatched job's `handle()`. If the dispatched class doesn't fully exist yet (a forward
+  reference to a not-yet-implemented sibling task), give it a genuinely empty no-op `handle()`
+  rather than a "not implemented" throw, so those pre-existing tests stay green until the real
+  task lands.
+- **Filling in a real `handle()` body behind a previously-no-op `AsJob`/`AsAction` stub that a
+  prior task already wired a real (un-faked) `::dispatch()->delay()->onQueue()` call to** (e.g.
+  `RetryDelivery`, stubbed empty by T13, filled in by T14): audit every pre-existing test that
+  exercises the triggering branch WITHOUT `Queue::fake()` — under `QUEUE_CONNECTION=sync` they
+  now execute the real body, and if that body can itself re-trigger the same dispatch (a retry
+  cascade), counts inflate to the full cascade (e.g. the system-default attempt limit) instead of
+  stopping at one. Fix each on its own terms, don't blanket-add `Queue::fake()`: if the
+  assertion's real subject is unrelated to the cascade AND something upstream of the cascade
+  trigger still runs for real without the queue (e.g. `DeliverToDestination::run()` called
+  directly, not `::dispatch()`), `Queue::fake()` cleanly suppresses just the new cascade; but if
+  the test's whole stated purpose IS the un-faked sync-drain behaviour (e.g. "no Queue::fake — the
+  dispatched work drains inline" acceptance tests), faking would zero out the test's own subject —
+  update the count assertions to the real cascade total instead, with an inline comment naming the
+  task and the config default that produced the number. Used for T14 (`RetryDelivery`), which
+  cascaded through `config('retry.default_attempt_limit')` (5) in six pre-existing tests.
+- **`AsJob`-only actions (no `AsAction`) have no `::run()`/`::make()` static helper** — `AsJob`
+  (`vendor/lorisleiva/laravel-actions/src/Concerns/AsJob.php`) provides
+  `dispatch`/`dispatchSync`/`assertPushed`/etc. but not `AsObject`'s `run`/`make` (those come only
+  via `AsAction`, which composes `AsObject + AsJob + ...`). To invoke the job body directly in a
+  test (bypassing the queue entirely), container-resolve and call `handle()` yourself:
+  `app(RetryDelivery::class)->handle($id, $n)` — same container-resolution parity as `::run()`
+  would give, just without the `AsObject` convenience wrapper. Used for T14's `RetryDeliveryTest`.
+- **Inspecting a `->delay()` value set on a Lorisleiva-Actions job under `Queue::fake()`:**
+  the `assertPushed` callback's 3rd arg is the `Lorisleiva\Actions\Decorators\JobDecorator`
+  instance; `PendingDispatch::delay()` sets `$job->delay` on it directly (public property,
+  `Illuminate\Bus\Queueable` trait) — read `$job->delay` (a `CarbonInterval`/`DateInterval`) to
+  assert the scheduled delay, e.g. `fn ($action, $params, JobDecorator $job, $queue) => (int)
+  $job->delay->totalSeconds === $expected`.
+- **`DB::transactionLevel()` is 1, not 0, for the entire body of every test in this suite** —
+  `FasterRefreshDatabase` (wraps `RefreshDatabase`) opens one outer transaction per test via
+  `beginDatabaseTransaction()` before the test body runs, and that transaction stays open (never
+  committed, only rolled back in teardown) the whole time. A test asserting "no transaction is
+  held at point X" must capture the ambient level first (`$ambient = DB::transactionLevel();`
+  before the action under test runs) and assert equality against that captured value, never a
+  literal `0` — a hardcoded-`0` assertion silently never proves what it claims (see next bullet
+  for why it can go undetected for a long time).
+- **A failed PHPUnit assertion INSIDE application code the test doesn't control (e.g. inside an
+  `Http::fake()` closure that runs deep inside the action under test) is just a thrown
+  `PHPUnit\Framework\ExpectationFailedException` to that code** — if the action has its own
+  `catch (Throwable $e)` around the call site (e.g. `DeliverToDestination::send()`'s HTTP-call
+  try/catch, there to catch real transport errors), it silently swallows the assertion failure
+  and treats it as an ordinary application-level failure, and the test can go on to pass on
+  unrelated downstream assertions. The assertion still counts toward PHPUnit's assertion total
+  (visible as a suspiciously-low count, e.g. 2 asserts executed out of 3 written) but the test
+  goes green. Symptom to watch for: a test with N `assertSame` calls reports fewer than N
+  assertions in the JSON summary while still "passing" — that's the tell this happened. Found via
+  the (now-fixed) hardcoded-`0` transaction-level bug above: it had silently asserted `1 === 0`
+  and failed for an unknown span of time before a real downstream behavioural change (T16 of
+  feature #6 making a FIFO row's fate depend on the delivery's real outcome, not settling
+  unconditionally) turned the swallowed failure into a visible one.
+- **Simulating a real queue worker executing faked, queued Lorisleiva-Actions jobs in place**
+  (needed when a test fakes the queue to assert dispatch, but a LATER assertion in the same test
+  depends on that job's side effects having actually run — e.g. a FIFO row that only settles once
+  its async-dispatched delivery completes): `Queue::pushed(\Lorisleiva\Actions\ActionManager::
+  $jobDecorator, function (\Lorisleiva\Actions\Decorators\JobDecorator $job) { if
+  ($job->decorates(TargetAction::class)) { TargetAction::run(...$job->getParameters()); } return
+  true; })` — runs every currently-pushed job of that action synchronously. Idempotent to
+  re-invoke if the target action's own idempotency guard covers redelivery (e.g.
+  `DeliverToDestination`'s existing-attempt resume-or-skip), so it's safe to call after each of
+  several `Queue::fake()`'d dispatch points in a multi-step test rather than tracking which jobs
+  are "new". Used to fix `ProcessingModeSwitchAcceptanceTest` after feature #6 T16 made a
+  pre-switch FIFO row's settlement depend on its now-async-dispatched delivery actually running.
+- **Testing a `JsonResource`'s `whenLoaded()`/conditional-key omission directly (no HTTP round
+  trip):** call `->resolve(request())`, NOT `->toArray(request())`. `toArray()` returns the raw
+  array with `Illuminate\Http\Resources\MissingValue` objects still in place for omitted keys
+  (`assertArrayNotHasKey` then fails - the key exists, just holding a `MissingValue`); `resolve()`
+  runs the same `filter()` pass Inertia/`toResponse()` does in production, so omitted keys are
+  genuinely absent. Used for #6 T25's `WebhookEventResource`/`DeliveryResource` unit tests.
+- **`abort(410)` (or any `abort($code)` for a lifecycle/non-error status) renders the app's full
+  HTML error-page body in the test env** - if an endpoint's contract requires a genuinely empty
+  body on that status (e.g. ADR-017's "cleaned => 410 Gone, no body content"), use `return
+  response('', $code);` instead of `abort($code)`. Caught by a first failing test run asserting
+  against the response content. Used for #6 T28's `ProxyEventPayloadController`.
+- **`Http::fake(['*' => ...])` called a SECOND time in the same test does NOT replace the first
+  stub.** The array/URL-pattern form (`Factory::fake($callback)`'s `is_array($callback)` branch)
+  calls `stubUrl()` per entry, which itself calls `fake()` again with a closure that gets
+  **merged** onto `$stubCallbacks`, never cleared — the first-registered matching pattern (e.g.
+  `'*'`) wins for every request for the rest of the test, silently ignoring the later fake. Needing
+  "fails N times then succeeds" (or any response change) within one test: use a single
+  `Http::fakeSequence()->pushStatus(500)->pushStatus(500)->whenEmpty(Http::response('ok', 200))`
+  (or `->push($body, $status)`) instead of two sequential `Http::fake([...])` calls. Symptom: a
+  status/outcome assertion after the "second" fake fails as if the FIRST fake were still active.
+  Found in #6 T40's `FifoRetryCompositionAcceptanceTest`.
+- **The test client's `actingAs($user)` authentication PERSISTS across every subsequent `$this->
+  get()/post()/...` call within the same test method, even without re-chaining `actingAs()`** — a
+  later unauthenticated-guest assertion (`->assertRedirect(route('login'))`) in a test that already
+  called `actingAs()` earlier will get 200, not a redirect, because the session is still
+  authenticated. Assert the guest/unauthenticated case FIRST, before any `actingAs()` call in that
+  test method, or put it in its own test entirely. Found in #6 T43's
+  `ReadSurfaceRevealAcceptanceTest`.
+- **A real delayed dispatch (e.g. `RetryDelivery::dispatch(...)->delay(...)`) inside an inline-first-
+  attempt flow (FIFO `DeliverStep`, or `AdvanceProxyFifoQueue::run()`) needs `Queue::fake()` to
+  observe an intermediate `retrying` state before it resolves** — without it, `QUEUE_CONNECTION=sync`
+  runs the delayed job immediately (delay is a no-op), cascading straight through to the delivery's
+  eventual terminal state within the one triggering call, so "assert it's mid-schedule" assertions
+  fail against an already-terminal row. `Queue::fake()` freezes exactly the delayed hop; the
+  triggering inline attempt (FIFO's direct `DeliverToDestination::run()`) still executes for real.
+  Found repeatedly in #6 T42's `RetryReplayRetentionInterplayAcceptanceTest`.

@@ -42,6 +42,12 @@ class ProxyResource extends JsonResource
             // them; the index doesn't render them but the shape stays consistent.
             'response_status' => $this->response_status,
             'response_body' => $this->response_body,
+            // Per-proxy retry policy (AC2, AC20; ADR-015 Decision 3). Raw column
+            // values, nullable = unconfigured -> RetryPolicy resolves the system
+            // default. Exposed so the shared Create/Edit form pre-fills them and
+            // the Show-page Retry policy card can derive its display state.
+            'retry_attempt_limit' => $this->retry_attempt_limit,
+            'retry_backoff_strategy' => $this->retry_backoff_strategy?->value,
             // Built server-side from config, never the request Host header (ADR-006).
             'ingest_url' => $this->ingestUrl(),
             'destinations' => DestinationResource::collection($this->whenLoaded('destinations')),

@@ -93,9 +93,13 @@ class AsyncDispatchAcceptanceTest extends TestCase
         $this->post('https://localhost/ingest/'.$proxy->ingest_token, ['a' => 'b'])
             ->assertStatus(202);
 
+        // T14: still un-faked, so the failing destination's scheduled `RetryDelivery`
+        // also drains inline under sync, cascading through the system-default
+        // attempt limit (5, config/retry.php) before terminalizing — 5 failed
+        // attempts (one per cascade), 2 succeeded (the healthy destinations).
         $this->assertSame(2, DeliveryAttempt::where('status', AttemptStatus::Succeeded)->count());
-        $this->assertSame(1, DeliveryAttempt::where('status', AttemptStatus::Failed)->count());
+        $this->assertSame(5, DeliveryAttempt::where('status', AttemptStatus::Failed)->count());
         Event::assertDispatchedTimes(DeliverySucceeded::class, 2);
-        Event::assertDispatchedTimes(DeliveryFailed::class, 1);
+        Event::assertDispatchedTimes(DeliveryFailed::class, 5);
     }
 }

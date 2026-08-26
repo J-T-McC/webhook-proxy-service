@@ -6,6 +6,7 @@ use App\Concerns\BelongsToCurrentTeam;
 use App\Concerns\HasCreator;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
+use App\Enums\RetryBackoffStrategy;
 use App\Services\IngestTokenService;
 use Database\Factories\ProxyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -24,6 +25,8 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property ProxyMode $mode
  * @property ProcessingMode $processing_mode
+ * @property int|null $retry_attempt_limit
+ * @property RetryBackoffStrategy|null $retry_backoff_strategy
  * @property int|null $response_status
  * @property string|null $response_body
  * @property string $ingest_token_hash
@@ -35,8 +38,18 @@ use Illuminate\Support\Carbon;
  * @property-read User|null $creator
  * @property-read Collection<int, Destination> $destinations
  * @property-read Collection<int, DeliveryAttempt> $deliveryAttempts
+ * @property-read Collection<int, WebhookEvent> $webhookEvents
  */
-#[Fillable(['team_id', 'name', 'mode', 'processing_mode', 'response_status', 'response_body'])]
+#[Fillable([
+    'team_id',
+    'name',
+    'mode',
+    'processing_mode',
+    'retry_attempt_limit',
+    'retry_backoff_strategy',
+    'response_status',
+    'response_body',
+])]
 class Proxy extends Model
 {
     /** @use HasFactory<ProxyFactory> */
@@ -73,6 +86,34 @@ class Proxy extends Model
     }
 
     /**
+     * The proxy's captured events (T23; AC15-AC17, plan §API). Needed so
+     * `{event}` route parameters can resolve via `->scopeBindings()` through
+     * the proxy — a cross-team/cross-proxy event id therefore 404s rather than
+     * resolving.
+     *
+     * @return HasMany<WebhookEvent, $this>
+     */
+    public function webhookEvents(): HasMany
+    {
+        return $this->hasMany(WebhookEvent::class);
+    }
+
+    /**
+     * Map the `{event}` route parameter to the `webhookEvents()` relation for
+     * scoped bindings (T24). Eloquent's own convention would otherwise guess
+     * `events()` (`Str::plural(Str::camel($childType))` on the route parameter
+     * name) — which does not exist on this model — so this override is the
+     * minimal, documented seam for a route-parameter name that legitimately
+     * differs from its backing relation name (`{destination}` still resolves
+     * via the untouched default convention, since `destinations()` already
+     * matches it).
+     */
+    protected function childRouteBindingRelationshipName($childType): string
+    {
+        return $childType === 'event' ? 'webhookEvents' : parent::childRouteBindingRelationshipName($childType);
+    }
+
+    /**
      * The absolute public ingest URL for this proxy.
      *
      * Built from server config (`config('ingest.url')`) and the decrypted token —
@@ -101,6 +142,7 @@ class Proxy extends Model
         return [
             'mode' => ProxyMode::class,
             'processing_mode' => ProcessingMode::class,
+            'retry_backoff_strategy' => RetryBackoffStrategy::class,
             'response_status' => 'integer',
             'ingest_token' => 'encrypted',
         ];

@@ -20,8 +20,14 @@ use Tests\TestCase;
 
 /**
  * End-to-end proof of the FIFO claim's correctness under contention and the
- * sweeper's liveness net (T16, ADR-005 (a)/(b)), complementing the
+ * sweeper's liveness net (ADR-005 (a)/(b)), complementing the
  * AdvanceProxyFifoQueue / SweepStalledFifoDispatches unit tests.
+ *
+ * Fixtures create their pending rows in the same order as their events, so the
+ * advancer's `id`-ordered scan (T16, ADR-016 Decision 3) settles them
+ * identically to the pre-#6 `webhook_event_id`-ordered scan — no fixture
+ * change needed here; the order-key change itself is unit-tested in
+ * `AdvanceProxyFifoQueueTest`.
  */
 class FifoLivenessAcceptanceTest extends TestCase
 {

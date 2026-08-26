@@ -3,6 +3,10 @@
 namespace Tests\Unit\Actions;
 
 use App\Actions\PurgeExpiredPayloads;
+use App\Enums\DeliveryStatus;
+use App\Enums\DispatchKind;
+use App\Models\Delivery;
+use App\Models\Destination;
 use App\Models\DispatchedPayload;
 use App\Models\Proxy;
 use App\Models\Team;
@@ -10,6 +14,7 @@ use App\Models\WebhookEvent;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -22,6 +27,11 @@ class PurgeExpiredPayloadsTest extends TestCase
             'team_id' => $proxy->team_id,
             'created_at' => now()->subDays(31),
         ]);
+    }
+
+    private function isCleaned(WebhookEvent $event): bool
+    {
+        return DB::table('webhook_events')->where('id', $event->id)->value('payload_cleaned_at') !== null;
     }
 
     public function test_no_collectable_rows_is_a_noop(): void
@@ -198,6 +208,120 @@ class PurgeExpiredPayloadsTest extends TestCase
         PurgeExpiredPayloads::run();
 
         $this->assertTrue(true, 'PurgeExpiredPayloads::run() must not throw for a zero horizon.');
+    }
+
+    // T19 (AC18; ADR-015 Decision 7) — GC hold H5: an event with a `retrying`
+    // delivery, or a `pending` delivery still within the dispatch horizon, is
+    // held from erasure; terminal deliveries hold nothing.
+
+    public function test_h5_a_retrying_delivery_holds_the_event(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+        Delivery::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'status' => DeliveryStatus::Retrying,
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertFalse($this->isCleaned($event), 'A retrying delivery must hold the event regardless of age.');
+    }
+
+    public function test_h5_a_young_pending_delivery_holds_the_event(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+        Delivery::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'status' => DeliveryStatus::Pending,
+            'created_at' => now(),
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertFalse($this->isCleaned($event), 'A pending delivery younger than the dispatch horizon must hold the event.');
+    }
+
+    public function test_h5_an_old_pending_delivery_does_not_hold_the_event(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+        Delivery::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'status' => DeliveryStatus::Pending,
+            'created_at' => now()->subMinutes(config('retention.dispatch_horizon_minutes') + 30),
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertTrue($this->isCleaned($event), 'A pending delivery older than the dispatch horizon must not hold the event.');
+    }
+
+    public function test_h5_terminal_deliveries_hold_nothing(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+        Delivery::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'status' => DeliveryStatus::Succeeded,
+        ]);
+        Delivery::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'status' => DeliveryStatus::Failed,
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertTrue($this->isCleaned($event), 'Terminal (succeeded/failed) deliveries must hold nothing, including a failed one.');
+    }
+
+    public function test_h5_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $before = DB::table('webhook_events')->where('id', $event->id)->first();
+
+        $inserted = false;
+        DB::listen(function ($query) use ($event, $destination, &$inserted): void {
+            if ($inserted || ! str_contains($query->sql, 'select `id` from `webhook_events`')) {
+                return;
+            }
+
+            $inserted = true;
+
+            // Simulate a hold reappearing between selection and the erase UPDATE: a
+            // deliveries row for this event flips (back) to `retrying` right after its
+            // id was selected but before eraseOne()'s compare-and-set UPDATE runs.
+            DB::table('deliveries')->insert([
+                'team_id' => $event->team_id,
+                'proxy_id' => $event->proxy_id,
+                'destination_id' => $destination->id,
+                'webhook_event_id' => $event->id,
+                'dispatch_uuid' => (string) Str::uuid(),
+                'kind' => DispatchKind::Original->value,
+                'status' => DeliveryStatus::Retrying->value,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        PurgeExpiredPayloads::run();
+
+        $after = DB::table('webhook_events')->where('id', $event->id)->first();
+        $this->assertNull($after->payload_cleaned_at, 'The reappeared hold must skip the event, never erase it.');
+        $this->assertEquals($before, $after, 'The event must survive the run byte-for-byte.');
     }
 
     public function test_an_invalid_purge_batch_never_reaches_the_batch_terminator(): void

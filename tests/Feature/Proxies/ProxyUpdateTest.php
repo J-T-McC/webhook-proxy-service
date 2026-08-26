@@ -169,6 +169,89 @@ class ProxyUpdateTest extends TestCase
         $this->assertSame(ProcessingMode::Async, $proxy->fresh()->processing_mode);
     }
 
+    // --- Retry policy (T30; AC2, AC20) --------------------------------------
+
+    public function test_update_sets_retry_policy_on_an_enhanced_proxy(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $keep = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            [
+                'name' => 'x',
+                'mode' => 'enhanced',
+                'processing_mode' => 'async',
+                'retry_attempt_limit' => 7,
+                'retry_backoff_strategy' => 'exponential',
+                'destinations' => [
+                    ['id' => $keep->id, 'url' => 'https://keep.example.com/hook', 'http_method' => 'POST'],
+                ],
+            ],
+        )->assertRedirect(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]));
+
+        $proxy->refresh();
+        $this->assertSame(7, $proxy->retry_attempt_limit);
+        $this->assertSame('exponential', $proxy->retry_backoff_strategy->value);
+    }
+
+    public function test_update_clears_a_previously_configured_retry_policy_when_omitted(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'retry_attempt_limit' => 5,
+            'retry_backoff_strategy' => 'fixed',
+        ]);
+        $keep = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            [
+                'name' => 'x',
+                'mode' => 'enhanced',
+                'processing_mode' => 'async',
+                'destinations' => [
+                    ['id' => $keep->id, 'url' => 'https://keep.example.com/hook', 'http_method' => 'POST'],
+                ],
+            ],
+        )->assertRedirect(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]));
+
+        $proxy->refresh();
+        $this->assertNull($proxy->retry_attempt_limit);
+        $this->assertNull($proxy->retry_backoff_strategy);
+    }
+
+    public function test_switching_from_enhanced_to_simple_clears_the_retry_policy_to_null(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'mode' => ProxyMode::Enhanced,
+            'retry_attempt_limit' => 5,
+            'retry_backoff_strategy' => 'fixed',
+        ]);
+        $keep = Destination::factory()->for($proxy)->createQuietly(['url' => 'https://keep.example.com/hook', 'http_method' => HttpMethod::Post]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            [
+                'name' => 'x',
+                'mode' => 'simple',
+                'processing_mode' => 'async',
+                'destinations' => [
+                    ['id' => $keep->id, 'url' => 'https://keep.example.com/hook', 'http_method' => 'POST'],
+                ],
+            ],
+        )->assertRedirect(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]));
+
+        $proxy->refresh();
+        $this->assertSame(ProxyMode::Simple, $proxy->mode);
+        $this->assertNull($proxy->retry_attempt_limit);
+        $this->assertNull($proxy->retry_backoff_strategy);
+    }
+
     public function test_update_that_would_leave_zero_live_destinations_is_rejected(): void
     {
         $user = $this->actingUser();

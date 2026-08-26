@@ -31,6 +31,11 @@ class FifoDispatchFactory extends Factory
                 ->whereKey($attributes['webhook_event_id'])->firstOrFail()->proxy_id,
             'team_id' => fn (array $attributes) => WebhookEvent::withoutGlobalScope(TeamScope::class)
                 ->whereKey($attributes['webhook_event_id'])->firstOrFail()->team_id,
+            // The original dispatch's identity is its event's ingest id (the same
+            // invariant the T6 backfill established for pre-existing rows and
+            // IngestController stamps on new capture — T7).
+            'dispatch_uuid' => fn (array $attributes) => WebhookEvent::withoutGlobalScope(TeamScope::class)
+                ->whereKey($attributes['webhook_event_id'])->firstOrFail()->ingest_id,
             'status' => FifoDispatchStatus::Pending,
             'claimed_at' => null,
             'lease_expires_at' => null,

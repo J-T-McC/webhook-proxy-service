@@ -1,0 +1,125 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Data\ProxyPermissions;
+use App\Enums\FifoDispatchStatus;
+use App\Enums\ProcessingMode;
+use App\Http\Resources\ProxyResource;
+use App\Http\Resources\WebhookEventResource;
+use App\Models\FifoDispatch;
+use App\Models\Proxy;
+use App\Models\WebhookEvent;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * The received-events read surface for a proxy (T26/T27; AC12, AC15-AC17,
+ * AC22; ADR-017 Decision 5). Every action here is read-only and gated
+ * `ProxyPolicy::view` — no distinct read permission for events vs. the proxy
+ * itself, and never any payload content (that's `ProxyEventPayloadController`,
+ * T28's fetch-on-reveal endpoint).
+ */
+class ProxyEventController extends Controller
+{
+    /**
+     * Paginated (15, newest-first) list of the proxy's captured events (AC15,
+     * AC16). The leading `{current_team}` route parameter is accepted so
+     * implicit binding of `{proxy}` aligns correctly under the team-prefixed
+     * group.
+     */
+    public function index(Request $request, string $current_team, Proxy $proxy): Response
+    {
+        $this->authorize('view', $proxy);
+
+        $events = WebhookEvent::query()
+            ->where('proxy_id', $proxy->id)
+            ->with(['deliveries' => fn ($query) => $query->with(['destination' => fn ($q) => $q->withTrashed()])])
+            ->latest('id')
+            ->paginate(15)
+            ->through(fn (WebhookEvent $event) => new WebhookEventResource($event));
+
+        return Inertia::render('proxies/events/Index', [
+            // `destinations` eager-loaded (beyond T26's original scope) so
+            // `ProxyResource` carries the proxy's current live destinations —
+            // T37's ReplayDialog needs them for its checklist (AC10), the same
+            // "current destinations" the Replay confirmation must offer from
+            // both the Index row action and the Show page's header action.
+            'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
+            'events' => $events,
+            'permissions' => $this->proxyPermissions($request),
+            'fifoHeldByRetry' => $this->fifoHeldByRetry($proxy),
+        ]);
+    }
+
+    /**
+     * Event detail: every `deliveries` row (original + any replays) with its
+     * `attempts` eager-loaded (AC12, AC16). Grouping by `dispatch_uuid`/`kind`
+     * is a client-side (Vue) presentation concern — the resource returns the
+     * flat `deliveries` collection, each row already carrying `kind`/
+     * `dispatch_uuid`. The leading `{current_team}` route parameter is
+     * accepted so implicit binding of `{proxy}` aligns correctly under the
+     * team-prefixed group; `{event}` resolves via `Proxy::webhookEvents()`
+     * scoped binding, so a cross-team/cross-proxy event id 404s.
+     */
+    public function show(Request $request, string $current_team, Proxy $proxy, WebhookEvent $event): Response
+    {
+        $this->authorize('view', $proxy);
+
+        $event->load([
+            'deliveries' => fn ($query) => $query->with([
+                'destination' => fn ($q) => $q->withTrashed(),
+                'deliveryAttempts',
+            ]),
+        ]);
+
+        return Inertia::render('proxies/events/Show', [
+            'proxy' => ProxyResource::make($proxy->loadMissing('destinations')),
+            'event' => new WebhookEventResource($event),
+            'permissions' => $this->proxyPermissions($request),
+        ]);
+    }
+
+    /**
+     * `true` iff the proxy is FIFO **and** has a live `awaiting_retry` row —
+     * `false` for every Async proxy, always (AC15/AC16).
+     */
+    private function fifoHeldByRetry(Proxy $proxy): bool
+    {
+        if ($proxy->processing_mode !== ProcessingMode::Fifo) {
+            return false;
+        }
+
+        return FifoDispatch::query()
+            ->where('proxy_id', $proxy->id)
+            ->where('status', FifoDispatchStatus::AwaitingRetry)
+            ->exists();
+    }
+
+    /**
+     * Build the page-level proxy permission DTO for the acting user on their
+     * current team (ADR-009 Amendment B4), mirroring
+     * `ProxyController::proxyPermissions()`. A user without a current team
+     * gets an all-false DTO — the fail-closed default.
+     */
+    private function proxyPermissions(Request $request): ProxyPermissions
+    {
+        $user = $request->user();
+        $team = $user?->currentTeam;
+
+        if ($user === null || $team === null) {
+            return new ProxyPermissions(
+                canCreateProxy: false,
+                canViewProxy: false,
+                canUpdateProxy: false,
+                canDeleteProxy: false,
+                canUpdateAnyProxy: false,
+                canDeleteAnyProxy: false,
+                canReplayProxy: false,
+            );
+        }
+
+        return $user->toProxyPermissions($team);
+    }
+}

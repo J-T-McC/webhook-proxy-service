@@ -17,5 +17,7 @@
 | Security | Secrets via `.env` (`.env.example` template, not committed real values) · Auth: Fortify + passkeys + 2FA · Dependabot (GitHub Actions ecosystem only) | `.github/dependabot.yml` covers **only `github-actions`** — no Composer or pnpm dependency scanning, and no SAST/secret-scanning in CI. **Gap: application-dependency vulnerability scanning is absent — Owner decision.** Ingest guard env vars (`INGEST_MAX_BODY_BYTES`, rate limit) are placeholder defaults per `.env.example` / ADR-006. |
 | Performance | Not yet defined — Owner decision | No performance budgets, load-test config, or profiling tooling committed. (Laravel Pail is present for log tailing in dev only; not a perf tool.) |
 | Deployment | Not yet defined — Owner decision | No deploy pipeline, Dockerfile, `fly.toml`, Vapor, `Procfile`, or rollback strategy in the repo. CI stops at test/lint. |
-</content>
-</invoke>
+
+> **Optional — semantic code tools:** the development roles use symbol-level code navigation and editing automatically when a matching MCP server is configured in this project. Two supported options — configure either, named exactly `serena` or `jetbrains` in `.mcp.json`:
+> - [Serena](https://github.com/oraios/serena) (`uv tool install serena-agent`, then `serena init`) — free, headless; works whenever agents run
+> - JetBrains MCP server — richer IDE-grade analysis, but requires the IDE running with this project open

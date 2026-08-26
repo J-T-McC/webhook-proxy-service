@@ -20,11 +20,17 @@ import {
     PROXY_RESPONSE_STATUSES,
     proxyStatusForcesEmptyBody,
 } from '@/data/proxyResponseStatuses';
+import {
+    PROXY_RETRY_BACKOFF_STRATEGIES,
+    RETRY_STRATEGY_DEFAULT,
+    RETRY_STRATEGY_DEFAULT_LABEL,
+} from '@/data/proxyRetryBackoffStrategies';
 import type {
     DestinationRow,
     ProcessingMode,
     ProxyMode,
     ProxyResponseStatus,
+    RetryBackoffStrategy,
 } from '@/types/proxies';
 
 const props = defineProps<{
@@ -38,20 +44,52 @@ const props = defineProps<{
         processingMode: ProcessingMode;
         responseStatus: ProxyResponseStatus | null;
         responseBody: string | null;
+        retryAttemptLimit: number | null;
+        retryBackoffStrategy: RetryBackoffStrategy | null;
         destinations: DestinationRow[];
     };
 }>();
 
 // The response fields are held as strings for the inputs; empty status means
 // "unconfigured" and is normalised back to null on submit (below), so leaving it
-// at the default persists NULL (the resolver then returns the default 202).
+// at the default persists NULL (the resolver then returns the default 202). The
+// retry fields follow the same idiom: blank attempt limit / 'default' strategy
+// sentinel both normalise back to null on submit.
 const form = useForm({
     name: props.initial.name,
     mode: props.initial.mode,
     processing_mode: props.initial.processingMode,
     response_status: props.initial.responseStatus?.toString() ?? '',
     response_body: props.initial.responseBody ?? '',
+    retry_attempt_limit: props.initial.retryAttemptLimit?.toString() ?? '',
+    retry_backoff_strategy: props.initial.retryBackoffStrategy ?? '',
     destinations: props.initial.destinations.map((row) => ({ ...row })),
+});
+
+// Backoff strategy is the closed set from PROXY_RETRY_BACKOFF_STRATEGIES plus a
+// "default" sentinel (the unconfigured state → the exponential system default).
+// The sentinel maps to '' so submit still sends null, mirroring `statusSelect`.
+const retryStrategySelect = computed({
+    get: () =>
+        form.retry_backoff_strategy === ''
+            ? RETRY_STRATEGY_DEFAULT
+            : form.retry_backoff_strategy,
+    set: (value: string) => {
+        form.retry_backoff_strategy =
+            value === RETRY_STRATEGY_DEFAULT ? '' : value;
+    },
+});
+
+// The Retry policy section only renders in Enhanced mode (Flow F). Switching
+// Enhanced → Simple clears both fields to their default-sentinel state the
+// moment the section unmounts — a data operation, not a CSS toggle, so no stale
+// value can ever be submitted for a simple-mode proxy (Flow F step 4).
+const isEnhanced = computed(() => form.mode === 'enhanced');
+watch(isEnhanced, (enhanced) => {
+    if (!enhanced) {
+        form.retry_attempt_limit = '';
+        form.retry_backoff_strategy = '';
+    }
 });
 
 // Status is the closed set from PROXY_RESPONSE_STATUSES plus a "default" sentinel
@@ -94,6 +132,15 @@ function submit(): void {
         response_status:
             data.response_status === '' ? null : Number(data.response_status),
         response_body: data.response_body === '' ? null : data.response_body,
+        // Same idiom for the retry fields: blank/sentinel → null (unconfigured).
+        retry_attempt_limit:
+            data.retry_attempt_limit === ''
+                ? null
+                : Number(data.retry_attempt_limit),
+        retry_backoff_strategy:
+            data.retry_backoff_strategy === ''
+                ? null
+                : data.retry_backoff_strategy,
     })).submit(props.method, props.action, {
         preserveScroll: true,
         onError: () => {
@@ -148,9 +195,9 @@ function submit(): void {
                     </SelectContent>
                 </Select>
                 <p class="text-sm text-muted-foreground">
-                    Enhanced-mode behaviours (mapping, storage, retries) are not
-                    yet functional; Simple delivers the webhook to every
-                    destination.
+                    Enhanced mode enables per-proxy retry configuration below.
+                    Automatic retry itself applies to every proxy regardless of
+                    Mode.
                 </p>
                 <InputError :message="form.errors.mode" />
             </div>
@@ -194,6 +241,92 @@ function submit(): void {
                     <InputError :message="form.errors.processing_mode" />
                 </span>
             </div>
+
+            <!-- Retry policy (enhanced mode only, Flow F) -->
+            <fieldset v-if="isEnhanced" class="grid gap-4">
+                <legend class="text-sm font-medium">Retry policy</legend>
+                <p class="text-sm text-muted-foreground">
+                    Applies to automatic re-attempts after a failed delivery to
+                    a destination. Available on Enhanced-mode proxies;
+                    Simple-mode proxies use the fixed system default (5
+                    attempts, exponential backoff).
+                </p>
+
+                <div class="grid gap-2">
+                    <Label for="retry_attempt_limit">Attempts</Label>
+                    <Input
+                        id="retry_attempt_limit"
+                        v-model="form.retry_attempt_limit"
+                        type="number"
+                        min="1"
+                        max="10"
+                        class="w-full sm:w-32"
+                        :disabled="form.processing"
+                        :aria-invalid="
+                            form.errors.retry_attempt_limit ? 'true' : undefined
+                        "
+                        aria-describedby="retry-attempt-limit-help retry-attempt-limit-error"
+                    />
+                    <p
+                        id="retry-attempt-limit-help"
+                        class="text-sm text-muted-foreground"
+                    >
+                        Leave blank to use the default (5). Maximum 10.
+                    </p>
+                    <span id="retry-attempt-limit-error">
+                        <InputError
+                            :message="form.errors.retry_attempt_limit"
+                        />
+                    </span>
+                </div>
+
+                <div class="grid gap-2">
+                    <Label for="retry_backoff_strategy">Backoff strategy</Label>
+                    <Select
+                        v-model="retryStrategySelect"
+                        :disabled="form.processing"
+                    >
+                        <SelectTrigger
+                            id="retry_backoff_strategy"
+                            class="w-full sm:w-64"
+                            :aria-invalid="
+                                form.errors.retry_backoff_strategy
+                                    ? 'true'
+                                    : undefined
+                            "
+                            aria-describedby="retry-backoff-strategy-help retry-backoff-strategy-error"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="RETRY_STRATEGY_DEFAULT">
+                                {{ RETRY_STRATEGY_DEFAULT_LABEL }}
+                            </SelectItem>
+                            <SelectItem
+                                v-for="strategy in PROXY_RETRY_BACKOFF_STRATEGIES"
+                                :key="strategy.value"
+                                :value="strategy.value"
+                            >
+                                {{ strategy.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p
+                        id="retry-backoff-strategy-help"
+                        class="text-sm text-muted-foreground"
+                    >
+                        Exponential increases the wait between attempts each
+                        time; fixed interval waits the same amount every time.
+                        Either way, retries are always bounded well inside your
+                        team's 30-day payload retention window.
+                    </p>
+                    <span id="retry-backoff-strategy-error">
+                        <InputError
+                            :message="form.errors.retry_backoff_strategy"
+                        />
+                    </span>
+                </div>
+            </fieldset>
 
             <!-- Upstream response (acknowledgement, returned before delivery) -->
             <div class="grid gap-2">
