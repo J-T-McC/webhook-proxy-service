@@ -9,6 +9,12 @@ Phases: `Requirements → UX Design (UI only) → Technical Design → Task Plan
 Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-30;
 14-item backlog). Nothing here invents or reorders roadmap items.
 
+**This file carries only what routing needs**: phase, owner, blockers, approvals,
+and a pointer to the artifact that holds the detail. The artifacts are the record —
+a ruling's reasoning lives in the PRD, design, plan, ADR, review or question doc
+that made it, never here. Narrative history of items already **Done** is archived in
+`docs/status-history.md`, which no agent needs to read to route work.
+
 ## Foundational work (cross-cutting, not a roadmap line)
 
 | Artifact | State | Approval |
@@ -31,87 +37,103 @@ Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-3
 | ADR-016 FIFO composition under retry & replay (partially supersedes ADR-011 P1–P3) | Accepted | Project Owner, 2026-08-12 |
 | ADR-017 replay dispatch & payload read surface (fetch-on-reveal) | Accepted | Project Owner, 2026-08-12 |
 | ADR-018 one mode selector, two evaluation points (partially supersedes ADR-015 Decision 3) | Accepted | Project Owner, 2026-08-25 |
+| ADR-019 payload mapping — composition-time step & resolution-time configuration | **Proposed** (not Accepted; parked with #8) | — |
 
 ## Feature status
 
-| # | Feature | Phase | Current Agent | Blockers | Approvals |
+Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*.md`,
+`docs/plans/plan-NN-*.md`, `docs/tasks/*-tasks.md`, `docs/reviews/review-NN-*.md`,
+`docs/questions/`. Only irregular or currently-live paths are named below.
+
+| # | Feature | Phase | Current Agent | Blockers | Approvals & artifacts |
 |---|---|---|---|---|---|
-| 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | PRD/Design/Plan/Tasks Approved (2026-07-30); Review *Approve with follow-ups* (2026-07-31); PR #1 merged (`5aba84b`). Post-merge Index-delete bug **fixed** (`89cfd71`, merged `19e73c7`, 2026-07-31); Owner skipped re-review and merged. Frontend regression-test harness deferred to backlog (Option B) |
-| 2 | Role-based collaboration | Done | — | None | PRD-02 Approved by Owner 2026-08-03; ADR-009 Accepted by Owner 2026-08-03 (incl. Amendments A and B); Task Plan `docs/tasks/role-based-collaboration-tasks.md` Task-Planner-certified; Reviewer review-02 Approve-with-follow-ups (2026-08-03); Merged to main PR #3 2026-08-03; M1 fixed, M2 fixed via ADR-009 Amendment B (client-side affordance derivation); Owner-accepted |
-| 3 | Decoupled upstream response | Done | — | None | PRD-03 Approved (Owner 2026-08-03); Task plan `docs/tasks/decoupled-upstream-response-tasks.md` Task-Planner-certified (T1–T12); Reviewer review-03 *Approve with follow-ups* (2026-08-04)—M-1 (`response_body` `max:` char-vs-byte) + `ProxyResource` N+1 both Owner-accepted, non-blocking; R2 override—capture mode-independent (Owner 2026-08-04); ADR-010 Accepted (Owner 2026-08-04); proxies columns `response_status`/`response_body` approved (Owner 2026-08-04); security acknowledgements—headers plaintext until #10 + APP_PREVIOUS_KEYS guard binding (Owner 2026-08-04); **PR #4 review-driven additions (Owner 2026-08-04): `response_status` restricted to select {200,202,204} + 204⇒empty body (PRD-03 AC4/AC12), read-only Response card on Show page (design-03-show, PM-approved), status defs centralized to `data/` const + `DataOption` standard (coding.md); Owner waived delta re-review**; **PR #4 merged to main (`3221a1d`), branch deleted, 2026-08-04** |
-| 4 | Queued processing (FIFO & Async) | Done | — | None. V3/V8 Owner-deferred | PRD-04/design-04/plan-04/ADR-011/tasks-04 approved; implementation T1–T25 done; **review-04 Approve with follow-ups (2026-08-04)**; M-1 fixed & verified (overlap-lock TTL==lease); all checks green (354 tests, lint/types/frontend-triad, CI `tests` SUCCESS); **PR #5 squash-merged to main (`bd4bf4d`), branch deleted, 2026-08-05** |
-| 5 | Payload storage & retention | Done | — | None. **Both carried-forward Minors closed 2026-08-25**: Q-05-05 (PE) — partial-fan-out Async hold gap RESOLVED, no #5 change, deferred with three revisit triggers, and it surfaced a sharper **PRD-06 AC18** instance (Async replay held only by the 60-min dispatch grace) corrected at plan level on its own branch; Q-05-06 (PM) — AC6 does **not** reach `failed_jobs`, **PRD-05 Amendment B RATIFIED (Project Owner, 2026-08-25)**, exposure carried to #10 as deferred concern **D2** gating #10's PRD, **E1 ACCEPTED** with a scheduled `queue:prune-failed` bounding it. Nit 9 (`windowFor()` override as a V5 bypass seam) closes with the same replay-window fix | PRD-05 Approved + **Amendment A** (Owner ruling — erase-in-place); ADR-012/013/014 Accepted (Owner 2026-08-05); plan-05 PE-re-certified; T1–T18 implemented; **review-05 Approve with follow-ups (2026-08-05)**; M-1 (config-sanity lower bound) fixed & verified closed (`33f4884`); all gates green (434 tests / 1549 assertions, Pint + PHPStan L7); **PR #6 squash-merged to main (`ed421f1`), branch deleted, 2026-08-05** | **PRD-05 Approved (Owner 2026-08-05), amended by Amendment A (Owner ruling 2026-08-05)** — retention erases payload content **in place**, record retained with explicit cleaned state; V4/V5/V6 settled in PRD; **D1 (retained-record growth) accepted out of scope**; Q-05-01 RESOLVED Option B — no payload-inspection UI, no Designer gate; Q-05-02 RESOLVED; Q-05-03 amended (answers superseded by Amendment A); Q-05-04 RESOLVED — AC21/AC22 feasible as stated; **ADR-012 / ADR-013 / ADR-014 all Accepted (Owner 2026-08-05)** — covers irreversible payload erasure, `dispatched_payloads` table, `webhook_events` schema change, at-rest encryption extended to headers, and partial supersession of ADR-010 |
-| 6 | Retry & replay | Done | — | None blocking. **T1–T46 implemented and committed** on `feat/item-06-retry-replay` (2026-08-21/22). **review-06 *Approve with follow-ups* (2026-08-22)** — 3 Majors raised, all 3 fixed and re-verified: M-1 replay redirected to a page showing neither the event nor the replay (now `back()`, live-verified from both entry points); M-2 `RetryPolicy` guarded only 4 of 6 config keys — a blank backoff-cap env collapsed every delay to zero (now guarded, with regression tests pinning the reproduction); M-3 replay-dialog checkboxes computed an empty accessible name (now `aria-label`, verified by live Chromium ARIA snapshot after `pnpm run build` — the checked-in bundle was stale and would have proved nothing). Final gates: **711 passed / 2607 assertions**, Pint + PHPStan L7 + frontend triad + `pnpm run build` all green. **10 follow-ups carried forward** (Minors 1–4/6/9 → Senior Developer; Minor 5 → PE; Minor 7 → Owner ruling on an unapproved `docs/standards/review.md` severity edit made on this branch; Minor 8 → three obligations onto #7's task plan; Nits 1–4 → backlog). Reviewer rulings on the two flagged conflicts: **T37-vs-T24** — neither artifact gives, it was an implementation defect, `back()` satisfies both (closed); **T30-vs-#7** — ship as-is, reconciling now would break #6's own AC2 since preserving the columns without mode-gating the resolver lets a dormant value govern a simple proxy. AC19/AC21/AC23/AC24 rest on inspection, not an automated gate. Q-06-03 RESOLVED (5 items; reveal = fetch-on-reveal) | **PRD-06 Approved (Project Owner, 2026-08-12)**; Q-06-01 RESOLVED (retry all proxies w/ system default — Option B; config enhanced-only: attempt limit + strategy, exponential default + fixed interval, default 5, cap 10, span bounded inside retention); Q-06-02 RESOLVED (surface: masked whole-payload viewer + reveal, Owner third option; replay both modes; replay permission all roles, no ownership limit); UX Direction present → design spec (PM-approved) required before Technical Design; **design-06 Approved (Product Manager, 2026-08-12)** — 5 flagged design calls all accepted (plain Dialog for replay, aggregate delivery badge worst-state-wins, vocabulary-complete Not-captured badge, raw-payload-only viewer, no Index shortcut); Mode help-text correction endorsed with copy constraint (no roadmap numbers, no mapping implication); **plan-06 PE-certified (2026-08-12)**; **all 7 Owner gates approved (Project Owner, 2026-08-12)** — ADR-015/016/017 Accepted + 4 data-model changes (new `deliveries` table, `proxies` retry columns, `delivery_attempts` idempotency-key replacement, `fifo_dispatches` identity/status change); ADR-011 P1–P3 superseded by ADR-016; Q-06-03 RESOLVED; **tasks-06 `docs/tasks/retry-replay-tasks.md` Task-Planner-certified (2026-08-12)** — T1–T46 across milestones M1–M10; T5 non-additive `delivery_attempts` key swap ordering flagged; branch `feat/item-06-retry-replay`; **PR #8 squash-merged to `main` (`e1c2894`, 2026-08-25), branch `feat/item-06-retry-replay` deleted; CI green on merge**; **Minor 7 RULED (Project Owner, 2026-08-25): KEEP.** The unapproved `docs/standards/review.md` severity edit (`c33f765`) only tightens — it makes an undeclared dependency or duplication a blocking **Major** and reimplemented helpers a **Minor**, reinforcing the Owner dependency gate in `CLAUDE.md`. The objection was procedural (it rode in on a feature branch with no gate), not substantive; reverting would remove a rule backing existing Owner policy. Closed, not open |
-| 7 | Enhanced-mode toggle | Done | — | None blocking. Q-07-01 **RESOLVED** (Owner 2026-08-21): (a) retain — downgrade erases nothing, expiry stays sole eraser, no PRD-05 amendment; (b) **preserved dormant and restored** (Owner ruling, departs from PM's Option A) — kept on save-as-Simple, inert while Simple, in force again on return to Enhanced; (c) unrestricted switching. Q-07-02 **RESOLVED** (Principal Engineer, 2026-08-25) → **ADR-018 Accepted (Project Owner, 2026-08-25)**, partially supersedes ADR-015 Decision 3, no data-model change; Technical Design unblocked. **Q-07-03 OPEN → Product Manager** (which AC14 clause yields on the upgrade save; PE recommends Option A) — blocks only plan-07's persistence/presentation section and design-07's Mode-control flow. Depends on #5 (Done) and #6 (Done) — started early since all #6 decisions are frozen; review-06 could force PRD-07 touch-ups | **T1–T13 + M7 implemented; PR #14 squash-merged to `main` (`13f0da7`, 2026-08-26), CI green.** **review-07 Approve** after re-review (2026-08-26). One Major was raised and fixed: an abandoned in-session downgrade destroyed the persisted retry policy the T8 disclosure promises to keep — not an implementation defect, `ProxyForm.vue` followed plan-07 §Technical ruling 4 exactly, but that ruling described the lost values as *in-session typed* and the values lost were **mount-seeded persisted** ones, a case neither it nor PRD AC14 considered. **Owner ruled (2026-08-26): keep preservation, fix the re-seed**, explicitly rejecting a revert to null-on-downgrade — it would not have fixed the data loss, only removed the broken promise, and would have required superseding ADR-018 Decision 3 and unwinding T5/T6/T9. plan-07 **Revision A** amends ruling 4 (mount-seeded restored, typed still discarded) and adds M7, Risk 8, and six required manual-verification steps; ADR-018 assessed decision-by-decision and unchanged. Re-review isolated causality by stripping the new watcher arm from the executing module — defect reproduces without it, vanishes with it. Minors 2/3/4 all closed. **Follow-ups carried forward:** Finding 8 — `public/hot` + a running Vite dev server mean "verified against a fresh build" claims were served from the dev server (same trap that hid the `withAlpha` production bug, PR #12); Nits 5–7 (disclosure casing, #6-era retry help text hard-coding "(5 attempts, exponential backoff)", an Index assertion not pinning which proxy). Final gates: 759 passed / 2820 assertions with the backend suite green **unmodified**, Pint, PHPStan L7, frontend triad, build | **PRD-07 Approved (Project Owner, 2026-08-21)** — `docs/product/prd-07-enhanced-mode-toggle.md`, 25 ACs, approved as revised incl. the Q-07-01 ruling; `## UX Direction` present ⇒ design-07 spec required next, **PM-approved** before Technical Design; **design-07 `docs/design/design-07-enhanced-mode-toggle.md` written (Designer, 2026-08-25), Status In Review — awaiting Product Manager approval**, 2 flagged design calls (inline Alert vs AlertDialog for the downgrade disclosure; header caption vs dedicated card on Show); **Q-07-03 RESOLVED (Product Manager, 2026-08-25) — Option A**: AC14(b) scoped to read surfaces, the edit form excluded as a write surface under 4 written-in conditions; **PRD-07 Amendment A** (AC14(b) scoping + AC12 split by surface kind) and **Amendment B** (UX Direction "Details card" phrasing corrected — Mode is a header badge, no such card exists), both PM, 2026-08-25, no criterion added/removed/renumbered; **design-07 Approved (Product Manager, 2026-08-25)** with both flagged calls accepted (inline Alert over AlertDialog; header caption over dedicated card) and **2 required corrections returned to the Designer** (Screen 2(b) enforcement-point claim now wrong under ADR-018 + Amendment A — dormant values must not reach the Show payload at all; stale open-Q-07-02 framing) — corrections change no user-visible outcome and need no re-approval. **No open questions remain on #7**; **design-07 corrections landed (Designer, 2026-08-25)** under the existing approval — both required (C1 Screen 2(b) restated as presentation-only, C2 stale open-Q-07-02 framing cleared) plus both non-blocking notes; **plan-07 `docs/plans/plan-07-enhanced-mode-toggle.md` PE-self-certified in full (2026-08-25), no Owner-approval flags outstanding** — resolution gate written once per column in `RetryPolicy::configured*For()`, Simple saves never write the columns, `prohibited_if:mode,simple` KEPT (ruled against review-06 Minor 8(a)), `ProxyResource` retry keys change meaning from raw column to override-in-force with raw values reaching only a new `ProxyFormResource` for `edit()`, `PipelineFactory` deliberately unchanged; **no new ADR** (each candidate recorded as a named technical ruling instead). PE findings: a latent 422 Amendment A creates (Edit on a Simple proxy holding a dormant policy would submit a prohibited field the form never renders — closed by the submit-transform ruling); `ProxyResource:49-50` already breaches the ADR-015 single-reader invariant, repaired as a by-product; the client-side Show guard design-07 sketched was ruled against as untestable dead code (C1 delegated that call to the PE). Riders scheduled: M5 carries `sweepGraceSeconds()` guard + review-06 Minor 5; Minor 8(a)+(b) bound into M1 as one task. Task-Planner constraints: Minor 8(a)+(b) one task; the 2 Senior-Developer items must not appear in #7's task list; no frontend test harness, so design-07 Flows A–E are manual-verification steps and `pnpm run build` must precede any live check; **tasks-07 `docs/tasks/enhanced-mode-toggle-tasks.md` Task-Planner-certified (2026-08-25)** — T1–T13 across plan-07's milestones M1–M6, all four binding constraints honoured (Minor 8(a)+(b) bundled into T1; the 2 Senior-Developer items excluded entirely and named only in the scope-discipline block; T7/T8/T9/T10/T12 carry explicit manual-verification steps with `pnpm run build` required first; M5 riders land as T11 + T12 with T12 bundled whole). Planner finding not enumerated in plan-07: existing green test `ProxyIndexShowTest.php:143` seeds a Simple proxy with configured retry columns and asserts the raw values are emitted — it must be rewritten to assert `null`/`null` when T5's suppression lands (flagged in T5's acceptance criteria; `ProxyFactory` defaults to `ProxyMode::Simple`, verified). Nothing raised upstream; #7 ready to implement |
-| 8 | Payload mapping / reshaping | **Deferred (Project Owner, 2026-08-26)** | — | **Deferred by Owner ruling: not needed for MVP.** Artifacts are complete and PARKED, not withdrawn — PRD-08 **Approved** (Owner, 2026-08-26, 34 ACs), design-08 **Approved** (PM, 2026-08-26, nine corrections landed), plan-08 written and self-certified except its two Owner gates, ADR-019 **Proposed**. **The two Owner gates were deliberately NOT approved** — approving a four-table data model against a codebase that will have moved by build time is how plans go stale silently; they are re-presented when #8 is picked up. Zero implementation exists: `PipelineFactory` carries only its reserved `#8` comment, so deferral unwinds nothing in code. On resumption re-validate against whatever shipped meanwhile — in particular **#10 (sensitive data), which the PE named as an explicit input**: `proxy_maps.output` and `proxy_map_conditions.value` hold member-typed plaintext literals. **Carried forward, must not be lost:** ADR-019's finding that `MapStep` must terminalize a failed dispatch's deliveries before short-circuiting, or FIFO parks at `awaiting_retry` with no lease and hold H2 has no age escape ⇒ immortal payloads, a PRD-05 AC6 breach | **PRD-08 Approved (Project Owner, 2026-08-26)**; design-08 Approved (PM); ADR-019 Proposed, **not** Accepted. Roadmap **M1/M2 RESOLVED** (Owner, 2026-08-26) and Q-08-03 RESOLVED (PE) — all rulings stand and are not reopened by the deferral |
-| 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **Dependency on #8 CORRECTED (Project Owner, 2026-08-26): #9 does NOT require #8.** The roadmap build-ahead note's constraint is *consistency* — one canonical JSON representation, no second mapping/comparison path — not a functional prerequisite; the word "already" encoded a sequencing assumption, not a dependency. Reversing the order satisfies it identically: #9 defines the representation, #8/#12 consume it. #9 stands alone for value — the vision says *visualize* them as JSON, and the payload viewer shipped with #6. **Two obligations transfer to whoever goes first:** #9's PRD must define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and must rule explicitly on what destinations receive (expected: unchanged, exactly as today — reshaping is #8's) | — |
-| 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: V2 | — |
-| 11 | Analytics / stats | UX Design | Designer | **IN PROGRESS (Project Owner, 2026-08-26)** — selected over #9/#10 after #8 was deferred. Depends on #4 (Done). **V7 (dashboard scope) must be settled before this PRD** — roadmap says so explicitly. **V8 (throughput/latency/delivery-success targets)** is unset and affects both #4 and #11. **PRD-11 Approved (Project Owner, 2026-08-26)** — `docs/product/prd-11-analytics.md`, 37 ACs. **V7 RESOLVED/closed**: **Tier 3** (counts + per-destination split + daily trend + drill-through + retry/terminal/replay insight + latency); **export ruled OUT**, not deferred. Success/failure is reported as **both units, labelled distinctly and never merged into one figure or a unit toggle** — delivery-level as headline, attempt-level as the destination-health signal; the same healthy traffic reads 67% failure per-attempt and 100% success per-delivery, which is the confusion the labelling exists to prevent. **V8 RESOLVED as a renewed deferral, NOT closed — still open against #4 and #11**: no numeric target and no verdict layer, but the four definitions are fixed so a later target is a number rather than a fresh argument; recorded as the **fourth** deferral and the first with a visible product cost (#13 inherits no threshold). Approval ratified **D-11-4..7**; on **D-11-5** the Owner separately ruled statistics stay **indefinite at #11** — two permanently growing tables, PRD-05 D1's class of concern, compounded by **F1** (ADR-003 promised attempt records a lifecycle that was never built, so "long-lived" means forever by omission); technical half stays with the PE at `Q-11-03(1)`. **Q-11-03 OPEN → Principal Engineer**, non-blocking, carrying F1–F4 — incl. **F3**, no long-lived event-type attribute exists outside the payload body, so per-event-type analytics is excluded with the reason stated. Retention separation **verified against the schema**: nothing #11 counts is erased by GC — but it holds *only* because of PRD-05 **Amendment A**; under ADR-012's original hard-delete an events-received count would have decayed silently every night. AC2 pins it. Tier 3 needs **no new capture** — every figure traced to an existing column. Both are Owner decisions. **Owner direction on charting (2026-08-26), for the Designer and Principal Engineer — a suggestion, not a mandate:** use the Owner's own Chart.js wrapper **`@j-t-mcc/vue3-chartjs`** (https://github.com/J-T-McC/vue3-chartjs). Compatibility pre-checked: the library requires **Vue 3 + Chart.js 4**; this project is on Vue **3.5.40** with **no charting library present**, so adoption adds **two** npm packages (`chart.js` + the wrapper). This is a **new-dependency Owner gate** under `CLAUDE.md` — the Owner proposed it, so the gate is expected to clear, but the PE must still confirm fit and record it formally at plan time rather than let it arrive in a diff. Points for the PE to verify: Chart.js 4 tree-shaking/registration under Vite 8 and bundle impact; behaviour under Inertia SSR if enabled (the library's docs are silent on SSR); dark-mode/theming against the app's CSS custom properties — note the landing-page lesson that `getComputedStyle` returns custom properties **verbatim**, and that a production minifier can rewrite `hsl()` tokens to hex (PR #12). Designer owns chart types, empty/loading/error states and accessible alternatives to colour-only encoding | — |
-| 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** (the `proxy_expected_structures` slice plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9 — the roadmap asked for it to be first-class in #8 *precisely so* #9 and #12 could use it. Blocked while #8 is deferred unless that slice is extracted | — |
-| 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists) | — |
+| 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | All four artifacts Approved (2026-07-30); review-01 *Approve with follow-ups*; PR #1 merged (`5aba84b`). Post-merge Index-delete defect fixed and merged (`19e73c7`, 2026-07-31), Owner skipped re-review. Frontend regression harness deferred → **backlog T31** |
+| 2 | Role-based collaboration | Done | — | None | PRD-02 + ADR-009 (incl. Amendments A/B) Approved (Owner, 2026-08-03); review-02 *Approve with follow-ups*; PR #3 merged 2026-08-03 |
+| 3 | Decoupled upstream response | Done | — | None | PRD-03 Approved (Owner, 2026-08-03); ADR-010 Accepted; review-03 *Approve with follow-ups*, both Minors Owner-accepted; PR #4 merged (`3221a1d`, 2026-08-04). Security acknowledgement: **headers stay plaintext until #10** |
+| 4 | Queued processing (FIFO & Async) | Done | — | None. **V3 and V8 remain Owner-deferred against this item** | PRD-04 / design-04 / plan-04 / ADR-011 / tasks-04 Approved; review-04 *Approve with follow-ups*, M-1 fixed; PR #5 merged (`bd4bf4d`, 2026-08-05) |
+| 5 | Payload storage & retention | Done | — | None. Both carried-forward Minors closed 2026-08-25 | PRD-05 Approved + **Amendment A** (erase-in-place) + **Amendment B** ratified 2026-08-25; ADR-012/013/014 Accepted; review-05 *Approve with follow-ups*, M-1 fixed; PR #6 merged (`ed421f1`, 2026-08-05). **Exposure carried to #10 as deferred concern D2, which gates #10's PRD** |
+| 6 | Retry & replay | Done | — | None blocking | PRD-06 Approved (Owner, 2026-08-12); design-06 PM-approved; plan-06 PE-certified; ADR-015/016/017 + 4 data-model changes Owner-approved; tasks-06 T1–T46; review-06 *Approve with follow-ups* — 3 Majors fixed and re-verified; PR #8 merged (`e1c2894`, 2026-08-25). **10 follow-ups carried forward** — see `docs/reviews/review-06-retry-replay.md`. AC19/AC21/AC23/AC24 rest on inspection, not an automated gate |
+| 7 | Enhanced-mode toggle | Done | — | None | PRD-07 Approved (Owner, 2026-08-21) + Amendments A/B (PM, 2026-08-25); design-07 PM-approved; plan-07 PE-certified + **Revision A**; ADR-018 Accepted; tasks-07 T1–T13 + M7; review-07 **Approve** after re-review (2026-08-26) — one Major (persisted retry policy destroyed by an abandoned in-session downgrade) fixed on Owner ruling *keep preservation, fix the re-seed*; PR #14 merged (`13f0da7`, 2026-08-26). **Follow-ups: review-07 Finding 8 (`public/hot` + a live Vite dev server invalidate "verified against a fresh build" claims) and Nits 5–7** |
+| 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
+| 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
+| 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
+| 11 | Analytics / stats | **UX Design** | **Designer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 OPEN → Principal Engineer**, non-blocking. **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **Approved with six required corrections** (PM, 2026-08-26) |
+| 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
+| 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
 
-## Item #1 — routing detail
+## Item #11 — live detail
 
-- **Artifacts:** PRD `docs/product/prd-01-walking-skeleton.md`; Design
-  `docs/design/design-01-walking-skeleton.md`; Plan
-  `docs/plans/plan-01-walking-skeleton.md`; Tasks
-  `docs/tasks/walking-skeleton-tasks.md`.
-- **Gating questions:** all resolved —
-  `docs/questions/prd-01-walking-skeleton-r5-ingest-url.md` (Resolved, formalised
-  in ADR-006), `docs/questions/prd-01-design-manage-scope.md` (Resolved),
-  `docs/questions/prd-01-attempt-records-vs-storage.md` (Resolved). No open
-  questions block implementation.
-- **History:** Task list Approved (2026-07-30); T1–T30 implemented; Review
-  `docs/reviews/review-01-walking-skeleton.md` returned *Approve with follow-ups*
-  (2026-07-31); PR #1 **merged** to `main` (`5aba84b`).
-- **Open defect (2026-07-31, from Project Owner):** On the proxies **Index** table
-  (`resources/js/pages/proxies/Index.vue`), clicking a row's Delete → confirm modal
-  → Confirm does **not** delete the proxy. The Show/detail-page delete button works,
-  and the backend is verified green (`ProxyDestroyTest`, route helper
-  `resources/js/routes/proxies/index.ts` `destroy()`, `SetTeamUrlDefaults` +
-  `EnsureTeamMembership`). Root cause is isolated to Index-table frontend wiring —
-  suspected `AlertDialogAction` (reka-ui) auto-close interfering with
-  `confirmDelete()` at Index.vue:53-73 / :231-237; the working pattern is on
-  `resources/js/pages/proxies/Show.vue`.
-- **Routing:** Defect in merged, implemented code → rework flows back to the
-  **Senior Developer** (per workflow rework rule). Scope is contained within
-  approved AC4; no PRD/design/plan/tasks change required, so no upstream gate to
-  reopen. Inputs: this bug report, the four approved item-#1 artifacts, and the
-  working `Show.vue` delete reference. Deliverable: minimal fix on the Index table
-  wiring **plus a regression test** proving row-delete removes the proxy, then hand
-  to the **Reviewer**; final release re-approval stays with the Project Owner.
-- **Delete-bug fix status (2026-07-31):** Fix applied in
-  `resources/js/pages/proxies/Index.vue` (decouple dialog `open` boolean from target
-  data; see T27 rework note in `docs/tasks/walking-skeleton-tasks.md`); verified green
-  (`pnpm lint:check`/`types:check`/`format:check`, `composer lint`/`types:check`,
-  `./vendor/bin/sail test --filter ProxyDestroyTest`). The **automated frontend
-  regression test is deferred** per Project Owner decision **Option B**
-  (`docs/questions/prd-01-index-delete-regression-test-harness.md`, RESOLVED
-  2026-07-31): ship the fix now with a **documented manual-verification step** (Index
-  Delete → confirm → row removed + toast), and defer the frontend test harness to the
-  backlog. **Merged to `main`** (`89cfd71`, merge `19e73c7`, pushed 2026-07-31); Owner skipped re-review. Item #1 **Done**.
+**Artifacts:** `docs/product/prd-11-analytics.md` (Approved, Owner, 2026-08-26, 37 ACs,
+plus `## Amendment A`); `docs/design/design-11-analytics.md` (Approved with corrections,
+PM, 2026-08-26); `docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (OPEN).
+
+- **Next gate:** the six corrections **C1–C6** land with the Designer. **C2–C6 land under
+  the existing approval and need no re-approval. C1 alone returns to the Product Manager
+  for a section-scoped re-check of Flow E and Screen 4** — not a re-approval of the spec,
+  and it does not block the Principal Engineer handoff. Then Technical Design.
+- **Open to the Principal Engineer — `Q-11-03`, non-blocking, carries findings F1–F4.**
+  Two of the design's accepted calls are **contingencies whose trigger is the PE's at
+  `Q-11-03(6)`**, not the PM's: the labelled latency-tail substitute (a bare average still
+  fails AC20) and the conditional "as of" caption (a rollup makes it mandatory and
+  concrete; a live query may omit it). Item **(9)** asks whether a drill-through can
+  resolve a **soft-deleted** parent at the routing/authorization layer — its requirement
+  half is already ruled and its fallback pre-approved, so it blocks nothing.
+- **Two Owner gates fall due at plan time, neither approved yet:**
+  **(a) the charting library** — the Owner *suggested* `@j-t-mcc/vue3-chartjs`
+  (https://github.com/J-T-McC/vue3-chartjs), which adds **two** npm packages
+  (`chart.js` + the wrapper) to a project with no charting library today. A suggestion is
+  not the gate clearing itself: the PE must confirm fit and record it formally rather than
+  let it arrive in a diff. Verify Chart.js 4 tree-shaking/registration under Vite 8 and
+  bundle impact; behaviour under Inertia SSR if enabled; dark-mode theming against the
+  app's CSS custom properties — noting that `getComputedStyle` returns custom properties
+  **verbatim** and a production minifier can rewrite `hsl()` tokens to hex (PR #12).
+  **(b) the index/aggregation store**, whose shape the V7 ruling fixed.
+- **Standing constraints on the feature, from the Owner's rulings.** Success and failure
+  are reported as **both units, labelled distinctly, never merged into one figure and never
+  behind a unit toggle** — the same healthy traffic reads 67% failure per-attempt and 100%
+  success per-delivery, which is the confusion the labelling exists to prevent. **Statistics
+  are retained indefinitely at #11** (two permanently growing tables — PRD-05 D1's class of
+  concern, compounded by **F1**: ADR-003 promised attempt records a lifecycle that was never
+  built, so "long-lived" means forever by omission); the technical half stays with the PE at
+  `Q-11-03(1)`. **Per-event-type analytics is excluded** — **F3**, no long-lived event-type
+  attribute exists outside the payload body. **Tier 3 needs no new capture**; every figure
+  traces to an existing column. Nothing #11 counts is erased by GC — but that holds *only*
+  because of PRD-05 **Amendment A**; under ADR-012's original hard-delete an events-received
+  count would have decayed silently every night. **AC2 pins it.**
+
+## Item #8 — carried forward (must not be lost while deferred)
+
+- **ADR-019's finding:** `MapStep` must terminalize a failed dispatch's deliveries before
+  short-circuiting, or FIFO parks at `awaiting_retry` with no lease, hold H2 has no age
+  escape, and payloads become immortal — a **PRD-05 AC6 breach**.
+- **Re-validate on resumption** against whatever shipped meanwhile, in particular **#10
+  (sensitive data)**, which the PE named as an explicit input: `proxy_maps.output` and
+  `proxy_map_conditions.value` hold member-typed plaintext literals.
+- Roadmap **M1/M2** and **Q-08-03** are RESOLVED; the deferral does not reopen them.
 
 ## Backlog follow-ups (deferred, not gating any current item)
 
 - **Frontend test harness (Vitest + `@vue/test-utils` + DOM env + `test:js` script).**
-  Deferred per Owner Option B (2026-07-31) and already captured as deferred/backlog task
-  **T31** in `docs/tasks/walking-skeleton-tasks.md`. First automated test to write once it
-  lands: the **Index-table row-delete regression** (row Delete → confirm → `router.delete`
-  fires / proxy removed), which no PHP/sail test can exercise. Until then the fix is guarded
-  by the documented manual-verification step (T27 rework note). Does **not** run under
-  `./vendor/bin/sail test` (PHPUnit); CI wiring to be updated when scheduled.
-
-- **Real-concurrency integration test for the FIFO single-advancer window (review-04 follow-up).**
-  Current PHPUnit (single connection) proves the committed-claim short-circuit but can't interleave
-  two live claim transactions; production ordering leans on `WithoutOverlapping` serialization. Write a
-  true-concurrency integration test if/when an integration harness lands. Non-blocking; M-1 fix holds the
-  liveness guarantee.
-- **Optional T18 mode-switch test consolidation (review-04 follow-up).** T18 exercises mode-switch via the
-  model; endpoint paths are covered by T19/T20. No action needed unless consolidating later.
+  Deferred per Owner Option B (2026-07-31); captured as backlog task **T31** in
+  `docs/tasks/walking-skeleton-tasks.md`. First test to write once it lands: the
+  **Index-table row-delete regression**, which no PHP/sail test can exercise. Does **not**
+  run under `./vendor/bin/sail test` (PHPUnit); CI wiring to be updated when scheduled.
+  Until it lands, every design flow verified by hand is guarded only by a documented
+  manual-verification step — and review-07 Finding 8 is the standing trap: with `public/hot`
+  present and a Vite dev server running, a "verified against a fresh build" claim was served
+  from the dev server.
+- **Real-concurrency integration test for the FIFO single-advancer window** (review-04).
+  PHPUnit on a single connection proves the committed-claim short-circuit but cannot
+  interleave two live claim transactions; production ordering leans on `WithoutOverlapping`
+  serialization. Non-blocking; the M-1 fix holds the liveness guarantee.
+- **Optional T18 mode-switch test consolidation** (review-04). Endpoint paths are covered by
+  T19/T20; no action unless consolidating later.
 
 ## Open questions register (roadmap-level, deferred to their gating item)
 
-V2 (#10), V3 (#4), V4 (#5), V5 (#5), V6 (#5), V7 (#11), V8 (#4/#11), M1 (#8),
-M2 (#8). Each is settled at the named item's PRD/plan, not before. R1, R2, R3,
-R4, R5 and V1 are resolved (see roadmap "Resolved Decisions" and ADR-006).
+V2 (#10), V3 (#4), V7 — **RESOLVED/closed 2026-08-26**, V8 (#4 and #11 — **deferred a
+fourth time, still open**, and the first deferral with a visible product cost: #13 inherits
+no threshold), M1/M2 (#8 — **resolved**), V4/V5/V6 (#5 — settled in PRD-05). Each remaining
+question is settled at the named item's PRD or plan, not before. R1–R5 and V1 are resolved
+(see roadmap "Resolved Decisions" and ADR-006).
