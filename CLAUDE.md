@@ -8,7 +8,10 @@ Example: stripe webhook recieved, mapping logic is defined to restructure the pa
 
 This project uses the **dev-team** plugin. Artifacts under `docs/` are the
 source of truth; `docs/status.md` tracks all features — ask the orchestrator
-"what's next?".
+"what's next?". `docs/status.md` carries only what routing needs (phase, owner,
+blockers, approvals, artifact pointer); a ruling's reasoning belongs in the
+artifact that made it. `docs/status-history.md` is a frozen pre-compaction
+archive — do not read it to route work, and do not maintain it.
 
 - Delegate feature work to the matching dev-team agent; never cross roles.
 - Consult vs. delegate: questions/discussion → invoke the matching dev-team
