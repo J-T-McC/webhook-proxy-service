@@ -1,9 +1,10 @@
 # PRD: Payload storage & retention
 
-- **Status:** **Approved — amended** (Amendment A, Project Owner ruling 2026-08-05).
-  Not reopened, not downgraded; the original approval stands and is unchanged.
+- **Status:** **Approved — amended** (Amendment A, Project Owner ruling 2026-08-05;
+  Amendment B, 2026-08-25). Not reopened, not downgraded; the original approval
+  stands and is unchanged.
 - **Author:** Product Manager
-- **Date:** 2026-08-05 · **Amended:** 2026-08-05 (Amendment A)
+- **Date:** 2026-08-05 · **Amended:** 2026-08-05 (Amendment A), 2026-08-25 (Amendment B)
 - **Approved by / date:** **Project Owner, 2026-08-05** — original approval, intact.
 - **Amendment A / date:** **Project Owner ruling, 2026-08-05** — retention **erases
   payload content in place** instead of deleting the captured event record. The
@@ -11,6 +12,16 @@
   Manager's rendering of it as the Owner's proxy and is open to Owner correction.
   See **§ Amendment A** for the ruling, its scope, and what it invalidates
   downstream. Affects AC5–AC12, AC15; adds AC21, AC22; adds deferred concern D1.
+- **Amendment B / date:** **Product Manager ruling as Owner's proxy, 2026-08-25 —
+  RATIFIED by the Project Owner, 2026-08-25** (the Owner delegated the ruling; the
+  ratification is recorded here rather than left pending). States the **scope** of
+  AC6's "any … system path": the criterion binds the payload stores the retention
+  system governs and does **not** reach copies of payload content held by queue or
+  transport infrastructure. Adds deferred concern **D2**, which carries that
+  exposure to roadmap **#10** as a binding requirement. Narrows no other criterion
+  and reverses nothing in Amendment A. Basis:
+  `docs/questions/prd-05-q-05-06-failed-jobs-payload-reach.md` (RESOLVED),
+  `docs/reviews/review-05-payload-storage-retention.md` finding 3.
 - **Backlog item:** Roadmap #5 (`docs/product/roadmap.md`)
 
 ## Feature
@@ -170,6 +181,22 @@ is erased, in place, not that the captured event record is deleted.)*
    format descriptor even though the captured header **collection** is erased: it
    names the encoding, carries no credential, and the Owner named it explicitly as
    retained metadata in the 2026-08-05 ruling.)*
+   *(Amendment B — scope, 2026-08-25.)* **"Any user-facing or system path" is bounded
+   by the stores this criterion enumerates.** AC6 binds the payload stores the
+   **retention system governs**: the captured event's raw body and captured inbound
+   headers (AC22), and the stored dispatched output for the same event (AC12). It does
+   **not** extend to copies of payload content held by **queue or transport
+   infrastructure** — a serialized queued job argument, a failed-job record, or any
+   equivalent artefact of the dispatch mechanism (#4/ADR-011; #6/ADR-015, ADR-016,
+   ADR-017). Such copies exist because a dispatch is in progress or has failed; they are
+   created and destroyed by the dispatch mechanism on its own schedule, not by retention,
+   and a retention pass cannot guarantee erasure in a store it neither writes nor reads
+   (the zero-shared-written-tables property ADR-012's composition with #4 depends on).
+   Those copies are **not** thereby accepted as permanent plaintext: bounding and
+   protecting them is a **sensitive-data-handling** requirement, carried to roadmap
+   **#10** by deferred concern **D2**, which #10's PRD must discharge explicitly. AC15 is
+   unchanged and still forbids **#5** from creating a less-protected copy of payload
+   content.
 7. **(A) Unexpired payload content is never erased.** A payload inside its window is
    never erased, cleared, or altered by GC. Within the window, retrieval of a stored
    raw payload for a proxy's event is guaranteed — this is the guarantee #6 replay
@@ -373,7 +400,7 @@ all three.
     warrants revisiting the engine, that is an ADR, and any new dependency or
     data-store change carries the Owner approval gate in `CLAUDE.md`.
 
-## Deferred concerns (Amendment A)
+## Deferred concerns (Amendments A and B)
 Recorded in the same manner as V4/V5 above — a **deferred concern, not a
 requirement**. Nothing below asserts anything #5 must build.
 
@@ -403,6 +430,55 @@ requirement**. Nothing below asserts anything #5 must build.
   is a judgement for a future item — and if the Principal Engineer judges it a #5-time
   risk rather than a future one, that is an Open Question to raise, not a requirement
   to infer.
+
+
+- **D2 — Payload content in queue and failed-job infrastructure — DEFERRED to roadmap #10
+  (named destination, gating #10's PRD; not open-ended).** On an Async proxy, the per-destination
+  unit of work carries the event's body and headers **verbatim** and is serialized into the
+  queue backend; a unit whose job throws is written durably to the failed-job store in
+  **plaintext**, with no at-rest encryption and no retention of its own. Payload content for an
+  event that retention has already erased and marked cleaned can therefore remain readable
+  through a system path. **Pre-existing from #4/ADR-011**, widened by #6 (manual replay re-queues
+  payload-carrying units for an event repeatedly, and the post-send settlement path added new
+  uncaught-throw routes inside a `$tries = 1` job); **not** created by #5, and not addressable by
+  a retention pass (AC6 as scoped by Amendment B).
+
+  **Settlement:** #5 asserts **no** requirement over queue or transport infrastructure and adds
+  no scrubbing, encryption, or pruning of it. The requirement moves to **#10**, whose approved
+  roadmap line already reads "**stored payloads are encrypted**" — a durable plaintext copy of a
+  stored payload is within the plain meaning of that line, so this is a scoping of #10, not an
+  addition to it. Confirmation of that reading belongs to #10's PRD approval.
+
+  **What #10's PRD must carry** (it does not pass requirement approval without these):
+  1. An acceptance criterion that **every durable at-rest copy of payload content the system
+     creates** carries at least the AC15 protection floor — stated **backend-agnostically**
+     ("any durable at-rest copy, wherever the dispatch mechanism places it"), never against a
+     named table, because roadmap **V3** may change the queue backend.
+  2. An acceptance criterion that **no durable plaintext copy of payload content outlives its
+     event's retention window**, or that no durable plaintext copy exists at all — whichever
+     the Owner rules at #10.
+  3. An **inventory** of every at-rest location holding payload content at the time #10 is
+     written, so no location is missed. Today's known set: `webhook_events.body`,
+     `webhook_events.headers`, `dispatched_payloads.body` (all encrypted per ADR-014), plus the
+     queue backend's job payloads (transient) and the failed-job store (durable) — both
+     plaintext. Producing the authoritative, complete inventory is a **Principal Engineer**
+     task (follow-up F1 in Q-05-06), not the Product Manager's.
+  4. A statement that any mitigation must **preserve failure diagnosability** (an operator must
+     still be able to see that a delivery failed and why), must **not** weaken the
+     at-least-once/idempotency behaviour established at #4 (ADR-011 Decision 4) and #6 (ADR-015
+     Decision 2), and must **not** reintroduce payload content into logs
+     (`docs/standards/coding.md` → *Never log*). Mechanism is the Principal Engineer's.
+  5. A cross-reference to `docs/questions/prd-05-q-05-06-failed-jobs-payload-reach.md` and
+     `docs/reviews/review-05-payload-storage-retention.md` finding 3, so the origin is not lost.
+
+  **Not a requirement at #5:** no scrubbing, no encryption of queued units, no retention pass
+  over failed jobs, no numeric target. No #5 acceptance criterion depends on any of this.
+
+  **Owner acceptance (E1) — ACCEPTED, Project Owner, 2026-08-25:** the residual exposure stands from now until #10 ships.
+  The Project Owner accepted this explicitly, on the ADR-010 Amendment B precedent
+  ("inbound headers remain plaintext at rest until #10 — the Owner accepts this explicitly").
+  If the Owner declines, the mitigation is scheduled ahead of #10 as its own work item — it
+  does **not** reopen #5.
 
 ## Out of Scope
 Each points to the item that owns it.
@@ -578,6 +654,24 @@ only, not requirement approval.
   or the AC8 in-flight holds that the previous delete-based design did not have. If
   either is infeasible as stated, that returns to the Product Manager as a
   requirement question, not a silent design change.
+
+- **Q-05-05 (Principal Engineer, technical) — RESOLVED 2026-08-25.** Doc:
+  `docs/questions/prd-05-q-05-05-async-partial-fanout-hold-gap.md`. Does AC8 require a hold
+  covering the partial-fan-out Async state (destination A terminal, destination B's job still
+  queued with no attempt row)? **No change to #5** — AC8's own text delegates a permanently
+  stuck event to #6's dead-letter concern, and no horizon value can close the gap because the
+  dispatch's `deliveries` row is created at ingest. Deferred with three named revisit triggers.
+  The same investigation found a **second, sharper instance against PRD-06 AC18** — an Async
+  replay is held only by the 60-minute dispatch grace and can silently die behind queue backlog
+  — which is corrected separately at the plan level, not here. Raised by
+  `docs/reviews/review-05-payload-storage-retention.md` finding 2 (2026-08-05).
+- **Q-05-06 (Product Manager, requirement scope) — RESOLVED 2026-08-25.** Doc:
+  `docs/questions/prd-05-q-05-06-failed-jobs-payload-reach.md`. Does AC6's "any … system path"
+  reach the failed-job store? **No** — AC6 binds the payload stores retention governs
+  (Amendment B). The exposure is carried to #10 as deferred concern **D2**, with Principal
+  Engineer follow-ups F1/F2 recorded in the question doc, and Owner ruling **E1 ACCEPTED**
+  (2026-08-25) with a scheduled `queue:prune-failed` as the bounding mitigation. Raised by
+  `docs/reviews/review-05-payload-storage-retention.md` finding 3 (2026-08-05).
 
 ## Handoff
 - **Inputs:** `docs/product/roadmap.md` (#5 line + build-ahead note; Open Questions
