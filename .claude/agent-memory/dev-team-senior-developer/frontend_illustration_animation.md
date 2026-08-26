@@ -1,6 +1,6 @@
 ---
 name: frontend-illustration-animation
-description: Building responsive, motion-preference-aware inline SVG illustrations with plain CSS in this Tailwind v4 app (no animation library)
+description: Building responsive, motion-preference-aware illustrations (inline SVG+CSS, and canvas+rAF) in this Tailwind v4 app with no animation library
 metadata:
   type: project
 ---
@@ -86,3 +86,67 @@ than the whole document, patch just the named files, and re-run the full
 verification pass (`pnpm run build` before any live check, all four
 light/dark × desktop/360px × motion axes, full gate suite) before
 re-committing with a `fix(landing):`-style header.
+
+## Canvas + rAF illustrations (no animation library)
+
+Used for the landing page's fan-out illustration rebuild (charge-pulse
+current effect, `FanOutIllustration.vue`) — a from-scratch canvas
+replacement of the SVG/CSS approach above, reusable for any future
+data-driven canvas animation in this app:
+
+- **CSS `cubic-bezier()` has no canvas/JS equivalent** — implement a small
+  Newton's-method solver (`cubicBezierEasing(p1x,p1y,p2x,p2y) => (x)=>y`,
+  ~20 lines) rather than reaching for a library; three named curves easily
+  fit in one component file and this is the standard browser-internal
+  algorithm, not bespoke math.
+- **A pulse/streak drawn as discrete alpha-stepped mini-segments reads as a
+  row of beads, not a continuous glow** — verified visually via a 3x-DPR
+  cropped Playwright screenshot zoomed on one path. Fix: build ONE
+  `ctx.createLinearGradient(head, tail)` with color stops following the
+  easing-derived alpha ramp, then stroke the whole sampled polyline in a
+  single `ctx.stroke()` call with that gradient as `strokeStyle`, applying
+  `shadowBlur`/`shadowColor` (bloom) to that one call rather than per
+  mini-segment. This is the single highest-leverage fix for making a canvas
+  "current pulse" look premium instead of "shooting balls" — always zoom in
+  and check for banding/beading before considering a pulse/trail effect
+  done, even after the rendering "looks right" at a glance in a normal
+  screenshot.
+- **Arc-length lookup table for a fixed-px tail on a curved path:** sample
+  a `PathSpec` (line or quadratic Bézier) at N uniform-`t` points, storing
+  cumulative Euclidean length per point; then interpolate length→point by
+  binary search. Needed because the spec gives tail length in real px
+  (e.g. 64px) but Bézier `t` isn't uniform-speed — required to walk
+  backward from the head by a physical distance rather than a parameter
+  fraction. Rebuild the table whenever geometry recomputes (resize), since
+  endpoints move with continuous scaling.
+- **Theme-reactive canvas via MutationObserver, not the theme composable:**
+  `new MutationObserver(() => rebuild()).observe(document.documentElement,
+  { attributes: true, attributeFilter: ['class'] })` catches the `dark`
+  class toggle this app's `useAppearance()`/`initializeTheme()` already
+  perform on `documentElement`, decoupled from that composable's internals.
+  Re-read all `getComputedStyle(document.documentElement)` tokens and
+  rebuild any pre-baked layer (e.g. a cached grid bitmap) on every
+  callback — verified via Playwright: load light, `page.evaluate(() =>
+  document.documentElement.classList.add('dark'))`, screenshot ~300ms
+  later, confirm full repaint (not just next frame's tokens silently
+  wrong).
+- **DPR + grid layer as a separate offscreen canvas:** build the static
+  backdrop (grid + radial edge mask via `globalCompositeOperation =
+  'destination-in'` with a radial gradient) once per resize/theme-change
+  into its own `HTMLCanvasElement` sized in *device* px (`width*dpr`), then
+  every frame just `ctx.drawImage(layer, 0, 0, logicalW, logicalH)` under
+  the main context's `setTransform(dpr,0,0,dpr,0,0)` — cheap per-frame
+  blit, correct 1:1 scaling because the drawImage destination size is
+  specified in the already-dpr-transformed logical space.
+- **Geometry as canvas-fraction positions/sizes vs. a separate px-reference
+  scale factor:** when a spec gives node position/size as `%` of canvas
+  width/height (continuous by construction) but gives stroke width /
+  bloom / pulse dimensions as literal px "at a 560px reference width,"
+  keep these as two separate multipliers — don't conflate them. The
+  reference-width numbers need `* clamp(0.55, containerWidth/560, 1)`;
+  the percentage-based geometry needs no extra scaling at all.
+- **Verify pulse/trail rendering by cropping a zoomed screenshot** (Playwright
+  `deviceScaleFactor: 3` + `page.screenshot({ clip })` on the canvas's
+  bounding box), not just a full-page screenshot — full-page shots at
+  normal zoom hide beading/banding artifacts that are obvious once cropped
+  and magnified.
