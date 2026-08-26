@@ -1460,7 +1460,31 @@
   not cosmetic.
 - **Testing:** `tests/Feature/Analytics/DeletedParentDrillThroughTest.php` (new) — the three
   bullets above as three test methods.
-- **Completion notes:** _pending_
+- **Completion notes:** No production file touched, as scoped — T8 and T21 already built
+  everything this task verifies. `tests/Feature/Analytics/DeletedParentDrillThroughTest.php` (new,
+  3 tests) drives all three bullets end to end through real routes:
+
+  - **Deleted destination:** soft-deletes a destination with historical delivery traffic, hits
+    `proxies.events.index` with `?destination={id}`, and asserts the list resolves and filters
+    correctly (only the destination's own event returned, a second destination's event excluded)
+    and the chip descriptor reads `filters.destination.isDeleted === true` — proving T21's
+    `Destination::withTrashed()` resolution keeps the drill-through live exactly as `Q-11-03(9)`
+    rules.
+  - **Deleted proxy:** soft-deletes a proxy with historical traffic alongside a second, live proxy,
+    hits the real `dashboard` route, and asserts the deleted proxy's breakdown row still carries its
+    figures (`delivery.total === 1`) and its `isDeleted`/`Deleted` label, but `canDrillThrough ===
+    false`, while the live proxy's row reads `canDrillThrough === true` — end-to-end confirmation of
+    T8's `proxyBreakdown()` through the actual controller/prop path, not just the service-level unit
+    test T8 already has.
+  - **Route degradation is real, not cosmetic:** soft-deletes a proxy with no traffic and asserts
+    `proxies.events.index` for that proxy id returns a genuine 404 — Laravel's default implicit
+    route-model binding already excludes trashed models (no code change was needed for this to hold,
+    confirming `Q-11-03(9)`'s proxy-half ruling that making the route resolve a trashed proxy would
+    be the larger, out-of-scope change, not something this milestone does).
+
+  Verified: `composer lint`, `composer types:check` (PHPStan level 7, no suppressions),
+  `./vendor/bin/sail test --filter DeletedParentDrillThroughTest` (3/3); full `./vendor/bin/sail
+  test --parallel` 836/836 (up from 833 after T21).
 
 ## T23 — Wire drill-through links: Dashboard and Show entry points (AC10, AC21; design-11 Flow E entry-point table)
 - **Description:** Wires the failure-shaped and total-shaped entry points design-11's Flow E table
