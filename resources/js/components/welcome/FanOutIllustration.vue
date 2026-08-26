@@ -136,9 +136,10 @@ function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
     });
 }
 
-// Event 2 departs 500ms after Event 1 — enough for Event 1 to have already
-// begun fanning out before Event 2 departs, so it reads as a graceful
-// handoff rather than two starting guns fired together.
+// Event 2 departs while Event 1 is still travelling its first leg. The offset
+// is small enough that the two journeys visibly overlap for most of their
+// length — that overlap IS the Async claim — but non-zero, so it reads as two
+// independent events rather than one synchronized pair.
 const ASYNC_SCHEMA: Schema = {
     id: 'async',
     label: 'Async',
@@ -534,30 +535,30 @@ interface ThemeVisuals {
 }
 
 const DARK_VISUALS: ThemeVisuals = {
-    gridLineAlpha: 0.14,
+    gridLineAlpha: 0.16,
     idleLineWidth: 1.5,
     idleLineAlpha: 0.22,
     hotLineWidth: 2,
     hotLineAlpha: 0.3,
-    pulseCoreWidth: 3,
-    pulseTailLength: 64,
-    bloomBlur: 14,
-    bloomAlpha: 0.4,
+    pulseCoreWidth: 5.5,
+    pulseTailLength: 82,
+    bloomBlur: 20,
+    bloomAlpha: 0.55,
     arrivalEdgeWidth: 2,
     arrivalEdgeAlpha: 0.95,
     arrivalEdgeBlur: 18,
 };
 
 const LIGHT_VISUALS: ThemeVisuals = {
-    gridLineAlpha: 0.1,
+    gridLineAlpha: 0.12,
     idleLineWidth: 1.5,
     idleLineAlpha: 0.3,
     hotLineWidth: 2,
     hotLineAlpha: 0.4,
-    pulseCoreWidth: 3,
-    pulseTailLength: 64,
-    bloomBlur: 5,
-    bloomAlpha: 0.18,
+    pulseCoreWidth: 5,
+    pulseTailLength: 78,
+    bloomBlur: 8,
+    bloomAlpha: 0.26,
     arrivalEdgeWidth: 2,
     arrivalEdgeAlpha: 0.9,
     arrivalEdgeBlur: 8,
@@ -621,19 +622,29 @@ function buildGridLayer(
 
     ctx.stroke();
 
-    // Radial fade mask, centered on the diagram's midline: alpha stops
-    // 1 → 0.6 → 0 at 0% / 60% / 100% radius, applied via destination-in.
-    const shorter = Math.min(layer.width, layer.height);
-    const radius = shorter * 0.65;
+    // Edge-fade mask. A circular mask sized off the *shorter* side left the
+    // grid as a blob floating in the middle of a wide canvas; this scales the
+    // circle into an ellipse matching the canvas aspect, so the grid fills the
+    // field and only softens as it approaches the edges.
     const cx = layer.width / 2;
     const cy = layer.height / 2;
-    const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
-    gradient.addColorStop(0.6, 'rgba(0, 0, 0, 0.6)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    const radius = layer.width * 0.62;
+
     ctx.globalCompositeOperation = 'destination-in';
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1, layer.height / layer.width);
+
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+    gradient.addColorStop(0.55, 'rgba(0, 0, 0, 1)');
+    gradient.addColorStop(0.8, 'rgba(0, 0, 0, 0.55)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, layer.width, layer.height);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
     ctx.globalCompositeOperation = 'source-over';
 
     return layer;
