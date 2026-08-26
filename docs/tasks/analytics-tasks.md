@@ -208,7 +208,12 @@
   AnalyticsWindow::default()`).
 - **Testing:** `tests/Unit/Enums/AnalyticsWindowTest.php` (new) — exact case-set assertion,
   `days()`/`label()`/`interval()` per case, `default()`, `tryFrom()` on a garbage string.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as `app/Enums/AnalyticsWindow.php`, mirroring `TeamRole`'s
+  `label()` pattern. Exactly the three cases (`24h`/`7d`/`30d`); `days()` returns 1/7/30;
+  `interval()` returns a `CarbonInterval` of matching length; `default()` returns `ThirtyDays`.
+  `tests/Unit/Enums/AnalyticsWindowTest.php` covers the case-set, `days()`/`label()`/`interval()`
+  per case, `default()`, and `tryFrom('garbage') === null`. Verified: `composer lint`,
+  `composer types:check`, `./vendor/bin/sail test --filter AnalyticsWindowTest` (6/6 passed).
 
 ## T3 — `App\Data\Analytics\*` DTOs (plan § API "Prop shapes")
 - **Description:** Eight readonly DTOs, mirroring `App\Data\ProxyPermissions`'s style
