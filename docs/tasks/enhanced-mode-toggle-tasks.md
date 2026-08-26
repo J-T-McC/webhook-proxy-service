@@ -261,7 +261,26 @@
     proxy switches.
 - **Testing:** `Http::fake()`, `Queue::fake()`, `travel()` — mirroring the patterns in
   `docs/tasks/retry-replay-tasks.md` T38–T40.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Retry/ModeGatedRetryInheritanceAcceptanceTest.php` (3
+  tests) proving `DeliverToDestination::settleDelivery()` and `DeliveryResource.attempt_limit`
+  inherit T1's gate with no code of their own — no production defect found; `PipelineFactory` not
+  touched. Covered: a Simple proxy holding a dormant `retry_attempt_limit = 2` schedules attempt 2
+  (not terminalized at the dormant column) and terminalizes only at the system default (5),
+  proving `DeliverToDestination` resolves through the gate; the SAME proxy's
+  `DeliveryResource.attempt_limit` renders 5, not 2; a mid-flight downgrade (Enhanced limit 8,
+  three real attempts made, FIFO line held `awaiting_retry`) terminalizes immediately on the next
+  failure once Simple (using a lowered `default_attempt_limit` config value in-test to keep the
+  case to 4 real attempts rather than 8 — the `>=` mechanism under test is independent of the
+  specific numbers), emitting `DeliveryExhausted` exactly once and releasing the FIFO line
+  (`Settled`, advancer nudged); a mid-flight upgrade (Simple at attempt 1 under a lowered default
+  of 2, upgraded to Enhanced limit 4 before attempt 2) continues retrying past the old boundary to
+  the new configured limit, terminalizing exactly once at attempt 4; `RetryPolicy::worstCaseSpan()`
+  (proxy-free by construction) is asserted identical before and after several further mode/limit
+  switches.
+
+  Verified: `./vendor/bin/sail test --filter ModeGatedRetryInheritanceAcceptanceTest` (3 passed, 24
+  assertions); full suite `./vendor/bin/sail test --parallel` (737 passed, 2697 assertions);
+  `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T4 — Switch-safety and downgrade-lifecycle acceptance tests, and the permission gate (AC1, AC2, AC3, AC5, AC9, AC10, AC11, AC13, AC17; plan §Architecture E "no code, and why")
 - **Description:** Plan §Architecture E states these guarantees hold via existing, mode-independent
