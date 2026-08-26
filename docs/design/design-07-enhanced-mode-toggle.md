@@ -4,6 +4,9 @@
   `CLAUDE.md`). The corrections change **no user-visible outcome** and do **not** require
   re-approval; see the approval note. Where this note and the spec body conflict, this
   note governs until the Designer lands the corrections.
+  **Corrections landed: Designer, 2026-08-25** — both required corrections (C1, C2) are
+  reflected in the spec body below; the two non-blocking notes were also applied. See
+  Screen 1, Screen 2, Open Questions, and Handoff for what changed.
 - **Author:** Designer
 - **PRD:** `docs/product/prd-07-enhanced-mode-toggle.md` (Approved, Project Owner,
   2026-08-21, incl. the Q-07-01 ruling in AC13/AC14/AC17; **amended 2026-08-25 —
@@ -103,8 +106,9 @@
 > nulling it out (AC14(b) — see *Required correction* under Screen 2). It does
 > **not** touch the Processing field, the Retry-policy field pair themselves,
 > the Events/Replay surfaces, or any data model or resolution mechanism — all
-> Principal Engineer territory, and Q-07-02 (mode-gated composition, in-flight
-> resolution, extensibility) remains open and non-blocking for this gate.
+> Principal Engineer territory. Q-07-02 (mode-gated composition, in-flight
+> resolution, extensibility) is **RESOLVED** (mechanism: **ADR-018**, Accepted,
+> Project Owner, 2026-08-25) and carries no open dependency into this gate.
 
 ## Decisions carried forward from Q-07-01 (not re-litigated here)
 Owner rulings, already rendered into PRD-07; restated only so this spec's
@@ -117,9 +121,9 @@ choices read as consequences, not inventions:
   default — 5 attempts, exponential — regardless of the stored columns), and
   **in force again with its previous values** on a later return to Enhanced,
   with no re-entry (AC14). The mode-gated resolution mechanism is the
-  Principal Engineer's (Q-07-02(4)); this spec assumes it will exist and
-  specifies the presentation and form behavior that depend on it, flagging
-  each dependency explicitly.
+  Principal Engineer's — resolved as **ADR-018** (Accepted, Project Owner,
+  2026-08-25); this spec's presentation and form behavior are written to that
+  mechanism, not merely assumed against it.
 - **(c) Unrestricted.** Either direction, any time, any number of times,
   including with events queued, retrying, or in flight (AC17). No cooldown, no
   drain-before-switch, no one-way transition — the UI adds no gating,
@@ -198,9 +202,10 @@ recreating the proxy or losing its history.")*
    states upgrading needs no equivalent treatment to the downgrade notice.
 3. **If this proxy carries a dormant retry policy from an earlier Enhanced
    period,** the (now-visible) Retry policy section pre-fills with those
-   previous values automatically, not blank (AC14(c) — see *Interactions*,
-   Screen 1, and the flagged dependency on Q-07-02(4)). If it never had one,
-   the section shows its normal unconfigured state (`design-06` Flow F).
+   previous values automatically, not blank (AC14's lead sentence, as scoped
+   by Amendment A — see *Interaction — dormant-value restore on upgrade*,
+   Screen 1). If it never had one, the section shows its normal unconfigured
+   state (`design-06` Flow F).
 4. Submits → same validation/success handling as any other field on this form.
    Enhanced-only steps (AC6) begin applying to this proxy's subsequent events
    (AC9); nothing about its existing destinations, ingest URL, or history
@@ -346,10 +351,20 @@ div aria-live="polite"                      (announces appearance to AT)
             schedule — the same as always. Nothing is deleted by this
             switch."
         li "Any retry configuration you've saved for this proxy is kept but
-            stops applying while it's Simple — the system default (5
-            attempts, exponential) governs meanwhile. It applies again, with
-            the same values, if you turn Enhanced back on."
+            stops applying while it's Simple — the system default
+            ({{ defaultAttemptLimit }} attempts, {{ defaultBackoffStrategy }})
+            governs meanwhile. It applies again, with the same values, if you
+            turn Enhanced back on."
 ```
+
+**Copy source (AC12).** The parenthetical default values are interpolated,
+not hand-written: bullet 3 reads them from the same source Screen 2's Retry
+policy card uses (`proxyRetryAttemptLimitDisplay(null)` /
+`proxyRetryBackoffStrategyDisplay(null)`, or the underlying config default
+they format), rather than maintaining a second hard-coded copy of "5 attempts,
+exponential." AC12 makes staying true the copy's job; a single source means a
+future default change (e.g. a config value, not a scope change for #7) cannot
+leave this disclosure stale relative to the card it describes.
 
 **States.**
 - **Mode = Enhanced (create or edit):** help text as above; no disclosure; the
@@ -365,7 +380,8 @@ div aria-live="polite"                      (announces appearance to AT)
   management) — #7 introduces no new validation rule on `mode` itself (AC5's
   gate is the existing update permission, enforced server-side as today).
 
-**Interaction — dormant-value restore on upgrade (AC14(c)).** The edit form's
+**Interaction — dormant-value restore on upgrade (AC14, lead sentence, as
+scoped by Amendment A).** The edit form's
 initial state (`props.initial.retryAttemptLimit` /
 `retryBackoffStrategy`) is populated from the proxy's persisted columns
 **regardless of the proxy's current mode** — including a Simple proxy's
@@ -381,21 +397,22 @@ one sitting loses in-session, unsaved values) is unchanged and not in
 conflict — it governs the current session's typed values, never what was
 already persisted before the page loaded (PRD-07 AC14, closing paragraph).
 
-**⚠ Dependency on Q-07-02 (Principal Engineer, open, non-blocking for this
-gate).** The restore-on-upgrade behavior above assumes: (1) the update
+**Confirmed by ADR-018 and PRD-07 Amendment A — no longer an open
+dependency.** The restore-on-upgrade behavior above rests on two points, both
+now settled in this spec's favour rather than assumed: (1) the update
 endpoint stops unconditionally nulling `retry_attempt_limit`/
 `retry_backoff_strategy` on an Enhanced→Simple save (reversing T30, per
-review-06 Minor 8 obligation (a)); and (2) the Edit page's initial prop
-continues to carry those persisted, possibly-dormant values un-redacted, so
-the client has something to restore. If the Principal Engineer's technical
-design instead redacts the dormant value from this payload (e.g., serving it
-only through a separate, explicitly mode-gated read path), this restore-on-
-mount mechanism cannot work exactly as specified and must be revisited at
-technical design — flagged here rather than assumed. Either way, AC14(b) —
-**never presenting** a dormant value while the proxy is Simple — is
-unaffected: the Retry policy fieldset is already gated on `isEnhanced` and
-does not render at all while Simple, so the dormant value sitting in
-(unrendered) form state is never shown to the user.
+review-06 Minor 8 obligation (a)) — **confirmed by ADR-018 Decision 3** (a
+Simple save omits the retry columns from the write rather than nulling them);
+and (2) the Edit page's initial prop continues to carry those persisted,
+possibly-dormant values un-redacted, so the client has something to restore —
+**confirmed by PRD-07 Amendment A** (Q-07-03, Option A): the create/edit form
+is a write surface, not a read surface, and may carry the proxy's persisted
+retry values whatever the proxy's current mode. AC14(b) — **never
+presenting** a dormant value while the proxy is Simple — is unaffected: the
+Retry policy fieldset is already gated on `isEnhanced` and does not render at
+all while Simple, so the dormant value sitting in (unrendered) form state is
+never shown to the user.
 
 ### Screen 2 — Proxy detail (Show) — Mode meaning + Retry policy card correction
 **(a) One-line present-tense meaning, under the header (AC16).** The PRD's UX
@@ -427,48 +444,24 @@ Copy, present tense, referencing — not restating — the Retry policy card:
   separately from what it received, and lets you configure its retry
   attempts and backoff below."
 
-**(b) Required correction — Retry policy card must be mode-gated at the
-presentation layer (AC14(b), AC16).** Today `retryAttemptsDisplay`/
-`retryBackoffDisplay` (`Show.vue`) call
-`proxyRetryAttemptLimitDisplay`/`proxyRetryBackoffStrategyDisplay` directly on
-`props.proxy.retry_attempt_limit`/`retry_backoff_strategy`, with no mode
-branch — safe **only** as long as those columns are guaranteed `null` for
-every Simple proxy (today's T30 behavior). Once a Simple proxy can genuinely
-hold a **dormant** value (Q-07-01(b)/AC14), this binding would start
-rendering it — a direct breach of AC14(b)/AC12 ("never a stored value that has
-no effect"). Required fix, same shape as the existing computed properties,
-no new component:
+**(b) Required correction — Retry policy card must present the policy in
+force for the proxy's current mode (AC14(b), AC16).** A Simple proxy's card
+must **always** read `5 (default)` / `Exponential (default)` plus the
+existing simple-mode note, **identical whether or not the proxy holds a
+dormant retry policy** — never a stored value that has no effect
+(AC12/AC14(b)). This is a presentation requirement on the displayed outcome,
+not an enforcement-point specification: under **ADR-018** (Accepted, Project
+Owner, 2026-08-25) Decision 4, a Simple proxy's dormant retry values must not
+reach the Show payload at all, so the guarantee is made where the payload is
+built, not by a client-side branch reading a value that is present. Whether
+`Show.vue`'s `retryAttemptsDisplay`/`retryBackoffDisplay` computeds also keep
+a mode-branching guard as defence in depth is the Principal Engineer's call at
+technical design — not a design-spec requirement, and not asserted here.
 
-```ts
-const retryAttemptsDisplay = computed(() =>
-  props.proxy.mode === 'simple'
-    ? proxyRetryAttemptLimitDisplay(null)
-    : proxyRetryAttemptLimitDisplay(props.proxy.retry_attempt_limit),
-);
-const retryBackoffDisplay = computed(() =>
-  props.proxy.mode === 'simple'
-    ? proxyRetryBackoffStrategyDisplay(null)
-    : proxyRetryBackoffStrategyDisplay(props.proxy.retry_backoff_strategy),
-);
-```
-
-This guarantees a Simple proxy's card **always** reads `5 (default)` /
-`Exponential (default)` plus the existing simple-mode note, regardless of
-what its stored columns hold — closing exactly the gap review-06 Minor 8(c)
-named ("add the Show-page suppression Q-07-01(b) consequence (1) requires").
-No other part of `design-06`'s Screen 1 Retry policy card changes — same
-placement (after Destinations), same `dl`/`dt`/`dd` shape, same simple-mode
-note.
-
-**⚠ Same Q-07-02 dependency as Screen 1.** This correction assumes the Show
-payload's `proxy.retry_attempt_limit`/`retry_backoff_strategy` fields
-continue to carry the actual (possibly dormant) persisted values for a Simple
-proxy — the client-side gate above is the enforcement point precisely
-**because** the raw value is still present in the payload. If the Principal
-Engineer's technical design instead nulls or omits the field server-side for
-a Simple proxy, this client-side computed becomes redundant (harmless, not
-wrong) rather than load-bearing; either mechanism satisfies AC14(b), and which
-one is chosen is not a design-gate blocker.
+This closes exactly the gap review-06 Minor 8(c) named ("add the Show-page
+suppression Q-07-01(b) consequence (1) requires"). No other part of
+`design-06`'s Screen 1 Retry policy card changes — same placement (after
+Destinations), same `dl`/`dt`/`dd` shape, same simple-mode note.
 
 **(c) Index list — no change.** The proxies Index table's existing **Mode**
 column (a bare `Badge`, no description — `design-01`/`design-04`) already
@@ -573,12 +566,16 @@ addition, the same pattern `design-06` documented for `Checkbox`/`Collapsible`.
   `docs/standards/design.md` — no feature-specific override.
 
 ## Open Questions
-**None blocking this spec's approval.** Two flagged, reversible judgment calls
-for the Product Manager's design-gate attention (matching the `design-04`/
-`design-06` precedent for flagging non-blocking calls), plus the two Q-07-02
-dependencies already called out inline above (not open questions — routed
-technical concerns the Principal Engineer resolves at technical design, not
-gaps in this spec):
+**None blocking this spec's approval — and both flagged calls below were
+accepted as designed** (PM ruling, 2026-08-25). Two flagged, reversible
+judgment calls for the Product Manager's design-gate attention (matching the
+`design-04`/`design-06` precedent for flagging non-blocking calls). The two
+dependencies this spec previously routed to Q-07-02 are **both resolved** —
+Screen 1's restore-on-upgrade mechanism by **ADR-018** Decision 3 and PRD-07
+**Amendment A** (Q-07-03, Option A); Screen 2's Retry-policy-card correction
+by **ADR-018** Decision 4, which settles the mechanism server-side rather
+than at a client-side enforcement point. Neither is an open question any
+longer:
 
 1. **The downgrade disclosure is an inline, non-dismissible `Alert`, not an
    `AlertDialog`/confirmation step.** The Owner's Q-07-01 ruling makes the
@@ -606,20 +603,25 @@ gaps in this spec):
    as calling for an actual dedicated card, the swap is additive and
    independently reversible.
 
-No requirement gap was found and no technical-feasibility doubt is raised
-beyond the two Q-07-02 dependencies already named inline (Screen 1's
-restore-on-upgrade mechanism and Screen 2's mode-gating enforcement point),
-both of which are routed to the Principal Engineer's already-open,
-non-blocking Q-07-02 rather than treated as blockers here.
+No requirement gap was found and no technical-feasibility doubt remains open.
+The two dependencies this spec once flagged inline against Q-07-02 (Screen
+1's restore-on-upgrade mechanism, Screen 2's Retry-policy-card correction) are
+both discharged, as recorded at Screen 1 and Screen 2 above.
 
 ## Handoff
 - **Inputs:** `docs/product/prd-07-enhanced-mode-toggle.md` (Approved, esp. UX
   Direction and AC1–AC25); `docs/questions/prd-07-q-07-01-mode-switch-
   consequences.md` (RESOLVED, Project Owner, 2026-08-21 — the (a)/(b)/(c)
   rulings this spec's downgrade disclosure and restore-on-upgrade behavior are
-  built on); `docs/questions/prd-07-q-07-02-mode-step-composition.md` (OPEN,
-  Principal Engineer, non-blocking — the two dependencies flagged inline route
-  here); `docs/reviews/review-06-retry-replay.md` (Minor 8 and Ruling 2 — the
+  built on); `docs/questions/prd-07-q-07-02-mode-step-composition.md`
+  (RESOLVED, Principal Engineer, 2026-08-25 — mechanism: `docs/architecture/
+  adr-018-mode-gated-resolution-of-enhanced-configuration.md`, Accepted,
+  Project Owner, 2026-08-25; both dependencies flagged inline are confirmed by
+  it, at Screen 1 and Screen 2); `docs/questions/prd-07-q-07-03-dormant-
+  policy-restoration-surface.md` (RESOLVED, Product Manager, 2026-08-25 —
+  Option A, folded into PRD-07 as **Amendment A**; the second confirmation
+  behind Screen 1's restore-on-upgrade mechanism); `docs/reviews/review-06-
+  retry-replay.md` (Minor 8 and Ruling 2 — the
   three obligations #6 owes #7, which this spec's Screen 1/Screen 2 mechanisms
   and the flagged dependencies are written to align with);
   `docs/design/design-06-retry-replay.md` (Screen 1 Retry policy card and Flow
@@ -642,15 +644,16 @@ non-blocking Q-07-02 rather than treated as blockers here.
 - **Dependencies:** no new npm dependency, icon, or `ui/*` primitive.
   `AlertTitle` is an already-generated, currently-unused primitive — this
   spec is its first real application use, not an addition.
-- **Outstanding Questions:** None blocking. Two flagged, reversible judgment
-  calls above for the Product Manager's design-gate review. Two dependencies
-  on the Principal Engineer's resolution of the already-open, non-blocking
-  **Q-07-02** are called out inline (Screen 1's dormant-value restore
-  mechanism; Screen 2's mode-gating enforcement point) — neither gates this
-  spec's approval, both must be checked against whatever Q-07-02 ultimately
-  decides at technical design.
+- **Outstanding Questions:** None. Two flagged, reversible judgment calls
+  above for the Product Manager's design-gate review — **both accepted as
+  designed** (PM ruling, 2026-08-25). The two dependencies this spec once
+  routed to Q-07-02 are **both discharged**: Screen 1's dormant-value restore
+  mechanism is confirmed by **ADR-018** Decision 3 and PRD-07 **Amendment A**
+  (Q-07-03, Option A); Screen 2's Retry-policy-card correction is confirmed by
+  **ADR-018** Decision 4, which settles the enforcement point server-side.
+  Neither carries forward as an open question.
 - **Next Agent:** **Product Manager**, to approve this spec against PRD-07
   (design gate, delegated per `CLAUDE.md`). On approval, hands to the
-  **Principal Engineer** for technical design, which also resolves the open
-  **Q-07-02** (mode-gated step composition, in-flight resolution,
-  extensibility, and the two dependencies this spec flags against it).
+  **Principal Engineer** for technical design. **Q-07-02** is already
+  **RESOLVED** (ADR-018, Accepted, Project Owner, 2026-08-25), so no open
+  question travels with the handoff.
