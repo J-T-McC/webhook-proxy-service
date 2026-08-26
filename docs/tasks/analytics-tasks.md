@@ -1256,7 +1256,93 @@
 - **Testing:** manual verification (no harness) — `pnpm run build`, confirm the deleted-destination
   row, the zero-traffic-destination row, and that the table reads from the analytics prop (seed a
   destination not in `ProxyResource.destinations`' live set but with window activity), both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented the "Destinations" card as a `Table` directly in
+  `resources/js/pages/proxies/Show.vue`, replacing the plain `ul`: `Destination | Delivery success |
+  Attempt success | Latency (avg) | Actions`, one row per `props.destinations` (T18's
+  `DestinationBreakdownRow[]`) — never `props.proxy.destinations` (that relation stays live-only,
+  shared with `index()`/`edit()`, plan Implementation Note 11). Column headers carry the unit
+  (`DELIVERY_SUCCESS_COLUMN_LABEL`/`ATTEMPT_SUCCESS_COLUMN_LABEL` from T12/T15, plus a new
+  `LATENCY_AVERAGE_COLUMN_LABEL` added to `analyticsLabels.ts` for this table's "Latency (avg)"
+  header) so no per-cell relabelling is needed (AC14(a)). Rate cells reuse `compactRateText()`
+  (T15) and the latency cell reuses `formatLatencyMs()` (T12) — both already produce the correct
+  zero-traffic text ("No deliveries yet" / "No data") without a template-level branch, matching
+  T15's own completion notes anticipating this table would reuse the same compact convention rather
+  than inventing its own. No column-click sorting exists on this table (unlike the Dashboard's
+  Proxies table, T15) — row order is exactly `props.destinations`' order (live destinations first,
+  then any trashed-but-active ones, per T8's service-level union), matching flagged design call 5's
+  reasoning applied to this table too, per the task's own text.
+
+  The **Actions** column header is rendered as plain visible text ("Actions"), not `sr-only` —
+  deliberately different from the just-fixed Dashboard Proxies-table header (this session's Work
+  item 1). Design-11 line 369 writes this table's header row as `Destination | Delivery success |
+  Attempt success | Latency (avg) | Actions` with no parentheses around "Actions", unlike Screen
+  1's `(View)`, which is the same textual signal the Owner's ruling on the Dashboard fix turned on —
+  a bare, unparenthesised label reads as a genuine fifth column header, matching `proxies/
+  Index.vue`'s existing visible "Actions" precedent rather than the parenthesised, sr-only-only
+  "(View)" case.
+
+  **Actions cell composition follows design-11's Row-content description literally**, which places
+  the muted **Deleted** label in the Actions cell alongside the still-functional **View events**
+  link — not beside the destination name/badge, unlike the Dashboard Proxies table's deleted-row
+  treatment (T15). `viewEventsHref()` carries `proxy` (route param) · `destination` (id, query) ·
+  `window` (query) — **no** `outcome` parameter (Flow D step 3: this row's figures are rates over
+  all of that destination's traffic, not a failure count, so the action is total-shaped) — and is
+  identical for a live or deleted destination, since soft delete preserves the id and
+  `destinationBreakdown()` (T8) already resolves both. No `canDrillThrough`-style gate exists on
+  this link at all (design-11: "its View events link stays live... a soft delete preserves the
+  id") — unlike the Dashboard Proxies table's per-row gate, which exists because that table must
+  also disable the *proxy* name/edit link for a deleted parent; nothing analogous applies to a
+  destination row here. `ProxyEventController` does not yet read `?destination=`/`?window=`
+  (T21) — this link is built now and wired the rest of the way later, the same "builds the link,
+  T23/T21 finish the wiring" pattern already established by T15/T19's own Terminal-failures links.
+
+  **Observed, not a defect:** the five-column table (`Destination` cell includes a method `Badge` +
+  a URL, four narrower cells beside it) exceeds the Show page's `max-w-3xl` container width on a
+  typical viewport, so the table's existing `overflow-x-auto` wrapper (`components/ui/table/
+  Table.vue`, unmodified, already used by every other table in this feature) engages a horizontal
+  scrollbar within the card rather than clipping content — confirmed via `scrollWidth` (`959px`) >
+  `clientWidth` (`686px`) on the table container, not a hard visual cut with no way to reach the
+  rest. This is the existing `Table` primitive's own standing behaviour app-wide, not something
+  this task's own Acceptance Criteria ask to change, so it was left as-is rather than redesigning
+  the container or dropping a column.
+
+  **Manual verification** (recipe in agent memory `manual_verification_recipe.md`): removed
+  `public/hot` (absent already, confirmed), ran `pnpm run build`, seeded a throwaway team via
+  `sail tinker` with one proxy and three destinations — a live destination with traffic (one
+  succeeded delivery/attempt, 150 ms), a live destination with zero traffic, and a destination with
+  traffic (one succeeded delivery/attempt, 400 ms) that was then soft-deleted — deliberately not
+  present in `props.proxy.destinations`' live set once deleted, so its row can only come from the
+  analytics prop. Logged in via Playwright:
+
+  - **Headers:** `["Destination", "Delivery success", "Attempt success", "Latency (avg)",
+    "Actions"]` — exact column order.
+  - **Live traffic-destination row:** `100% (1/1)` / `100% (1/1)` / `150 ms`, `View events` link
+    with no `Deleted` badge.
+  - **Live zero-traffic-destination row:** `No deliveries yet` / `No deliveries yet` / `No data` —
+    not `0%`, not hidden (present as its own row).
+  - **Deleted destination row (traffic):** rendered as its own row — present at all only because it
+    came from `props.destinations`, not `props.proxy.destinations` — reading `100% (1/1)` /
+    `100% (1/1)` / `400 ms`, a muted **Deleted** `Badge` plus a still-present, correctly-hrefed
+    **View events** link in the same Actions cell.
+  - **Link hrefs:** every row's `View events` link read
+    `/{team}/proxies/{proxy}/events?window=30d&destination={id}` — `window` and `destination`
+    present, `outcome` absent from every row including the deleted one, confirming Flow D step 3's
+    "no outcome filter" rule holds uniformly.
+  - Screenshots inspected in both light and dark theme — legible, badge and muted-link text
+    visually distinct without relying on colour alone; the horizontal-scroll behaviour noted above
+    confirmed present in both.
+
+  Cleaned up the throwaway team/proxy/destinations/deliveries/attempts/user afterward
+  (`forceDelete()`, children before parents, including a stray destination row left over from an
+  earlier seed attempt that hit an invalid `HttpMethod` enum value before erroring — `Destination`
+  only accepts `POST`/`PUT`, not `GET`).
+
+  Verified: `composer lint`, `composer types:check` unaffected (frontend-only task; not re-run
+  here). `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green (one file needed a
+  Prettier re-format after the manual edit, applied and re-verified).
+  `./vendor/bin/sail test --filter "ProxyShowControllerTest|ProxyIndexShowTest"` (18/18) re-run as
+  a sanity check, unchanged and green; full `./vendor/bin/sail test --parallel` 825/825 (unchanged
+  from T18 — no backend file touched by T19/T20).
 
 ---
 

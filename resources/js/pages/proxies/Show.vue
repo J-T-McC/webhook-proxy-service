@@ -34,6 +34,7 @@ import {
     DELIVERY_SUCCESS_COLUMN_LABEL,
     DELIVERY_SUCCESS_LABEL,
     EVENTUAL_SUCCESS_LABEL,
+    LATENCY_AVERAGE_COLUMN_LABEL,
     LATENCY_AVERAGE_LABEL,
     LATENCY_CAPTION,
     LATENCY_P95_LABEL,
@@ -62,13 +63,18 @@ import {
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
 import type { Team } from '@/types';
-import type { AnalyticsWindowValue, StatisticsPanel } from '@/types/analytics';
+import type {
+    AnalyticsWindowValue,
+    DestinationBreakdownRow,
+    StatisticsPanel,
+} from '@/types/analytics';
 import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
 
 const props = defineProps<{
     proxy: ProxyDetail;
     permissions: ProxyPermissions;
     statistics: StatisticsPanel;
+    destinations: DestinationBreakdownRow[];
 }>();
 
 // Edit/delete visibility derives from the shared page-level permissions + the
@@ -200,6 +206,27 @@ function terminalFailureHref() {
     return proxyEventRoutes.index(
         { current_team: teamSlug.value, proxy: props.proxy.id },
         { query: { window: props.statistics.window } },
+    );
+}
+
+/**
+ * The Destinations table's "View events" action target (Flow D step 3) —
+ * proxy · destination · window, **no** outcome filter (this row's figures
+ * are rates over all of that destination's traffic, not a failure count).
+ * Carries the same link for a deleted destination as a live one — soft
+ * delete preserves the id, and the destination needs only to be
+ * identifiable, not manageable, for drill-through to work (design-11 Screen
+ * 3, `Q-11-03(9)`'s destination half).
+ */
+function viewEventsHref(destination: DestinationBreakdownRow) {
+    return proxyEventRoutes.index(
+        { current_team: teamSlug.value, proxy: props.proxy.id },
+        {
+            query: {
+                window: props.statistics.window,
+                destination: destination.id,
+            },
+        },
     );
 }
 
@@ -593,25 +620,76 @@ function confirmDeleteProxy(): void {
             </dl>
         </Card>
 
-        <!-- Destinations card -->
+        <!-- Destinations card (design-11 Screen 3) — driven from
+             `props.destinations` (T18's `DestinationBreakdownRow[]`), never
+             from `props.proxy.destinations` (that relation is live-only and
+             shared with index()/edit(), plan Implementation Note 11), so a
+             deleted destination with historical traffic still gets a row. -->
         <Card class="gap-4 p-6">
-            <h2 class="text-sm font-medium">Destinations</h2>
-            <ul class="divide-y">
-                <li
-                    v-for="destination in props.proxy.destinations"
-                    :key="destination.id"
-                    class="flex items-center gap-3 py-3"
-                >
-                    <div class="flex min-w-0 items-center gap-3">
-                        <Badge variant="outline">{{
-                            destination.http_method
-                        }}</Badge>
-                        <span class="truncate font-mono text-sm">{{
-                            destination.url
-                        }}</span>
-                    </div>
-                </li>
-            </ul>
+            <div>
+                <h2 class="text-sm font-medium">Destinations</h2>
+                <p class="text-sm text-muted-foreground">
+                    {{ lastWindowSubtitle(props.statistics.window) }}
+                </p>
+            </div>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Destination</TableHead>
+                        <TableHead>{{
+                            DELIVERY_SUCCESS_COLUMN_LABEL
+                        }}</TableHead>
+                        <TableHead>{{
+                            ATTEMPT_SUCCESS_COLUMN_LABEL
+                        }}</TableHead>
+                        <TableHead>{{
+                            LATENCY_AVERAGE_COLUMN_LABEL
+                        }}</TableHead>
+                        <TableHead class="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    <TableRow
+                        v-for="destination in props.destinations"
+                        :key="destination.id"
+                    >
+                        <TableCell>
+                            <div class="flex min-w-0 items-center gap-3">
+                                <Badge variant="outline">{{
+                                    destination.httpMethod
+                                }}</Badge>
+                                <span class="truncate font-mono text-sm">{{
+                                    destination.url
+                                }}</span>
+                            </div>
+                        </TableCell>
+                        <TableCell>{{
+                            compactRateText(destination.delivery)
+                        }}</TableCell>
+                        <TableCell>{{
+                            compactRateText(destination.attempt)
+                        }}</TableCell>
+                        <TableCell>{{
+                            formatLatencyMs(destination.latencyAverageMs)
+                        }}</TableCell>
+                        <TableCell class="text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <Badge
+                                    v-if="destination.isDeleted"
+                                    variant="secondary"
+                                >
+                                    Deleted
+                                </Badge>
+                                <Button variant="ghost" size="sm" as-child>
+                                    <Link :href="viewEventsHref(destination)">
+                                        View events
+                                    </Link>
+                                </Button>
+                            </div>
+                        </TableCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
         </Card>
 
         <!-- Retry policy card -->

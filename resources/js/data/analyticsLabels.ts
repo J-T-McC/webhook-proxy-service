@@ -31,6 +31,9 @@ export const ATTEMPT_SUCCESS_COLUMN_LABEL = 'Attempt success';
 /** The Proxies table's failure-count column (design-11 Screen 1, Flow B). */
 export const TERMINAL_FAILURES_COLUMN_LABEL = 'Terminal failures (deliveries)';
 
+/** The Destinations table's latency column (design-11 Screen 3). */
+export const LATENCY_AVERAGE_COLUMN_LABEL = 'Latency (avg)';
+
 /** The four "Retry & replay" stat tile labels (AC19; design-11 Screen 1/2). */
 export const EVENTUAL_SUCCESS_LABEL = 'Eventual success (deliveries)';
 export const TERMINAL_FAILURE_LABEL = 'Terminal failure (deliveries)';
