@@ -220,7 +220,10 @@ function proxyFailuresHref(proxyId: number) {
         </Card>
     </div>
 
-    <div v-else class="flex h-full flex-1 flex-col gap-6 p-4">
+    <div
+        v-else
+        class="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-6 p-4"
+    >
         <div class="flex flex-wrap items-center justify-between gap-2">
             <h1 class="text-xl font-semibold">Dashboard</h1>
             <nav class="flex items-center gap-2" aria-label="Time window">

@@ -284,7 +284,7 @@ function confirmDeleteProxy(): void {
 <template>
     <Head :title="props.proxy.name" />
 
-    <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4">
         <div class="flex flex-col gap-1">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
