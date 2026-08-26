@@ -57,7 +57,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
 | 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
-| 11 | Analytics / stats | **Task Planning** | **Task Planner** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **No open questions and no outstanding approvals on #11.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record |
+| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **No open questions and no outstanding approvals on #11.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
@@ -68,11 +68,27 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 plus `## Amendment A`); `docs/design/design-11-analytics.md` (**fully Approved**,
 PM, 2026-08-26); `docs/plans/plan-11-analytics.md` (**fully approved**, PE-self-certified
 plus both Owner flags ruled, 2026-08-26);
-`docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (**RESOLVED**).
+`docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (**RESOLVED**);
+`docs/tasks/analytics-tasks.md` (**self-certified**, Task Planner, 2026-08-26).
 
-- **Next gate: Task Planning (Task Planner) — unblocked, all of M1–M7.** Requirements, UX
-  Design and Technical Design are all closed, and **no open question or outstanding
-  approval remains on #11**.
+- **Next gate: Implementation (Senior Developer) — unblocked, all of M1–M7.** Requirements,
+  UX Design, Technical Design and Task Planning are all closed, and **no open question or
+  outstanding approval remains on #11**. Task lists carry no approval gate.
+- **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
+  migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
+  (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
+  M6 T25–T28 (charting dependency and `TrendChart.vue`) · M7 T29 (whole-surface
+  verification pass). The Task Planner found **no conflict or gap** requiring escalation.
+  Constraints that must not be lost in implementation are carried as acceptance criteria on
+  named tasks, not as preamble: the four charting verification checks run **before** the
+  packages are committed and the task **reports back rather than committing** if the wrapper
+  pulls `chart.js/auto` (T25); `onMounted`-only chart construction (T27); colour resolution
+  reuses the PR #12 `readTokens()`/`withAlpha()` round-trip rather than pattern-matching
+  token text (T26); the `updated_at` anchor invariant is pinned by a dedicated test (T10);
+  explicit `team_id` on every analytics query with cross-team isolation coverage (T9, T13,
+  T18); the migration is exactly the four approved indexes and nothing else (T1); and every
+  UI task carries a manual-verification step run against `pnpm run build` with `public/hot`
+  removed first, review-07 Finding 8 being the standing trap (T29 closes the sweep).
 - **Both Owner gates RULED (Project Owner, 2026-08-26).** **(a) Charting dependency —
   approved as recommended:** `chart.js` (^4) **plus** `@j-t-mcc/vue3-chartjs`, both
   packages; the local-wrapper alternative was **explicitly not taken**, the wrapper being
