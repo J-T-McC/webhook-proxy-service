@@ -507,13 +507,14 @@ the frame is genuinely still.
   client-side state, identical to every other navigational button in the
   app.
 - **Illustrations are non-interactive** — no click-to-replay, no hover
-  scrub, no toggle control. Illustration 1's internal `requestAnimationFrame`
-  driver alternates its two timeline schemas on its own timer; this is
-  internal animation state, not a user-facing control, and does not
-  contradict the "no interactive toggle" constraint. Both illustrations
-  loop continuously (motion-safe) or render statically (reduced-motion);
-  this keeps the page's only interactive surface to its two/three CTAs,
-  matching a marketing page's actual job.
+  scrub, no toggle control. Both are canvas-rendered with an internal
+  `requestAnimationFrame` driver: Illustration 1 alternates its two timeline
+  schemas on its own timer, Illustration 2 runs one attempt/backoff/replay
+  timeline. That is internal animation state, not a user-facing control, and
+  does not contradict the "no interactive toggle" constraint. Both loop
+  continuously (motion-safe) or render one static frame (reduced-motion); this
+  keeps the page's only interactive surface to its CTAs, matching a marketing
+  page's actual job.
 - **No inline editing, no forms, no toasts** — this page performs no
   mutation and has no server state beyond `auth.user` / `currentTeam`
   (already-shared Inertia props), consistent with the existing
@@ -526,6 +527,22 @@ Calls 1–4 were put to the Owner explicitly and each was kept as the Designer
 specified; call 5 was noted as a visual-balance choice with no product claim
 attached and left as-is. Nothing below is outstanding — the entries are
 retained as the record of what was decided and why.
+
+**Three of those five were later reversed by the Owner during the build**, in
+the working session recorded in the As-built note at the top. Recorded here so
+the ruling above is not read as still governing:
+
+- **Call 1 (reuse existing tokens, no new colour)** — reversed. The app palette
+  is greyscale, so the illustration rendered as white lines and white boxes and
+  read as unfinished. Two illustration-scoped accent tokens were added. The
+  original ruling and the "Laravel/Vercel/Stripe tier" craft bar set later in
+  the session were incompatible; the craft bar won.
+- **Call 2 (two simultaneously-visible mini-diagrams)** — reversed. One diagram
+  now plays both modes back to back.
+- **Call 3 (two illustrations rather than one)** — upheld, and Illustration 2 was
+  subsequently rebuilt on canvas.
+- **Call 4 (no footer, pricing, testimonials or closing CTA)** — upheld.
+- **Call 5 (three destinations, arbitrary)** — upheld.
 
 Original framing, for the record — every choice below is a Designer
 judgment call, flagged for the **Project Owner's** explicit accept/reject
