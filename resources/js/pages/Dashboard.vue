@@ -170,14 +170,20 @@ function proxyShowHref(proxyId: number) {
 }
 
 /**
- * The Terminal-failures cell's drill-through target (Flow B step 5) — proxy
- * · window today; T23 adds `&outcome=delivery_failed` once the Events list's
- * filter resolver (T21) exists to read it.
+ * The Terminal-failures cell's drill-through target (Flow B step 5;
+ * design-11 Flow E entry-point table) — proxy · window ·
+ * `outcome=delivery_failed` (T23; T21's filter resolver reads this on the
+ * Events list controller).
  */
 function proxyFailuresHref(proxyId: number) {
     return proxyEventRoutes.index(
         { current_team: teamSlug.value, proxy: proxyId },
-        { query: { window: props.statistics.window } },
+        {
+            query: {
+                window: props.statistics.window,
+                outcome: 'delivery_failed',
+            },
+        },
     );
 }
 

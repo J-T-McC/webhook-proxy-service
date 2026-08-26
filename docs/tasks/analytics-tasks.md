@@ -1505,7 +1505,55 @@
   Terminal failures cell is not a link (`canDrillThrough === false`, T22).
 - **Testing:** manual verification (no harness) — `pnpm run build`, click through each entry point
   and confirm the landed Events list's active filter chips match the table above, both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** **Partially complete — one entry point is blocked, not silently skipped or
+  guessed at.** Wired four of the five entry points design-11's Flow E table names:
+
+  - **Dashboard Proxies table's Terminal failures (deliveries) cell** (`proxyFailuresHref()`,
+    `Dashboard.vue`) — added `outcome=delivery_failed` alongside the `window` T15 already carried.
+  - **Proxy Show Retry & replay's Terminal failure tile** (`terminalFailureHref()`, `proxies/
+    Show.vue`) — same change, T16/T19's existing `window`-only href.
+  - **The three non-failure-shaped Retry & replay tiles and the Dashboard's Delivery/Attempt success
+    cells** — confirmed, not re-implemented, already correct as plain text with no `Link` wrapper
+    (T15/T16/T19's own work); no diff needed.
+  - **Destinations table's View events action** — confirmed, not re-implemented, `viewEventsHref()`
+    (T20) already carries proxy · destination · window with no `outcome` parameter, exactly as Flow
+    D step 3 and this task's own AC require.
+
+  **Blocked, and escalated rather than guessed at: the Trend chart's "View as table" row, per day
+  per unit.** `docs/questions/prd-11-q-11-04-trend-day-drill-through.md` (new, directed to the
+  Principal Engineer) — design-11's Flow C step 3 and Flow E table both require this entry point to
+  carry "window narrowed to that single day," but plan-11 §§ Architecture E, API, Services & Actions
+  and Validation all define the Events list's filter resolver (T21, already implemented) as taking
+  exactly three query parameters — `window` (one of `AnalyticsWindow`'s three fixed values),
+  `destination`, `outcome` — with no mechanism for narrowing to a single calendar day.
+  `AnalyticsWindow::tryFrom()` silently falls back to the 30-day default on any value it doesn't
+  recognise (ruling 8), so routing a literal date through the existing `window` parameter would not
+  narrow anything — it would silently resolve to the wrong window, exactly the "silently wrong
+  answer" ruling 3 says this feature must not produce. Inventing a fourth query parameter here would
+  be extending T21's already-implemented, task-approved public interface beyond what any approved
+  artifact specifies, not a purely local implementation detail left open by the task — squarely the
+  "plan conflicts with reality... pause the affected task" escalation rule, directed to the
+  Principal Engineer as plan-11's owner. This is the only portion of T23 left undone; every other
+  named entry point is wired and verified below.
+
+  **Manual verification** (recipe in agent memory `manual_verification_recipe.md`): `public/hot`
+  absent already (confirmed), ran `pnpm run build`, seeded a throwaway team via `sail tinker` with
+  one proxy, one destination, and one failed delivery. Logged in via Playwright:
+
+  - Read the Dashboard's Terminal-failures cell href directly:
+    `/boyer-group/proxies/51/events?window=30d&outcome=delivery_failed`. Clicked it; landed on
+    `http://localhost/boyer-group/proxies/51/events?outcome=delivery_failed&window=30d` — the
+    Events list for the correct proxy, both query parameters present.
+  - Read the Proxy Show page's Retry & replay Terminal-failure tile href directly: identical
+    `?window=30d&outcome=delivery_failed`; clicked it, landed on the same URL shape.
+  - The Events list itself does not yet render an Outcome chip or explanatory copy for either
+    landing (T24, next) — confirmed absent as expected at this stage, not a defect in this task.
+
+  Cleaned up the throwaway team/proxy/destination/event/delivery/user afterward (`forceDelete()`,
+  children before parents).
+
+  Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green. Backend suite
+  unaffected by this frontend-only task; not re-run here.
 
 ## T24 — `proxies/events/Index.vue`: filter chips, explanatory copy, empty-filtered state (AC10, AC21; correction/C1 landed, § Accessibility)
 - **Description:** Above the existing (unchanged) table: up to three removable `FilterChips` —

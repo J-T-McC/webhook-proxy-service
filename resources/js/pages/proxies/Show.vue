@@ -194,18 +194,22 @@ const bridgeText = computed(() =>
 
 /**
  * The "Retry & replay" Terminal failure tile's drill-through target (Flow C
- * step 4) — the only one of the four tiles that is failure-shaped. Proxy ·
- * window today; T23 adds `&outcome=delivery_failed` once the Events list's
- * filter resolver (T21) exists to read it — the same "builds the link, T23
- * wires the rest" pattern T15 already established for the Dashboard's
- * Proxies table. No `canDrillThrough`-style gate is needed here: this page
- * only renders for a live proxy (the route's implicit model binding 404s on
- * a soft-deleted one, T22), so drill-through is always available from it.
+ * step 4; design-11 Flow E entry-point table) — the only one of the four
+ * tiles that is failure-shaped. Proxy · window · `outcome=delivery_failed`
+ * (T23; T21's filter resolver reads this on the Events list controller). No
+ * `canDrillThrough`-style gate is needed here: this page only renders for a
+ * live proxy (the route's implicit model binding 404s on a soft-deleted one,
+ * T22), so drill-through is always available from it.
  */
 function terminalFailureHref() {
     return proxyEventRoutes.index(
         { current_team: teamSlug.value, proxy: props.proxy.id },
-        { query: { window: props.statistics.window } },
+        {
+            query: {
+                window: props.statistics.window,
+                outcome: 'delivery_failed',
+            },
+        },
     );
 }
 
