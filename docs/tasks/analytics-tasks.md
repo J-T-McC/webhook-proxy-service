@@ -190,6 +190,19 @@
   Verified: `composer lint`, `composer types:check` (PHPStan level 7), and `./vendor/bin/sail test --parallel`
   all green (762/762) after this task.
 
+  **Addendum (found during T6, fixed in the same migration file):** `./vendor/bin/sail test
+  --parallel` uses one persisted MySQL database per worker (`testing_test_1..N`), each re-migrated
+  only when the migration files' checksum changes (`FasterRefreshDatabase`), not on every suite
+  run. Because this migration's `down()` restores `deliveries.team_id`/`deliveries.proxy_id`'s
+  single-column index (see above), running the full parallel suite a second time against the same
+  worker databases hit `1061 Duplicate key name 'deliveries_team_id_index'` — the first run's
+  rollback test had already added it, and nothing ever removes it again, so the second run's
+  rollback tried to add it a second time. Fixed by guarding both restorations with
+  `Schema::hasIndex('deliveries', ['team_id'])` / `['proxy_id']` before adding, so `down()` is safe
+  to run more than once against the same database. Verified by resetting all fourteen parallel
+  worker databases and running `./vendor/bin/sail test --parallel` twice in direct succession
+  (787/787 both times) plus one serial `./vendor/bin/sail test` run (787/787).
+
 ---
 
 ## M2 — `AnalyticsWindow`, the `App\Data\Analytics\*` DTOs, and `DeliveryStatistics`

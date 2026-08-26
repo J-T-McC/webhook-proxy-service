@@ -52,6 +52,12 @@ return new class extends Migration
      * `delivery_attempts` needs no such restoration: its pre-existing
      * `(team_id, created_at)` and `(proxy_id, status)` indexes already cover
      * both foreign keys independently of the new composite indexes.
+     *
+     * The two restored single-column indexes are added only if not already
+     * present (`Schema::hasIndex()`), so `down()` stays safe to run more than
+     * once against the same database — e.g. parallel test workers reuse a
+     * persisted schema across suite runs, and a repeat rollback must not
+     * fail with "Duplicate key name" on an index it already restored.
      */
     public function down(): void
     {
@@ -61,8 +67,13 @@ return new class extends Migration
         });
 
         Schema::table('deliveries', function (Blueprint $table) {
-            $table->index(['team_id']);
-            $table->index(['proxy_id']);
+            if (! Schema::hasIndex('deliveries', ['team_id'])) {
+                $table->index(['team_id']);
+            }
+
+            if (! Schema::hasIndex('deliveries', ['proxy_id'])) {
+                $table->index(['proxy_id']);
+            }
         });
 
         Schema::table('deliveries', function (Blueprint $table) {
