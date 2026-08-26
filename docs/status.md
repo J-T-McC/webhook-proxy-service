@@ -57,7 +57,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
 | 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
-| 11 | Analytics / stats | **Technical Design** | **Principal Engineer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 OPEN → Principal Engineer**, non-blocking. **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check |
+| 11 | Analytics / stats | **Task Planning** | **Task Planner** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **No open questions and no outstanding approvals on #11.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
@@ -66,37 +66,42 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 
 **Artifacts:** `docs/product/prd-11-analytics.md` (Approved, Owner, 2026-08-26, 37 ACs,
 plus `## Amendment A`); `docs/design/design-11-analytics.md` (**fully Approved**,
-PM, 2026-08-26); `docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (OPEN).
+PM, 2026-08-26); `docs/plans/plan-11-analytics.md` (**fully approved**, PE-self-certified
+plus both Owner flags ruled, 2026-08-26);
+`docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (**RESOLVED**).
 
-- **Next gate: Technical Design (Principal Engineer).** The UX Design gate is closed —
-  all six corrections C1–C6 landed with the Designer, and **C1 cleared** on the Product
-  Manager's section-scoped re-check of Flow E and Screen 4 (2026-08-26). C1's re-check
-  confirmed the drill-through classification: the three failure-shaped entry points carry
-  an outcome filter **at the source figure's unit**, while the Destinations row is
-  **total-shaped** and correctly carries none — its figures are rates and a measure over
-  all traffic, so narrowing them would break AC10 reconciliation rather than serve it.
-  Team-level figures are deliberately **not** entry points: no single proxy resolves, and
-  a team-wide list is the surface AC28 forbids.
-- **Open to the Principal Engineer — `Q-11-03`, non-blocking, carries findings F1–F4.**
-  Two of the design's accepted calls are **contingencies whose trigger is the PE's at
-  `Q-11-03(6)`**, not the PM's: the labelled latency-tail substitute (a bare average still
-  fails AC20) and the conditional "as of" caption (a rollup makes it mandatory and
-  concrete; a live query may omit it). Item **(9)** asks whether a drill-through can
-  resolve a **soft-deleted** parent at the routing/authorization layer — its requirement
-  half is already ruled and its fallback pre-approved, so it blocks nothing. Item **(10)**
-  asks whether the shipped Events list can filter by **outcome at both grains**, which the
-  approved Flow E drill-through depends on; unlike (9) it **pre-approves no fallback**, so
-  an unachievable answer returns to the Designer as a fresh correction.
-- **Two Owner gates fall due at plan time, neither approved yet:**
-  **(a) the charting library** — the Owner *suggested* `@j-t-mcc/vue3-chartjs`
-  (https://github.com/J-T-McC/vue3-chartjs), which adds **two** npm packages
-  (`chart.js` + the wrapper) to a project with no charting library today. A suggestion is
-  not the gate clearing itself: the PE must confirm fit and record it formally rather than
-  let it arrive in a diff. Verify Chart.js 4 tree-shaking/registration under Vite 8 and
-  bundle impact; behaviour under Inertia SSR if enabled; dark-mode theming against the
-  app's CSS custom properties — noting that `getComputedStyle` returns custom properties
-  **verbatim** and a production minifier can rewrite `hsl()` tokens to hex (PR #12).
-  **(b) the index/aggregation store**, whose shape the V7 ruling fixed.
+- **Next gate: Task Planning (Task Planner) — unblocked, all of M1–M7.** Requirements, UX
+  Design and Technical Design are all closed, and **no open question or outstanding
+  approval remains on #11**.
+- **Both Owner gates RULED (Project Owner, 2026-08-26).** **(a) Charting dependency —
+  approved as recommended:** `chart.js` (^4) **plus** `@j-t-mcc/vue3-chartjs`, both
+  packages; the local-wrapper alternative was **explicitly not taken**, the wrapper being
+  the Owner's own package. Conditions survive the ruling: the four § Dependencies checks
+  still run on the adopting task, and the decisive one is that **if the wrapper pulls
+  `chart.js/auto`, tree-shaking is lost** and the task reports back rather than committing.
+  Construction stays **`onMounted`-only** — Inertia SSR is configured `enabled => true` but
+  has **no entrypoint and no bundle**, so nothing renders server-side today and a future
+  entry must not be able to break the page. Note **Dependabot covers only `github-actions`**,
+  so this package gets no automated vulnerability scanning. **(b) Four indexes — approved
+  exactly as enumerated**, additive only, rollback four `dropIndex`. The approval rests on
+  the **column order** (grain equality, then `status`, then `updated_at` ranging last),
+  which is what bounds each query by window traffic rather than table size — and therefore
+  what makes AC18's indefinite retention cost storage rather than query latency.
+- **`Q-11-03` RESOLVED (PE, 2026-08-26), all ten items.** Both design contingencies
+  collapsed to the good branch: a **true nearest-rank percentile is feasible live**, so
+  AC20 is met outright and design-11's labelled substitute is **not** triggered; and with
+  **no rollup**, the conditional "as of" caption **renders nothing** and AC11 is satisfied
+  vacuously. Item **(10) holds** — the Events list filters by outcome at both grains with
+  no new index or table, so nothing returned to the Designer. Item **(9)** splits: a
+  deleted **destination** keeps a live link, while a deleted **proxy** takes the
+  pre-approved degradation, because `withTrashed()` would surface the shipped **Replay**
+  affordance against it. **No AC lacks a supporting column.** One caveat carried into
+  implementation rather than buried: the window anchor is **`updated_at`**, resting on a
+  terminal-rows-are-never-rewritten invariant **pinned by test, not by schema**;
+  `created_at` was rejected because it makes past buckets mutable, and a new `resolved_at`
+  column was rejected as new capture, which AC29 and D-11-3 forbid. Also found:
+  **`ApplyTeamScope` does not scope `Delivery` or `WebhookEvent`** (only `Proxy`,
+  `Destination`, `DeliveryAttempt`), so every analytics query states `team_id` explicitly.
 - **Standing constraints on the feature, from the Owner's rulings.** Success and failure
   are reported as **both units, labelled distinctly, never merged into one figure and never
   behind a unit toggle** — the same healthy traffic reads 67% failure per-attempt and 100%

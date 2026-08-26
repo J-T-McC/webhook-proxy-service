@@ -45,6 +45,22 @@ the gate a single reversible decision. Certification then names exactly what the
 and states that everything else needs no further sign-off; Next Agent reads "Task Planner — **after**
 Owner approval of items N".
 
+**Flags without an ADR is a real shape** (plan-11): a plan can carry Owner gates — a new dependency,
+an index-only data-model change — and still warrant **no ADR**, because the gates *are* the decision
+record and an ADR would restate them. When that happens, invert the no-flag case's paragraph:
+*"Why no ADR was warranted here, **when the previous item needed one**"*, walking each candidate
+against the bar, **then** walk every ADR the feature touches one by one and say explicitly that it
+needs no amendment (imprecise-but-not-contradicted wording — e.g. ADR-003's unimplemented
+"own lifecycle" — is *not* grounds to supersede an Accepted ADR). Also useful in the flags case:
+sequence **§ Milestones** so the gate-blocked ones are named, and say how many are *not* blocked, so
+a pending gate doesn't stall the Task Planner.
+
+**Where a design spec's flagged calls are *contingencies whose trigger the PM assigned to the PE***,
+the plan must **pull them explicitly** — name the call, state which branch it resolves to, and state
+the user-visible consequence (a caption that now renders nothing, a label that must *not* say
+"approximation") so the Designer and Reviewer don't infer it. Same for a feasibility question that
+pre-approves a fallback: say precisely where the fallback is taken and where it is not.
+
 **When an Owner amendment lands mid-design** (the PRD "Amendment A" pattern), the house response is
 a `## Revision A — what the ruling changed here` table (*prior position → now*) at the top of every
 artifact it touches, the plan included. Rules observed: revise a **Proposed** ADR in place (nothing

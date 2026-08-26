@@ -1,13 +1,12 @@
 # Technical Plan: Analytics / stats — item #11
 
-- **Status:** **Approved (Principal-Engineer self-certified) — except the two items at
-  *Handoff → Owner-approval flags (✋)*, which are the Project Owner's to rule on.** Like #8 and
-  unlike #7, this plan **cannot** be self-certified in full: it adds four database indexes, and
-  `CLAUDE.md` makes any data-model change an Owner-approval gate that no delegated plan gate
-  covers; and it adopts the first charting library this project has ever had, which is a
-  new-dependency gate on the same list. Everything else is self-certified and needs no further
-  sign-off. Both gates are stated once, in full, where the Owner reads them — see **§ Data Model**
-  and **§ Owner-approval flags (✋)**.
+- **Status:** **Fully approved — Principal-Engineer self-certified, and both Owner-approval flags
+  ruled by the Project Owner on 2026-08-26.** This plan could not be self-certified in full: it
+  adds four database indexes, and `CLAUDE.md` makes any data-model change an Owner-approval gate
+  that no delegated plan gate covers; and it adopts the first charting library this project has
+  ever had, which is a new-dependency gate on the same list. **Both gates are now cleared** — see
+  **§ Owner rulings on both flags**, immediately after the flags themselves. No approval remains
+  outstanding, and no milestone is withheld from the Task Planner.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-26
 - **PRD:** `docs/product/prd-11-analytics.md` — **Approved** (Project Owner, 2026-08-26), 37
@@ -986,6 +985,37 @@ Stated in full, as the house format requires, because this is the single place t
    once the tables have grown under AC18's indefinite retention, so deferring this gate makes it
    more expensive rather than cheaper.
 
+### Owner rulings on both flags (Project Owner, 2026-08-26)
+
+**Both flags are ruled. Neither milestone is withheld, and the Task Planner may sequence all of
+M1–M7.**
+
+**Flag 1 — charting dependency: APPROVED as recommended.** Adopt **`chart.js` (^4)** plus
+**`@j-t-mcc/vue3-chartjs`** — both packages, which is the option this plan recommends and the one
+`design-11` designs against. The Owner ruled directly on the alternative rather than leaving it
+open: the local-wrapper option is **not** taken. `@j-t-mcc/vue3-chartjs` is the Owner's own
+package, which removes the third-party maintenance exposure that would usually argue for keeping a
+wrapper in-tree, and the forty lines the alternative saves are forty lines this project would then
+own. **The four verification checks in § Dependencies still run** — they are conditions on the
+adopting task, not on the ruling — and the decisive one stands: if the wrapper pulls
+`chart.js/auto`, tree-shaking is lost and the task reports back rather than committing the
+packages. Two facts established above are carried into implementation rather than lost here:
+construction stays **`onMounted`-only**, so a future Inertia SSR entrypoint cannot break the page;
+and a new npm package receives **no automated vulnerability scanning** in this repository, because
+Dependabot is configured for `github-actions` only.
+
+**Flag 2 — four indexes: APPROVED exactly as enumerated.** The change set is the four composite
+indexes in § *Data Model*, in one migration, with the stated column order — grain column first as
+an equality, `status` second, `updated_at` ranging last. That ordering is the property the approval
+rests on rather than an implementation detail: it is what bounds each query by traffic in the
+window rather than by table size, and therefore what makes AC18's indefinite retention cost storage
+rather than query latency. Approved as **additive only**: no table, no column, no enum value, no
+FK, no default, no existing index added to, altered or removed, and no backfill. The timing
+argument was accepted — the same `ALTER TABLE` is cheap now and an operations event once the tables
+have grown under indefinite retention — as was the decision to **keep** the now-redundant
+`delivery_attempts (proxy_id, status)` prefix index rather than fold a non-additive drop into an
+additive change; reclaiming that space remains a separate later decision with its own gate.
+
 **Not tripped, verified item by item against `CLAUDE.md`'s major-decision list:** no Composer
 dependency; no stack change (`docs/stack/stack.md` untouched — no row changes, and both dependency
 options sit inside the existing Vue/Vite/pnpm frontend); **no new permission, role, policy or
@@ -1056,6 +1086,8 @@ list.** The Owner must rule on (1) the charting dependency, choosing between ado
 as recommended and adopting `chart.js` alone, and (2) the four-index change set exactly as
 enumerated in § *Data Model*. Everything else in this plan needs no further sign-off.
 
-- **Next Agent:** **Task Planner — after Owner approval of items 1 and 2.** M2, M3, M4 and M5 can
-  be broken down and sequenced immediately; **M1 waits on flag 2** and **M6/M7 wait on flag 1**.
+- **Next Agent:** **Task Planner — unblocked.** Both Owner flags were ruled on 2026-08-26
+  (§ *Owner rulings on both flags*), so the earlier sequencing constraint no longer applies:
+  **M1–M7 may all be broken down and sequenced** — M1 under the approved four-index change set,
+  M6/M7 under the approved two-package charting dependency.
 
