@@ -1,21 +1,32 @@
 # Design Spec: Analytics / stats
 
-- **Status:** **Fully approved — all six required corrections landed and cleared** (design gate,
-  delegated per `CLAUDE.md`). All nine flagged design calls are **accepted as designed**. Five of
-  the six corrections (C2–C6) changed no approved outcome and landed **under this approval**.
-  **C1 (drill-through fidelity)** was reserved for a section-scoped re-check; that re-check was
-  performed on **2026-08-26** against Flow E and Screen 4 and **C1 is cleared** — no re-check is
-  outstanding and nothing in this spec is pending. The spec is **ready for Principal Engineer
-  handoff**. One feasibility dependency travels with it and does not hold the gate: `Q-11-03`
-  **item (10)** (can the Events list filter events by delivery/attempt outcome at either grain).
-  See § Corrections landed, at the end of this document, for what changed and where, and
-  § C1 re-check outcome for the ruling.
+- **Status:** **Amendment B revision — pending Product Manager re-approval.** PRD-11
+  Amendment B (Product Manager, 2026-08-26) sets the trend series' bucket size **per
+  window** — hourly on the 24-hour window (24 points), daily on the 7- and 30-day
+  windows (7 and 30 points) — and narrows the per-bucket drill-through into Flow E
+  to **day buckets only**; an hourly bucket owes no drill-through. This spec is
+  revised to match. **§ Amendment B changes**, at the end of this document, lists
+  every spot touched and why. **Nothing Amendment B does not name is reopened** —
+  the two-unit labelling rule, the no-verdict rule, the empty-state treatments, the
+  chart colour tokens, and the three-chip row on Screen 4 all stand exactly as the
+  prior approval left them.
+- **Prior status (fully approved 2026-08-26; superseded only where Amendment B says
+  so):** all six required corrections (C1–C6) landed and cleared (design gate,
+  delegated per `CLAUDE.md`). All nine flagged design calls were **accepted as
+  designed**. See § Corrections landed and § C1 re-check outcome, at the end of this
+  document, for that record — unchanged by this revision.
 - **Author:** Designer
-- **PRD:** `docs/product/prd-11-analytics.md` (Approved, Project Owner, 2026-08-26; **amended
-  2026-08-26 — Amendment A**, two clarifications this gate raised: AC12's zero-denominator rate
-  and the grain at which AC16/AC20 are obliged)
-- **Approved by / date:** **Product Manager, 2026-08-26.** See § Approval record (design gate)
-  at the end of this document for the full verdict, the per-call rulings, and the corrections.
+- **PRD:** `docs/product/prd-11-analytics.md` (Approved, Project Owner, 2026-08-26;
+  **amended 2026-08-26 — Amendment A**, two clarifications the design gate raised:
+  AC12's zero-denominator rate and the grain at which AC16/AC20 are obliged; **amended
+  again 2026-08-26 — Amendment B**, the per-window bucket size and the day-grain-only
+  drill-through obligation this revision carries)
+- **Approved by / date:** **Product Manager, 2026-08-26**, for everything this
+  revision does not touch. **This revision itself is not yet approved** — it returns
+  to the Product Manager per Amendment B's instruction (the design gate is delegated,
+  and the Designer never approves its own spec). See § Approval record (design gate)
+  at the end of this document for the prior full verdict, the per-call rulings, and
+  the corrections.
 
 > **Scope note.** #11 adds **no new page and no new "Analytics" area** (UX Direction —
 > "extend, do not annex"). It makes two existing surfaces show what has always been
@@ -36,14 +47,21 @@
 ## Decisions carried forward (Owner rulings; not re-litigated here)
 Restated so this spec's choices read as consequences, not inventions:
 - **Tier 3, both units, both binding (Q-11-01, Q-11-02).** Counts, per-destination
-  split, daily trend, drill-through, retry/terminal/replay insight, latency with a
+  split, trend, drill-through, retry/terminal/replay insight, latency with a
   high percentile. **Both** the delivery-level and attempt-level figures are always
   shown together, distinctly labelled, never as a toggle/tab/dropdown pair (AC13/AC14).
 - **No verdict (AC22).** No threshold colour, no badge, no reference line, no
   "good"/"bad" language, no ranking presented as fact. Colour may encode **category**
   (which unit, which outcome), never **judgement** (whether a number is acceptable).
 - **No export (AC37).** Not deferred — not designed in, anywhere.
-- **Daily buckets; 24h/7d/30d windows, default 30d (AC16/AC17).**
+- **Bucket size varies by window; 24h/7d/30d windows, default 30d (AC16/AC17, PRD-11
+  Amendment B(i)).** The 24-hour window buckets **hourly** (24 points); the 7-day and
+  30-day windows bucket **daily** (7 and 30 points). Buckets partition the window —
+  no gap, no overlap, no record double-counted, no empty bucket dropped — and every
+  point names the period it covers (AC8). **The per-bucket drill-through into Flow E
+  is obliged at day buckets only (Amendment B(ii))** — an hourly bucket owes no
+  drill-through, and must never carry a day-grained one. See Flow C step 3 and
+  Flow E for how a member still reaches the evidence on the 24-hour window.
 - **Deleted proxies/destinations stay in past figures, labelled as deleted, with no
   actions against them (AC6).**
 - **"Drill down per webhook" = the proxy; the floor is the already-shipped per-event
@@ -90,7 +108,8 @@ these deliveries succeeded — see Retry & replay below"), so the same healthy t
 can never be misread as either "everything is fine" or "something was lost." Below
 that, a table lists every proxy the member can see with the same two figures and a
 terminal-failure count, letting them spot the one that looks wrong without opening
-each one. A daily trend chart shows both figures as two lines across the window, and
+each one. A trend chart — hourly on the 24-hour window, daily on the 7- and 30-day
+windows — shows both figures as two lines across the window, and
 a row of plain-language facts — how many deliveries succeeded only after a retry, how
 many gave up entirely, how much retrying happened, how much of it was a manual replay
 — sits below the chart as *what's behind that number*, never competing with it.
@@ -152,14 +171,43 @@ long deliveries take.")*
    renders immediately after the header, before **Ingest URL** (Screen 2).
 2. Sees the same two-tier headline + bridge sentence, scoped to this proxy, for the
    carried-over (or default 30d) window.
-3. Sees the **daily trend chart**: one line per unit, both present, both labelled,
-   never a toggle between them (AC14(c)). **Each row of the chart's "View as
-   table" fallback is a link into Flow E** for that day, scoped to this proxy,
-   narrowing the window to that single day, filtered to terminal failure at the
-   row's unit (delivery-level from the delivery-rate cell, attempt-level from the
-   attempt-rate cell) — the chart canvas itself carries no click target, only its
+3. Sees the **trend chart**: one line per unit, both present, both labelled, never
+   a toggle between them (AC14(c)). The chart buckets **hourly** on the 24-hour
+   window and **daily** on the 7- and 30-day windows (PRD-11 Amendment B(i)) — the
+   chart canvas itself carries no click target at either bucket size, only its
    accessible table does (consistent with § Accessibility's "charts are not the
    only way to reach the data").
+   - **At a day bucket** (7d/30d), **each row of the chart's "View as table"
+     fallback is a link into Flow E** for that day, scoped to this proxy,
+     narrowing the window to that single day, filtered to terminal failure at the
+     row's unit (delivery-level from the delivery-rate cell, attempt-level from
+     the attempt-rate cell) — unchanged from `Q-11-04`.
+   - **At an hourly bucket** (24h), **a row's rate cells are not links.** They
+     render as plain values — the same weight, colour and typography as every
+     other table cell, no underline-on-hover, no `Link` wrapper — exactly the
+     "not a link" treatment this spec already gives the Dashboard Proxies table's
+     rate-shaped cells (Flow B step 5). This is not a disabled or greyed-out
+     control; there is simply nothing to click, because Amendment B(ii) forbids
+     a day-grained link on an hourly row outright and an hour-precise
+     drill-through is not part of #11 (permitted, not required, and not built
+     here). A member reaches the events behind an hourly figure through the
+     three window-grain entry points that work unchanged on the 24-hour window —
+     the Dashboard Proxies table's Terminal failures cell, this proxy's own
+     Retry & replay Terminal failure tile (step 4 below), and the Destinations
+     table's View events action (Flow D step 3) — landing on the 24-hour Events
+     list, where each event's own timestamp is how a member finds a particular
+     hour (per-event surface, unchanged, AC21).
+   - **The table's first column follows the same split.** At a day bucket the
+     header reads **"Date"** with a calendar-date value (e.g. `Aug 12, 2026`),
+     unchanged. At an hourly bucket the header reads **"Hour"** with a value that
+     states the calendar date together with the hour (e.g. `Aug 25, 2:00 PM`,
+     naming the hour the bucket begins, by the same naming convention a day
+     bucket's date names the day it spans) — **never a bare hour-of-day alone**.
+     A rolling 24-hour window ordinarily crosses a calendar-date boundary, so an
+     hour label without its date would force a member to infer which day a point
+     falls on from its position in the table, which is exactly what Amendment
+     B(i) forbids ("a member must never have to infer a point's period from its
+     position").
 4. Sees the **Retry & replay** row: eventual success, terminal failure, retry volume,
    live-vs-replay split (AC19) — read as "what sits behind the headline," visually
    subordinate to it. **The Terminal failure tile is a link into Flow E**, filtered
@@ -199,7 +247,10 @@ figure (Screen 1's headline, Screen 1's "Retry & replay" tiles, Screen 1's Trend
 chart) is **not** a drill-through entry point: there is no single proxy for it to
 land on, and aggregating a team-wide Events list is a new surface this spec does not
 build. Only figures that already resolve to one proxy (a Proxies-table row, a
-proxy's own Analytics card, a destination row) can drill through.
+proxy's own Analytics card, a destination row) can drill through. **The Trend
+chart's entry point is itself conditional on bucket size (PRD-11 Amendment B(ii))**
+— present at a day bucket, absent at an hourly one — stated as two separate rows
+below so neither case reads as an omission.
 
 | Entry point | Shape | Filters carried into the Events list |
 |---|---|---|
@@ -207,7 +258,8 @@ proxy's own Analytics card, a destination row) can drill through.
 | Dashboard "Proxies" table — Delivery success / Attempt success cells | rate-shaped | **not a link** — reach that proxy's evidence via Name/**View** → Flow C instead |
 | Proxy Show "Retry & replay" — **Terminal failure** tile (Screen 2, Flow C step 4) | failure-shaped | proxy (current) · window · outcome = terminal failure, delivery-level |
 | Proxy Show "Retry & replay" — Eventual success / Retry volume / Live vs replay tiles | not failure-shaped | **not links** |
-| Proxy Show Trend chart's "View as table" row, per day, per unit (Screen 2, Flow C step 3) | failure-shaped | proxy (current) · window narrowed to that single day · outcome = terminal failure, at the clicked cell's unit (delivery- or attempt-level) |
+| Proxy Show Trend chart's "View as table" row, per **day** bucket, per unit — **7d/30d windows only** (Screen 2, Flow C step 3) | failure-shaped | proxy (current) · window narrowed to that single day · outcome = terminal failure, at the clicked cell's unit (delivery- or attempt-level) |
+| Proxy Show Trend chart's "View as table" row, per **hourly** bucket — **24h window only** (Screen 2, Flow C step 3) | **not an entry point** | **no link, at either unit** — an hourly row's rate cells are plain values (Amendment B(ii) forbids a day-grained link on an hourly row); reach the 24-hour window's evidence through the window-grain entry points above instead |
 | Destinations table — **View events** action (Screen 3, Flow D step 3) | total-shaped (not failure-specific) | proxy (current) · destination · window — **no outcome filter** (Flow D step 3) |
 
 Every failure-shaped entry point narrows the list to the failing records at its own
@@ -273,8 +325,19 @@ Card "Proxies"                    subtitle "Last {window}" (text-sm text-muted-f
 
 Card "Trend"
   [dual-line chart: Delivery success — solid · Attempt success — dashed]
-  <Collapsible> "View as table" → data table, same series, one row per day
-  (chart's own axis/labelling already states the window it spans — no separate caption needed)
+  bucket: one point per hour (24h window) or one point per day (7d/30d windows)
+  <Collapsible> "View as table" → data table, same series, one row per bucket
+    first column: "Hour" + date-qualified hour value on 24h · "Date" + calendar
+    date on 7d/30d (see Flow C step 3's "table's first column" note — identical
+    format here; this table carries no per-row link at either bucket size, per
+    Flow E's "team-level figure is not a drill-through entry point")
+  (chart's own axis states the period each point covers, in the bucket's own
+  unit — hours on 24h, dates on 7d/30d — which is unambiguous for a date on its
+  own but not for a bare hour in a window that crosses a calendar-date boundary;
+  on the 24h window the axis states the date alongside the hour at the point
+  where the window crosses into a new calendar day, so a member is never left to
+  infer the date from a tick's position. No separate caption is added at either
+  bucket size — see § Accessibility for the matching aria-label wording)
 
 Card "Retry & replay"             subtitle "Last {window}" (text-sm text-muted-foreground)
   4 stat tiles: Eventual success (deliveries) | Terminal failure (deliveries) |
@@ -284,7 +347,7 @@ Card "Latency"                    subtitle "Last {window}" (text-sm text-muted-f
   dt "Average" / dd "340 ms"  —or—  dt "Average" / dd "No data"
   dt "95th percentile" / dd "1.2 s"  —or—  "No data"
   p "Excludes time spent waiting in the queue."
-  <Collapsible> "View as table" (if a daily latency series is shown — see Handoff)
+  <Collapsible> "View as table" (if a bucketed latency series is shown — see Handoff)
 ```
 
 **States:**
@@ -333,7 +396,10 @@ Card "Analytics"                                          (NEW)
   dt "Delivery success" / dd "100%" / "42 of 42 · last 30 days"
   dt "Attempt success — destination health" / dd "67%" / "28 of 42 · last 30 days"
   p (bridge sentence, as Screen 1)
-  [dual-line trend chart] + "View as table"
+  [dual-line trend chart, bucketed hourly on 24h / daily on 7d,30d] + "View as
+    table" (this table's rows link into Flow E at a day bucket only — see Flow C
+    step 3 and Flow E's entry-point table for the hourly non-link treatment and
+    the first column's "Hour"/"Date" split)
   h3 "Retry & replay"            subtitle "Last {window}" (text-sm text-muted-foreground)
   4 stat tiles: Eventual success (deliveries) | Terminal failure (deliveries) |
   Retry volume (attempts) | Live vs replay (deliveries)
@@ -453,6 +519,8 @@ raised as a new item on `Q-11-03` (see Open Questions) rather than assumed.
 | Filter chips (Events list) — window, destination, **outcome** | small `Badge`-shaped composition with a remove control | **New small composition** — no existing chip/tag primitive in this app; built from `Badge` + a `button` with an `aria-label` (never an icon-only, unlabelled `×`). Outcome is a third instance of the same composition (**C1**), not a new component |
 | Deleted-row label | muted `Badge variant="outline"` | Reused — same treatment `design-06` used for expired/never-captured states |
 | Card/table window subtitle ("Last {window}") | plain `p`/`CardDescription`, muted, directly under the card or table title | **New small composition**, reused wherever a card or table displays a figure but sits away from the page-level `WindowSelector` (Proxies table, Retry & replay tiles, Latency card, Destinations table) — states the active window locally so it never has to be inferred from a control that may be off-screen (AC8; **C2**) |
+| Trend accessible table — bucket-conditional row (Proxy Show only) | day bucket: `TableCell` wrapping a `Link`, unchanged from `Q-11-04`. Hourly bucket: plain `TableCell`, no `Link` — same "not a link" treatment already given the Dashboard Proxies table's rate cells (Flow B step 5) | **New conditional composition** on the existing linked-cell pattern — no new primitive, no disabled/greyed-out variant; the cell is either a link or an ordinary value, never a link-styled non-control (PRD-11 Amendment B(ii)) |
+| Trend accessible table — first column | `TableHead` + `TableCell`, header and value format keyed to the row's bucket size | **New small composition** — header/value read "Date"/calendar-date at a day bucket, "Hour"/date-qualified-hour at an hourly bucket (see Flow C step 3); same component on the Dashboard's table, which additionally never links at either bucket size (Flow E) |
 
 **No new `ui/*` primitive is introduced.** The only new dependency this spec's
 components imply is the charting library itself, which is a named Owner-suggested,
@@ -503,9 +571,12 @@ Developer, not a Designer requirement.
   table" toggle (not hidden until hover, not JS-injected only after an event the
   user can't discover) — the chart canvas itself may be marked non-essential to
   assistive technology (e.g., `aria-hidden="true"` on the canvas element, with the
-  surrounding figure carrying a short `aria-label` summary, e.g. "Daily delivery
-  and attempt success rate, last 30 days — see table below for exact values") since
-  the sibling table is the authoritative accessible representation.
+  surrounding figure carrying a short `aria-label` summary that names the bucket
+  size along with the window, e.g. "Daily delivery and attempt success rate, last
+  30 days — see table below for exact values" on the 7d/30d windows, and "Hourly
+  delivery and attempt success rate, last 24 hours — see table below for exact
+  values" on the 24h window) since the sibling table is the authoritative
+  accessible representation.
 - **Non-colour encodings are mandatory, not supplementary.** The trend chart's two
   lines are distinguished by **line style** (solid vs dashed) in addition to
   colour; the live-vs-replay stat is expressed as **two labelled numbers** ("42
@@ -647,7 +718,9 @@ attempt grain. Written into `Q-11-03` as a new item — see § Handoff.
 
 ## Handoff
 - **Inputs:** `docs/product/prd-11-analytics.md` (Approved, esp. § Definitions, § UX
-  Direction, AC6–AC22, AC25/AC26); `docs/questions/prd-11-q-11-01-analytics-
+  Direction, AC6–AC22, AC25/AC26; **Amendment B**, Product Manager 2026-08-26 — the
+  per-window bucket size and the day-grain-only drill-through obligation this
+  revision carries); `docs/questions/prd-11-q-11-01-analytics-
   dashboard-scope.md` (RESOLVED — Tier 3, both units binding, drill-down = the
   proxy, windows/buckets, indefinite retention, pre-#6 row treatment);
   `docs/questions/prd-11-q-11-02-throughput-and-delivery-targets.md` (RESOLVED — no
@@ -696,16 +769,20 @@ attempt grain. Written into `Q-11-03` as a new item — see § Handoff.
   through browser style computation on a real element sidesteps both failure modes
   because the output format is never assumed. This is a technical note for the
   Principal Engineer, not a design requirement with a UI-visible consequence.
-- **Outstanding Questions:** None blocking this spec's approval — resolved at the
-  design gate (see § Approval record below). Two feasibility questions are folded
-  into the Principal Engineer's already-open, non-blocking `Q-11-03` (items (9) and
-  the new item (10), raised by correction **C1**); the new-dependency Owner gate is
-  named but not approved here, per PRD-11's own Handoff.
-- **Next Agent:** **Product Manager**, to approve this spec against PRD-11 (design
-  gate, delegated per `CLAUDE.md`). On approval, hands to the **Principal
-  Engineer** for technical design, which also carries the open, non-blocking
-  `Q-11-03` and the new-dependency and data-model Owner gates named in PRD-11's
-  Handoff.
+- **Outstanding Questions:** None. The prior approval left none blocking (see
+  § Approval record below); this Amendment B revision raises no new one — bucket
+  size and drill-through availability are both fully specified above, so nothing
+  here awaits a PE feasibility answer the way C1 briefly did. Two feasibility
+  questions from the prior approval are still folded into the Principal Engineer's
+  already-open, non-blocking `Q-11-03` (items (9) and (10)), unaffected by this
+  revision; the new-dependency Owner gate is named but not approved here, per
+  PRD-11's own Handoff.
+- **Next Agent:** **Product Manager**, to approve this Amendment B revision against
+  PRD-11 Amendment B (design gate, delegated per `CLAUDE.md`) — see § Amendment B
+  changes below for the complete list of what changed and where. On approval, this
+  spec is fully approved again and hands to the **Principal Engineer**, who is
+  amending `plan-11-analytics.md` for the same ruling in parallel and needs nothing
+  further from this revision beyond what § Amendment B changes states.
 
 ## Approval record (design gate)
 
@@ -1025,3 +1102,103 @@ call and is **not** a reason to hold C1: this gate rules on the design as specif
 Principal Engineer finds the filter unachievable as designed, that returns to the Designer as
 a fresh correction — item (10) deliberately pre-approves no fallback, because AC10 requires
 the outcome filter to exist.
+
+## Amendment B changes (Designer, 2026-08-26)
+
+Raised by the Project Owner from the built feature's behaviour: on the 24-hour window the
+trend chart rendered a single point at the far left of an otherwise empty chart, because a
+daily series across a 24-hour window can only ever produce one or two points. PRD-11
+Amendment B rules **(i)** the bucket size depends on the window — hourly on 24h, daily on
+7d/30d — and **(ii)** the per-bucket drill-through is obliged at day buckets only; an hourly
+bucket owes none, and must never carry a day-grained one. This section is the complete record
+of what changed in this spec to carry that ruling, matching the seven spots PRD-11 Amendment B
+named as the Designer's plus everything else this revision found.
+
+**The two decisions this revision had to make that PRD-11 Amendment B left to the Designer:**
+
+1. **How a 24-hour trend row reads without a drill-through link.** It reads as a plain value —
+   the same weight, colour and typography as every other cell in the table, no underline, no
+   `Link` wrapper. This is the identical treatment this spec already gives the Dashboard
+   Proxies table's rate-shaped cells (Flow B step 5) and the "Retry & replay" tiles that are
+   not failure-shaped (Flow C step 4) — a precedent already established for "not every cell in
+   a stats table is a link," so no new visual language was invented. It is **not** a disabled
+   control, a greyed-out link, an empty action column, or copy phrased as a limitation — per
+   Amendment B(ii)'s explicit instruction, and per this spec's own standing rule that no control
+   is ever conditioned on a figure's value (§ Interactions).
+2. **How a member still reaches the events behind a 24-hour figure.** Not through the trend
+   table at all — through the three window-grain entry points PRD-11 Amendment B itself names
+   as already working unchanged on the 24-hour window: the Dashboard Proxies table's Terminal
+   failures cell, the proxy's own Retry & replay Terminal failure tile, and the Destinations
+   table's View events action. All three carry the 24-hour window into Flow E exactly as they
+   do for 7d/30d, landing on the per-event surface, where each event's own timestamp is how a
+   member finds a particular hour (AC21, unchanged, PRD-06 AC25). Flow C step 3 and the Flow E
+   entry-point table state this explicitly rather than leaving it implied.
+
+**The accessible table's first column.** Header and value format now switch on bucket size,
+same component on both Dashboard and Proxy Show: at a day bucket, header **"Date"** with a
+calendar-date value, unchanged. At an hourly bucket, header **"Hour"** with a value naming the
+calendar date together with the hour (e.g. `Aug 25, 2:00 PM`) — never a bare hour-of-day. A
+rolling 24-hour window ordinarily crosses a calendar-date boundary, so an hour label without
+its date would force a member to infer which day a point falls on from its position in the
+table — exactly what Amendment B(i) forbids ("a member must never have to infer a point's
+period from its position"). This is a new decision beyond simply relabelling: a bare "2 PM"
+column would have satisfied AC8's letter (every point has *a* label) while still leaving a
+member to guess the date from position, which is the same failure mode Amendment B(i) names.
+
+**Whether "the axis already states the window, no separate caption needed" still holds.** For
+day buckets, yes, unchanged — a calendar date is unambiguous on its own, and 7/30 date labels
+in sequence convey the window's span without help. **For hourly buckets, the reasoning does
+not carry over unmodified**, for the same reason as the table's first column: bare hour-of-day
+tick labels ("2 PM", "3 PM", …) do not by themselves disambiguate which calendar day they
+belong to, and a rolling 24-hour window will typically cross one. Rather than add a caption
+(which the original reasoning was specifically written to avoid), this spec resolves it the
+same way as the table: the axis states the date at the tick where the window crosses into a
+new calendar day, so the date is visible exactly where it is needed and nowhere else — the
+axis still states the window it spans without a separate caption, on either bucket size, once
+that one qualification is added. See Screen 1's Trend card mockup and § Accessibility.
+
+**Every location PRD-11 Amendment B named, and where it landed:**
+
+| # | Location named by Amendment B | Status | Where |
+|---|---|---|---|
+| 1 | § Summary's "Daily buckets; 24h/7d/30d windows" line | **Landed** | § Decisions carried forward, "Bucket size varies by window" bullet (this spec has no separate "§ Summary"; the equivalent line lived in § Decisions carried forward) |
+| 2 | Screen 1's Trend card — "one row per day" | **Landed** | Screen 1 mockup, Trend card block |
+| 3 | Screen 2's Analytics card trend and its "View as table" fallback | **Landed** | Screen 2 mockup, trend chart line |
+| 4 | Accessible table's first column — header and value format | **Landed** | Flow C step 3 (full statement), Components table (new "Trend accessible table — first column" row), Screen 1/2 mockups (cross-reference) |
+| 5 | Flow C step 3 — "the **daily** trend chart" and its per-row link "narrowing to that single day" | **Landed** | Flow C step 3, rewritten with day/hourly sub-bullets |
+| 6 | Flow E's entry-point table row for the Proxy Show trend "View as table" row | **Landed** | Flow E preamble (new sentence) and entry-point table (split into two rows: day-bucket entry point, hourly-bucket non-entry-point) |
+| 7 | The chart's own axis labelling — must state hours on 24h; check the "no separate caption" reasoning | **Landed, reasoning qualified, not abandoned** | Screen 1 mockup (Trend card, axis note), § Accessibility (aria-label example, bucket-conditional) |
+
+**Found beyond the seven named locations, and fixed:**
+
+- **Overview paragraph's "A daily trend chart shows both figures as two lines across the
+  window"** — the feature-level summary at the top of the spec, unnamed by PRD-11 Amendment B
+  but carrying the same stale "daily" claim. Now states the chart is hourly on 24h, daily on
+  7d/30d.
+- **§ Decisions carried forward's "Tier 3, both units, both binding" bullet** — listed "daily
+  trend" as shorthand for one of Tier 3's elements. The word is dropped (now "trend") since the
+  bucket size is no longer uniformly daily; the bullet was a restatement of the Owner's ruling,
+  not itself a granularity requirement, so nothing else about it changes.
+- **Components table** — gained two new rows (the bucket-conditional link/non-link cell, and
+  the bucket-conditional first column) rather than folding the change silently into the existing
+  "Sortable column header" row, so a reader scanning Components sees both new behaviours named.
+- **§ Handoff's PRD input line and Outstanding Questions/Next Agent** — updated to cite
+  Amendment B and to make clear this revision, not only the original spec, is what returns to
+  the Product Manager.
+
+**What Amendment B does not touch, confirmed unchanged:** the two-unit labelling rule (AC14),
+the no-verdict rule (AC22), the empty-state treatments (AC12, Amendment A(i), corrections
+C3/C4), the chart colour tokens (*Flagged design call 6*), and the three-chip row on Screen 4
+(C1). None of the six prior corrections (C1–C6) is reopened by anything in this revision — no
+edit above touches Flow D, Screen 3, the Destinations card, or any figure's unit, empty state,
+or colour.
+
+**Escalated rather than decided:** nothing. Every decision PRD-11 Amendment B left open —
+the "not a link" presentation, the route to the evidence on 24h, the accessible table's hour
+value format, and whether the axis-caption reasoning survives — was a detail-level UX call
+within an already-ruled requirement (Amendment B(ii) states the obligation; this spec states
+the presentation), which is squarely inside the Designer's decision authority. No requirement
+gap and no feasibility doubt surfaced while making them.
+
+**Status:** this revision is **not self-approved** — it returns to the **Product Manager**
+per § Handoff, Next Agent, above.
