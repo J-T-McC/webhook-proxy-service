@@ -309,7 +309,33 @@
     rules); a member who can update, can; **no new permission exists** — asserted by pinning the
     `TeamPermission` case list unchanged (AC5).
 - **Testing:** the cases above; `Http::fake()`, `Queue::fake()`, `travel()`.
-- **Completion notes:** _pending_
+- **Completion notes:** Added `tests/Feature/Proxies/ModeSwitchSafetyAcceptanceTest.php` (11 tests)
+  proving plan §Architecture E's guarantees hold via existing, mode-independent machinery — no
+  production code needed anywhere in this task; `PipelineFactory` not touched. Covered:
+  Simple→Enhanced composes `CaptureDispatchedStep` for the next event only, never retroactively for
+  one already dispatched; Enhanced→Simple stops new output and deletes none of the existing row; a
+  redelivery of the SAME `ingest_id` straddling a switch in either direction never duplicates a row
+  (`updateOrCreate`'s UNIQUE `webhook_event_id` key) and never errors — a re-run under a mode that no
+  longer composes the step is a structural no-op; a downgrade with one FIFO line held
+  `awaiting_retry` and a second event still pending, where the held retry then SUCCEEDS (the
+  success-branch complement to T3's terminal-failure case) — the line settles and advances to the
+  still-pending sibling with nothing lost, duplicated, or stranded; an event's dispatched output
+  captured under Enhanced is still erased by the normal `PurgeExpiredPayloads` pass after a downgrade
+  (retention expiry remains the only eraser, AC20); a replay on a now-Simple proxy neither writes nor
+  deletes the event's existing dispatched-output row (byte-identical `body` before/after); switching
+  mode mutates only the `mode` column — proxy id, `created_at`, destination id, and `ingestUrl()` are
+  all unchanged across a real `update` request; no separate mode-change route exists
+  (`proxies.mode`/`toggle-mode`/`switch-mode` all absent), the same `store`/`update` endpoints carry
+  it (AC2); `simple` is the actual DATABASE column default (a bare `new Proxy(...)->save()` with no
+  `mode` key set, not the factory, which always sets it explicitly) for a proxy created without an
+  explicit choice (AC3); a team member without `UpdateProxy`/ownership is 403'd attempting to change
+  mode and the proxy's mode is verified unchanged, while the creator (who holds it) can; and the
+  `TeamPermission` case list is pinned verbatim (14 cases, unchanged) — no new permission exists
+  (AC5).
+
+  Verified: `./vendor/bin/sail test --filter ModeSwitchSafetyAcceptanceTest` (11 passed, 45
+  assertions); full suite `./vendor/bin/sail test --parallel` (748 passed, 2742 assertions);
+  `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ---
 
