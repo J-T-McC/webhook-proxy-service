@@ -2,10 +2,13 @@
 
 namespace App\Services;
 
+use App\Data\Analytics\RetryReplayFigures;
 use App\Data\Analytics\UnitFigure;
 use App\Enums\AnalyticsWindow;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use stdClass;
 
 /**
  * The single resolver for every number item #11 displays (plan-11 §
@@ -70,6 +73,28 @@ class DeliveryStatistics
     }
 
     /**
+     * Retry/replay figures (AC19) plus the bridge-sentence count for the
+     * given team, over the given window.
+     *
+     * @return array{retryReplay: RetryReplayFigures, bridgeFailedAttempts: int}
+     */
+    public function retryReplayForTeam(int $teamId, AnalyticsWindow $window): array
+    {
+        return $this->retryReplayAndBridge(['team_id' => $teamId], $window);
+    }
+
+    /**
+     * Retry/replay figures (AC19) plus the bridge-sentence count for the
+     * given proxy, over the given window.
+     *
+     * @return array{retryReplay: RetryReplayFigures, bridgeFailedAttempts: int}
+     */
+    public function retryReplayForProxy(int $proxyId, AnalyticsWindow $window): array
+    {
+        return $this->retryReplayAndBridge(['proxy_id' => $proxyId], $window);
+    }
+
+    /**
      * The delivery-level and attempt-level `UnitFigure` pair for one grain,
      * from `deliveries` and `delivery_attempts` respectively — never joined
      * to each other. Pre-#6 `delivery_attempts` rows (`delivery_id IS NULL`)
@@ -84,24 +109,101 @@ class DeliveryStatistics
     private function unitFigures(array $constraints, AnalyticsWindow $window): array
     {
         return [
-            'delivery' => $this->unitFigure('deliveries', $constraints, $window),
-            'attempt' => $this->unitFigure('delivery_attempts', $constraints, $window),
+            'delivery' => $this->deliveryUnitFigure($this->deliveryAggregates($constraints, $window)),
+            'attempt' => $this->attemptUnitFigure($this->attemptAggregates($constraints, $window)),
         ];
     }
 
     /**
-     * One table's success/failure `UnitFigure` for one grain, over one
-     * window. `rate` is `null` when `total === 0` (Amendment A(i)) — never
-     * `0`.
+     * `RetryReplayFigures` plus the bridge-sentence count for one grain.
+     * `eventualSuccess` and the bridge count are the two deliberate places
+     * this service reads across both tables for one grain (plan-11 §
+     * Architecture A) — everything else here reuses the single grouped
+     * aggregate per table.
+     *
+     * @param  array<string, int>  $constraints
+     * @return array{retryReplay: RetryReplayFigures, bridgeFailedAttempts: int}
+     */
+    private function retryReplayAndBridge(array $constraints, AnalyticsWindow $window): array
+    {
+        $deliveryRows = $this->deliveryAggregates($constraints, $window);
+        $attemptRows = $this->attemptAggregates($constraints, $window);
+
+        $retryReplay = new RetryReplayFigures(
+            eventualSuccess: $this->eventualSuccessCount($constraints, $window),
+            terminalFailure: (int) $deliveryRows->where('status', 'failed')->sum('aggregate'),
+            retryVolume: (int) $attemptRows->sum('retry_aggregate'),
+            live: (int) $deliveryRows->where('kind', 'original')->sum('aggregate'),
+            replay: (int) $deliveryRows->where('kind', 'replay')->sum('aggregate'),
+        );
+
+        return [
+            'retryReplay' => $retryReplay,
+            'bridgeFailedAttempts' => $this->bridgeFailedAttemptsCount($constraints, $window),
+        ];
+    }
+
+    /**
+     * `deliveries.status = 'succeeded'` count where the delivery took two or
+     * more attempts (AC19(a)) — `EXISTS (delivery_attempts WHERE delivery_id
+     * = deliveries.id AND attempt_number >= 2)`, served by
+     * `UNIQUE(delivery_id, attempt_number)`.
      *
      * @param  array<string, int>  $constraints
      */
-    private function unitFigure(string $table, array $constraints, AnalyticsWindow $window): UnitFigure
+    private function eventualSuccessCount(array $constraints, AnalyticsWindow $window): int
     {
-        $counts = $this->statusCounts($table, $constraints, $window);
+        $query = DB::table('deliveries')
+            ->where('status', 'succeeded')
+            ->whereBetween('updated_at', [$this->windowStart($window), CarbonImmutable::now()])
+            ->whereExists(function ($subQuery) {
+                $subQuery->select(DB::raw(1))
+                    ->from('delivery_attempts')
+                    ->whereColumn('delivery_attempts.delivery_id', 'deliveries.id')
+                    ->where('delivery_attempts.attempt_number', '>=', 2);
+            });
 
-        $succeeded = $counts['succeeded'] ?? 0;
-        $failed = $counts['failed'] ?? 0;
+        foreach ($constraints as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        return $query->count();
+    }
+
+    /**
+     * Failed attempts belonging to the window's succeeded deliveries (the
+     * Screen 1/2 bridge sentence, e.g. "14 attempts failed before these
+     * deliveries succeeded") — the one deliberate two-table join in this
+     * service (plan-11 § Architecture A). Descriptive only, never converted
+     * back into either unit's rate.
+     *
+     * @param  array<string, int>  $constraints
+     */
+    private function bridgeFailedAttemptsCount(array $constraints, AnalyticsWindow $window): int
+    {
+        $query = DB::table('delivery_attempts')
+            ->join('deliveries', 'deliveries.id', '=', 'delivery_attempts.delivery_id')
+            ->where('delivery_attempts.status', 'failed')
+            ->where('deliveries.status', 'succeeded')
+            ->whereBetween('deliveries.updated_at', [$this->windowStart($window), CarbonImmutable::now()]);
+
+        foreach ($constraints as $column => $value) {
+            $query->where("deliveries.{$column}", $value);
+        }
+
+        return $query->count();
+    }
+
+    /**
+     * One `UnitFigure` from `deliveries`' grouped `(status, kind)` rows.
+     * `rate` is `null` when `total === 0` (Amendment A(i)) — never `0`.
+     *
+     * @param  Collection<int, stdClass>  $rows
+     */
+    private function deliveryUnitFigure(Collection $rows): UnitFigure
+    {
+        $succeeded = (int) $rows->where('status', 'succeeded')->sum('aggregate');
+        $failed = (int) $rows->where('status', 'failed')->sum('aggregate');
         $total = $succeeded + $failed;
 
         return new UnitFigure(
@@ -113,17 +215,38 @@ class DeliveryStatistics
     }
 
     /**
-     * `succeeded`/`failed` row counts for one table, one grain, one window —
-     * `pending`/`retrying`/`dispatched` rows are excluded by the `status`
-     * predicate, never counted as failures (AC13).
+     * One `UnitFigure` from `delivery_attempts`' grouped `status` rows.
+     * `rate` is `null` when `total === 0` (Amendment A(i)) — never `0`.
+     *
+     * @param  Collection<int, stdClass>  $rows
+     */
+    private function attemptUnitFigure(Collection $rows): UnitFigure
+    {
+        $succeeded = (int) $rows->where('status', 'succeeded')->sum('aggregate');
+        $failed = (int) $rows->where('status', 'failed')->sum('aggregate');
+        $total = $succeeded + $failed;
+
+        return new UnitFigure(
+            succeeded: $succeeded,
+            failed: $failed,
+            total: $total,
+            rate: $total === 0 ? null : $succeeded / $total,
+        );
+    }
+
+    /**
+     * `deliveries`' single grouped aggregate for one grain, one window:
+     * `(status, kind) => count`. Feeds both the delivery-level `UnitFigure`
+     * and, with no extra query, `RetryReplayFigures`' terminal-failure and
+     * live-vs-replay counts (plan-11 § Architecture B).
      *
      * @param  array<string, int>  $constraints
-     * @return array<string, int>
+     * @return Collection<int, stdClass>
      */
-    private function statusCounts(string $table, array $constraints, AnalyticsWindow $window): array
+    private function deliveryAggregates(array $constraints, AnalyticsWindow $window): Collection
     {
-        $query = DB::table($table)
-            ->select('status', DB::raw('COUNT(*) as aggregate'))
+        $query = DB::table('deliveries')
+            ->select('status', 'kind', DB::raw('COUNT(*) as aggregate'))
             ->whereIn('status', ['succeeded', 'failed'])
             ->whereBetween('updated_at', [$this->windowStart($window), CarbonImmutable::now()]);
 
@@ -131,12 +254,36 @@ class DeliveryStatistics
             $query->where($column, $value);
         }
 
-        /** @var array<string, int> $counts */
-        $counts = $query->groupBy('status')->pluck('aggregate', 'status')
-            ->map(fn (mixed $count) => (int) $count)
-            ->all();
+        return $query->groupBy('status', 'kind')->get();
+    }
 
-        return $counts;
+    /**
+     * `delivery_attempts`' single grouped aggregate for one grain, one
+     * window: `status => (count, retry count)`. Feeds both the attempt-level
+     * `UnitFigure` and, with no extra query, `RetryReplayFigures`' retry
+     * volume (`SUM(attempt_number > 1)`, AC19(c); plan-11 § Architecture B).
+     * `pending`/`retrying`/`dispatched` rows are excluded by the `status`
+     * predicate, never counted as failures (AC13).
+     *
+     * @param  array<string, int>  $constraints
+     * @return Collection<int, stdClass>
+     */
+    private function attemptAggregates(array $constraints, AnalyticsWindow $window): Collection
+    {
+        $query = DB::table('delivery_attempts')
+            ->select(
+                'status',
+                DB::raw('COUNT(*) as aggregate'),
+                DB::raw('SUM(CASE WHEN attempt_number > 1 THEN 1 ELSE 0 END) as retry_aggregate'),
+            )
+            ->whereIn('status', ['succeeded', 'failed'])
+            ->whereBetween('updated_at', [$this->windowStart($window), CarbonImmutable::now()]);
+
+        foreach ($constraints as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        return $query->groupBy('status')->get();
     }
 
     /**

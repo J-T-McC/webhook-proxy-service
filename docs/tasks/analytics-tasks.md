@@ -344,7 +344,23 @@
 - **Testing:** extend `tests/Unit/Services/DeliveryStatisticsUnitFiguresTest.php` (or a new
   `DeliveryStatisticsRetryReplayTest.php`) — one case per AC19 sub-criterion, the replay-fixture
   case, the bridge-count case, the empty-window all-zero case.
-- **Completion notes:** _pending_
+- **Completion notes:** New `tests/Unit/Services/DeliveryStatisticsRetryReplayTest.php`, per the
+  task's own alternative. Refactored T4's private query helpers into `deliveryAggregates()`
+  (`GROUP BY status, kind`) and `attemptAggregates()` (`GROUP BY status`, carrying `SUM(CASE WHEN
+  attempt_number > 1 THEN 1 ELSE 0 END)` in the same pass) so `terminalFailure`, `live`/`replay`,
+  and `retryVolume` all come from the same two aggregate queries T4 already issues — no extra
+  round-trip, per the plan's § Architecture B table. `eventualSuccessCount()` is the
+  `EXISTS(delivery_attempts WHERE delivery_id = deliveries.id AND attempt_number >= 2)` count;
+  `bridgeFailedAttemptsCount()` is the one deliberate two-table `join` in the service, filtered to
+  `delivery_attempts.status = 'failed'` against `deliveries.status = 'succeeded'`, windowed on the
+  deliveries side. Exposed as `retryReplayForTeam()`/`retryReplayForProxy()` (team/proxy grain
+  only, matching plan § Architecture B — no destination-grain retry/replay figures exist).
+  `tests/Unit/Services/DeliveryStatisticsRetryReplayTest.php` covers each AC19 figure
+  independently, the live/replay split with a replay fixture proving the live count isn't
+  inflated or deflated, the bridge count against the T4 canonical fixture's exact composition (2
+  failed attempts behind 1 succeeded delivery), and the all-zero empty-window case. `composer
+  lint`, `composer types:check` (PHPStan level 7, no suppressions), and `./vendor/bin/sail test
+  --parallel` all green (781/781).
 
 ## T6 — `DeliveryStatistics`: latency — average and exact 95th percentile (AC12, AC20, Amendment A(ii); plan Technical rulings 4 and 5)
 - **Description:** Adds `LatencyFigure` computation over `delivery_attempts.duration_ms`, guarded
