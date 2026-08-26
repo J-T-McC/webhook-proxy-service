@@ -74,6 +74,20 @@ doc gets an appended `## Amendment A — superseded answers` table, never an edi
 are never renumbered. The Owner-flag list is restated **in full** in the plan (it is the single place
 the Owner reads it) and grows as the amendment ripples.
 
+**`## Revision A` also covers the PE's *own* post-certification ruling** — a question doc from a
+downstream agent that a fully-approved plan cannot answer as written (plan-11 / `Q-11-04`: the design
+required a per-day drill-through the plan's three-parameter resolver had no mechanism for). Same shape
+as the Owner cases — Revision table at the top, new ruling appended (never renumbered), the affected
+prior ruling rewritten in place with an *(Amended YYYY-MM-DD — Revision A)* parenthetical, dated
+`### Re-certification at Revision A` below the original Certification — with two differences that
+matter: the re-certification names **plan authority under the delegated gate, not an Owner ruling, and
+says none was sought**, and it states explicitly that **no already-ruled Owner flag reopens**. Put the
+"why this needs no Owner gate and no ADR" walk **inside the new ruling** (against `CLAUDE.md`'s
+major-decision list item by item), then add one line for it to the existing *Why no ADR* list.
+Where the ruling has a user-visible shape the upstream spec constrains, resolve it by **reusing the
+approved template with a new value** rather than authoring copy — that is what keeps it off the
+Designer's desk, and say so in the ruling.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
