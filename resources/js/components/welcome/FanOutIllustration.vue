@@ -741,6 +741,62 @@ function drawNodeLabel(
 const INGEST_LABELS = ['Event 1', 'Event 2'];
 const DEST_LABELS = ['Destination 1', 'Destination 2', 'Destination 3'];
 
+// A travelling heat band: the wire is at rest everywhere except around the
+// charge's current position, where it peaks and then drains off behind. The
+// gradient runs p0 to p1, which is an approximation on the quadratic legs but
+// visually indistinguishable at these curvatures.
+function drawHotSegment(
+    state: RenderState,
+    spec: PathSpec,
+    head: number,
+    hot: number,
+    color: string,
+): void {
+    const { ctx, geo, visuals } = state;
+    const idleAlpha = visuals.idleLineAlpha;
+    const peakAlpha = idleAlpha + (visuals.hotLineAlpha - idleAlpha) * hot;
+    const width =
+        (visuals.idleLineWidth +
+            (visuals.hotLineWidth - visuals.idleLineWidth) * hot) *
+        geo.scale;
+
+    const TRAIL = 0.4;
+    const LEAD = 0.06;
+    const gradient = ctx.createLinearGradient(
+        spec.p0.x,
+        spec.p0.y,
+        spec.p1.x,
+        spec.p1.y,
+    );
+    const trailStop = Math.min(0.999, Math.max(0.001, head - TRAIL));
+    const headStop = Math.min(0.999, Math.max(trailStop + 0.001, head));
+    const leadStop = Math.min(1, headStop + LEAD);
+
+    gradient.addColorStop(0, withAlpha(color, idleAlpha));
+    gradient.addColorStop(trailStop, withAlpha(color, idleAlpha));
+    gradient.addColorStop(headStop, withAlpha(color, peakAlpha));
+
+    if (leadStop < 1) {
+        gradient.addColorStop(leadStop, withAlpha(color, idleAlpha));
+    }
+
+    gradient.addColorStop(1, withAlpha(color, idleAlpha));
+
+    ctx.beginPath();
+    ctx.moveTo(spec.p0.x, spec.p0.y);
+
+    if (spec.kind === 'line') {
+        ctx.lineTo(spec.p1.x, spec.p1.y);
+    } else {
+        ctx.quadraticCurveTo(spec.c.x, spec.c.y, spec.p1.x, spec.p1.y);
+    }
+
+    ctx.lineCap = 'round';
+    ctx.lineWidth = width;
+    ctx.strokeStyle = gradient;
+    ctx.stroke();
+}
+
 // Base scene: grid, idle connection lines, resting junction dots, and every
 // node — drawn every frame before any per-entry overlay, and the entirety
 // of the reduced-motion static frame (see drawQueuedNode below).
@@ -836,7 +892,7 @@ function drawQueuedNode(
     // Release is a fixed wall-clock beat, not a fraction of the queued window —
     // Event 2 under FIFO waits several times longer than Event 1 does, and a
     // proportional release would make its hand-off crawl while Event 1's snaps.
-    const RELEASE_MS = 560;
+    const RELEASE_MS = 380;
     const releaseStart = Math.max(0, duration - RELEASE_MS);
     const fadeIn = Math.min(1, elapsed / 320);
 
@@ -1013,30 +1069,32 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
 
         if (entry.kind === 'travel') {
             const hot = heatEnvelope(localT, entry.start, entry.end);
+            const active = localT >= entry.start && localT < entry.end;
+            const t = active
+                ? ease(
+                      entry.easing,
+                      (localT - entry.start) / (entry.end - entry.start),
+                  )
+                : localT >= entry.end
+                  ? 1
+                  : 0;
 
             if (hot > 0) {
-                const idleWidth = visuals.idleLineWidth * state.geo.scale;
-                const hotWidth = visuals.hotLineWidth * state.geo.scale;
-                const idleAlpha = visuals.idleLineAlpha;
-                const hotAlpha = visuals.hotLineAlpha;
-                const width = idleWidth + (hotWidth - idleWidth) * hot;
-                const alpha = idleAlpha + (hotAlpha - idleAlpha) * hot;
-                // The heated line takes the accent rather than the neutral
-                // border colour, so the wire itself carries the charge instead
-                // of just getting brighter grey.
-                strokeSegment(
-                    ctx,
+                // The wire does not brighten along its whole length at once —
+                // the glow travels with the charge and drains behind it, the
+                // same left-to-right release the queued node's border uses.
+                // Lighting the entire segment uniformly made the pulse
+                // invisible against its own lit path.
+                drawHotSegment(
+                    state,
                     eventPaths[entry.segment].spec,
-                    width,
-                    withAlpha(tokens.accentFrom, alpha),
+                    t,
+                    hot,
+                    tokens.accentFrom,
                 );
             }
 
-            if (localT >= entry.start && localT < entry.end) {
-                const t = ease(
-                    entry.easing,
-                    (localT - entry.start) / (entry.end - entry.start),
-                );
+            if (active) {
                 drawPulse(
                     state,
                     eventPaths[entry.segment].table,
