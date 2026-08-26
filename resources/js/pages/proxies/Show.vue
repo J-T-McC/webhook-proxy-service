@@ -161,16 +161,6 @@ const retryBackoffDisplay = computed(() =>
     proxyRetryBackoffStrategyDisplay(props.proxy.retry_backoff_strategy),
 );
 
-// Mode-summary caption (design-07 Screen 2(a), AC16) — a present-tense
-// one-line statement of what the proxy's current mode means today, sized for
-// a detail row (Amendment B — no dedicated card). References, rather than
-// restates, the Retry policy card's actual values below.
-const modeSummary = computed(() =>
-    props.proxy.mode === 'enhanced'
-        ? `Enhanced mode — stores this proxy's dispatched payload separately from what it received, and lets you configure its retry attempts and backoff below.`
-        : `Simple mode — no dispatched-output storage or per-proxy retry configuration; automatic retry, payload capture, retention, and replay still apply. See Retry policy below for what governs this proxy's retries.`,
-);
-
 /** The three windows the page-level selector switches between (AC17). */
 const WINDOW_VALUES: AnalyticsWindowValue[] = ['24h', '7d', '30d'];
 
@@ -347,9 +337,6 @@ function confirmDeleteProxy(): void {
                     </Button>
                 </div>
             </div>
-            <p class="text-sm text-muted-foreground">
-                {{ modeSummary }}
-            </p>
             <nav class="flex items-center gap-2" aria-label="Time window">
                 <Button
                     v-for="value in WINDOW_VALUES"

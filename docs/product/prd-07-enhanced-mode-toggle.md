@@ -353,6 +353,19 @@ Handoff).
     product presents the simple/enhanced axis and the Async/FIFO axis as a single
     setting, a tier and its option, or a dependency of one on the other, and all
     four combinations remain selectable (PRD-04 UX Direction).
+> **Owner-directed change, 2026-08-26 (post-ship): the mode-summary caption was removed from
+> the proxy detail view.** The Project Owner ruled the sentence redundant — what each mode means
+> is explained where the mode is set, in the edit view — and directed its removal outside the
+> pipeline. **This leaves AC16 partly unmet and the criterion is not rewritten to pretend
+> otherwise.** What still holds: the detail view states which mode the proxy is in, via the mode
+> badge in its header, and it still does not duplicate the retry-policy presentation
+> `design-06` specifies. What no longer holds: the view no longer states *what that mode means
+> for this proxy today*, which was the caption's job. `design-07` Screen 2(a) still specifies
+> the caption, and `design-08` § quotes both mode strings verbatim as inherited context —
+> **neither has been edited**, so a later reader comparing documents to the running application
+> will find this note rather than a silent discrepancy. Reinstating the caption needs no new
+> ruling; removing it was a presentation call, not a requirements change.
+
 16. **Show reflects the proxy's mode and its current meaning.** A proxy's detail
     view states which mode it is in and what that means for it today, consistent
     with AC12, without duplicating the retry-policy presentation `design-06`
