@@ -486,7 +486,29 @@
   query-count assertion for both methods at N = 1/3/10 proxies or destinations, the
   `canDrillThrough` true/false case, the destination union case (live-no-traffic +
   deleted-with-traffic).
-- **Completion notes:** _pending_
+- **Completion notes:** `proxyBreakdown()`'s row set is every proxy the team has, live and
+  soft-deleted (`Proxy::withTrashed()->where('team_id', ...)`), not just proxies with traffic in
+  the window — this is a deliberate reading of the task's "over exactly the id set the aggregate
+  returned" line, which taken literally would drop a zero-traffic live proxy's row entirely.
+  T13/T15 both require a zero-traffic proxy to still render ("0 of 0 delivered", "No deliveries
+  yet"), which is only possible if the row set is the team's full proxy roster, not the narrower
+  aggregate-only set; the narrower "exactly the aggregate's ids" framing does hold for
+  `destinationBreakdown()`, whose task text explicitly states the **union** shape it needs (live
+  destinations ∪ active-but-deleted ones), which is what's implemented. One label-lookup query
+  (`Proxy::withTrashed()`, one of the feature's exactly two `withTrashed()` call sites) plus one
+  grouped aggregate per table (`groupedAggregates()`, new: `GROUP BY $groupColumn, status`,
+  optionally carrying `duration_sum`/`duration_count` — reused by `destinationBreakdown()` for
+  `latencyAverageMs`) gives `proxyBreakdown()` a fixed 3-query cost regardless of proxy count
+  (verified directly via `DB::listen`: `select id,name,deleted_at from proxies...`,
+  `GROUP BY proxy_id,status` on `deliveries`, same on `delivery_attempts`, nothing else).
+  `destinationBreakdown()` costs 3 queries when every id with activity is already live, or 4 when
+  at least one trashed destination has activity (`Destination::withTrashed()->whereIn(...)`, the
+  feature's other `withTrashed()` site) — both O(1) in destination count, never O(N).
+  `tests/Unit/Services/DeliveryStatisticsBreakdownTest.php` covers the AC6 case (soft-delete both
+  a proxy and a destination with activity, figures identical, `isDeleted === true`), the
+  query-count assertion for both methods at N = 1 vs. N = 10, `canDrillThrough` true/false, and
+  the destination union case. `composer lint`, `composer types:check` (PHPStan level 7, no
+  suppressions), and `./vendor/bin/sail test --parallel` all green (796/796).
 
 ## T9 — `DeliveryStatistics`: `forTeam()` / `forProxy()` window assembly, explicit `team_id` scoping, mode independence (AC23, AC25, AC26; plan Technical ruling 7)
 - **Description:** The two public panel methods — `forTeam(int $teamId, AnalyticsWindow $window):

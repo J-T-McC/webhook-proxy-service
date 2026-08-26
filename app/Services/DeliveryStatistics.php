@@ -2,11 +2,15 @@
 
 namespace App\Services;
 
+use App\Data\Analytics\DestinationBreakdownRow;
 use App\Data\Analytics\LatencyFigure;
+use App\Data\Analytics\ProxyBreakdownRow;
 use App\Data\Analytics\RetryReplayFigures;
 use App\Data\Analytics\SeriesPoint;
 use App\Data\Analytics\UnitFigure;
 use App\Enums\AnalyticsWindow;
+use App\Models\Destination;
+use App\Models\Proxy;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -150,6 +154,102 @@ class DeliveryStatistics
     public function retryReplayForProxy(int $proxyId, AnalyticsWindow $window): array
     {
         return $this->retryReplayAndBridge(['proxy_id' => $proxyId], $window);
+    }
+
+    /**
+     * One row per proxy the team has (AC6, AC15), live and soft-deleted
+     * alike — a proxy with no traffic in the window still gets a row (zero
+     * figures, "No deliveries yet" is a Vue-side rendering of `rate ===
+     * null`, not an absent row). Runs a fixed number of queries regardless
+     * of how many proxies the team has (R7): one label-lookup query
+     * (`Proxy::withTrashed()`, one of this feature's exactly two
+     * `withTrashed()` call sites) plus one grouped aggregate per table — no
+     * per-proxy query, ever.
+     *
+     * @return list<ProxyBreakdownRow>
+     */
+    public function proxyBreakdown(int $teamId, AnalyticsWindow $window): array
+    {
+        $proxies = Proxy::withTrashed()->where('team_id', $teamId)->orderBy('name')->get(['id', 'name', 'deleted_at']);
+
+        $deliveryRows = $this->groupedAggregates('deliveries', 'proxy_id', ['team_id' => $teamId], $window);
+        $attemptRows = $this->groupedAggregates('delivery_attempts', 'proxy_id', ['team_id' => $teamId], $window);
+
+        return array_values($proxies->map(function (Proxy $proxy) use ($deliveryRows, $attemptRows) {
+            $delivery = $this->groupedUnitFigure($deliveryRows, 'proxy_id', $proxy->id);
+            $attempt = $this->groupedUnitFigure($attemptRows, 'proxy_id', $proxy->id);
+
+            return new ProxyBreakdownRow(
+                id: $proxy->id,
+                name: $proxy->name,
+                isDeleted: $proxy->trashed(),
+                delivery: $delivery,
+                attempt: $attempt,
+                terminalFailures: $delivery->failed,
+                canDrillThrough: ! $proxy->trashed(),
+            );
+        })->all());
+    }
+
+    /**
+     * One row per destination in the given proxy's row set (AC6, AC15) — the
+     * **union** of the proxy's live destinations and every `destination_id`
+     * with activity in the window (a live destination with no traffic reads
+     * "No deliveries yet"; a deleted destination with historical traffic
+     * still gets a row, labelled Deleted). Runs a fixed number of queries
+     * regardless of how many destinations the proxy has (R7): the live-
+     * destination lookup, one grouped aggregate per table, and — only when
+     * a trashed destination actually has activity in the window — one more
+     * `Destination::withTrashed()` lookup (this feature's other
+     * `withTrashed()` call site) for that (small, fixed) id set.
+     *
+     * @return list<DestinationBreakdownRow>
+     */
+    public function destinationBreakdown(Proxy $proxy, AnalyticsWindow $window): array
+    {
+        $deliveryRows = $this->groupedAggregates('deliveries', 'destination_id', ['proxy_id' => $proxy->id], $window);
+        $attemptRows = $this->groupedAggregates(
+            'delivery_attempts',
+            'destination_id',
+            ['proxy_id' => $proxy->id],
+            $window,
+            withDuration: true,
+        );
+
+        $liveDestinations = Destination::where('proxy_id', $proxy->id)->get(['id', 'url', 'http_method']);
+        $liveIds = $liveDestinations->pluck('id')->map(fn (int|string $id) => (int) $id);
+
+        $activeIds = $deliveryRows->pluck('destination_id')
+            ->merge($attemptRows->pluck('destination_id'))
+            ->map(fn (int|string $id) => (int) $id)
+            ->unique();
+
+        $trashedIdsWithActivity = $activeIds->diff($liveIds)->values();
+
+        $destinations = $liveDestinations;
+
+        if ($trashedIdsWithActivity->isNotEmpty()) {
+            $trashedDestinations = Destination::withTrashed()
+                ->whereIn('id', $trashedIdsWithActivity)
+                ->get(['id', 'url', 'http_method', 'deleted_at']);
+
+            $destinations = $destinations->concat($trashedDestinations);
+        }
+
+        return array_values($destinations->map(function (Destination $destination) use ($deliveryRows, $attemptRows) {
+            $delivery = $this->groupedUnitFigure($deliveryRows, 'destination_id', $destination->id);
+            $attempt = $this->groupedUnitFigure($attemptRows, 'destination_id', $destination->id);
+
+            return new DestinationBreakdownRow(
+                id: $destination->id,
+                url: $destination->url,
+                httpMethod: $destination->http_method->value,
+                isDeleted: $destination->trashed(),
+                delivery: $delivery,
+                attempt: $attempt,
+                latencyAverageMs: $this->groupedLatencyAverageMs($attemptRows, 'destination_id', $destination->id),
+            );
+        })->all());
     }
 
     /**
@@ -517,5 +617,82 @@ class DeliveryStatistics
     private function seriesWindowStart(AnalyticsWindow $window): CarbonImmutable
     {
         return CarbonImmutable::now()->startOfDay()->subDays($window->days() - 1);
+    }
+
+    /**
+     * One table's `($groupColumn, status) => (count[, duration sum, duration
+     * count])` rows across a whole set (e.g. every proxy on a team, every
+     * destination on a proxy) — one query regardless of how many distinct
+     * `$groupColumn` values exist, feeding `groupedUnitFigure()`/
+     * `groupedLatencyAverageMs()` per row of a breakdown table (R7).
+     *
+     * @param  array<string, int>  $constraints
+     * @return Collection<int, stdClass>
+     */
+    private function groupedAggregates(
+        string $table,
+        string $groupColumn,
+        array $constraints,
+        AnalyticsWindow $window,
+        bool $withDuration = false,
+    ): Collection {
+        $select = [$groupColumn, 'status', DB::raw('COUNT(*) as aggregate')];
+
+        if ($withDuration) {
+            $select[] = DB::raw('SUM(duration_ms) as duration_sum');
+            $select[] = DB::raw('COUNT(duration_ms) as duration_count');
+        }
+
+        $query = DB::table($table)
+            ->select($select)
+            ->whereIn('status', ['succeeded', 'failed'])
+            ->whereBetween('updated_at', [$this->windowStart($window), CarbonImmutable::now()]);
+
+        foreach ($constraints as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        return $query->groupBy($groupColumn, 'status')->get();
+    }
+
+    /**
+     * One id's `UnitFigure` from a `groupedAggregates()` result. `rate` is
+     * `null` when `total === 0` (Amendment A(i)) — never `0`, including for
+     * an id with no rows at all in `$rows` (a proxy/destination with no
+     * traffic in the window).
+     *
+     * @param  Collection<int, stdClass>  $rows
+     */
+    private function groupedUnitFigure(Collection $rows, string $groupColumn, int $id): UnitFigure
+    {
+        $idRows = $rows->filter(fn (stdClass $row) => (int) $row->{$groupColumn} === $id);
+
+        $succeeded = (int) $idRows->where('status', 'succeeded')->sum('aggregate');
+        $failed = (int) $idRows->where('status', 'failed')->sum('aggregate');
+        $total = $succeeded + $failed;
+
+        return new UnitFigure(
+            succeeded: $succeeded,
+            failed: $failed,
+            total: $total,
+            rate: $total === 0 ? null : $succeeded / $total,
+        );
+    }
+
+    /**
+     * One id's average duration from a `groupedAggregates(..., withDuration:
+     * true)` result — `null` when that id has no resolved attempts with a
+     * recorded `duration_ms` in the window (AC20).
+     *
+     * @param  Collection<int, stdClass>  $rows
+     */
+    private function groupedLatencyAverageMs(Collection $rows, string $groupColumn, int $id): ?int
+    {
+        $idRows = $rows->filter(fn (stdClass $row) => (int) $row->{$groupColumn} === $id);
+
+        $durationSum = (int) $idRows->sum('duration_sum');
+        $sampleCount = (int) $idRows->sum('duration_count');
+
+        return $sampleCount === 0 ? null : (int) round($durationSum / $sampleCount);
     }
 }
