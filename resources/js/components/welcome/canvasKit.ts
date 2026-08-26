@@ -237,18 +237,28 @@ export function buildGridLayer(
     }
 
     const cell = GRID_CELL * dpr;
+
+    // Phase the grid so the canvas centre lands in the middle of a cell rather
+    // than wherever the dimensions happen to put it. The diagrams place their
+    // junction at exact centre, and an unphased grid left it sitting off-square
+    // — close enough to alignment to read as a mistake.
+    const phase = (centre: number) =>
+        (((centre - cell / 2) % cell) + cell) % cell;
+    const offsetX = phase(layer.width / 2);
+    const offsetY = phase(layer.height / 2);
+
     ctx.strokeStyle = withAlpha(borderColor, gridAlpha);
     ctx.lineWidth = 1;
     ctx.beginPath();
 
-    for (let x = 0; x <= layer.width; x += cell) {
-        ctx.moveTo(x + 0.5, 0);
-        ctx.lineTo(x + 0.5, layer.height);
+    for (let x = offsetX - cell; x <= layer.width + cell; x += cell) {
+        ctx.moveTo(Math.round(x) + 0.5, 0);
+        ctx.lineTo(Math.round(x) + 0.5, layer.height);
     }
 
-    for (let y = 0; y <= layer.height; y += cell) {
-        ctx.moveTo(0, y + 0.5);
-        ctx.lineTo(layer.width, y + 0.5);
+    for (let y = offsetY - cell; y <= layer.height + cell; y += cell) {
+        ctx.moveTo(0, Math.round(y) + 0.5);
+        ctx.lineTo(layer.width, Math.round(y) + 0.5);
     }
 
     ctx.stroke();

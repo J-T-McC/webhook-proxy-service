@@ -1244,7 +1244,7 @@ onUnmounted(() => {
 
         <div
             ref="container"
-            class="mx-auto aspect-square w-full max-w-6xl sm:aspect-[2/1]"
+            class="mx-auto aspect-square w-full max-w-6xl overflow-hidden rounded-2xl border border-border sm:aspect-[2/1]"
         >
             <canvas
                 ref="canvas"
