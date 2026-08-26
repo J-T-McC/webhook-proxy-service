@@ -60,6 +60,21 @@
   the correction above. See **Redesign Notes (2026-08-25)** near the end of
   this spec for the compact record of the sequence and key choices.
 
+- **As-built revision (Designer/Owner working session, 2026-08-25):** the
+  illustrations were reworked substantially after this spec was approved, in a
+  direct iteration loop with the Project Owner. Both are now canvas-rendered and
+  share a primitives module. Illustration 1 changed structure (one shared
+  junction, not two), motion (charge pulse and travelling heat band, not
+  travelling dots), colour (two illustration-scoped accent tokens, since the app
+  palette is greyscale and a greyscale illustration read as unfinished), type
+  (tracked uppercase monospace, no indices), legend placement (in-canvas), and
+  gained a drifting grid and a frame. Illustration 2 was rebuilt on canvas from
+  its original SVG/CSS form. The sections below describe **what exists**; where
+  an earlier decision was superseded it is marked in place rather than deleted,
+  so the reasoning survives. Exact numeric values now live in the code, which is
+  authoritative — an earlier revision duplicated them in prose and they drifted
+  within a day.
+
 ## Purpose & Audience
 
 This page is the public, unauthenticated root of the app (`/`, route name
@@ -198,6 +213,11 @@ Owner rules otherwise on a flagged item.
 - Illustration legend (real text alongside the diagram, not SVG-only — see
   Illustration 1 for the emphasis treatment; both lines render always, in
   this order, regardless of which phase is currently animating):
+  *(Superseded 2026-08-25: the Project Owner moved the legend into the canvas
+  and dropped these descriptions as self-evident. The canvas now renders only
+  `ASYNC` and `FIFO`; the sentences below survive only as the `sr-only`
+  description. Retained here as the record of what they said.)*
+
   - **"Async — every destination receives it at once."**
   - **"FIFO — one event at a time per proxy, processed in the order
     received."** *(Corrected 2026-08-25 — was "destinations receive it
@@ -245,562 +265,196 @@ destination is down."**
 No other copy (no pricing, no testimonials, no footer links) is introduced —
 see Open Questions #4.
 
-## Illustration 1 — Fan-out: Async vs. FIFO (Hero)
+## Illustration 1 — Fan-out: Async vs. FIFO (hero)
 
-> **Redesigned 2026-08-25** (two further Owner-directed revisions the same
-> day, after the factual correction above — both changes of presentation,
-> not corrections of fact): first to a single diagram alternating Async and
-> FIFO in one continuous loop instead of two simultaneously-visible panels;
-> then to a canvas-drawn, fully numeric, high-craft treatment matching the
-> Owner's named reference tier (Laravel's own marketing site; the
-> Vercel/Stripe/Linear/PlanetScale tier — restrained, dark-leaning, high-craft
-> motion). This supersedes the two-panel SVG version previously specified
-> here and **Open Questions call 2** below. See **Redesign Notes
-> (2026-08-25)** near the end of this spec for the compact rationale record.
-
-**What it must be honest to (unchanged from the corrected version above):**
-one inbound webhook, fanned out to the same three configured destinations
-regardless of mode or event; **Async** admits more than one event in flight
-per proxy at once (no cross-event serialization); **FIFO** admits at most
-one event in flight per proxy at a time — the second event does not begin
-until the first has fully settled. This is an **event-level**
-ordering/exclusivity guarantee, not a per-destination one — same sources as
-the Factual Audit above (`adr-011-per-proxy-fifo-dispatch-mechanism.md:38`
-and `:130`, `AdvanceProxyFifoQueue`'s docblock, `DeliverStep.php:63` vs.
-`:71`). Nothing about this redesign touches the claim — only how it is
-rendered.
+> **Numbers live in the code, not here.** This section states intent, structure
+> and the decisions behind them. Every concrete value — easing curves, pulse
+> width, bloom radius, alphas, phase durations — lives in
+> `resources/js/components/welcome/FanOutIllustration.vue` and
+> `resources/js/components/welcome/canvasKit.ts`, which are authoritative. An
+> earlier revision of this spec duplicated those values in prose and they had
+> drifted out of date within a day of the build starting.
 
 ### Concept
 
-**One canvas-drawn diagram** — no SVG, no per-element CSS keyframes. Two
-inbound **event** nodes stacked on the left, each with its own small
-**junction** point immediately to its right, each junction fanning out to
-the **same three destination** nodes on the right (six branch paths total,
-three from each junction, converging in pairs on three shared destination
-nodes). This confirms the brief's reading: a proxy's destination set is
-fixed, so both events, in both modes, always fan to the identical three
-destinations. Two independent junctions — rather than one shared junction
-both events pass through — is a deliberate geometry choice, not a shortcut:
-a shared junction would put both events' travelling pulses through the same
-point during Async's overlap, reading as a collision rather than two
-independent deliveries. Flagged for Owner confirmation, non-blocking (see
-Open Questions).
+One `<canvas>` diagram. Two inbound **event** nodes on the left, both fanning
+through a **single shared junction** to the same three **destination** nodes on
+the right. The diagram plays an Async phase and then a FIFO phase, back to back,
+looping indefinitely.
 
-No text is drawn inside the canvas — no node numbers, no "Proxy" label.
-Every fact a viewer needs (which mode is playing, what each means) lives in
-the DOM legend beside the diagram (see Labels, below); the canvas draws
-shapes and motion only. This is also the accessibility-correct split: canvas
-text loses font consistency, can't be selected or translated, and is
-invisible to assistive tech, so it never carries meaning here.
+A single junction rather than one per event: two junctions each fanning to the
+same three destinations produced six crossing lines that read as noise, and one
+fan point is the truthful shape — a proxy's destination set is one set, whichever
+event is passing.
 
-**Event identity stays legible by track, not by hue.** The token palette is
-deliberately monochrome (`--primary` is a grayscale token in both themes,
-per `docs/standards/design.md` — there is no second brand hue to spend on
-"Event 1 vs. Event 2" without adding a token, which is an Owner-level
-design-system change this spec does not make). Event 1 always travels the
-top track (its own ingest node, junction, and branches at y ≈ 30%); Event 2
-always travels the bottom track (y ≈ 70%). Combined with their timing offset
-(Async: 500ms apart; FIFO: never simultaneous at all), the two events are
-never ambiguous about which is which, even though both render in the same
-color.
+### What each mode shows
 
-The diagram plays **Async, then FIFO, back to back, forever** — a single
-`requestAnimationFrame` driver alternates between two data-shaped timeline
-schemas (below). Per the Owner's explicit direction, there is no user
-control and no requirement that a viewer see both phases; this illustration
-is decorative, and its total loop length is a purely aesthetic call, not a
-comprehension one.
+Two webhooks land close together, one shortly after the other, in **both** modes.
+What differs is what happens next, and that difference is the whole point:
 
-### Rendering architecture
+- **Async** — both events travel concurrently. Their journeys overlap for most of
+  their length, with the second offset enough to read as a separate event rather
+  than a synchronised pair.
+- **FIFO** — the second event holds at its ingest node until the first has fully
+  settled, then departs. The *length of that hold* is the mode's claim made
+  visible.
 
-- **Single `<canvas>` element**, `aria-hidden="true"`, no `tabindex`, sized
-  by its container (a `div` with `aspect-[2/1]`, capped at the page's
-  existing `max-w-6xl` content column — **Proposed default, no prior
-  precedent**, flagged the same way the container-width call already
-  accepted elsewhere in this spec was).
-- **Device-pixel-ratio scaling:** on mount and on resize, read
-  `canvas.clientWidth`/`clientHeight` (logical px) and
-  `window.devicePixelRatio`; size the backing store to `clientWidth * dpr` /
-  `clientHeight * dpr`, then `ctx.setTransform(dpr, 0, 0, dpr, 0, 0)` so
-  every draw call after that is written in logical px. This is what keeps
-  hairlines and the pulse's bloom crisp on retina instead of blurred.
-- **Resize:** a `ResizeObserver` on the canvas's container re-runs the DPR
-  setup and recomputes node/path positions — specified as **fractions of
-  canvas width/height**, not fixed px (see Geometry) — so the diagram scales
-  continuously rather than snapping between breakpoint layouts.
-- **Theme tokens, read at runtime, never hardcoded:** at init, and again
-  every time `document.documentElement`'s `class` attribute changes (a
-  `MutationObserver` on `documentElement` — cheap and decoupled from
-  `useAppearance()`'s internals; reading that composable's own reactive
-  state directly is equally acceptable if simpler for the implementer — the
-  requirement is *re-read on every theme change*, not just at mount, since
-  this app's `HandleAppearance` middleware and `useAppearance()` support a
-  live light/dark/system toggle), call
-  `getComputedStyle(document.documentElement)` and read the literal values
-  of `--card`, `--border`, `--primary`, `--muted-foreground` — the only four
-  tokens this illustration needs (no `--destructive`; that is Illustration
-  2's vocabulary, untouched). These come back as the authored `hsl(H S% L%)`
-  strings from `app.css` and are used directly as canvas
-  `fillStyle`/`strokeStyle` values — **no hex is ever written in code.** A
-  small `withAlpha(hslString, alpha)` helper regex-extracts `H S% L%` and
-  reformats as `hsl(H S% L% / alpha)` (CSS Color 4 syntax, which
-  `fillStyle`/`strokeStyle` accept) — this is the only place a numeric alpha
-  is combined with a token, and it is always an opacity of an existing
-  color, never a new one.
-- **No new npm dependency.** Native `<canvas>` 2D context,
-  `requestAnimationFrame`, `ResizeObserver`, and `MutationObserver` are all
-  browser built-ins already usable in this codebase.
+This is event-level ordering, not per-destination ordering. Each event still
+fans out to every destination in both modes (ADR-011 §Impact rules
+per-`(proxy, destination)` ordering out of scope; `AdvanceProxyFifoQueue`
+guarantees "at most one in-flight **event** per proxy").
 
-### Geometry (fractions of the canvas's logical width/height)
+### Motion vocabulary
 
-| Element | Position (x%, y%) | Shape |
-|---|---|---|
-| Event 1 (ingest) | 8%, 30% | rounded rect, ~13% × 14% of canvas height |
-| Event 2 (ingest) | 8%, 70% | same shape |
-| Junction 1 | 42%, 30% | filled circle, r = 1.2% of canvas height, resting alpha 0.4 (`--muted-foreground`) — a static anchor, always drawn, not only during motion |
-| Junction 2 | 42%, 70% | same |
-| Destination 1 | 88%, 20% | rounded rect, same size as event nodes |
-| Destination 2 | 88%, 50% | same |
-| Destination 3 | 88%, 80% | same |
+- **Charge pulse.** A bright head cooling through the second accent in its tail,
+  travelling the wire like current through a conductor. Trails, not discrete
+  dots — a hard circle reads as a bouncing ball.
+- **Travelling heat band.** The wire is at rest except around the charge, where
+  it brightens and drains off behind. Transparent outside the lit zone so the
+  base wire shows through; lighting the whole segment made the pulse compete
+  with its own lit path.
+- **Event highlight.** An ingest node's border fades in when its event lands,
+  holds for however long that event waits, then drains **left-to-right** into
+  the pipe as it dispatches. Each envelope is tied to its own event's arrival and
+  departure — anchoring both to the phase start made two unrelated events light
+  and drain in lockstep, claiming a simultaneity neither mode has.
+- **Destination arrival.** The receiving node's own border lights and fades. No
+  expanding ring: that read as an explosion and fought the calm of the pulse. The
+  rise matches the ingest highlight's, so both ends of a journey light
+  identically; only what follows differs.
+- **Grid field.** A backdrop whose elliptical edge fade drifts on out-of-phase,
+  non-harmonic sines so it never resolves onto a beat. An alpha breath does most
+  of the perceptual work — luminance change is far easier to notice at the edge
+  of vision than a boundary moving a few pixels.
 
-Paths: Event *n* → Junction *n* is a straight line; Junction *n* → each
-Destination is a quadratic Bézier curve (control point pulled ~15% toward
-the vertical center between junction and destination — a soft outward curve
-rather than a sharp elbow). Canvas has no `offset-path` equivalent, so the
-charge pulse's head position is computed frame-by-frame from the Bézier's
-parametric formula, `B(t) = (1−t)²P0 + 2(1−t)tC + t²P1` — plain math, no
-library (and this also resolves the `offset-path` cross-browser feasibility
-flag the prior SVG version carried in Dependencies below — it no longer
-applies).
+### Colour
 
-### Timeline schema
+Two illustration-scoped tokens, `--illustration-from` (violet) and
+`--illustration-to` (cyan), defined per theme in `resources/css/app.css`. The app
+UI palette is greyscale by design and is untouched.
 
-A small, reusable shape — `async` and `fifo` are two **data instances** of
-it, not two hand-authored animations:
+The split is semantic and consistent: **violet is node state** (an event waiting
+to dispatch, a destination that received); **cyan is only ever charge in
+transit**. Earlier revisions used cyan for both and the two ends of a journey did
+not rhyme.
 
-```
-Schema {
-  id: 'async' | 'fifo'
-  label: 'Async' | 'FIFO'
-  duration: number            // ms, total phase length (incl. trailing rest)
-  entries: TimelineEntry[]
-}
+### Rendering
 
-TimelineEntry {
-  event: 1 | 2
-  kind: 'travel' | 'arrivalRing' | 'queued'
-  segment?: 'ingest-junction' | 'junction-dest1' | 'junction-dest2' | 'junction-dest3'
-  start: number               // ms, relative to this schema's own t = 0
-  end: number                 // ms
-  easing: 'inout' | 'out' | 'decay'   // resolved via the three named curves below
-}
-```
+Canvas with a `requestAnimationFrame` driver consuming two declarative timeline
+schema instances, rather than hand-authored per-element animation. The schema
+is the point: it is what makes the motion iterable.
 
-Three named easings, used everywhere in this illustration, nowhere else
-invented:
-- **`inout`** = `cubic-bezier(0.65, 0, 0.35, 1)` — every `travel` entry
-  (the charge pulse's position along its path). Departs easing in, arrives
-  easing out, in one curve — the "departures ease in, arrivals ease out"
-  instinct expressed as a single standard curve rather than two spliced
-  ones.
-- **`out`** = `cubic-bezier(0.22, 1, 0.36, 1)` — every `arrivalRing`, and the
-  attack (brighten-in) half of the derived line envelope below.
-- **`decay`** = `cubic-bezier(0.32, 0, 0.67, 0)` — the release half of the
-  derived line envelope, and the pulse's own tail alpha ramp (see the
-  rendering section below). An ease-in shape used for *fading out*: alpha
-  lingers near its peak before dropping away, which is what makes the
-  settle read as current dissipating rather than a value snapping back —
-  "a real decay curve, not an instant reset."
+- **Theme tokens are read at runtime** via `getComputedStyle` and re-read on
+  theme change (`MutationObserver` on the root element's class). A canvas that
+  caches its palette at init looks correct until someone toggles the theme.
+  **No hex is written anywhere in the code.**
+- **Emissive draws composite additively** (`lighter`) on dark, so overlapping
+  pulses accumulate light. Light theme composites normally — `lighter` on a white
+  field drives everything to white.
+- `devicePixelRatio`-aware backing store; `ResizeObserver` drives continuous
+  rescaling. The rAF loop and every observer tear down on unmount.
+- **No new dependency.** Native canvas, rAF, ResizeObserver, MutationObserver.
 
-**Derived rule (not separately tabled):** every `travel` entry implies its
-own segment briefly "heats" — the connection line's alpha rises from idle
-toward hot over the first **150ms** the pulse occupies that segment (`out`
-easing: brightens quickly), holds near-hot while the pulse travels it, then
-releases back to idle over **320ms** (`decay` easing: lingers, then falls
-away) once the pulse — and its arrival ring, if any — has passed. This is
-the "a connection line that brightens as data passes over it and settles
-back" detail, implemented as one small procedural rule per segment rather
-than as extra schema entries.
+### Grid alignment
 
-**`EVENT_JOURNEY`** — the shape every event plays, in both modes, offset
-only by a start time (ms, relative to the event's own start = 0):
+The cell size is derived from the canvas rather than fixed, so the grid divides
+it into a whole number of cells and the outermost lines land on the frame. The
+count rounds to the nearest **odd** number, which places the canvas centre at a
+cell midpoint — both diagrams put their junction at exact centre, and an
+unphased grid left it sitting off-square. Cells land within a few percent of
+square; that drift is what buys the alignment and is not perceptible.
 
-| # | kind | segment | start | end | easing |
-|---|---|---|---|---|---|
-| 1 | travel | ingest→junction | 0 | 420 | inout |
-| 2 | travel | junction→dest1 | 420 | 1070 | inout |
-| 3 | travel | junction→dest2 | 490 | 1170 | inout |
-| 4 | travel | junction→dest3 | 565 | 1270 | inout |
-| 5 | arrivalRing | dest1 | 1070 | 1330 | out |
-| 6 | arrivalRing | dest2 | 1170 | 1430 | out |
-| 7 | arrivalRing | dest3 | 1270 | 1530 | out |
+### Type
 
-The three branches deliberately do **not** start or last identically — start
-offsets of +70ms/+145ms and travel durations ~5%/~8% longer for branches 2
-and 3 — so the fan-out never reads as three things popping on the same
-frame; it reads as an uneven, organic ripple. Combined with the charge-pulse
-rendering below (no discrete ball ever appears at all), this is the direct
-fix for "shooting white balls."
+Node and legend labels are tracked uppercase monospace drawn into the canvas.
+Body copy set inside diagram boxes read as body copy; monospace reads as a
+schematic. Label size is capped by what its node can actually hold, so a label
+can never overflow its box at any viewport.
 
-`EVENT_SETTLE` = **1600ms** (rounded up from the true last-effect-finish
-time of ~1570ms, a small breathing margin).
+Labels carry no indices — three boxes reading DESTINATION is self-evident, and
+the numbers were noise.
 
-**Schema `async`** (`duration: 2500`):
-- Event 1: `EVENT_JOURNEY` at offset **0**.
-- Event 2: `EVENT_JOURNEY` at offset **+500ms** — "slightly later," per the
-  brief, and deliberately *not* half of `EVENT_SETTLE`: 500ms is enough for
-  Event 1 to have already begun fanning out before Event 2 even departs, so
-  the two read as a graceful handoff rather than two starting guns fired
-  together. Event 2 fully settles at 500 + 1600 = 2100ms.
-- No `queued` entries — Async never shows a waiting state; that concept
-  belongs to FIFO only, and showing it here would misstate Async's actual
-  guarantee (no cross-event serialization at all).
-- 2100–2500ms: rest beat, idle geometry only.
+### Mode legend
 
-**Schema `fifo`** (`duration: 3600`):
-- Event 1: `EVENT_JOURNEY` at offset **0**, settles at 1600ms.
-- Event 2, `kind: 'queued'`, `start: 0`, `end: 1600` — rendered the entire
-  time as a **static** muted dot at its own ingest node (no motion, no
-  breathing/pulsing — restraint; Event 1's motion already carries the eye).
-- Event 2: `EVENT_JOURNEY` at offset **+1600ms** — exactly when Event 1
-  settles, a precise zero-gap handoff. **This exactness is deliberate and
-  not staggered for "realism" the way Async's offset is** — the zero gap
-  *is* the truthful claim (the second event does not begin until the first
-  has fully settled), so it is the one place in this diagram that stays
-  exact rather than organic. Event 2 settles at 3200ms.
-- 3200–3600ms: rest beat.
+Drawn in-canvas, top-left and left-aligned on desktop, centred above the diagram
+on compact. Both mode names are always rendered, the active one in the accent
+and the other dimmed, so a viewer landing mid-loop still sees both modes exist.
 
-**Total loop:** 2500 + 3600 = **6100ms (6.1s)**, looping indefinitely. Per
-the Owner's explicit direction, this is tuned only for how the motion feels
-— not against any "will a visitor see both phases" concern.
+The legend was previously DOM text beneath the canvas with a sentence of
+description each; the Project Owner moved it in-canvas and dropped the
+descriptions as self-evident. An `sr-only` paragraph retains a description of
+both modes for assistive technology, since the canvas is `aria-hidden`.
 
-### Charge pulse, line, grid, and node rendering — concrete values
+### Frame
 
-The travelling element is **current through a conductor, not a ball in
-flight**: a bright core segment with a soft bloom, trailing a long eased
-falloff, moving along the path; the connection line itself sits dim at
-rest, brightens as the pulse passes over it, and settles back on a real
-decay curve. No discrete filled circle ever travels through empty space —
-this single effect (chosen over an electric-arc/jitter treatment, a plain
-comet, and a particle stream, each considered and set aside as noisier or
-cheaper-looking at this craft tier) is the entire fix for "shooting white
-balls," and it is now the core visual of the page.
-
-All px values below are given at the diagram's **560px reference width**
-(see Responsive Behavior) and scale with the same clamp factor as the rest
-of the diagram — so the pulse stays proportionate to the diagram at any
-size. The grid does not scale this way (see its own row).
-
-| Property | Dark theme | Light theme |
-|---|---|---|
-| Grid cell size | 32px (fixed; re-tiles on resize, does not scale with the diagram or the pulse) | 32px |
-| Grid line color | `--border` | `--border` |
-| Grid line alpha (unmasked) | 0.08 | 0.05 |
-| Grid radial fade mask | centered on the diagram's vertical midline, radius ≈ 65% of the shorter canvas dimension; alpha stops 1 → 0.6 → 0 at 0% / 60% / 100% radius, applied via `destination-in` composite | same shape, same stops |
-| Grid motion | **static — no drift, no pulse** | static |
-| Idle connection line width | 1.5px | 1.5px |
-| Idle connection line alpha | 0.15 | 0.25 |
-| Peak ("hot") line width, under the pulse | 2.5px | 2.5px |
-| Peak ("hot") line alpha, under the pulse | 0.55 | 0.65 |
-| Line attack (idle → peak) | 150ms, `out` easing | same |
-| Line release (peak → idle) | 320ms, `decay` easing (lingers near peak, then falls away — not an instant reset) | same |
-| Pulse core width (the bright segment at the head) | 3px | 3px |
-| Pulse core alpha | 1.0, `--primary` | 1.0, `--primary` |
-| Pulse falloff (tail) length behind the head | 64px | 64px |
-| Pulse tail alpha ramp | eased, `1 − out(t)` for `t` = 0 (head) → 1 (64px back) — fast initial drop, long faint trailing glow, not a linear ramp | same shape |
-| Pulse bloom (`shadowBlur` / `shadowColor`, on the core only) | 14px blur, `--primary` @ alpha 0.4 | 5px blur, `--primary` @ alpha 0.18 |
-| Arrival ring Δradius | node radius → node radius + 16px | same |
-| Arrival ring alpha | 0.55 → 0, `out` easing | 0.4 → 0, `out` easing |
-| Arrival ring duration | 260ms | 260ms |
-| Arrival ring stroke width | 1.5px | 1.5px |
-| Destination "lit" fill wash | `--primary` tint @ alpha 0.08, same 260ms envelope as the ring | same |
-| Junction resting dot | `--muted-foreground` @ alpha 0.4, r = 1.2% canvas height, always drawn | same |
-| Queued dot (FIFO, idle event) | `--muted-foreground` @ alpha 0.5, static, no animation — the "idle event low in the opacity ladder" state | same |
-| Node fill / stroke | `--card` / `--border` @ 1px | same |
-
-**Per-branch stagger (unchanged from Timeline schema above, restated here
-because it is part of what keeps the pulse from looking mechanical):**
-branch start offsets +70ms / +145ms and travel durations ~5% / ~8% longer
-for branches 2 and 3 — the three pulses departing a junction do not arrive
-on the same frame.
-
-**Active vs. idle intensity:** the event currently in flight always renders
-at the full values above. There is no dimmed "secondary" treatment for a
-second event that is genuinely, concurrently in flight during Async — both
-render at full strength, distinguished by track position and timing (see
-Event identity, above), because both are equally real deliveries. The
-*only* dim/idle treatment is the FIFO queued dot — the event that has
-**not started** gets the low, static, muted-foreground treatment, never the
-pulse's palette. This asymmetry is deliberate: it is what keeps the FIFO
-phase from reading as "a dimmer Async" rather than as a genuinely different
-guarantee.
-
-**Grid motion, decided:** static in both themes. Per "restraint in element
-count" — the travelling pulses are the only motion in this scene; animating
-the backdrop too would compete with them rather than support them. This is
-a considered choice, not an omission.
-
-**Why dark and light get different bloom/line values, not one set with a
-token swap:** a soft white-hot bloom (14px blur, 0.4 alpha) is what makes
-the dark-theme diagram read as the named reference tier — `--primary`
-resolves to near-white there, so the bloom is a true bright-on-near-black
-halo. The same blur/alpha on light theme, where `--primary` resolves to
-near-black, would read as a muddy gray smear rather than a glow — so light
-theme trades bloom intensity for **line and ring contrast** instead (idle
-line 0.25 vs. dark's 0.15, hot line 0.65 vs. dark's 0.55, ring peak 0.4 vs.
-dark's 0.55 — lower on light so an expanding near-black ring doesn't read
-as a harsh dark halo on white). The "premium" cue on light comes from
-crisper, more-contrasted lines rather than a halo; the grid is likewise a
-shade fainter on light (0.05 vs. 0.08) because a hairline at equal token
-alpha reads visually heavier against white than against near-black. These
-are deliberately different numbers per theme, not the same values reused.
-
-**Restraint accounting (why this reads calmer than the prior version):** the
-prior SVG version's peak was **3 events × 3 destinations = up to 9**
-simultaneous, opaque, solid dots. This version: at most **2 events** ever
-(never 3), each producing a soft current-like pulse rather than a solid
-ball, and Async's 500ms offset means the two events' fan-out windows only
-partially overlap rather than starting in lockstep. There is no literal cap
-forcing "only one pulse at a time" — an event genuinely dispatches to all
-three destinations at roughly the same time, and drawing that as a single
-branch would misstate the fan-out — but every other lever (event count,
-opacity, current-not-ball, monochrome single accent, organic stagger, no
-canvas text, no "Proxy" label, static junction/queued dots, no grid motion)
-is pulled toward fewer, softer, less-synchronized things on screen than
-before.
-
-### Labels (DOM, not canvas)
-
-Two lines, always both rendered, positioned as a small stacked legend above
-the diagram, horizontally centered:
-- **"Async — every destination receives it at once."**
-- **"FIFO — one event at a time per proxy, processed in the order
-  received."**
-
-(Same copy as the Copy section above — unchanged text; only its layout
-changed, from a per-panel caption to a shared legend.)
-
-- **Active line** (whichever schema is currently playing): `text-foreground
-  font-medium`, `opacity: 1`.
-- **Inactive line:** `text-muted-foreground`, `opacity: 0.5`.
-- The swap is a CSS `transition: opacity 240ms cubic-bezier(0.22, 1, 0.36,
-  1), color 240ms` triggered the instant the driver switches `activeSchema`
-  — timed to land inside the 400ms rest beat at the end of each phase, so
-  the label never flips mid-motion.
-- Both lines' full text is always present in the DOM regardless of phase —
-  a viewer who only ever sees one phase animate still reads both mode names
-  and their one-line descriptions.
-
-### Reduced-motion fallback
-
-Simple, per the Owner's direction — a single static frame that looks
-deliberate, not a second explanatory design:
-
-- The `requestAnimationFrame` loop never starts; the canvas draws **one
-  frame, once**, on mount (and again on resize or theme change).
-- **The frame drawn:** the **FIFO-settled** moment — Event 1 at rest,
-  delivered to all three destinations (idle-alpha connection lines, no
-  rings, no trails), and Event 2 shown as the static muted queued dot at its
-  own ingest node. This single frame is the most legible still composition
-  available: "one delivered, one waiting" reads immediately without motion,
-  whereas Async's defining fact ("more than one in flight *at once*") is
-  inherently about timing and does not freeze into a meaningful still.
-- Grid: drawn static, no drift, same per-theme alpha/mask values as above
-  (unchanged from the motion-safe state, since the grid is already static
-  there).
-- Legend: both lines render at **equal, full weight**
-  (`text-foreground`, `opacity: 1`, no dimming) — there is no "currently
-  playing" concept to indicate when nothing is playing.
-- `prefers-reduced-motion: reduce` is checked once via
-  `window.matchMedia('(prefers-reduced-motion: reduce)').matches` at init,
-  plus its `change` listener (in case the OS setting flips live) — this
-  gates which of the two code paths (rAF loop vs. one static draw) runs at
-  all, not merely pausing an already-running loop.
+Both illustrations sit in a rounded, bordered container. In light it gives the
+diagram a panel identity the grid alone did not provide; in dark it frames
+without asserting itself.
 
 ## Illustration 2 — Retry, backoff, terminal failure & replay
 
-**What it must be honest to:** delivery failure is retried automatically on
-a *bounded* backoff (each wait longer than the last, but not unbounded);
-after the limit, the delivery reaches a terminal failed state — a real,
-visible state, not an error/crash; any delivery, including a terminally
-failed one, can be replayed manually.
+Same canvas approach, same vocabulary, same shared primitives
+(`canvasKit.ts`). A single `DELIVERY → DESTINATION` pair rather than a fan-out.
 
-**Structure:** a single pipe from a small **Ingest/Origin** node to one
-**Destination** node (this illustration is about one delivery's lifecycle,
-not fan-out, so one destination is enough — fan-out is already Illustration
-1's job).
+**Sequence.** Three delivery attempts on a widening backoff, each failing; then a
+terminal failure; then a manual replay that succeeds.
 
-**Motion — one 10-second loop, `linear`, infinite** (timeline below is
-percent-of-loop, i.e. 1% = 0.1s):
+**Where it departs from Illustration 1, and why:**
 
-| Time | State | Visual |
-|---|---|---|
-| 0%–10% | Attempt 1 departs | Dot (in-flight color) travels origin → destination |
-| 10% | Attempt 1 fails | Dot recolors to the failure color, small recoil/shake, fades. Destination border briefly flashes the failure color, then returns to its resting (neutral) border |
-| 10%–20% | Backoff wait 1 (short) | A small horizontal "wait" bar fills over ~1s next to the destination; muted-foreground label "retrying…" |
-| 20%–30% | Attempt 2 departs | Dot travels again |
-| 30% | Attempt 2 fails | Same failure flash as above |
-| 30%–50% | Backoff wait 2 (longer) | Wait bar fills over ~2s — **visibly longer** than wait 1, so the growing backoff reads at a glance |
-| 50%–60% | Attempt 3 departs | Dot travels again |
-| 60% | Attempt 3 fails | Same failure flash |
-| 60%–80% | **Terminal** | Destination border switches to a **dashed** failure-color border; label "Terminally failed — retries exhausted" fades in and holds. No further automatic attempt is drawn — the automatic sequence is visibly over |
-| 80%–83% | Replay initiated | A small curved "replay" arrow/icon animates in near the origin (fade or short slide), representing the manual action |
-| 83%–93% | Replay dispatch | A fresh dot (in-flight color) travels origin → destination, exactly like an ordinary attempt |
-| 93% | Replay succeeds | Destination border returns to solid neutral, a brief in-flight-color flash reads as "delivered," label switches to "Delivered" |
-| 93%–100% | Hold | Delivered state holds, then the whole sequence resets to 0% |
+- **Failure is `--destructive`**, so a failed attempt is legible without text
+  explaining it.
+- **Failure has a different attack than success.** A delivery arrives on a soft
+  rise; a failure hits hard and releases slowly. It should read as an impact,
+  not an arrival.
+- **Terminal is held, not decaying.** Every other state fades. A terminal failure
+  is a state the delivery *stays in* until someone acts on it, and the drawing
+  should say so.
+- **Backoff draws as a stall** — a dim charge creeps a little way down the wire
+  and stops. The widening gap between attempts is the curve itself.
+- **Replay travels in the ordinary colours.** It is charged like any other
+  delivery; only its outcome differs, so it does not announce itself.
 
-The 4-step copy list in Section D (Copy, above) is the same information in
-static prose, always visible beside/below the illustration regardless of
-animation or motion-preference state.
+**Illustrative simplification, disclosed:** three attempts are shown where the
+system's default limit is five. No copy asserts a count. Same precedent as the
+arbitrary three destinations in Illustration 1.
 
 ## Light / Dark Treatment
 
-Both illustrations use **only existing semantic tokens** — no new hex value
-and no new token pair is introduced by this spec (adding one would be an
-Owner-level design-system change per `docs/standards/design.md`, not a
-Designer call). The two illustrations reach that goal through two different
-mechanisms, because Illustration 1 is canvas-drawn and Illustration 2 is
-SVG:
+Both themes carry **separate numeric values**, not one set with a token swap.
+The palette is greyscale, so anything drawn from a neutral token needs checking
+in both: the same alpha that gives a crisp hairline against near-black washes out
+on white, and glow tuned for dark blows out on light.
 
-**Illustration 1 (canvas):** tokens are read at runtime via
-`getComputedStyle`, not written as Tailwind utility classes — see
-Illustration 1's own **Rendering architecture** and **Charge pulse, line,
-grid, and node rendering** subsections above for the exact mechanism and the
-full numeric, per-theme value table (grid, line, pulse, ring, node). Nothing
-here duplicates that table; this section only confirms the same
-no-new-token rule applies.
+The per-theme table in each component covers grid alpha, idle and hot line
+treatment, pulse width, bloom, arrival and queued edge treatment, node stroke,
+labels, and the junction. Two bugs came from assuming a dark-tuned value would
+carry — the grid drawn in `--border` (invisible on dark) and the node stroke
+sharing one alpha across themes (washed out on light).
 
-**Illustration 2 (SVG, unchanged):** Tailwind utility classes mapped to
-tokens, mirroring the vocabulary design-06 already established for
-delivery-state badges (Delivered → non-destructive, Terminally failed →
-`destructive`):
-
-| Element | Token / utility | Notes |
-|---|---|---|
-| Pipe (stroke) | `stroke-border` (or `text-border` + `stroke-current`) | Same neutral in both themes via the token |
-| Origin / Destination node fill | `fill-card`, `stroke-border` | Matches existing `Card` surface treatment |
-| Node label text | `fill-foreground` / `text-foreground` | |
-| In-flight / delivered dot | `fill-primary` | One color for "moving" and "succeeded" — there is no dedicated success-green token in this app (flagged, Open Questions #1) |
-| Failure / terminal dot & border | `fill-destructive` / `stroke-destructive` | Matches the `Terminally failed` badge's `destructive` variant precedent |
-| Backoff wait-bar | `fill-muted-foreground` / `bg-muted` | Matches `Retrying` badge's muted/outline precedent |
-| Destination "delivered" flash | `bg-primary/10` transient background | Same transient-highlight idiom already used for focus/active states elsewhere in the app |
-| Captions and step copy | `text-foreground` (headings), `text-muted-foreground` (body) | Standard pairing used throughout the app |
-
-Because every Illustration 2 value is a token reference (`var(--color-*)`
-via Tailwind utilities), it automatically repaints correctly under `.dark`
-with no illustration-specific dark-mode branch needed — exactly like every
-other token-driven component in this app. Illustration 1 achieves the same
-result deliberately (re-reading tokens on every theme change, per its own
-Rendering architecture subsection) rather than automatically, since canvas
-has no CSS cascade to inherit from.
-
-**Page chrome (header, hero, sections):** identical token usage to every
-other page — `bg-background text-foreground`, `Button` component variants
-for CTAs (`default` for primary, `outline` for secondary, matching the
-`Button` variants already in the design system), no page-specific palette.
+Additive compositing is dark-only, as above.
 
 ## Responsive Behavior
 
-Per `docs/standards/design.md`'s **desktop-first, degrading gracefully**
-stance (this is a developer-tool product, not a consumer app) and its 360px
-practical-minimum default:
+**Compact mode below 520px canvas width.** Not a scale-down: the proportions
+change. Node labels are a fixed character count, so a node sized as a fraction of
+a phone viewport is narrower than the word it must hold. Compact widens and
+flattens the nodes, pulls the columns inward, tightens label tracking, and moves
+the legend clear of the first node.
 
-**Illustration 1 (canvas) — continuous scaling, no breakpoint layouts:**
-unlike a breakpoint-swapped SVG, the canvas redraws from fractional
-coordinates every time its container resizes (see its Rendering
-architecture subsection), so it does not need — and does not use —
-per-breakpoint layout variants or an orientation switch. Concretely:
-- A single **560px reference width** is the 1:1 design size for every
-  diagram element's geometry and for the charge pulse's px values (core
-  width, bloom radius, tail length, etc.).
-- At any container width, a `scale = clamp(0.55, containerWidth / 560, 1)`
-  factor is applied to node size, stroke widths, pulse core/bloom/tail
-  values, and gap sizes uniformly, so proportions stay consistent from full
-  desktop width down to the 360px floor (at 360px, container ≈ 340px after
-  padding, `scale ≈ 0.61`).
-- The **diagram's orientation never changes** — two ingest nodes on the
-  left, three destinations on the right, at every width — it only shrinks.
-  This is a deliberate departure from a reflow-to-vertical pattern: reference
-  sites at the named craft tier (Vercel/Stripe/Linear/PlanetScale, Laravel's
-  own marketing site) keep one diagram orientation and scale it, rather than
-  re-flowing to a different layout on narrow viewports, and a canvas makes
-  continuous scaling essentially free where an SVG breakpoint swap was not.
-- The **grid does not scale with this factor** — its 32px cell size stays
-  fixed in logical px at every width, so it re-tiles (more/fewer visible
-  cells) rather than stretching; this keeps the backdrop's texture visually
-  constant regardless of how large the diagram itself is drawn.
-- The **DOM legend labels are never scaled down** with the diagram — they
-  stay at their normal readable size (see Labels) at every width, since
-  legibility there matters more than matching the diagram's shrink.
-- Device-pixel-ratio scaling (see Rendering architecture) applies at every
-  width, so the diagram stays crisp on retina from full desktop down to the
-  360px floor, not just at one reference size.
+The canvas takes a square aspect on phones and its wide aspect from the `sm`
+breakpoint up; a 2:1 letterbox is a desktop shape.
 
-**Illustration 2 (SVG, unchanged):**
-- **`lg` (1024px) and up:** renders as a single wide horizontal pipe with
-  the wait-bars and labels beside it.
-- **`md`–`lg` (768–1023px):** unchanged (still fits horizontally at this
-  width).
-- **`sm`–`md` (640–767px):** illustration `viewBox` scale reduces
-  proportionally (SVGs are already scale-free via `viewBox` +
-  `preserveAspectRatio="xMidYMid meet"`, so this is a container-width change,
-  not a redraw).
-- **Below `sm` (< 640px), down to the 360px floor:** switches to a
-  **vertical pipe layout** — Origin node on top, Destination node beneath,
-  pipe drawn vertically instead of horizontally. Wait-bar labels drop from
-  inline to stacked beneath the pipe. The Reliability section's 4-step list
-  already stacks vertically by default (single-column text), so no change
-  is needed there.
-- **CTAs and text sections:** single-column, centered, width-capped
-  (`max-w-6xl mx-auto px-6` container — this app has no prior landing-page
-  precedent for a content width, so `max-w-6xl` is a **Proposed default, no
-  prior precedent**, flagged alongside the standards doc's own convention
-  for such calls), consistent with the existing "full-width below `sm`,
-  fixed above" rule already used elsewhere in this app.
-- No horizontal scroll is introduced anywhere on this page at any width.
+Verified with no horizontal overflow at 390, 520 and 768 wide.
 
 ## Reduced-Motion Fallback
 
-Respecting `prefers-reduced-motion: reduce` is not optional per
-`docs/standards/design.md`'s accessibility baseline; both illustrations
-specify an explicit **static** replacement, not merely "animation off":
+A requirement, not a nicety. The rAF loop never starts; a single deliberate
+static frame is drawn, and the grid's drift terms hold at their neutral values so
+the frame is genuinely still.
 
-**Illustration 1 (fan-out, Async vs. FIFO) — reduced-motion state:** a
-single static canvas frame — the FIFO-settled moment (Event 1 delivered to
-all three destinations at rest, Event 2 shown as the static muted queued
-dot) — plus both legend lines at equal, full weight. Full spec, including
-exactly why this frame and not a frozen Async moment, lives in Illustration
-1's own **Reduced-motion fallback** subsection above; not repeated here.
-
-**Illustration 2 (retry/backoff/replay) — reduced-motion state:**
-- Renders as a **static horizontal (or, on narrow viewports, vertical)
-  stepper**: five fixed nodes — "Attempt 1 (failed)" → "Attempt 2 (failed)"
-  → "Terminally failed" → "Replay" → "Delivered" — connected by static
-  arrows, each labeled, all visible at once. No wait-bars fill; the
-  bounded-backoff idea is carried by the adjacent Section D prose ("waiting
-  a little longer each time"), not by a growing bar.
-- This mirrors, and is reinforced by, the always-visible 4-step copy list
-  in Section D — a reduced-motion user loses nothing that a motion user
-  gets, since the substance was never motion-only.
-
-**Implementation approach — two different mechanisms, one per illustration,
-because they use different rendering technology:**
-- **Illustration 1 (canvas):** a JS `window.matchMedia('(prefers-reduced-motion:
-  reduce)')` check (plus its `change` listener) gates whether the
-  `requestAnimationFrame` loop ever starts at all, per its own subsection
-  above — not a CSS media query, since there are no CSS animations to
-  suppress.
-- **Illustration 2 (SVG, unchanged):** CSS animations wrapped so that
-  `@media (prefers-reduced-motion: reduce)` swaps to the static markup/state
-  above — e.g. a `motion-safe:` / `motion-reduce:` Tailwind variant pair
-  (this app's existing `starting:opacity-0` +
-  `motion-safe:starting:translate-y-6` pattern in the current `Welcome.vue`
-  is the direct precedent) or an equivalent `@media` block in a scoped
-  `<style>`.
-
-Either mechanism is an implementation detail; the requirement in both cases
-is the **visible result**, specified above and in Illustration 1's own
-subsection.
+- **Illustration 1** — the FIFO-settled moment.
+- **Illustration 2** — the terminal-failure moment, the single frame that says
+  the most without movement.
 
 ## Accessibility
 
@@ -840,8 +494,9 @@ subsection.
 | Page header nav | Hand-rolled `<header>`/`<nav>` (unchanged logic from today's `Welcome.vue`) | Reused — logic only restyled onto token classes |
 | CTA buttons | `Button` (`components/ui/button`), `variant="default"` / `variant="outline"`, `as-child` + `Link` | Reused — same pattern as every other CTA in the app (e.g. proxies Index "New proxy") |
 | Section containers | plain `section`/`div` with `max-w-6xl mx-auto px-6` | **New layout convention for this page** — flagged as Proposed default (no prior landing-page precedent) |
-| Illustration 1 (fan-out) | `<canvas>` (2D context) + a small `requestAnimationFrame` driver reading two timeline-schema data objects, plus a DOM legend (two `<p>` lines) | **New, page-specific composition** — no new npm dependency; native canvas/rAF/`ResizeObserver`/`MutationObserver` only |
-| Illustration 2 (retry/backoff/replay) | inline `<svg>` + CSS `@keyframes` / `motion-safe:`/`motion-reduce:` variants | **Unchanged** — new, page-specific composition; no new npm dependency, no new `ui/*` primitive |
+| Illustration 1 (fan-out) | `<canvas>` + a `requestAnimationFrame` driver reading two timeline-schema data objects; legend drawn in-canvas, with an `sr-only` description for assistive tech | **New, page-specific composition** — no new npm dependency; native canvas/rAF/`ResizeObserver`/`MutationObserver` only |
+| Illustration 2 (retry/backoff/replay) | `<canvas>`, same approach and same shared primitives as Illustration 1 | **Rebuilt on canvas** — replaced the original inline `<svg>` + CSS keyframes version; no new npm dependency |
+| Shared canvas primitives | `components/welcome/canvasKit.ts` — easing curves, runtime token reading, path sampling, grid layer and drifting mask, rounded rect, glow blend | **New module** — extracted so the two diagrams cannot drift apart when either is tuned |
 | Icons (optional, "How it works" step markers) | `@lucide/vue` — suggested: `Webhook`, `Split`, `ListOrdered` (or equivalent already-available names) | Reused library; **verify exact icon names exist in the installed `@lucide/vue` version** before use — not blocking, swap for a visually equivalent available icon if a name doesn't exist |
 
 **No new npm dependency, icon library, or `ui/*` primitive is introduced.**

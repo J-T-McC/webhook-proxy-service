@@ -668,10 +668,26 @@ function drawBaseScene(state: RenderState, timeMs: number) {
     const idleColor = withAlpha(tokens.mutedForeground, visuals.idleLineAlpha);
     const idleWidth = visuals.idleLineWidth * geo.scale;
 
+    // Each event's ingest leg is its own, but both events share the junction, so
+    // their three junction-to-destination segments are geometrically identical.
+    // Stroking every event's full path set drew those three twice and compounded
+    // their alpha — the fan-out half rendered visibly darker than the ingest
+    // half. Draw the ingest legs per event and the shared fan once.
     for (const eventPaths of paths) {
-        for (const key of Object.keys(eventPaths) as SegmentKey[]) {
-            strokeSegment(ctx, eventPaths[key].spec, idleWidth, idleColor);
-        }
+        strokeSegment(
+            ctx,
+            eventPaths['ingest-junction'].spec,
+            idleWidth,
+            idleColor,
+        );
+    }
+
+    for (const key of [
+        'junction-dest1',
+        'junction-dest2',
+        'junction-dest3',
+    ] as SegmentKey[]) {
+        strokeSegment(ctx, paths[0][key].spec, idleWidth, idleColor);
     }
 
     // A thin ring, not a filled dot. The solid grey circle was the only opaque
