@@ -84,7 +84,7 @@ const reliabilitySteps = [
 
         <main>
             <!-- Hero -->
-            <section class="mx-auto max-w-6xl px-6 pt-6 pb-16 lg:pb-24">
+            <section class="mx-auto max-w-6xl px-6 pt-6 pb-16 lg:pb-20">
                 <p class="text-sm font-medium text-muted-foreground">
                     Webhook Proxy Service
                 </p>
