@@ -2093,7 +2093,40 @@
 - **Testing:** manual verification (no harness) — `pnpm run build`, confirm both cards render chart
   + table together on Dashboard and Show, the zero-traffic states still suppress the chart shell,
   both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** Wired `<TrendChart :series="props.statistics.series"
+  :window="props.statistics.window" />` into `resources/js/pages/Dashboard.vue`'s Trend card and
+  `resources/js/pages/proxies/Show.vue`'s Analytics card, in both cases directly above the
+  already-shipped "View as table" `Collapsible`, both already inside the existing `v-else`
+  branch gated on `props.statistics.hasTraffic` — the chart therefore never renders in either
+  page's zero-traffic state, with no additional condition needed (T17/T19's existing gate already
+  does the "no chart shell when there is nothing to plot" job). Both files' own code comments
+  (left by the sessions that built T17/T19) named this exact task and this exact change, down to
+  flagging that the `Collapsible` should switch from `default-open` to closed-by-default once the
+  chart landed beside it (design-11 § Interactions: "collapsed by default") — both comments are now
+  removed along with the `default-open` attribute they were explaining. Confirmed via
+  `[data-slot="collapsible"]`'s `data-state` attribute reading `"closed"` on both pages after a
+  fresh page load, in the same Playwright session used for T27's manual verification.
+
+  No new prop plumbing needed — `StatisticsPanel.series`/`.window` were already present on both
+  pages' existing props (T13/T18) for the accessible table, so `TrendChart` reads the identical data
+  the table beside it does, per this task's own requirement that the two never disagree.
+
+  **Manual verification (combined with T27's, same Playwright session against the same production
+  build, `public/hot` removed)**: both cards render chart + table together on Dashboard and Show,
+  confirmed by full-page screenshots in both themes; the table's per-day drill-through links (T23,
+  `trendDayHref()` on Show) render unchanged beside the chart — the chart adds no control and no
+  href of its own, so there was nothing for it to interfere with structurally, confirmed by the
+  table's links still being present and pointing at the same `proxyEventRoutes.index(...)` targets
+  after the chart's addition; the zero-traffic proxy (60, "Quiet Integration") still collapses to
+  the single "No deliveries to this proxy..." message with no chart shell, no table, no tiles,
+  confirmed by full-page screenshot. The two-tier headline, Retry & replay tiles, and Latency card
+  on both pages are visually unaffected by the chart's presence (same layout, same values, only the
+  Trend/Analytics card gained the chart above its existing table).
+
+  Verified: `composer lint`, `composer types:check` (0 errors, unaffected — no PHP touched by
+  T25–T28), `pnpm lint:check`, `pnpm types:check`, `pnpm format:check`, and `./vendor/bin/sail test
+  --parallel` all green (844/844, unchanged from before T25 — these are frontend-only tasks with no
+  new backend test surface, per M6's own scope).
 
 ---
 

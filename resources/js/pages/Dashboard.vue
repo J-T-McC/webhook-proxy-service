@@ -2,6 +2,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
+import TrendChart from '@/components/TrendChart.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -450,51 +451,55 @@ function proxyFailuresHref(proxyId: number) {
             >
                 {{ TREND_NO_DATA_LABEL }}
             </p>
-            <!--
-                No chart yet (T27/M6 adds the canvas above this table). The
-                table is therefore the only representation at this stage, so
-                it is rendered open by default — T27/T28 should switch this
-                back to collapsed-by-default once the chart lands beside it
-                (design-11 § Interactions: "collapsed by default").
-            -->
-            <Collapsible v-else default-open>
-                <CollapsibleTrigger as-child>
-                    <Button variant="ghost" size="sm" class="w-fit">
-                        View as table
-                    </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>{{
-                                    DELIVERY_SUCCESS_COLUMN_LABEL
-                                }}</TableHead>
-                                <TableHead>{{
-                                    ATTEMPT_SUCCESS_COLUMN_LABEL
-                                }}</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            <TableRow
-                                v-for="point in props.statistics.series"
-                                :key="point.date"
-                            >
-                                <TableCell>{{
-                                    formatSeriesDate(point.date)
-                                }}</TableCell>
-                                <TableCell>{{
-                                    compactRateText(point.delivery)
-                                }}</TableCell>
-                                <TableCell>{{
-                                    compactRateText(point.attempt)
-                                }}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </CollapsibleContent>
-            </Collapsible>
+            <template v-else>
+                <TrendChart
+                    :series="props.statistics.series"
+                    :window="props.statistics.window"
+                />
+                <!--
+                    The chart's "View as table" fallback is collapsed by
+                    default now that the chart above it is the primary
+                    representation (design-11 § Interactions).
+                -->
+                <Collapsible>
+                    <CollapsibleTrigger as-child>
+                        <Button variant="ghost" size="sm" class="w-fit">
+                            View as table
+                        </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>{{
+                                        DELIVERY_SUCCESS_COLUMN_LABEL
+                                    }}</TableHead>
+                                    <TableHead>{{
+                                        ATTEMPT_SUCCESS_COLUMN_LABEL
+                                    }}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
+                                    v-for="point in props.statistics.series"
+                                    :key="point.date"
+                                >
+                                    <TableCell>{{
+                                        formatSeriesDate(point.date)
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        compactRateText(point.delivery)
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        compactRateText(point.attempt)
+                                    }}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </CollapsibleContent>
+                </Collapsible>
+            </template>
         </Card>
 
         <!-- Retry & replay card -->

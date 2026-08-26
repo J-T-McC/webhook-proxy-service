@@ -2,6 +2,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import CopyField from '@/components/CopyField.vue';
+import TrendChart from '@/components/TrendChart.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -438,15 +439,16 @@ function confirmDeleteProxy(): void {
                     {{ bridgeText }}
                 </p>
 
+                <TrendChart
+                    :series="props.statistics.series"
+                    :window="props.statistics.window"
+                />
                 <!--
-                    No chart yet (T27/M6 adds the canvas above this table,
-                    same as Dashboard.vue's Trend card). The table is
-                    therefore the only representation at this stage, so it
-                    is rendered open by default — T27/T28 should switch this
-                    back to collapsed-by-default once the chart lands beside
-                    it (design-11 § Interactions: "collapsed by default").
+                    The chart's "View as table" fallback is collapsed by
+                    default now that the chart above it is the primary
+                    representation (design-11 § Interactions).
                 -->
-                <Collapsible default-open>
+                <Collapsible>
                     <CollapsibleTrigger as-child>
                         <Button variant="ghost" size="sm" class="w-fit">
                             View as table
