@@ -57,7 +57,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
 | 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
-| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 OPEN** (Senior Developer to PE, 2026-08-26) — plan-vs-design conflict on the Trend chart's per-day drill-through; blocks one T23 entry point only, nothing else. **No outstanding approvals on #11.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
+| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26) — `plan-11` now at **Revision A**. **No open questions and no outstanding approvals on #11.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
@@ -164,6 +164,30 @@ plus both Owner flags ruled, 2026-08-26);
   AC28**, matching design-11's own "arrived directly" state: a bare request stays identical
   to the pre-#11 surface, and narrowing begins only once `destination` or `outcome` actually
   resolves. Recorded in T21's completion notes.
+- **`Q-11-04` RESOLVED and `plan-11` re-certified at Revision A** (Principal Engineer,
+  2026-08-26), on plan authority — **no Owner gate was sought or needed** (no dependency, no
+  stack change, no data-model change, no security surface, nothing irreversible; the walk is
+  written into the plan item by item so it can be checked rather than trusted), **and no ADR**.
+  The ruling adds a **fourth optional query parameter, `date`** (ISO `Y-m-d`, deliberately the
+  same string `SeriesPoint.date` already carries). A resolved `date` **replaces** the window's
+  range bound with the half-open interval `[that day 00:00, next day 00:00)` — written as
+  `>= start` and `< end`, never an inclusive `whereBetween`, so no instant at a day boundary
+  belongs to two days or to neither. That is the same partition Technical ruling 9's
+  `DATE(updated_at)` bucket produces, which is what makes a day cell's figure and that day's
+  drill-through describe the same records. Absent or malformed means **no day-narrowing and
+  never a 422**, per ruling 8 as now amended. `window` still resolves and is still emitted —
+  it is the period a member returns to — it simply does not bound the query while a `date` is
+  resolved. **The day is not a fourth chip**: Screen 4 fixes the chip row at three and Flow E
+  calls the day *the window* narrowed, so it renders as the existing Window chip's value and
+  that chip's `×` drops `window` and `date` together. **No design change, so nothing returned
+  to the Designer.** Recorded as `## Revision A` plus new **Technical ruling 10** in
+  `plan-11-analytics.md`, with `### Re-certification at Revision A` appended below the original
+  certification. **T27/T28 need nothing from this**: the canvas carries **no click target by
+  design** (Flow C step 3, Implementation Note 14's `aria-hidden`, and T27's own criteria
+  forbidding `tabindex` and click handlers), so drill-through lives on the accessible table.
+  Scoped further: the entry point is the **Proxy Show** trend table only — the C1 re-check
+  states the Dashboard's team-grained trend is not a drill-through entry point at all, so its
+  rows get no links **despite T23's own task text naming `Dashboard.vue`**.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
