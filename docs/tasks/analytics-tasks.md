@@ -150,7 +150,45 @@
   SQLite, mirroring the existing index-presence pattern in `DeliveryAttemptTest`/`FifoDispatchTest`
   from plan-06's tasks), the full pre-existing-index-survival list, and the rollback round-trip
   (`artisan migrate:rollback --step=1` + `artisan migrate`, both directions clean).
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as `database/migrations/2026_08_26_000001_add_analytics_indexes_to_delivery_tables.php`
+  — the four composite indexes exactly as enumerated, column order grain → `status` →
+  `updated_at`, Laravel's default index names. Test suite runs against MySQL only (Sail;
+  `DB_CONNECTION=mysql` in `.env`, `phpunit.xml` overrides only `DB_DATABASE`), so
+  `tests/Unit/Migrations/AnalyticsIndexesTest.php` mirrors `DeliveryAttemptTest`/`FifoDispatchTest`'s
+  `information_schema`-only pattern; no SQLite branch exists elsewhere in this suite to mirror.
+
+  **Flagged deviation, root-caused and fixed rather than escalated (no data-model or public-interface
+  change involved — confined to `down()`'s internal bookkeeping):** `down()` is not simply four
+  `dropIndex` calls as the task description states. Verified empirically against this project's MySQL
+  8.4: before this migration, `deliveries.team_id` and `deliveries.proxy_id` carried no explicit index
+  of their own — only the single-column index InnoDB auto-creates to support a `constrained()` foreign
+  key when no other index covers it. Adding this migration's composite indexes (leading on the same
+  columns) makes those automatic single-column indexes redundant, and InnoDB silently drops them as
+  part of the same `ALTER TABLE` (confirmed via `SHOW CREATE TABLE`: no separate
+  `deliveries_team_id_foreign` / `deliveries_proxy_id_foreign` key survives `up()`, only the new
+  composite ones). Consequently a literal `dropIndex` of the composite index in `down()` fails with
+  MySQL error 1553, "needed in a foreign key constraint" — nothing else in the table would service the
+  FK. Reproduced in isolation against a throwaway table before touching the real migration. Fix:
+  `down()` restores an equivalent single-column index on `deliveries.team_id` and `deliveries.proxy_id`
+  first, then drops the two composite indexes — this is what makes the rollback path actually work
+  rather than merely read as if it does. `delivery_attempts` needed no such restoration: its
+  pre-existing `(team_id, created_at)` and `(proxy_id, status)` indexes already cover both foreign
+  keys independently (confirmed both survive `up()` unchanged). This does not touch the forward (`up()`)
+  schema — still exactly the four approved indexes and nothing else — and does not persist beyond a
+  rollback; it is the only way `down()` is reversible on this engine, and is recorded here per the
+  "record deliberate simplifications" convention since it means "every pre-existing index still present
+  post-rollback" is met by an index that is functionally, not byte-for-byte, identical to the one MySQL
+  had auto-created (same column, different generated name).
+
+  Also discovered during testing: DDL inside a `RefreshDatabase`-wrapped test causes MySQL to
+  implicitly commit, so the migration's `up()`/`down()`/`up()` round-trip in the rollback test executes
+  outside the per-test transaction sandbox and mutates the real `testing` database directly (confirmed
+  by inspecting `SHOW CREATE TABLE` against the `testing` connection after a broken intermediate run).
+  This is expected and self-healing as long as the test passes (it ends by reapplying `migrate`,
+  restoring full schema) — noted here so a future migration-rollback test author isn't surprised by it.
+
+  Verified: `composer lint`, `composer types:check` (PHPStan level 7), and `./vendor/bin/sail test --parallel`
+  all green (762/762) after this task.
 
 ---
 
