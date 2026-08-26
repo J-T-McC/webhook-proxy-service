@@ -228,6 +228,38 @@ plus both Owner flags ruled, 2026-08-26);
   **T25 resumes from check 3**; every other condition stands — `onMounted`-only construction, no
   click target on the canvas, and no automated vulnerability scanning for this package, Dependabot
   being configured for `github-actions` only. **M6 is unblocked**; T29 remains unstarted.
+- **M6 complete — T25 through T28 landed and committed** (Senior Developer, 2026-08-26).
+  `chart.js` ^4.5.1 and `@j-t-mcc/vue3-chartjs` ^2.1.0 are adopted; `resources/js/lib/chartTokens.ts`
+  resolves the series colours; `resources/js/components/TrendChart.vue` renders the two-series line
+  chart; both the Dashboard and Proxy Show wire it in **above the existing accessible table, which
+  stays** and is now collapsed by default. Verified green afterwards: `composer lint`,
+  `composer types:check` (0 errors), the three `pnpm` checks, and the suite still at **844/844** —
+  M6 added no backend surface. **Only T29 remains**, the whole-surface production-build sweep.
+  Four things worth carrying forward.
+  First, **the real bundle cost is larger than the figure the Owner ruled on, and the difference is
+  not a contradiction.** Check 3's `pnpm build` delta measured **0 kB** at T25 time, because nothing
+  imported the packages yet and Rollup dropped them entirely. Measured again after T27 and T28 wired
+  the chart in, the true delta is **+206.6 kB raw / +71.0 kB gzip** (901.97 to 1108.56 kB raw,
+  278.28 to 349.23 kB gzip). The ~59 kB raw / 20.6 kB gzip the Owner accepted was never the feature's
+  total cost — it was the wrapper's **own auto-registration tax**, the avoidable part, which is the
+  part the ruling was actually about. The rest is `chart.js` itself and would have been paid under
+  the declined local-wrapper option too.
+  Second, **`@j-t-mcc/vue3-chartjs` has a real defect that this implementation works around.** Its
+  exposed `update()` replays a `props` snapshot frozen once in `setup()`, so prop-driven colour and
+  data changes silently no-op. `TrendChart.vue` therefore writes to the exposed
+  `chartJSState.chart` — the actual Chart.js instance — rather than calling the wrapper's `update()`.
+  Without that, a live theme toggle leaves the chart painted in the old theme's colours. The package
+  also ships a broken `exports` map with no `types` condition, unreachable under
+  `moduleResolution: "bundler"`, so `resources/js/types/vue3-chartjs.d.ts` carries a local ambient
+  shim. **Both are upstream bugs in the Owner's own package**, worth fixing there rather than
+  carrying these workarounds indefinitely.
+  Third, **check 4 confirmed the PR #12 scenario is real, not theoretical**: against a production
+  build, `--chart-1`/`--chart-2` deliver as **minified hex** in both themes, which is exactly what
+  defeats pattern-matching on token text and why the `fillStyle` round-trip is required.
+  Fourth, **flagged and deliberately not fixed**: light-theme `--chart-1` clears WCAG 1.4.11's 3:1
+  non-text contrast floor at **3.11:1** — passing, but with almost no margin. It is a pre-existing
+  design-11 token choice, not something M6 introduced, and it is worth a second look if that palette
+  ever changes.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
