@@ -323,7 +323,11 @@ function proxyFailuresHref(proxyId: number) {
                 -->
                 <Collapsible>
                     <CollapsibleTrigger as-child>
-                        <Button variant="ghost" size="sm" class="w-fit">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            class="h-auto w-fit px-2 py-1 text-xs font-normal text-muted-foreground"
+                        >
                             View as table
                         </Button>
                     </CollapsibleTrigger>

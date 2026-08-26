@@ -115,6 +115,32 @@ function buildChartData(): ChartData<'line'> {
 
 const chartData = ref(buildChartData());
 
+// The legend is rendered as HTML beside the canvas rather than by Chart.js
+// (`plugins.legend.display` is false below), so these colours are needed
+// outside `buildChartData()` too. Re-resolved by the same watch, for the same
+// reason the datasets are: a cached palette survives a theme change.
+const colours = ref(resolveChartSeriesColours());
+
+/**
+ * Legend entries, mirroring the two datasets' own stroke styles — solid for
+ * delivery-grain, dashed for attempt-grain — so the swatch reads as the line
+ * it stands for rather than as a colour chip alone. That matters here because
+ * the two series are distinguished by dash pattern as well as by hue, and hue
+ * alone would not survive a monochrome print or colour-blind viewing.
+ */
+const legendEntries = computed(() => [
+    {
+        label: DELIVERY_SUCCESS_LABEL,
+        colour: colours.value.delivery,
+        dash: undefined,
+    },
+    {
+        label: ATTEMPT_SUCCESS_LABEL,
+        colour: colours.value.attempt,
+        dash: '5 3',
+    },
+]);
+
 const chartOptions: ChartOptions<'line'> = {
     responsive: true,
     maintainAspectRatio: false,
@@ -128,7 +154,12 @@ const chartOptions: ChartOptions<'line'> = {
         },
     },
     plugins: {
-        legend: { display: true },
+        // Chart.js's own legend is off: it sizes its labels from the canvas
+        // font rather than the page's, sits hard against the plot area, and
+        // centres and stacks its entries on a narrow viewport. The HTML
+        // legend in the template below inherits the app's type scale, keeps
+        // its own spacing, and wraps inline instead of stacking centred.
+        legend: { display: false },
         tooltip: { enabled: true },
     },
 };
@@ -150,6 +181,7 @@ const { resolvedAppearance } = useAppearance();
 // wrapper is a thin layer over, and is unaffected by that snapshot bug.
 watch([() => props.series, () => props.bucket, resolvedAppearance], () => {
     chartData.value = buildChartData();
+    colours.value = resolveChartSeriesColours();
 
     const chart = chartRef.value?.chartJSState.chart;
 
@@ -166,6 +198,36 @@ onUnmounted(() => {
 
 <template>
     <figure class="w-full" :aria-label="ariaLabel">
+        <!--
+            Visual legend only, so it is hidden from assistive technology for
+            the same reason the canvas is: the accessible table beside this
+            component already names both series. Left-aligned and wrapping,
+            rather than centred and stacked as Chart.js's own legend renders
+            on a narrow viewport.
+        -->
+        <ul
+            aria-hidden="true"
+            class="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1"
+        >
+            <li
+                v-for="entry in legendEntries"
+                :key="entry.label"
+                class="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+            >
+                <svg width="14" height="2" viewBox="0 0 14 2" class="shrink-0">
+                    <line
+                        x1="0"
+                        y1="1"
+                        x2="14"
+                        y2="1"
+                        :stroke="entry.colour"
+                        stroke-width="2"
+                        :stroke-dasharray="entry.dash"
+                    />
+                </svg>
+                {{ entry.label }}
+            </li>
+        </ul>
         <div class="h-64 w-full">
             <Vue3ChartJs
                 ref="chartRef"
