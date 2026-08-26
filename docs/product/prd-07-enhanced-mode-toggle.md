@@ -1,12 +1,26 @@
 # PRD: Enhanced-mode toggle
 
-- **Status:** Approved
+- **Status:** **Approved — amended** (Amendments A and B, Product Manager, 2026-08-25).
+  Not reopened, not downgraded; the original Owner approval stands and is unchanged.
 - **Author:** Product Manager
-- **Date:** 2026-08-21 *(revised 2026-08-21 to fold in the Q-07-01 ruling)*
+- **Date:** 2026-08-21 *(revised 2026-08-21 to fold in the Q-07-01 ruling)* ·
+  **Amended:** 2026-08-25 (Amendments A and B)
 - **Approved by / date:** Project Owner, 2026-08-21 *(approved as revised, incl.
   the Q-07-01 ruling in AC13/AC14/AC17 and the consistency edits to AC6, AC12,
-  AC16, AC20, AC21. Q-07-02 remains OPEN with the Principal Engineer — non-blocking
-  for this approval, gating Technical Design.)*
+  AC16, AC20, AC21. Q-07-02 was OPEN at approval — now **RESOLVED**, Principal
+  Engineer 2026-08-25, with **ADR-018 Accepted** by the Project Owner the same day.)*
+- **Amendment A / date:** **Product Manager, 2026-08-25** — AC14(b)'s no-dormant-values
+  rule is **scoped to read surfaces**; the create/edit form is a write surface and may
+  carry a proxy's preserved retry values so AC14's restoration promise can be kept on
+  the upgrade save. Resolves `docs/questions/prd-07-q-07-03-dormant-policy-restoration-surface.md`
+  (Option A). Affects **AC12** (closing sentence) and **AC14(b)** only; adds no criterion,
+  removes none, renumbers none. **The Owner's Q-07-01(b) ruling is not narrowed** — see
+  **§ Amendment A**.
+- **Amendment B / date:** **Product Manager, 2026-08-25** — factual correction to one
+  UX Direction bullet: the Show page presents Mode in its **header area** (a badge), not
+  in a "Details card". Raised by the Designer at the design gate (`design-07` flagged
+  call 2) against the shipped page. **No acceptance criterion is touched and no
+  requirement changes** — see **§ Amendment B**.
 - **Backlog item:** Roadmap #7 (`docs/product/roadmap.md`)
 
 ## Feature
@@ -147,8 +161,12 @@ screens, states, components, and final copy are the Designer's.
   reassuring or merely factual, is the Designer's call. The requirement is that a
   member understands those three points **before** saving. Upgrading needs no
   equivalent treatment.
-- **The Show page states the proxy's mode and what it currently means.** The Mode
-  row already exists in the Details card. It should carry the same present-tense
+- **The Show page states the proxy's mode and what it currently means.** *(B)* The
+  proxy's mode is already shown on the detail page, in the **header area** — as a badge
+  alongside the proxy name, not in a card. *(Amendment B: this bullet previously said
+  "the Mode row already exists in the Details card"; no card of that name exists on that
+  page. Factual correction only — nothing this bullet requires changes.)* It should carry
+  the same present-tense
   meaning as the form, sized for a detail row — and must **not** duplicate the
   Retry policy card `design-06` already specifies; that card stays the single home
   for retry values, and Mode should reference rather than restate it.
@@ -175,6 +193,11 @@ This section's presence makes the **Designer gate mandatory** (routing rule; see
 Handoff).
 
 ## Acceptance Criteria
+
+> **Numbering is frozen.** Amendment A edits two criteria **in place** and adds none, so
+> every existing cross-reference (ADR-018, Q-07-01/02/03, `design-07`, review-06 Minor 8)
+> stays valid. Criteria amended by Amendment A are tagged **(A)**; see § **Amendment A**
+> for the ruling and exactly what changed.
 
 **The toggle**
 
@@ -258,10 +281,13 @@ Handoff).
     The currently shipped help text ("Enhanced-mode behaviours (mapping, storage,
     retries) are not yet functional") is superseded by this criterion. User-facing
     text carries **no internal roadmap numbers**. *(Carries forward the Product
-    Manager's constraint recorded at the `design-06` design gate.)* Truthfulness
-    covers **state as well as capability**: what is displayed for a proxy is what is
-    actually in force for that proxy, never a stored value that has no effect
-    (AC14(b)).
+    Manager's constraint recorded at the `design-06` design gate.)* **(A)**
+    Truthfulness covers **state as well as capability**: a **read** surface displays
+    what is actually in force for that proxy, never a stored value that has no effect
+    (AC14(b)); a **write** surface — the create/edit form — displays what will be in
+    force **if the member saves what it currently shows**, and must never show one
+    thing while the save does another. Both readings forbid the same failure: the
+    product telling a member that a value governs their proxy when it does not.
 13. **A downgrade erases nothing, and the user is told so before it takes effect.**
     *(Q-07-01(a) — Project Owner ruling, 2026-08-21.)* Switching a proxy from
     Enhanced to Simple leaves every dispatched-output payload already stored for
@@ -292,13 +318,26 @@ Handoff).
     proxy is Enhanced.** A Simple proxy with a stored policy and a Simple proxy that
     never had one behave identically. *(Requirement only — the mechanism is the
     Principal Engineer's, routed in Q-07-02(4).)*
-    **(b) Dormant values are never presented as though they applied.** While a proxy
-    is Simple, no read surface — Show, index, form, event or delivery surface, or
-    any response shaped for one — presents its persisted retry-policy values. Simple
-    surfaces show only the policy actually in force, i.e. the system default.
-    Presenting a dormant value would breach AC12 and AC16. `design-06` Flow G step 2
-    already satisfies this (a simple-mode Retry policy card shows the fixed default
-    plus a note that configurability is an Enhanced capability) and needs no change.
+    **(b) (A) Dormant values are never presented as though they applied.** While a
+    proxy is Simple, no **read** surface — Show, index, the event or delivery
+    surfaces, or any response shaped for one of them — carries or presents its
+    persisted retry-policy values. Those surfaces show only the policy actually in
+    force, i.e. the system default. Presenting a dormant value there would breach AC12
+    and AC16. `design-06` Flow G step 2 already satisfies this (a simple-mode Retry
+    policy card shows the fixed default plus a note that configurability is an
+    Enhanced capability) and needs no change.
+    *The **create/edit form is a write surface**, not a read surface, and is excluded
+    from this rule under exactly four conditions, all binding (Amendment A, resolving
+    Q-07-03):* **(i)** it may carry the proxy's persisted retry values whatever the
+    proxy's current mode, so AC14's restoration promise can be kept in the single save
+    that performs an upgrade; **(ii)** while the form's Mode reads Simple it **renders
+    no retry-policy value at all** — a value carried but never rendered presents
+    nothing; **(iii)** once the member selects Enhanced in the form, the preserved
+    values are shown as the configuration that **will** be in force on save, which is
+    true, and may be tuned in that same save; **(iv)** a save made with Mode = Simple
+    never changes the persisted values — it neither overwrites nor clears them. This
+    is the **only** carve-out; any other response that grows a dormant retry value
+    breaches this criterion.
     **(c) The disclosure states preservation, not loss.** Before a downgrade is
     saved, the user is told that saved retry configuration is kept but stops
     applying while the proxy is Simple, and applies again if Enhanced is turned back
@@ -393,6 +432,106 @@ Each points to the item that owns it.
 - **Audit trail / change history for proxy configuration** — not in the roadmap at
   any item; not built and not designed for here.
 
+## Amendment A — AC14(b) is scoped to read surfaces (Product Manager ruling on Q-07-03, 2026-08-25)
+Amends the Approved PRD; does **not** reopen it. The PRD stays **Approved**. Recorded per
+`docs/standards/documentation.md` (amend in place, retain history, never rewrite ratified
+content silently). Doc:
+`docs/questions/prd-07-q-07-03-dormant-policy-restoration-surface.md` (**RESOLVED**,
+Option A).
+
+### The conflict
+The Principal Engineer, resolving Q-07-02, found that two clauses of AC14 could not both
+hold literally on the **one save that performs a Simple → Enhanced upgrade**. AC14's lead
+sentence requires the preserved policy to be in force again **"with its previous values …
+without the member re-entering anything"**. AC14(b), as originally written, forbade a
+dormant value on **"no read surface — Show, index, form, event or delivery surface, or any
+response shaped for one"**. The edit form is the only place an upgrade happens and was
+named in both: withhold the values from it and the upgrade save submits "unconfigured",
+destroying what the downgrade preserved — unless the server overrides the submission, in
+which case the form told the member one thing and the system did another (an AC12 breach).
+
+### The ruling — Option A
+**AC14(b) binds every surface that presents a value as the policy in force. The create/edit
+form is a write surface and is not one of them.** It may carry the proxy's persisted retry
+values whatever the proxy's current mode, subject to four binding conditions now written
+into AC14(b): nothing rendered while the form's Mode reads Simple; the preserved values
+shown only once Enhanced is selected, as what **will** be in force on save; tunable in that
+same save; and a Simple-mode save never changing the persisted values. Every other surface —
+Show, Index, the event and delivery surfaces, and any response shaped for one of them —
+is bound exactly as before.
+
+### The reasoning, in short
+1. **"Form" was the Product Manager's word, not the Owner's.** The Owner's Q-07-01(b)
+   ruling reads *"The Show page and any read surface must not present them while the proxy
+   is simple."* AC14(b)'s enumeration was the PM's rendering of that ruling, and it swept a
+   write surface into a rule written about read surfaces. Correcting the PM's own rendering
+   is the PM's to do and reverses no Owner decision.
+2. **Only Option A delivers what the Owner ruled.** The Owner chose preservation so that
+   *"the setting stays as reversible in effect as it is in appearance."* Restoring
+   server-side while the form displays "System default" is reversible in effect but not in
+   appearance, and costs the member a second save to tune.
+3. **It resolves an AC12 tension without creating an AC12 breach.** A form that shows one
+   configuration while the save writes another is precisely what AC12 forbids.
+4. **The clause's purpose is untouched.** AC14(b) exists to stop a member believing a
+   dormant value governs their proxy. Under this ruling no surface, at any moment, presents
+   a value as though it applied.
+5. **Cost, named and accepted:** a Simple proxy's preserved values travel in the edit
+   form's data, unrendered, to a member who already holds the AC5 update permission. The
+   Principal Engineer assessed the exposure as security-neutral (Q-07-02(5)).
+
+### What changed in this PRD
+| Item | Change |
+|---|---|
+| AC14(b) | **Scoped.** Binds read surfaces (Show, Index, event/delivery, and responses shaped for them) exactly as before. The create/edit form is excluded as a write surface, under four binding conditions written into the criterion. |
+| AC12 | Closing sentence split by surface kind: a read surface displays what **is** in force; a write surface displays what **will be** in force if saved, and may never show one thing while the save does another. |
+| AC14 lead sentence, AC14(a), AC14(c), AC13, AC16, AC17, AC21 | **Unchanged.** In particular the restoration promise and the "Simple always resolves the system default" rule are untouched. |
+| Criteria added / removed / renumbered | **None.** |
+
+### What this amendment does **not** do
+- It does **not** narrow AC14's restoration promise. Option C in Q-07-03 — narrowing the
+  promise — would have reopened the **Project Owner's** Q-07-01(b) ruling and was
+  explicitly not taken.
+- It does **not** change what governs behaviour. AC14(a) and ADR-018 stand: a Simple proxy
+  resolves the fixed system default regardless of any persisted value, and a dormant value
+  governs nothing, ever.
+- It does **not** relax the read-surface rule by one word, and creates no precedent for a
+  second carve-out. The edit form's data is the only exclusion.
+
+### Consequences downstream — not edited here
+- **`design-07`** — Screen 1's restore-on-upgrade behaviour is **correct as specified** and
+  its Q-07-02 dependency (2) is discharged. Screen 2's dependency is discharged the other
+  way: under **ADR-018 Decision 4** the Show payload must not carry dormant values, so the
+  client-side gate specified there is not the enforcement point. Returned to the Designer
+  as a required correction at the design gate.
+- **`plan-07`** — the edit-form data shape and the upgrade write rule are unblocked.
+  ADR-018's resolution gate, retained `prohibited_if:mode,simple`, and don't-write-on-Simple
+  rule are unchanged, exactly as ADR-018 Decision 3 anticipated.
+
+## Amendment B — the Show page presents Mode in its header, not a "Details card" (Product Manager, 2026-08-25)
+Amends the Approved PRD; does **not** reopen it. The PRD stays **Approved**. A factual
+correction to the Product Manager's own text, made on the record rather than silently, per
+`docs/standards/documentation.md`.
+
+**What was wrong.** The UX Direction bullet *"The Show page states the proxy's mode and
+what it currently means"* opened with "The Mode row already exists in the Details card."
+No card of that name exists on the proxy detail page — Mode is a header `Badge` beside the
+proxy name (`design-01`, unchanged by `design-04`). The Designer verified this against the
+shipped page and flagged it at the design gate (`design-07`, flagged call 2).
+
+**What changed.** That one sentence, tagged **(B)** in the UX Direction. Nothing else.
+
+**What did not change.** Every requirement the bullet carries stands verbatim: the detail
+view states the mode's present-tense meaning, **sized for a detail row**, and must **not**
+duplicate `design-06`'s Retry policy card — that card stays the single home for retry
+values, and Mode references rather than restates it. **AC16 is untouched.**
+
+**Consequence at the design gate.** `design-07` renders the meaning as a one-line caption
+under the header rather than a dedicated card. That is the correct reading of what this
+bullet requires, and it was **accepted** at the design gate (PM ruling, 2026-08-25). The
+"Details card" phrasing must not be read by any downstream agent — Principal Engineer,
+Task Planner, Senior Developer, or Reviewer — as requiring a new card on that page; doing
+so would also breach the UX Direction's standing "no new surface" mandate.
+
 ## Open Questions
 Question IDs Q-07-0x.
 
@@ -412,8 +551,11 @@ Question IDs Q-07-0x.
   unaffected: the ruling governs persistence, Flow F governs in-form, in-session
   behaviour (see AC14).
 - **Q-07-02 (Principal Engineer, technical) — Mode-gated step composition,
-  in-flight mode resolution, and extensibility. OPEN; non-blocking for requirement
-  approval, gates technical design.** Doc:
+  in-flight mode resolution, and extensibility. RESOLVED 2026-08-25 (Principal
+  Engineer); all five confirmations hold, no data-model change, and the mechanism is
+  **ADR-018** (Accepted, Project Owner, 2026-08-25 — partially supersedes ADR-015
+  Decision 3). One clause proved self-conflicting on one path and returned as Q-07-03,
+  below.** Doc:
   `docs/questions/prd-07-q-07-02-mode-step-composition.md`. Confirm at #7 technical
   design: (1) the AC6 set is gated on the single ADR-002 selector and AC18's
   extensibility holds for #8/#9/#12; (2) AC9's current-mode-at-processing rule
@@ -429,6 +571,17 @@ Question IDs Q-07-0x.
   makes a persisted-but-dormant policy a real state a Simple proxy can be in, so the
   mode-gated resolution rule of AC14(a) is a requirement the technical design must
   satisfy, not a possibility to weigh.
+- **Q-07-03 (Product Manager) — How a preserved retry policy reaches an upgrade save,
+  given AC14(b). RESOLVED 2026-08-25 (Product Manager, as the Owner's proxy for
+  requirement scope); no longer blocking.** Doc:
+  `docs/questions/prd-07-q-07-03-dormant-policy-restoration-surface.md`. Raised by the
+  Principal Engineer out of Q-07-02(4): AC14's restoration promise and AC14(b)'s
+  no-dormant-values rule could not both hold literally on the upgrade save. **Option A**
+  — AC14(b) binds **read** surfaces; the create/edit form is a **write** surface and may
+  carry the preserved values, under four binding conditions now written into AC14(b).
+  Folded in as **Amendment A** (AC12 closing sentence + AC14(b); no criterion added,
+  removed, or renumbered). The Owner's Q-07-01(b) restoration promise is **not** narrowed;
+  AC14(a) and ADR-018 are untouched.
 
 ## Handoff
 - **Inputs:** `docs/product/roadmap.md` (#7 line + build-ahead — "wires steps to
@@ -459,21 +612,26 @@ Question IDs Q-07-0x.
   `docs/architecture/adr-011-per-proxy-fifo-dispatch-mechanism.md` /
   `adr-016-fifo-composition-under-retry-and-replay.md` (the separate axis; claim
   state AC10 must survive), `docs/standards/documentation.md`.
-- **Outputs:** this PRD;
+- **Outputs:** this PRD (incl. **Amendment A**, 2026-08-25);
   `docs/questions/prd-07-q-07-01-mode-switch-consequences.md` (**RESOLVED**, Project
   Owner, 2026-08-21 — folded into AC13/AC14/AC17 and the UX Direction);
-  `docs/questions/prd-07-q-07-02-mode-step-composition.md` (OPEN, Principal
-  Engineer, non-blocking).
+  `docs/questions/prd-07-q-07-02-mode-step-composition.md` (**RESOLVED**, Principal
+  Engineer, 2026-08-25 → **ADR-018** Accepted, Project Owner, 2026-08-25);
+  `docs/questions/prd-07-q-07-03-dormant-policy-restoration-surface.md` (**RESOLVED**,
+  Product Manager, 2026-08-25 — Option A, folded in as Amendment A).
 - **Dependencies:** #5 (Done) and #6 (Approved through plan; in implementation) —
   #7's governed-step set (AC6) is exactly what those two items built, so #7's
   acceptance depends on #6 landing. Every decision #7 rests on is already frozen:
   PRD-06 Approved (Owner 2026-08-12), Q-06-01 resolved, ADR-015/016/017 Accepted,
   design-06 PM-approved, plan-06 PE-certified. #7 does **not** depend on #8, #9,
   #10, #11, #12 or #13 and must not pre-empt them.
-- **Outstanding Questions:** none blocking. **Q-07-01 (Project Owner) — RESOLVED
-  2026-08-21**; AC13, AC14 and AC17 are now concretely testable and the
-  downgrade-disclosure copy is writable. **Q-07-02 (Principal Engineer)** — OPEN;
-  non-blocking for requirement approval; gates Technical Design.
+- **Outstanding Questions:** **none — all three are resolved.** **Q-07-01 (Project
+  Owner) — RESOLVED 2026-08-21**; AC13, AC14 and AC17 are concretely testable and the
+  downgrade-disclosure copy is writable. **Q-07-02 (Principal Engineer) — RESOLVED
+  2026-08-25**, mechanism recorded in ADR-018 (Accepted, Project Owner, same day); no
+  data-model change, so #7 carries no further Owner gate from technical design.
+  **Q-07-03 (Product Manager) — RESOLVED 2026-08-25**, folded in as Amendment A;
+  `design-07`'s two flagged dependencies are both discharged by it.
 - **Next Agent:** **Designer.** This PRD carries a UX Direction section (the mode
   control on the existing create/edit form, the downgrade disclosure, the Show
   page's Mode presentation, and the no-dormant-values constraint), so under the

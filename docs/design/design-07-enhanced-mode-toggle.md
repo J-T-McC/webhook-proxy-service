@@ -1,11 +1,93 @@
 # Design Spec: Enhanced-mode toggle
 
-- **Status:** In Review
+- **Status:** **Approved — with two required corrections** (design gate, delegated per
+  `CLAUDE.md`). The corrections change **no user-visible outcome** and do **not** require
+  re-approval; see the approval note. Where this note and the spec body conflict, this
+  note governs until the Designer lands the corrections.
 - **Author:** Designer
 - **PRD:** `docs/product/prd-07-enhanced-mode-toggle.md` (Approved, Project Owner,
-  2026-08-21, incl. the Q-07-01 ruling in AC13/AC14/AC17)
-- **Approved by / date:** *Pending — Product Manager (design gate, delegated per
-  `CLAUDE.md`).*
+  2026-08-21, incl. the Q-07-01 ruling in AC13/AC14/AC17; **amended 2026-08-25 —
+  Amendment A**, the Q-07-03 ruling on AC14(b))
+- **Approved by / date:** **Product Manager, 2026-08-25.** Verified against PRD-07's 25
+  acceptance criteria: every UI-bearing story is covered and the UX Direction is honoured —
+  the mode change lives on the existing create/edit form with no new page or navigation
+  entry (AC1/AC2/AC3, "no new surface"); the corrected help text names **both** AC6
+  capabilities in present tense and restates the mode-independent guarantees, with no
+  roadmap numbers and no implication that mapping exists (AC6/AC7/AC12, and the copy
+  constraint carried forward from the `design-06` gate); the downgrade disclosure states
+  all three required points **before** the save (AC13, AC14(c)); nothing in the spec
+  blocks, warns against, or gates a switch on outstanding deliveries (AC10/AC11/AC17);
+  Show states the mode's present meaning and **references** rather than restates the
+  Retry policy card (AC16); Mode reaches the form's first-class field pattern; and the
+  Simple-proxy Retry policy card shows only the default in force (AC14(b)). Scope
+  boundaries AC4/AC8/AC15/AC18–AC25 are met by construction — the spec adds no control
+  beyond the existing Mode `Select`, no value, default, cap or window, and no new
+  primitive or dependency.
+
+  **Both flagged design calls accepted as designed** (PM rulings, 2026-08-25):
+  **(1) Inline, non-dismissible `Alert` rather than an `AlertDialog` confirm step —
+  accepted.** The UX Direction expressly left the disclosure's weight to the Designer
+  ("whether it is inline help, a confirmation step, or both … is the Designer's call")
+  and set one requirement: the member understands the three points before saving. The
+  Owner ruled the downgrade non-destructive, and `docs/standards/design.md` reserves
+  `AlertDialog` for destructive actions — the same reasoning that carried `design-06`'s
+  flagged call 1. A confirm step here would manufacture gravity the Owner's ruling
+  removed, and the disclosure's job is to *correct* the fear a user brings to an
+  off-switch, not confirm it. Two binding conditions, both already met by the spec: the
+  disclosure stays rendered for as long as the pending change is a downgrade (never
+  dismissible, never collapsed behind a "learn more"), and it sits between the Mode
+  control and the form's submit action so it cannot be passed unseen.
+  **(2) One-line present-tense caption under the header rather than a dedicated card —
+  accepted, and the PRD is corrected, not the design.** The UX Direction's "the Mode row
+  already exists in the Details card" was a factual error in the Product Manager's own
+  text; the Designer verified against the shipped page that Mode is a header `Badge` and
+  no "Details" card exists. What the Direction actually binds — "sized for a detail row",
+  "must not duplicate the Retry policy card", "no new surface" — is satisfied by the
+  caption and would be strained by a new card. PRD-07 is corrected in place as
+  **Amendment B** (UX Direction wording only, no acceptance criterion touched); the
+  design stands as written. The Simple and Enhanced copy is approved as drafted: it
+  points at the Retry policy card rather than repeating any value (AC16).
+
+  **Two required corrections, returned to the Designer** (accuracy only; no user-visible
+  outcome changes, no re-approval needed):
+  **(C1) Screen 2(b) — the enforcement point is server-side, not the client computed.**
+  `ADR-018` (Accepted, Project Owner, 2026-08-25) Decision 4 and PRD-07 **Amendment A**
+  together settle that a Simple proxy's dormant retry values **must not reach the Show
+  payload at all**. Screen 2(b) currently specifies a client-side computed as the
+  enforcement point "precisely **because** the raw value is still present in the payload",
+  and its ⚠ note frames the server-side alternative as undecided and "not a design-gate
+  blocker". Both readings are now wrong. What the spec gets right and keeps: the
+  **displayed outcome** — a Simple proxy's card always reads `5 (default)` /
+  `Exponential (default)` plus the existing simple-mode note, identical whether or not it
+  holds a dormant policy. Restate 2(b) as that presentation requirement (the card shows
+  the policy in force for the proxy's current mode) and drop the claim that the client
+  binding is the enforcement point, along with the ⚠ dependency note. Whether a
+  client-side guard also remains as defence in depth is the Principal Engineer's call at
+  technical design, not a design-spec assertion.
+  **(C2) Q-07-02 and Q-07-03 are both RESOLVED — the spec's open-dependency framing is
+  stale.** The Scope note, Screen 1's ⚠ block, Screen 2's ⚠ block, Open Questions, and
+  Handoff all describe Q-07-02 as open and route dependencies to it. Q-07-02 was resolved
+  by the Principal Engineer on 2026-08-25 (mechanism: **ADR-018**, Accepted the same day),
+  and Q-07-03 was resolved by the Product Manager on 2026-08-25 (**Option A**, folded in
+  as Amendment A). Both of the spec's flagged dependencies are thereby discharged, and in
+  the spec's favour on the point that mattered: Screen 1's ⚠ (1) is confirmed by ADR-018
+  Decision 3 (a Simple save omits the retry columns rather than nulling them) and ⚠ (2) is
+  confirmed by Amendment A (the edit form's data **does** carry the persisted values,
+  because the form is a write surface). Rewrite those blocks as settled references rather
+  than open risks.
+
+  **Two non-blocking notes, Designer's discretion.** *(i)* Flow B step 3 and Screen 1's
+  *Interaction — dormant-value restore on upgrade* cite **AC14(c)**; AC14(c) is the
+  disclosure clause. The restore behaviour rests on AC14's **lead sentence** as scoped by
+  Amendment A — a citation fix. *(ii)* The disclosure's third bullet hardcodes "(5
+  attempts, exponential)". Accurate today and consistent with the Retry policy card's
+  existing "(default)" rendering, but AC12 makes it the copy's job to stay true: prefer
+  deriving those words from the same source the card uses over maintaining a second
+  hand-written copy of the default.
+
+  **Nothing else is sent back, and no requirement gap was found.** Flow D's argument that
+  AC11 is satisfied by the absence of any per-event mode display — rather than by new
+  suppression logic — is the correct reading and is accepted as recorded.
 - **Backlog item:** Roadmap #7 (`docs/product/roadmap.md`)
 
 > **Scope note.** #7 adds **no new page and no new navigation entry** (UX
