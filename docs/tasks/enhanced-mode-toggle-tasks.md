@@ -543,7 +543,43 @@
 - **Testing:** `pnpm` triad, then `pnpm run build`. **Manual verification**: Flow C (downgrade — the
   disclosure appears with all three points and does not block Save) and Flow B (upgrade — the
   disclosure never appears). Document outcomes in the completion notes.
-- **Completion notes:** _pending_
+- **Completion notes:** Added the conditional downgrade `Alert` to `ProxyForm.vue`, directly below the
+  Mode field and above Processing, wrapped in `<div aria-live="polite">` so its appearance is announced
+  to assistive technology. `isDowngrading` computed as
+  `props.initial.mode === 'enhanced' && form.mode === 'simple'` exactly per plan/design. Reused the
+  `TeamInvitationAlert.vue`/design-06-FIFO-note blue-tinted `Alert` styling precedent verbatim
+  (`border-blue-200 bg-blue-50 text-blue-900 dark:...`) with the `Info` icon from `@lucide/vue` — no
+  new dependency or icon. `AlertTitle` ("Switching to Simple mode") is used for the first time in the
+  app (design-07's stated first application use); `AlertDescription` wraps a three-item `ul`, each
+  bullet verbatim from design-07 Screen 1. The third bullet interpolates `defaultAttemptLimit` (=
+  `RETRY_DEFAULT_ATTEMPT_LIMIT`, the underlying const) and `defaultBackoffStrategy` (=
+  `proxyRetryBackoffStrategyLabel(null)`) from `@/data/proxyRetryBackoffStrategies` — the same module
+  Show's Retry policy card display helpers read from — rather than a second hand-written "5 attempts,
+  exponential" literal (`proxyRetryAttemptLimitDisplay(null)` was not used for the attempt-limit half
+  because it appends its own "(default)" annotation, which would read redundantly inside "the system
+  default (5 (default) attempts, ...)"; the plan's Files/AC text explicitly allows "or the underlying
+  const" for this reason). No confirm click, checkbox, or modal — the disclosure sits inline and never
+  gates `form.processing`/Save.
+
+  **Manual verification (Flows B and C):** reused the T7 throwaway user/team and seeded two proxies via
+  `sail tinker` — an Enhanced proxy (id 8, "T8 Enhanced Proxy") and a Simple proxy (id 9, "T8 Simple
+  Proxy") — then re-ran `pnpm run build` before checking. Via the `playwright` skill (headless
+  Chromium, real login):
+  - **Flow C (downgrade):** opened Edit on the Enhanced proxy — no `[role="alert"]` present initially.
+    Selected Mode = Simple — the disclosure appeared immediately with `AlertTitle` text "Switching to
+    Simple mode" and exactly 3 `li` bullets, verbatim to design-07 (confirmed the interpolated third
+    bullet rendered "the system default (5 attempts, Exponential) governs meanwhile"). The Save button
+    (`button[type="submit"]`) was NOT disabled and no checkbox existed inside the alert — not a gate.
+    Switched Mode back to Enhanced before saving: the disclosure disappeared immediately (alert count
+    0) and a network listener confirmed no non-GET request was fired to `/proxies/8` during the
+    switch-back — nothing was ever sent to the server.
+  - **Flow B (upgrade):** opened Edit on the Simple proxy — no alert present. Selected Mode = Enhanced
+    — alert count remained 0 throughout; the disclosure never appears on an upgrade, as specified.
+
+  Verified: `pnpm lint:check` (clean, repo-wide); `pnpm types:check` (clean); `pnpm format:check`
+  (clean, after one Prettier auto-fix); `pnpm run build` (succeeds); `composer lint` (Pint, clean);
+  `composer types:check` (PHPStan level 7, 0 errors); full backend suite
+  `./vendor/bin/sail test --parallel` (759 passed, 2820 assertions, unchanged — frontend-only task).
 
 ## T9 — Ruling-3 submit normalisation, closing plan Risk 4 (Amendment A; plan §Technical ruling 3)
 - **Description:** `ProxyForm.vue`'s existing `form.transform()` sends `null` for both retry fields
