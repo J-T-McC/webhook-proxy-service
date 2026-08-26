@@ -573,4 +573,69 @@ class RetryPolicyTest extends TestCase
 
         (new RetryPolicy)->worstCaseSpan();
     }
+
+    // --- Rider 1 (review-06 Minor 9): sweepGraceSeconds() ------------------
+
+    public function test_sweep_grace_seconds_returns_the_configured_value(): void
+    {
+        Config::set('retry.sweep_grace_seconds', 120);
+
+        $this->assertSame(120, (new RetryPolicy)->sweepGraceSeconds());
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_value_is_zero(): void
+    {
+        Config::set('retry.sweep_grace_seconds', 0);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("config('retry.sweep_grace_seconds')");
+
+        (new RetryPolicy)->sweepGraceSeconds();
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_value_is_negative(): void
+    {
+        Config::set('retry.sweep_grace_seconds', -1);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->sweepGraceSeconds();
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_env_value_is_blank(): void
+    {
+        // Reproduces review-06 Minor 9's repro: a blank env value casts to 0,
+        // which used to make the sweep cutoff `now()` and re-dispatch every
+        // `retrying` delivery on every tick.
+        putenv('RETRY_SWEEP_GRACE_SECONDS=');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_SWEEP_GRACE_SECONDS');
+        }
+
+        Config::set('retry.sweep_grace_seconds', $resolved['sweep_grace_seconds']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->sweepGraceSeconds();
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_env_value_is_non_numeric(): void
+    {
+        putenv('RETRY_SWEEP_GRACE_SECONDS=not-a-number');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_SWEEP_GRACE_SECONDS');
+        }
+
+        Config::set('retry.sweep_grace_seconds', $resolved['sweep_grace_seconds']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->sweepGraceSeconds();
+    }
 }

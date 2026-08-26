@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Actions\SweepDueRetries;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
 use App\Models\Proxy;
@@ -142,6 +143,22 @@ class RetryPolicy
         $delay = $base * ($multiplier ** ($attemptNumber - 2));
 
         return min($delay, $cap);
+    }
+
+    /**
+     * The sweep grace period, in seconds, added on top of `next_attempt_at`
+     * before {@see SweepDueRetries} treats a `retrying` delivery
+     * as overdue (review-06 Minor 9; plan §Riders 1). The ONLY place
+     * `config('retry.sweep_grace_seconds')` is read — a blank or explicit
+     * `0` throws rather than silently coercing to a cutoff of `now()`, which
+     * would re-dispatch every `retrying` delivery on every sweep tick.
+     *
+     * @throws RuntimeException if `sweep_grace_seconds` does not resolve to a
+     *                          positive integer.
+     */
+    public function sweepGraceSeconds(): int
+    {
+        return $this->positiveConfigInt('sweep_grace_seconds');
     }
 
     /**

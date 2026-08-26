@@ -588,7 +588,36 @@
 - **Testing:** extend `tests/Unit/Services/RetryPolicyTest.php` with the blank/zero-raises case, and
   the existing `SweepDueRetries` test suite with the accessor-swap regression (unaffected cases keep
   passing).
-- **Completion notes:** _pending_
+- **Completion notes:** Added `RetryPolicy::sweepGraceSeconds(): int`, returning
+  `positiveConfigInt('sweep_grace_seconds')` — the same guarded accessor pattern as every other
+  `retry.*` key, with its own docblock naming review-06 Minor 9 and the failure mode it closes (a
+  blank/zero env silently making the sweep cutoff `now()`). `SweepDueRetries::handle()` now calls
+  `app(RetryPolicy::class)->sweepGraceSeconds()` instead of reading
+  `config('retry.sweep_grace_seconds')` directly; its class docblock's `{@see}` reference was updated
+  to point at the new accessor. No other production code touched; `PipelineFactory` not touched.
+
+  Added 5 cases to `tests/Unit/Services/RetryPolicyTest.php`: the configured-value pass-through case;
+  zero-raises; negative-raises; blank-env-raises (`putenv('RETRY_SWEEP_GRACE_SECONDS=')` +
+  re-`require`ing `config/retry.php`, mirroring the existing `default_attempt_limit`/
+  `exponential_multiplier` blank-env cases); non-numeric-env-raises. Added 1 regression case to
+  `tests/Unit/Actions/SweepDueRetriesTest.php`
+  (`test_a_zero_sweep_grace_seconds_throws_instead_of_sweeping_every_retrying_delivery`) — a
+  `retrying` delivery present, grace forced to `0` via `Config::set`, asserts the sweep throws
+  `RuntimeException` and never dispatches `RetryDelivery`, proving the previously-legal explicit `0`
+  now fails loudly (deliberate, plan §Technical ruling 7) rather than re-dispatching every `retrying`
+  delivery. The four pre-existing `SweepDueRetriesTest` cases (overdue/not-yet-due/terminal/double-fire)
+  needed no change — they already read `config('retry.sweep_grace_seconds')` for their own grace-window
+  arithmetic, which is unaffected by the accessor swap in production code.
+
+  Confirmed by grep (`grep -rn "config('retry\.\|config(\"retry\." app/`) that `RetryPolicy.php` is now
+  the only file in `app/` reading `config('retry.*')` — `SweepDueRetries.php` no longer appears; the
+  remaining hits are all inside `RetryPolicy.php` itself (docblocks and the `positiveConfigInt()` read).
+
+  Verified: `./vendor/bin/sail test --filter "RetryPolicyTest|SweepDueRetriesTest"` (51 passed, 89
+  assertions); full suite `./vendor/bin/sail test --parallel` (759 passed, 2816 assertions — up from
+  753/2808 by this task's 6 new tests); `composer lint` (Pint, clean — one auto-fix applied to
+  `RetryPolicy.php`: import ordering and a fully-qualified `{@see}` reference resolved to an import);
+  `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T12 — Rider 2: `DeliveryResource.created_at` — field, consumer, and the pin, together (review-06 Minor 5, ONE task — binding; plan §Riders 2)
 - **Description:** `DeliveryResource` (`app/Http/Resources/DeliveryResource.php`) gains a real
