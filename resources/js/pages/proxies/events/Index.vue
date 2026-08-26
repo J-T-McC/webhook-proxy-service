@@ -191,7 +191,7 @@ function openReplay(event: WebhookEventListItem): void {
 <template>
     <Head :title="`Events for ${props.proxy.name}`" />
 
-    <div class="flex h-full flex-1 flex-col gap-6 p-4">
+    <div class="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-6 p-4">
         <h1 class="text-xl font-semibold">
             Events for &ldquo;{{ props.proxy.name }}&rdquo;
         </h1>

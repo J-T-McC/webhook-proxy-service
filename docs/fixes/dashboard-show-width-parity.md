@@ -71,3 +71,55 @@ the shared proxy form a middle-ground width of its own:
 still full bleed and will now look inconsistent next to Dashboard/Show.
 Left unchanged — the Owner named Dashboard, Show, and the proxy form
 specifically; widening the rest is a separate call.
+
+## Addendum: 2026-08-26 — proxies and events list pages
+
+The Owner asked, as a deliberate follow-on rather than a correction of an
+oversight, for the two list pages named in the Follow-ups note above to be
+brought into the same width so all four content pages are consistent:
+
+- `resources/js/pages/proxies/Index.vue` — the page wrapper went from
+  unconstrained full bleed (`flex h-full flex-1 flex-col gap-6 p-4`) to
+  centred and capped at `max-w-6xl` (72rem): `mx-auto flex h-full w-full
+  max-w-6xl flex-1 flex-col gap-6 p-4`. Same before/after values as
+  Dashboard's populated-state wrapper.
+- `resources/js/pages/proxies/events/Index.vue` — identical change to the
+  same wrapper class. Nothing else in either file — column widths, table
+  layout, and the events list's pagination were left untouched; the events
+  table's existing `overflow-x-auto` container (`Table.vue`) is what keeps it
+  scrolling within its own bounds rather than pushing the page sideways now
+  that it has less room.
+
+### Verification
+
+- `pnpm run format:check`, `pnpm run lint:check`, `pnpm run types:check`:
+  all passed.
+- `composer lint`, `composer types:check`: both passed (backend untouched).
+- `./vendor/bin/sail test --parallel`: **844 passed / 844**, 3564 assertions.
+- `pnpm run build` (production build, `public/hot` absent throughout — the
+  marker was absent before the run and confirmed absent again after) then
+  live browser verification via the `playwright` skill against Sail
+  (`http://localhost`), seeded with
+  `php artisan db:seed --class=AnalyticsDemoSeeder`:
+  - Desktop (1440px) and mobile (375px), light and dark, across Dashboard,
+    the proxies list, the events list, the events list's filtered-empty
+    state (`?date=2020-01-01`, no matches), and a second proxy's
+    unfiltered-empty state ("Quiet Integration", zero traffic): no
+    horizontal overflow at any combination
+    (`document.documentElement.scrollWidth` measured equal to
+    `clientWidth` in every case).
+  - Measured the content wrapper (`div.max-w-6xl`) at 1152px on the 1440px
+    desktop viewport identically on all four pages — Dashboard, Show, the
+    proxies list, and the events list.
+  - Events list at 375px: table content is visibly wider than the
+    viewport (columns run past the visible edge in the screenshot) but the
+    page itself does not scroll sideways — the table's own
+    `overflow-x-auto` container absorbs it, confirmed both by the
+    screenshot and by the scrollWidth/clientWidth equality above.
+  - Events list filter chips (window + outcome, two chips) and pagination
+    at 375px: chips wrap and stack cleanly above the table, pagination
+    controls remain usable below it — no crowding or overflow.
+  - Both empty states (filtered and unfiltered) render sensibly at the new
+    width in both themes: centred `max-w-md` card, unaffected by the outer
+    wrapper's width change since it's a separate, narrower element inside
+    it.
