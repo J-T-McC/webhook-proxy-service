@@ -110,12 +110,22 @@ const EVENT_JOURNEY: JourneyStep[] = [
 // here, so pacing stays a single knob rather than 20 scattered numbers.
 const TIME_SCALE = 2.5;
 
-// Both phases open with every event sitting queued, border lit, before anything
-// dispatches. Without it the first dispatch left at t=0 and the pending state
-// was never legible on Event 1 at all — you only ever saw it on the FIFO
-// straggler. Real milliseconds, deliberately outside TIME_SCALE: this is a
-// "long enough to read" beat, not part of the motion's tempo.
-const PENDING_LEAD = 1800;
+// The event highlight spans arrival to departure: it fades in when the event
+// lands, holds for however long that event waits, then drains left-to-right as
+// it dispatches. The hold's *length* is the whole point — under Async it is
+// brief, under FIFO the second event holds until the first has fully settled,
+// and that difference is the modes' difference made visible. Real milliseconds,
+// deliberately outside TIME_SCALE: these are "long enough to read" beats, not
+// part of the motion's tempo.
+const ARRIVAL_IN_MS = 300;
+const ARRIVAL_OUT_MS = 380;
+
+// The two webhooks do not land together — one follows the other closely, in
+// both modes. What differs afterwards is how long each then waits.
+const ARRIVAL_STAGGER = 420;
+
+// Event 1 departs once its own fade-in and a short hold have played.
+const PENDING_LEAD = 940;
 
 // How long Event 1's whole journey takes, in scaled ms — Event 2 waits exactly
 // this long under FIFO, which is the zero-gap handoff the mode actually promises.
@@ -126,6 +136,16 @@ const EVENT_SETTLE = 1960 * TIME_SCALE;
 // separate events rather than one wide pulse. 150ms was too tight and looked
 // like a single synchronized pair.
 const ASYNC_OFFSET = 330 * TIME_SCALE;
+
+// One highlight envelope per event: `start` is when the event lands, `end` is
+// when it departs, so the drain hands off directly to the pulse leaving the node.
+function arrivalFor(
+    event: 1 | 2,
+    landsAt: number,
+    departsAt: number,
+): TimelineEntry[] {
+    return [{ event, kind: 'queued', start: landsAt, end: departsAt }];
+}
 
 function buildEventJourney(event: 1 | 2, offset: number): TimelineEntry[] {
     return EVENT_JOURNEY.map((step): TimelineEntry => {
@@ -176,13 +196,8 @@ const FIFO_SCHEMA: Schema = {
     label: 'FIFO',
     duration: 4500 * TIME_SCALE + PENDING_LEAD,
     entries: [
-        { event: 1, kind: 'queued', start: 0, end: PENDING_LEAD },
-        {
-            event: 2,
-            kind: 'queued',
-            start: 0,
-            end: PENDING_LEAD + EVENT_SETTLE,
-        },
+        ...arrivalFor(1, 0, PENDING_LEAD),
+        ...arrivalFor(2, ARRIVAL_STAGGER, PENDING_LEAD + EVENT_SETTLE),
         ...buildEventJourney(1, PENDING_LEAD),
         ...buildEventJourney(2, PENDING_LEAD + EVENT_SETTLE),
     ],
@@ -893,17 +908,13 @@ function drawBaseScene(state: RenderState) {
 // after which the node sits idle until its dispatch. Holding the border lit for
 // the entire queued window made a FIFO straggler glow for five unbroken seconds,
 // which read as a stuck state rather than an event landing.
-const ARRIVAL_IN_MS = 300;
-const ARRIVAL_HOLD_MS = 260;
-const ARRIVAL_OUT_MS = 380;
-const ARRIVAL_TOTAL_MS = ARRIVAL_IN_MS + ARRIVAL_HOLD_MS + ARRIVAL_OUT_MS;
-
 function drawEventArrival(
     state: RenderState,
     event: 1 | 2,
     elapsed: number,
+    duration: number,
 ): void {
-    if (elapsed < 0 || elapsed > ARRIVAL_TOTAL_MS) {
+    if (elapsed < 0 || elapsed > duration) {
         return;
     }
 
@@ -911,7 +922,12 @@ function drawEventArrival(
     const center = geo.ingest[event - 1];
     const x = center.x - geo.nodeW / 2;
     const y = center.y - geo.nodeH / 2;
-    const draining = elapsed > ARRIVAL_IN_MS + ARRIVAL_HOLD_MS;
+    // Fade in, hold for as long as this event actually waits, drain out. The
+    // drain is a fixed beat measured back from departure, so a FIFO straggler
+    // that waited five seconds hands off at the same speed as one that waited
+    // half a second.
+    const drainStart = Math.max(ARRIVAL_IN_MS, duration - ARRIVAL_OUT_MS);
+    const draining = elapsed > drainStart;
     const fadeIn = Math.min(1, elapsed / ARRIVAL_IN_MS);
     const baseAlpha = visuals.queuedEdgeAlpha * ease('out', fadeIn);
 
@@ -929,7 +945,7 @@ function drawEventArrival(
         // drawn out into the pipe leaving its right edge.
         const sweep = ease(
             'inout',
-            (elapsed - ARRIVAL_IN_MS - ARRIVAL_HOLD_MS) / ARRIVAL_OUT_MS,
+            Math.min(1, (elapsed - drainStart) / (duration - drainStart)),
         );
         const SOFT = 0.22;
         const gradient = ctx.createLinearGradient(x, y, x + geo.nodeW, y);
@@ -1054,13 +1070,13 @@ function drawPulse(
     ctx.restore();
 }
 
-// One motion-safe animated frame: idle base scene, then every active
-// entry's overlay (hot line segments, queued dots, arrival rings/wash,
-// travelling pulses) for this schema at this local time.
+// One motion-safe animated frame: idle base scene, then every active entry's
+// overlay (event highlights, travelling heat bands, charge pulses, destination
+// arrivals) for this schema at this local time.
 function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
     drawBaseScene(state);
 
-    const { ctx, paths, tokens, visuals } = state;
+    const { paths, tokens, visuals } = state;
     const headColor = tokens.accentTo;
     const tailColor = tokens.accentFrom;
     const bloomColor = withAlpha(tokens.accentTo, visuals.bloomAlpha);
@@ -1068,7 +1084,12 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
     for (const entry of schema.entries) {
         if (entry.kind === 'queued') {
             if (localT >= entry.start && localT < entry.end) {
-                drawEventArrival(state, entry.event, localT - entry.start);
+                drawEventArrival(
+                    state,
+                    entry.event,
+                    localT - entry.start,
+                    entry.end - entry.start,
+                );
             }
 
             continue;
@@ -1132,7 +1153,7 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
 // mid-flight), so it is composed directly instead.
 function drawStaticFrame(state: RenderState) {
     drawBaseScene(state);
-    drawEventArrival(state, 2, ARRIVAL_IN_MS + ARRIVAL_HOLD_MS / 2);
+    drawEventArrival(state, 2, ARRIVAL_IN_MS + 200, 3000);
 }
 
 // ---------------------------------------------------------------------------
