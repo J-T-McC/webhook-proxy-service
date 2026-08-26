@@ -937,7 +937,47 @@
   figure's value (AC22(b)); every tile label carries its unit per `analyticsLabels.ts`.
 - **Testing:** manual verification (no harness) — `pnpm run build`, confirm the all-zero Retry &
   replay state and the "No data" latency state, both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented both cards directly in `Dashboard.vue`. "Retry & replay": a
+  `dl` grid of four tiles (`grid-cols-2 sm:grid-cols-4`) sourced from
+  `props.statistics.retryReplay` — plain integers rendered as-is (never gated on `rate` or any
+  other value, satisfying "always rendered, `0` in an empty window" directly, with no template
+  branch needed since these four fields are already plain counts in the DTO), and
+  `liveVsReplayText()` (T12) for the two-labelled-numbers live/replay tile. "Latency": a
+  `dt`/`dd` pair per figure using `formatLatencyMs()` (T12 — `"NNN ms"` below 1 s, `"N.N s"` at or
+  above, `LATENCY_NO_DATA_LABEL` when `sampleCount === 0`), plus the fixed caption. Both cards
+  carry the "Last {window}" subtitle via `lastWindowSubtitle()` (C2). No control, class, or colour
+  anywhere in either card is conditioned on a figure's value (AC22(b)) — every tile and both
+  latency rows use identical, unconditional markup regardless of what the number is.
+
+  This task's own card placement (replacing the last remaining `min-h-[100vh]` `PlaceholderPattern`
+  block) removed the template's only remaining usage of `PlaceholderPattern`, so its now-dead
+  import had to come out in this commit too — `pnpm lint:check`'s `no-unused-vars` rule fails
+  otherwise, and every task's own gate requires lint green. T17's own line "removes the remaining
+  `PlaceholderPattern` usages and the now-unused import" is therefore already satisfied by this
+  task; T17's own AC ("no `PlaceholderPattern` import or usage remains anywhere") holds as a
+  confirmation, not a new removal, when that task runs.
+
+  **Manual verification:** `public/hot` removed, `pnpm run build`, seeded a team via `sail tinker`
+  with three deliveries designed to exercise all four retry/replay figures and both latency
+  values distinctly — an eventually-succeeded delivery (1 failed + 1 succeeded attempt, kind
+  `original`), a terminally-failed delivery (1 failed attempt, kind `original`), and a
+  successful-on-first-try replay delivery (kind `replay`) — plus a second, all-empty team/proxy
+  for the zero-window state. Logged in via Playwright and read the rendered page:
+  - Traffic team: Eventual success `1`, Terminal failure `1`, Retry volume `1` (the one
+    `attempt_number > 1` row), Live vs replay `"2 live · 1 replay"` (two `original` deliveries,
+    one `replay`) — all four figures independently correct, not just non-zero. Latency: Average
+    `525 ms` (the exact mean of the fixture's four `duration_ms` values 100/1500/200/300) and 95th
+    percentile `1.5 s` — confirming `formatLatencyMs()`'s ms/s threshold switches correctly at
+    1000, not merely that some plausible-looking number renders. Caption present.
+  - All-zero team: all four Retry & replay tiles read `0`/`"0 live · 0 replay"` (never hidden,
+    never a message in their place) and both Latency rows read `No data` independently, matching
+    design-11's zero-window Screen 1 state exactly.
+  - Screenshots inspected in both light and dark theme — legible, no colour-only distinction
+    relied upon anywhere in either card.
+
+  Cleaned up both throwaway teams afterward.
+
+  Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green.
 
 ## T17 — `Dashboard.vue`: Trend accessible table, window selector wiring, empty states, `PlaceholderPattern` removal (AC12, AC16, § Accessibility; plan M3 note "table before chart")
 - **Description:** "Trend" card, built **without** a chart (T27/M6 adds the canvas beside this):

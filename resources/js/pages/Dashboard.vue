@@ -2,7 +2,6 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
-import PlaceholderPattern from '@/components/PlaceholderPattern.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,13 +18,22 @@ import {
     ATTEMPT_SUCCESS_LABEL,
     DELIVERY_SUCCESS_COLUMN_LABEL,
     DELIVERY_SUCCESS_LABEL,
+    EVENTUAL_SUCCESS_LABEL,
+    LATENCY_AVERAGE_LABEL,
+    LATENCY_CAPTION,
+    LATENCY_P95_LABEL,
+    LIVE_VS_REPLAY_LABEL,
+    RETRY_VOLUME_LABEL,
+    TERMINAL_FAILURE_LABEL,
     TERMINAL_FAILURES_COLUMN_LABEL,
     attemptCaption,
     bridgeSentence,
     compactRateText,
     deliveryCaption,
+    formatLatencyMs,
     formatRate,
     lastWindowSubtitle,
+    liveVsReplayText,
 } from '@/data/analyticsLabels';
 import { dashboard } from '@/routes';
 import proxyRoutes from '@/routes/proxies';
@@ -396,10 +404,88 @@ function proxyFailuresHref(proxyId: number) {
             </Table>
         </Card>
 
-        <div
-            class="relative min-h-[100vh] flex-1 rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border"
-        >
-            <PlaceholderPattern />
-        </div>
+        <!-- Retry & replay card -->
+        <Card class="gap-4 p-6">
+            <div>
+                <h2 class="text-sm font-medium">Retry & replay</h2>
+                <p class="text-sm text-muted-foreground">
+                    {{ lastWindowSubtitle(props.statistics.window) }}
+                </p>
+            </div>
+            <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ EVENTUAL_SUCCESS_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{ props.statistics.retryReplay.eventualSuccess }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ TERMINAL_FAILURE_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{ props.statistics.retryReplay.terminalFailure }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ RETRY_VOLUME_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{ props.statistics.retryReplay.retryVolume }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ LIVE_VS_REPLAY_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{
+                            liveVsReplayText(
+                                props.statistics.retryReplay.live,
+                                props.statistics.retryReplay.replay,
+                            )
+                        }}
+                    </dd>
+                </div>
+            </dl>
+        </Card>
+
+        <!-- Latency card -->
+        <Card class="gap-3 p-6">
+            <div>
+                <h2 class="text-sm font-medium">Latency</h2>
+                <p class="text-sm text-muted-foreground">
+                    {{ lastWindowSubtitle(props.statistics.window) }}
+                </p>
+            </div>
+            <dl class="flex flex-col gap-3">
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">
+                        {{ LATENCY_AVERAGE_LABEL }}
+                    </dt>
+                    <dd class="text-sm">
+                        {{
+                            formatLatencyMs(props.statistics.latency.averageMs)
+                        }}
+                    </dd>
+                </div>
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">
+                        {{ LATENCY_P95_LABEL }}
+                    </dt>
+                    <dd class="text-sm">
+                        {{ formatLatencyMs(props.statistics.latency.p95Ms) }}
+                    </dd>
+                </div>
+            </dl>
+            <p class="text-sm text-muted-foreground">{{ LATENCY_CAPTION }}</p>
+        </Card>
     </div>
 </template>
