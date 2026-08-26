@@ -680,11 +680,12 @@ function buildGridLayer(
     return layer;
 }
 
-// Draw the cached grid through a slowly drifting elliptical mask. Three
-// out-of-phase sines with non-harmonic periods (5.9s / 4.3s / 7.1s) keep the
-// motion from settling into an obvious loop — the fade breathes and wanders
-// slightly instead of pulsing on a beat. Amplitudes are small on purpose: this
-// should read as the field being alive, not as an animation of its own.
+// Draw the cached grid through a drifting elliptical mask. Four out-of-phase
+// sines with non-harmonic periods (4.3s / 3.1s / 5.3s / 6.7s) keep the motion
+// from settling into an obvious loop — the fade wanders rather than pulsing on a
+// beat. Radius, centre and softness move the mask's geometry; the alpha breath
+// does most of the perceptual work, since a brightness change is far easier to
+// notice at the edge of vision than a boundary shifting a few pixels.
 function compositeGrid(state: RenderState, timeMs: number): void {
     const { ctx, width, height, dpr, scratch } = state;
     const scratchCtx = scratch.getContext('2d');
@@ -707,11 +708,11 @@ function compositeGrid(state: RenderState, timeMs: number): void {
     const radiusFactor =
         0.62 +
         drift *
-            (0.045 * Math.sin(timeMs / 5900) +
-                0.025 * Math.sin(timeMs / 4300 + 1.1));
-    const cx = w / 2 + drift * w * 0.012 * Math.sin(timeMs / 7100);
-    const cy = h / 2 + drift * h * 0.018 * Math.sin(timeMs / 4300 + 0.6);
-    const inner = 0.5 + drift * 0.06 * Math.sin(timeMs / 5900 + 2.2);
+            (0.1 * Math.sin(timeMs / 4300) +
+                0.055 * Math.sin(timeMs / 3100 + 1.1));
+    const cx = w / 2 + drift * w * 0.035 * Math.sin(timeMs / 5300);
+    const cy = h / 2 + drift * h * 0.045 * Math.sin(timeMs / 3100 + 0.6);
+    const inner = 0.48 + drift * 0.13 * Math.sin(timeMs / 4300 + 2.2);
     const radius = w * radiusFactor;
 
     scratchCtx.globalCompositeOperation = 'destination-in';
@@ -730,7 +731,17 @@ function compositeGrid(state: RenderState, timeMs: number): void {
     scratchCtx.fill();
     scratchCtx.restore();
 
+    // Brightness breath, applied to the whole masked layer.
+    const breath =
+        1 +
+        drift *
+            (0.22 * Math.sin(timeMs / 6700) +
+                0.1 * Math.sin(timeMs / 3100 + 2.7));
+
+    ctx.save();
+    ctx.globalAlpha = Math.min(1.35, Math.max(0.6, breath));
     ctx.drawImage(scratch, 0, 0, w / dpr, h / dpr);
+    ctx.restore();
 }
 
 function drawRoundedRect(
