@@ -448,8 +448,8 @@ function computeGeometry(width: number, height: number): Geometry {
     // nodes, flattens them, and pulls the columns inward rather than just
     // scaling everything down.
     const compact = width < 520;
-    const nodeW = width * (compact ? 0.34 : 0.13);
-    const nodeH = height * (compact ? 0.1 : 0.14);
+    const nodeW = width * (compact ? 0.4 : 0.13);
+    const nodeH = height * (compact ? 0.12 : 0.14);
 
     return {
         width,
@@ -457,8 +457,14 @@ function computeGeometry(width: number, height: number): Geometry {
         scale,
         compact,
         ingest: [
-            { x: width * (compact ? 0.19 : 0.1), y: height * 0.28 },
-            { x: width * (compact ? 0.19 : 0.1), y: height * 0.72 },
+            {
+                x: width * (compact ? 0.22 : 0.1),
+                y: height * (compact ? 0.3 : 0.28),
+            },
+            {
+                x: width * (compact ? 0.22 : 0.1),
+                y: height * (compact ? 0.7 : 0.72),
+            },
         ],
         // One shared junction, not one per event. Two junctions each fanning to
         // the same three destinations produced six crossing lines — a tangle
@@ -469,9 +475,15 @@ function computeGeometry(width: number, height: number): Geometry {
             { x: width * 0.5, y: height * 0.5 },
         ],
         dest: [
-            { x: width * (compact ? 0.81 : 0.87), y: height * 0.18 },
-            { x: width * (compact ? 0.81 : 0.87), y: height * 0.5 },
-            { x: width * (compact ? 0.81 : 0.87), y: height * 0.82 },
+            {
+                x: width * (compact ? 0.78 : 0.87),
+                y: height * (compact ? 0.2 : 0.18),
+            },
+            { x: width * (compact ? 0.78 : 0.87), y: height * 0.5 },
+            {
+                x: width * (compact ? 0.78 : 0.87),
+                y: height * (compact ? 0.8 : 0.82),
+            },
         ],
         nodeW,
         nodeH,
@@ -1534,7 +1546,7 @@ onUnmounted(() => {
 
         <div
             ref="container"
-            class="mx-auto aspect-[3/4] w-full max-w-6xl sm:aspect-[2/1]"
+            class="mx-auto aspect-square w-full max-w-6xl sm:aspect-[2/1]"
         >
             <canvas
                 ref="canvas"
