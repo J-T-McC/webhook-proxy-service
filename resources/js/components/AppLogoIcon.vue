@@ -19,6 +19,19 @@ defineProps<Props>();
         :class="className"
         v-bind="$attrs"
     >
+        <!--
+            The terminal's interior, drawn first so everything else sits on
+            top of it. Its geometry is taken from the frame path's own inner
+            subpath rather than approximated: x 21.333 to 490.667, y 106.667
+            (where the title bar ends) to 490.667, with the bottom two corners
+            rounded to 32 and the top two square. Filling the shape itself is
+            what avoids needing a background behind a non-square icon, where
+            the corner radius would not line up.
+        -->
+        <path
+            class="fill-white"
+            d="M21.333 106.667H490.667V458.667A32 32 0 0 1 458.667 490.667H53.333A32 32 0 0 1 21.333 458.667Z"
+        />
         <path
             d="m87.467 358.4c2.133 2.133 4.267 2.133 8.533 2.133s6.4 0 8.533-2.133l64-64c4.267-4.267 4.267-10.667 0-14.934l-64-64c-4.267-4.267-10.667-4.267-14.934 0s-4.267 10.667 0 14.934l55.467 55.467-55.466 55.467c-4.267 6.4-4.267 12.799-2.133 17.066z"
         />
