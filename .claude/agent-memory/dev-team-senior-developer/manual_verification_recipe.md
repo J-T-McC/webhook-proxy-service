@@ -126,3 +126,20 @@ delivery that day, invisible at `perDay: 2` but would have put e.g. 60 deliverie
 minute once volume was raised, defeating any per-hour spread. Check for this pattern whenever a
 seeder loop generates N rows per time-bucket — the per-row timestamp call must be *inside* the
 inner loop.
+
+**A `Collapsible`-wrapped fallback table (e.g. a chart's "View as table") is not in the DOM at all
+until its trigger is clicked** — `page.locator('table')` finds zero matches for it pre-click, not
+a hidden-but-present element. `await page.getByRole('button', { name: 'View as table' }).click()`
+first, then query.
+
+**This app's Events-list pagination is `<Button @click="link.url && router.get(link.url)">`, not
+`<a href>`** — an `a[rel="next"]`-style selector matches nothing, and a `has-text('Next')` locator
+re-queried each loop iteration can silently keep "succeeding" past the real last page if the
+disabled-state check races the Inertia re-render. Prefer reading the actual `total`/`last_page` by
+walking `?page=N` directly (or checking row count hits 0) over trusting a click-loop's own guard.
+
+**To reproduce a "no records/proxies at all" empty state without seeding fixtures:**
+`User::factory()->create()` already auto-provisions a personal team via its `afterCreating` hook
+(same mechanism `AnalyticsDemoSeeder::makeTeam()` uses) — grab `$user->currentTeam`, rename it, log
+in as that user, and the account has zero of everything by construction. `forceDelete()` the team
+and user afterward per the existing cleanup step above.
