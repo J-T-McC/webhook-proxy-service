@@ -86,29 +86,32 @@ class RetentionInFlightHoldsAcceptanceTest extends TestCase
         $this->assertTrue($this->isCleaned($event), 'Once every attempt is terminal the hold lifts.');
     }
 
-    public function test_h4_horizon_hold_blocks_erasure_until_past_the_dispatch_horizon_when_no_attempts_exist(): void
+    public function test_h4_horizon_hold_never_blocks_an_expired_zero_attempt_event_once_the_horizon_is_bound_below_the_retention_window(): void
     {
-        // Decouple the horizon from the 30-day retention window (default horizon of
-        // 60 minutes is always far shorter than any past-cutoff event) so the two
-        // events below can straddle the horizon while both are already past H1.
-        Config::set('retention.dispatch_horizon_minutes', 35 * 24 * 60); // 35 days
+        // Q-05-05(b): `PurgeExpiredPayloads::requireHorizonBelowWindow()` now
+        // binds `dispatch_horizon_minutes` strictly below the resolved
+        // retention window for every team (review-05 Nit 9). Consequence,
+        // stated in `config/retention.php`'s own docblock: H4's age branch
+        // can no longer independently hold anything — any event that has
+        // already cleared H1 (past the window) has, by construction, also
+        // cleared a horizon that is necessarily shorter than the window. A
+        // zero-delivery-attempts event past the window is erased on the very
+        // next pass regardless of the horizon's (valid) value. This
+        // supersedes the pre-Q-05-05 version of this test, which decoupled
+        // the horizon from the window by setting it *above* the window —
+        // exactly the configuration `requireHorizonBelowWindow()` now
+        // refuses to run with.
+        Config::set('retention.dispatch_horizon_minutes', 60); // far below the 30-day default window; still a valid value
 
         $proxy = Proxy::factory()->createQuietly();
-        $withinHorizon = WebhookEvent::factory()->createQuietly([
-            'proxy_id' => $proxy->id,
-            'team_id' => $proxy->team_id,
-            'created_at' => now()->subDays(32), // past the 30-day retention window, younger than the 35-day horizon
-        ]);
-        $pastHorizon = WebhookEvent::factory()->createQuietly([
-            'proxy_id' => $proxy->id,
-            'team_id' => $proxy->team_id,
-            'created_at' => now()->subDays(36), // past both the retention window and the horizon
-        ]);
+        $event = $this->expiredEventFor($proxy); // subDays(31), zero delivery_attempts rows
 
         PurgeExpiredPayloads::run();
 
-        $this->assertFalse($this->isCleaned($withinHorizon), 'Zero attempts and still within the horizon must hold the event.');
-        $this->assertTrue($this->isCleaned($pastHorizon), 'Zero attempts but past the horizon must be cleaned.');
+        $this->assertTrue(
+            $this->isCleaned($event),
+            'A zero-attempt event past the retention window must be cleaned — a valid (below-window) horizon can no longer hold it.',
+        );
     }
 
     public function test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows(): void

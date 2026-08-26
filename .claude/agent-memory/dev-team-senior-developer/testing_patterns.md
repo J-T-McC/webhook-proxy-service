@@ -199,3 +199,16 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   fail against an already-terminal row. `Queue::fake()` freezes exactly the delayed hop; the
   triggering inline attempt (FIFO's direct `DeliverToDestination::run()`) still executes for real.
   Found repeatedly in #6 T42's `RetryReplayRetentionInterplayAcceptanceTest`.
+- **A `Schedule::command(...)` entry (as opposed to `Schedule::call(fn () => ...)`) runs as a real
+  subprocess (`Event::run()` -> `start()` -> `execute()`), NOT in-process** — running it via
+  `$this->artisan('schedule:run')` inside a test spawns a separate PHP process outside the test's
+  wrapped `FasterRefreshDatabase` transaction, so any fixture row the test inserted is invisible to
+  it and any row it writes/deletes is invisible back to the test's own assertions (both silently
+  no-op from the test's point of view — no error, just no effect). This is why
+  `PurgeExpiredPayloadsTest`/`SweepDueRetriesTest`-style tests only assert **schedule metadata**
+  (`$schedule->events()` description/expression/command string) for `Schedule::command()` entries,
+  and test the command's own **effect** by invoking the artisan command directly
+  (`$this->artisan('the:command', ['--opt' => $v])`) rather than through `schedule:run`.
+  `Schedule::call()` closures (e.g. the team-invitation cleanup) have no such split — they run
+  in-process and `schedule:run` tests their real effect directly. Found adding the
+  `queue:prune-failed` schedule entry (Q-05-05/Q-05-06 fix).
