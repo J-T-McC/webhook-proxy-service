@@ -246,6 +246,43 @@ class RetryReplayRetentionInterplayAcceptanceTest extends TestCase
         $this->assertTrue($this->isCleaned($pastHorizon), 'A pending delivery older than the dispatch horizon must not hold the event.');
     }
 
+    public function test_an_async_replay_dispatch_survives_queue_backlog_past_the_old_sixty_minute_horizon(): void
+    {
+        // Queue::fake() freezes ProcessIngestedWebhook so the replay's own
+        // job never actually runs — standing in for a backlogged worker
+        // fleet (Q-05-05 instance (b): PRD-06 AC18).
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'processing_mode' => ProcessingMode::Async,
+        ]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+
+        $this->actingAs($user)
+            ->post($this->replayRoute($user, $proxy, $event), ['destinations' => [$destination->id]])
+            ->assertRedirect();
+
+        $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
+        $this->assertSame(DeliveryStatus::Pending, $delivery->status, 'Precondition: the replay job has not run yet.');
+
+        // Back-date the replay's own `deliveries` row to stand in for ~90
+        // minutes of queue latency — past the old 60-minute
+        // dispatch_horizon_minutes default, comfortably inside the corrected
+        // one (Q-05-05 Option 3).
+        $delivery->forceFill(['created_at' => now()->subMinutes(90)])->saveQuietly();
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertFalse(
+            $this->isCleaned($event),
+            'A replay dispatch still queued past the old 60-minute horizon must not be erased before its '.
+            'ProcessIngestedWebhook job can run (PRD-06 AC18).',
+        );
+    }
+
     // --- AC17: RetryDelivery meeting a cleaned parent (H4-residual race) ----
 
     public function test_retry_delivery_meeting_a_cleaned_parent_mid_schedule_terminalizes_sends_nothing_and_logs_identifiers_only(): void

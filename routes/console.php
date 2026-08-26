@@ -37,3 +37,14 @@ Schedule::command('payloads:purge-expired')
     ->at('02:00')
     ->withoutOverlapping()
     ->description('Erase expired stored payloads');
+
+// Bounds how long a plaintext copy of an event's payload can persist in
+// `failed_jobs` (Q-05-06 D2; ruling E1, Project Owner-accepted 2026-08-25).
+// This is a mitigation, not the fix — #10 owns encrypting/scrubbing that
+// store. 7 days gives on-call a full week, weekends included, to see and
+// triage a failure before its record is pruned, while still bounding an
+// otherwise-indefinite plaintext exposure to a small fraction of the 30-day
+// payload retention window.
+Schedule::command('queue:prune-failed', ['--hours' => 24 * 7])
+    ->daily()
+    ->description('Prune failed job records older than 7 days');

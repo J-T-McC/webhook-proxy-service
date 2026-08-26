@@ -56,6 +56,12 @@ use RuntimeException;
  * body is unreachable with an invalid value, not merely guarded inside it.
  * `retention.days` is guarded at its own single seam, `RetentionPolicy::
  * windowFor()`, per plan-05's designated resolver for that value.
+ *
+ * Also enforces the Q-05-05(b) horizon-vs-window invariant: the resolved
+ * dispatch horizon must be strictly less than the resolved retention window,
+ * checked once per team in `purgeForTeam()` beside `RetentionPolicy::
+ * cutoffFor($team)` — not at the config read — so a future per-team
+ * `windowFor()` override (V5) cannot bypass it (review-05 Nit 9).
  */
 class PurgeExpiredPayloads
 {
@@ -125,6 +131,8 @@ class PurgeExpiredPayloads
         $cutoff = $this->policy->cutoffFor($team);
         $horizon = CarbonImmutable::now()->subMinutes($horizonMinutes);
 
+        $this->requireHorizonBelowWindow($team, $horizonMinutes);
+
         do {
             $ids = $this->selectCollectableIds($team, $cutoff, $horizon, $batchSize);
 
@@ -139,6 +147,41 @@ class PurgeExpiredPayloads
                 Log::info('payload.purged', ['team_id' => $team->id, 'count' => $erased]);
             }
         } while (count($ids) === $batchSize);
+    }
+
+    /**
+     * Q-05-05(b) / review-05 Nit 9: the resolved dispatch horizon must be
+     * strictly less than the team's resolved retention window, or H4/H5
+     * collapse into "hold everything, forever" — the exact trap ADR-012
+     * §Alternatives and ADR-016 Decision 2 each rejected by name. Asserted
+     * here, beside `RetentionPolicy::cutoffFor($team)`, rather than at
+     * `retention.dispatch_horizon_minutes`' own config read, so a future
+     * per-team `RetentionPolicy::windowFor()` override (V5) cannot bypass it
+     * by skipping straight to `cutoffFor()`.
+     *
+     * Compares resolved durations directly (rather than the `$cutoff`/
+     * `$horizon` time points, which are each computed from a separate
+     * `now()` call a few microseconds apart) so an exactly-equal horizon and
+     * window is never missed to timing noise.
+     *
+     * @throws RuntimeException if the horizon does not resolve to strictly
+     *                          less than the resolved retention window.
+     */
+    private function requireHorizonBelowWindow(Team $team, int $horizonMinutes): void
+    {
+        $windowMinutes = $this->policy->windowFor($team)->totalMinutes;
+
+        if ($horizonMinutes >= $windowMinutes) {
+            throw new RuntimeException(sprintf(
+                "config('retention.dispatch_horizon_minutes') (%d) must resolve to a duration strictly less ".
+                "than team %d's resolved retention window (%s minutes); at or beyond the window, holds H4/H5 ".
+                'would hold every expired event forever, making its payload immortal. Refusing to silently '.
+                'proceed.',
+                $horizonMinutes,
+                $team->id,
+                $windowMinutes,
+            ));
+        }
     }
 
     /**

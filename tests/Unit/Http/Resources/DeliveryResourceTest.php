@@ -94,6 +94,18 @@ class DeliveryResourceTest extends TestCase
         $this->assertSame($destination->url, $array['destination']['url']);
     }
 
+    public function test_attempt_limit_still_resolves_when_the_proxy_has_been_soft_deleted(): void
+    {
+        // Regression: `$this->proxy` (the default, trashed-exclusive relation)
+        // resolves to null once the proxy is soft-deleted, and RetryPolicy::
+        // attemptLimitFor() takes a non-nullable Proxy — a bare access threw a
+        // TypeError here before the fix.
+        $delivery = $this->delivery(['proxy' => ['retry_attempt_limit' => 3]]);
+        $delivery->proxy->delete();
+
+        $this->assertSame(3, $this->toArray($delivery)['attempt_limit']);
+    }
+
     public function test_attempts_key_is_omitted_when_not_loaded(): void
     {
         $this->assertArrayNotHasKey('attempts', $this->toArray($this->delivery()));

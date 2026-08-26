@@ -194,7 +194,13 @@ class DeliverToDestination
             return;
         }
 
-        $proxy = $delivery->proxy;
+        // Trashed-inclusive: an in-flight delivery whose proxy was soft-deleted since
+        // dispatch must still resolve its retry policy under its own settings (same
+        // precedent as ProcessIngestedWebhook's `Proxy::withTrashed()` load and
+        // DeliverStep/RetryDelivery's `destination()->withTrashed()`) rather than
+        // have the default `belongsTo` scope return null into RetryPolicy's
+        // non-nullable parameter.
+        $proxy = $delivery->proxy()->withTrashed()->firstOrFail();
         $limit = $this->retryPolicy->attemptLimitFor($proxy);
 
         if ($unit->attemptNumber >= $limit) {
