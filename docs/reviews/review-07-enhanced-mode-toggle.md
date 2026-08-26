@@ -295,7 +295,10 @@ AC22–AC25), which I re-derived from the diff rather than accepted on assertion
 
 ## Approval
 
-- **Recommendation:** **Request changes** — one Major (Finding 1). Everything else about this
+- **Recommendation:** ~~**Request changes**~~ — **SUPERSEDED 2026-08-26** by the re-review below,
+  which verifies Finding 1 and Finding 2 closed and revises the recommendation to **Approve**. The
+  original text is kept verbatim for the record.
+- **Recommendation (original, superseded):** **Request changes** — one Major (Finding 1). Everything else about this
   feature is in good order: the mechanism is right, the invariants hold under independent
   re-derivation, review-06's three obligations are genuinely discharged, both indivisible commits
   were honoured, and every reported gate number reproduces. If the Project Owner judges Finding 1
@@ -322,3 +325,228 @@ AC22–AC25), which I re-derived from the diff rather than accepted on assertion
 - **Next Agent:** **Project Owner** — to decide whether Finding 1 blocks or is accepted. On "blocks",
   the rework routes to the **Principal Engineer** first (the fix is forbidden by a standing plan
   ruling), then the Senior Developer, then back here for a re-review recorded in place in this file.
+
+---
+
+## Re-review (2026-08-26)
+
+- **Reviewer / date:** Reviewer, 2026-08-26
+- **Scope:** targeted re-review of the Revision A rework only — `feat/item-07-enhanced-mode-toggle`
+  at `b03deff`, incremental diff `415dad1..b03deff`. **Two source files, both small:**
+  `resources/js/pages/proxies/ProxyForm.vue` (+17/−1, commit `32e3038`, T14/M7) and
+  `app/Http/Controllers/ProxyController.php` (comment only, commit `b03deff`, T15). The T1–T13
+  verification above is **not** redone; it stands.
+- **Inputs read for this pass:** `docs/plans/plan-07-enhanced-mode-toggle.md` as amended —
+  § *Revision A*, the rewritten § *Technical rulings* 4 (4(a)–4(j)), § *Milestones* **M7**,
+  § *Test strategy → Revision A* (six required manual steps), **Risk 8**, and the Revision A
+  re-certification — plus `docs/tasks/enhanced-mode-toggle-tasks.md` **T14** and **T15**.
+- **Method:** the fix was verified by **re-running my own reproduction**, not by reading the
+  completion notes, and then by an **A/B** that isolates the fix as the cause (below). Fixtures
+  were seeded (a throwaway user, its personal team, four proxies, three destinations) and
+  **fully removed** afterwards; the shared dev database is as it was found.
+
+### Gate results (re-run in full)
+
+| Gate | Command | Result |
+|---|---|---|
+| Backend suite | `./vendor/bin/sail test --parallel` | **759 passed, 2820 assertions** — identical to the pre-rework baseline |
+| Backend suite **unmodified**? | `git diff 415dad1..HEAD -- tests/` | **Empty.** No backend test was added, changed or relaxed for M7 — the amended plan's own tripwire ("if a backend test needs changing to accommodate M7, something has gone wrong") did not fire |
+| Code style | `composer lint` | `{"tool":"pint","result":"passed"}` |
+| Static analysis | `composer types:check` | `{"tool":"phpstan","result":"passed","errors":0}` (L7) |
+| JS lint | `pnpm lint:check` | clean |
+| TS types | `pnpm types:check` | clean |
+| Format | `pnpm format:check` | clean |
+| Bundle | `pnpm run build` | built in 1.05 s; the emitted `ProxyForm-*.js` chunk was grepped and **does** carry the new re-seed arm, so the shipped artifact is not stale relative to source |
+| Live browser | Playwright, headless, real login | all six ruling-4 cases + the A/B below |
+
+**All gates green, and green at the same numbers.**
+
+### Finding 1 (Major) — **RESOLVED**
+
+*Re-run of the original reproduction, on a proxy persisting `4`/`fixed`, with a destination
+attached so the save is a real one:*
+
+| Step | Observed |
+|---|---|
+| 1. Open Edit | fieldset reads `4` / `Fixed interval` |
+| 2. Mode → **Simple** | fieldset unmounts; disclosure present (`[role="alert"]` count **1**) |
+| 3. Mode → **Enhanced** again (design-07 Flow C step 3) | disclosure gone (count **0**); fieldset re-renders **`4` / `Fixed interval`** — *not blank* |
+| 4. Save (name also edited, so a successful write is observable) | PUT body `…"mode":"enhanced","retry_attempt_limit":4,"retry_backoff_strategy":"fixed"…`; redirect to the Show page; no field errors |
+| 5. Post-save DB | `{"mode":"enhanced","retry_attempt_limit":4,"retry_backoff_strategy":"fixed"}`, `name` and `updated_at` both changed — **the persisted policy survived** |
+
+At the original review the same six steps produced `null`/`null` in the database. They now produce
+`4`/`fixed`. **AC14(b)(iii)**, **AC14(c)**'s disclosure promise and **AC12**'s write-surface clause
+are all true on this path.
+
+*A/B — proving the fix is the cause, not the environment.* Because the whole mechanism is one
+`else` branch, "it works now" is only worth as much as the counterfactual. I re-ran the identical
+six steps against the identical fixture with the **ruling-4(b) arm stripped out of the module the
+browser executes** — a Playwright response rewrite; **no file on disk, in the build, or in git was
+modified** (confirmed: `git status --porcelain resources/` empty throughout). Result: fieldset
+after the round trip `{"attempts":"","backoff":"Default (Exponential)"}`, PUT body
+`"retry_attempt_limit":null,"retry_backoff_strategy":null`, post-save DB
+`{"retry_attempt_limit":null,"retry_backoff_strategy":null}` — **Finding 1 reproduces exactly**.
+Restoring the arm restores the correct outcome. The closure is attributable to this change and to
+nothing else.
+
+*A methodological correction I owe the record:* my first pass at these live steps used fixtures
+with **no destination**, and `UpdateProxyRequest` has `'destinations' => ['required','array','min:1']`.
+Every save was silently rejected, and an Inertia validation redirect is also a `303` — so "303 and
+the values are still there" was **vacuous evidence**. Every DB assertion above is from the re-run
+with a destination attached, where the save is proven to have landed by a changed `name`, a moved
+`updated_at`, a redirect to the Show page, and zero rendered field errors. Recorded because the same
+trap would make any future manual verification of this feature look like a pass.
+
+### Implementation vs. the amended ruling 4 — every prohibition checked separately
+
+| Ruling | Required / prohibited | Verified |
+|---|---|---|
+| 4(a) | Enhanced → Simple clearing **unchanged** | ✅ The `if (!enhanced)` arm is byte-identical; `git diff 415dad1..HEAD` shows only an added `else` and comment lines |
+| 4(b) | Re-seed **unconditional** — not "if blank", not "if a seed exists", not "if the member downgraded earlier" | ✅ The `else` branch is two plain assignments from `props.initial`, with no guard of any kind |
+| 4(b) | Uses the **same null-normalisation as the mount seed** | ✅ `props.initial.retryAttemptLimit?.toString() ?? ''` / `props.initial.retryBackoffStrategy ?? ''` — character-for-character the `useForm(…)` initialiser at `:68-69` |
+| 4(b) | `props.initial` stays the immutable mount seed (Risk 8's dependency) | ✅ All **eleven** non-comment `props.initial` occurrences are **reads**; nothing assigns to it, and the one nested structure it exposes is copied rather than aliased (`destinations.map((row) => ({ ...row }))`, `:70`) |
+| 4(c) | **No `{ immediate: true }`, no `onMounted` re-seed** | ✅ Neither token occurs anywhere in `ProxyForm.vue` |
+| 4(d) | Seeded `4`, type `9`, round trip ⇒ **`4`** | ✅ Live: mount `4` → typed `9` → after round trip **`4`**. Not `9`, not blank |
+| 4(e) | Unconfigured Enhanced proxy round-trips to **unconfigured**; **never** a default literal | ✅ Live: mount `""`/`Default (Exponential)` → after round trip **identical**; save → PUT `null`/`null`; DB **NULL/NULL**, *not* `5`/`exponential`. The proxy is still tracking the system default, which is the point of 4(e) |
+| 4(e) | No `RETRY_DEFAULT_ATTEMPT_LIMIT` / `'exponential'` in the re-seed | ✅ `RETRY_DEFAULT_ATTEMPT_LIMIT` appears exactly once as an executable value (`:130`), feeding the **disclosure copy** — pre-existing, outside the watcher |
+| 4(f) | **No `props.method === 'post'` / edit-only guard** | ✅ `props.method` occurs twice in the whole file: its type declaration (`:41`) and the submit call (`:193`). No guard anywhere. Live: Create page, Enhanced → Simple → Enhanced **twice**, blank at every step; a save persisted **NULL/NULL** |
+| 4(g)(1) | T9's submit normalisation **verbatim** | ✅ Zero diff lines in `form.transform(...)`. Live: a Simple proxy holding a dormant `8`/`fixed` saved without touching Mode → PUT `null`/`null`, **303 not 422**, DB still `8`/`fixed` |
+| 4(g)(2) | `prohibited_if:mode,simple` intact | ✅ Present on both fields in **both** Form Requests; zero diff lines |
+| 4(g)(3) | **No server change** | ✅ The only PHP touched is a `store()` comment. Token-level proof: stripping comments and whitespace from `ProxyController.php` before and after gives the **same md5** — the executable code is identical |
+| 4(g)(4) | **No read-surface change** | ✅ `ProxyResource`, `ProxyFormResource`, `Show.vue`, the events surfaces: zero diff lines since `415dad1` |
+| 4(g)(5) | Disclosure untouched | ✅ Zero template diff. Live: appears on the down leg, disappears on the up leg, still inline and non-gating |
+| 4(i) | ADR-018 unchanged, no new `mode` read in `app/` | ✅ No `app/` behaviour changed at all; the two evaluation points are untouched |
+| M7 | **One file, one watcher**; Findings 2 and Nits 5–7 must not ride along | ✅ `32e3038` touches exactly `ProxyForm.vue` + the task plan. Finding 2 landed **separately** as `b03deff`/T15, as routed. Nits 5–7 are **not** in the diff |
+
+The comment rewrite is substantive rather than decorative: it names the two kinds of value, cites
+ruling 4(b), and states the "never materialises a default literal" property — which is the property
+a future "tidy-up" is most likely to break (Risk 8).
+
+**One consequence worth naming so it is on the record as considered, not missed:** a member who
+*deliberately blanks* the Attempts field on an Enhanced proxy and then round-trips the Mode toggle
+before saving will see `4` return and, unless they blank it again, will save `4`. That is ruling
+4(d) working exactly as ruled, it is visible in the field rather than silent, and the disclosure's
+"values you've **saved**" wording remains true. **Not a finding.**
+
+### Finding 2 (Minor) — **RESOLVED**
+
+The comment at `app/Http/Controllers/ProxyController.php:70-90` now states what the code does:
+that on a Simple submission the conditional yields `[]`, that `array_merge($data, [])` is just
+`$data`, that `$data` still carries both retry keys as NULL, and therefore that **a Simple-mode
+create still writes both columns as NULL** — harmless because a create has nothing to preserve —
+while `update()` is where the omission rule actually matters. That matches the behaviour I
+established at the original review. T1's completion note was corrected in the same commit and no
+longer repeats the false claim.
+
+**`store()`'s behaviour was not changed while fixing the comment** — proven, not assumed: a
+token-level comparison of `415dad1`'s and `HEAD`'s `ProxyController.php` with all comments and
+whitespace removed yields **identical output and identical md5** (`dc61196943…`). The suite is
+unchanged at 759/2820.
+
+### Finding 3 (Minor) — **RESOLVED**
+
+design-07 **Flow B step 3** is now a scheduled step: plan § *Test strategy → Revision A* lists it
+as the sixth required manual verification on M7, and T14 records executing it. Verified
+independently: a **Simple** proxy holding a dormant `8`/`fixed` renders no retry fieldset on
+mount, and selecting Mode = Enhanced pre-fills **`8` / `Fixed interval`** with nothing re-entered.
+The coverage gap is closed by scheduling; the underlying harness gap (no frontend test framework)
+remains the standing backlog item, now with Risk 8 as its fifth concrete argument.
+
+### Finding 4 (Minor) — **RESOLVED**
+
+plan § *Test strategy*'s non-Edit bullet now carries an explicit Revision A correction: § *Architecture C*
+governs, both keys stay in `ProxyResource`'s payload, and the assertion is on the **value** (`null`),
+not on the key's absence. It states in terms that "the shipped assertions are the correct ones",
+which is the implementation. The self-contradiction is gone.
+
+### Findings 5–7 (Nits) — carried forward, unchanged
+
+Not part of M7 and correctly **not** in the diff (the plan forbade them riding along). They remain
+backlog: the disclosure's capitalised "Exponential" vs. design-07's lowercase (Nit 5), the retry
+fieldset's hand-written "(5 attempts, exponential backoff)" (Nit 6), and the positional
+`proxies.data.0`/`.1` indexing in `ProxyRetryFieldPresentationAcceptanceTest` (Nit 7). Recorded so
+the Owner approves with them visible, **not** re-raised as findings.
+
+### New findings from this pass
+
+**Finding 8 (Minor) — the "fresh build before a live check" protocol does not do what the plan and
+the completion notes assume in this environment.**
+
+*Criterion:* plan § *Milestones* M6/M7 ("a stale checked-in bundle proved nothing at review-06 M-3 —
+rebuild before any live check") and T14's completion note, which states the manual pass ran
+"against a freshly built bundle (`pnpm run build` immediately prior)".
+
+`public/hot` exists (written 2026-08-21) and a Vite dev server has been listening on port 5174 for
+four days, so Laravel's `@vite` serves **dev-server modules**, not `public/build`. Proof from my own
+session: the module the browser actually executed was
+`http://[::1]:5174/resources/js/pages/proxies/ProxyForm.vue?t=…`, and **no** `public/build` asset
+containing `retry_attempt_limit` was ever requested. So the rebuild neither helped nor hurt — what
+was exercised was the working-tree source.
+
+*Why it is only a Minor, and why it is still worth recording.* Nothing is wrong with the result:
+dev-server modules **are** the committed source, and I separately grepped the freshly built
+`ProxyForm-*.js` chunk and confirmed it carries the identical re-seed, so source and shipped bundle
+agree. But the protocol exists to catch a *disagreement* between them, and in this configuration it
+cannot — a live check will pass against un-built source, and a genuinely stale bundle would go
+unnoticed. This also qualifies my own original review's live checks (same environment, same
+caveat; source and build agreed there too). *Remedy (Senior Developer, cheap):* assert where the
+module came from as part of the check — either confirm `public/hot` is absent / the dev server is
+stopped, or log the requested module URLs and require a `/build/assets/` origin — and say which one
+the note is claiming. No code change.
+
+**Finding 9 (Minor) — the plan amendment the shipped code implements is not committed.**
+
+`docs/plans/plan-07-enhanced-mode-toggle.md` (Revision A, +339/−35) and `docs/status.md` are
+**modified in the working tree but absent from every commit on this branch**. The branch's
+committed history therefore contains a commit that fixes Finding 1 alongside a committed plan whose
+§ *Technical ruling* 4 still says the asymmetry "must not be 'fixed'". Merged as-is, the repository
+is self-contradictory on exactly the point the Owner ruled on. Not the Senior Developer's defect
+and not a code issue — the amendment is the Principal Engineer's artifact and its commit is the
+Owner's call — but it must land with the feature. *(For the avoidance of doubt: the working tree's
+`prd-08-*`, `design-08-*`, `plan-08-*`, `adr-019-*`, `prd-08-q-*`, `prd-11-*`, `.gitignore` and
+`.claude/agent-memory/**` changes belong to other, deferred or in-progress work; they are **not**
+#7 and I neither reviewed nor touched them.)*
+
+### Scope discipline
+
+`git diff f72153f..HEAD` is **28 files** — the 27 from the original review plus this review
+document. Re-confirmed on the rework: no migration (`database/migrations` diff empty),
+`PipelineFactory` still byte-identical, no test file touched, no new dependency, route, permission
+or data-model element, and **no feature-#8, #11, `.gitignore` or agent-memory artifact in any
+commit**. The incremental rework diff is exactly the two files M7 and T15 authorised.
+
+### Re-review recommendation
+
+- **Recommendation:** **Approve.** The one Major is genuinely closed — verified by re-running the
+  original reproduction end to end (form state, PUT body **and** post-save database row, with the
+  save proven to have landed), and isolated to this change by an A/B in which removing the new arm
+  at runtime reproduces the defect exactly. The implementation honours every prohibition in the
+  amended ruling 4, including the four "must nots" (unconditional, no method guard, no
+  `immediate`/`onMounted`, no default literal), and the two edge cases the Owner's ruling turned on
+  — 4(d) returning the **saved** `4` and 4(e) round-tripping unconfigured to unconfigured **without
+  materialising `5`/`exponential`** — behave as ruled against live data. Ruling 4(g)'s five
+  must-not-changes all hold, three of them by zero-diff or token-identity proof rather than
+  inspection. Finding 2's comment is now true and `store()`'s behaviour is provably unchanged;
+  Findings 3 and 4 are closed by the amended plan. The full gate set reproduces at identical
+  numbers with the backend suite **unmodified**.
+  Findings 8 and 9 are **Minor and non-blocking** — one is a verification-method accuracy point
+  with no effect on this result, the other is a "commit the amendment with the feature" item. Nits
+  5–7 carry forward to the backlog. If the Project Owner prefers them tracked rather than assumed,
+  the recommendation reads **Approve with follow-ups (8, 9, and Nits 5–7)**; either way nothing
+  here should hold the feature.
+- **Project Owner decision / date:** _pending_
+
+### Re-review handoff
+
+- **Inputs:** plan-07 as amended (Revision A, PE re-certified in full 2026-08-26) — § *Revision A*,
+  § *Technical rulings* 4(a)–4(j), § *Milestones* M7, § *Test strategy → Revision A*, Risk 8;
+  `docs/tasks/enhanced-mode-toggle-tasks.md` T14 and T15; commits `32e3038` and `b03deff`; the
+  incremental diff `415dad1..b03deff` and the full branch diff `f72153f..b03deff`; a headless
+  browser session against a real login (fixtures seeded and removed; database confirmed clean).
+- **Outputs:** this re-review section, appended in place per the standing convention.
+- **Dependencies:** none new.
+- **Outstanding:** Finding 8 → **Senior Developer** (verification-method note, no code). Finding 9 →
+  **Principal Engineer / Project Owner** (commit plan-07 Revision A and `docs/status.md` with the
+  feature). Nits 5–7 → backlog. The absent frontend test harness remains the standing item, and
+  Risk 8 now names it explicitly.
+- **Next Agent:** **Project Owner** — for the approval decision on #7.
