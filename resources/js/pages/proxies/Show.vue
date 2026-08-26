@@ -350,45 +350,43 @@ function confirmDeleteProxy(): void {
             <p class="text-sm text-muted-foreground">
                 {{ modeSummary }}
             </p>
-        </div>
-
-        <!-- Analytics card (design-11 Screen 2; flagged design call 3's
-             accepted reordering — leads ahead of Ingest URL because "is this
-             working" is the reason a member opens a proxy from a Dashboard
-             drill-through, Flow C step 1). The window selector is
-             page-level for this page but rendered inside this card (the
-             only card whose figures depend on window) and stays visible
-             even in the zero-traffic state below, so a member can check
-             another window — only the figures collapse to the single
-             message (design-11 Screen 2 "Zero traffic for this proxy"
-             state). -->
-        <Card class="gap-4 p-6">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-                <h2 class="text-sm font-medium">Analytics</h2>
-                <nav class="flex items-center gap-2" aria-label="Time window">
-                    <Button
-                        v-for="value in WINDOW_VALUES"
-                        :key="value"
-                        as-child
-                        variant="outline"
-                        size="sm"
-                        :class="
-                            value === props.statistics.window ? 'bg-accent' : ''
+            <nav class="flex items-center gap-2" aria-label="Time window">
+                <Button
+                    v-for="value in WINDOW_VALUES"
+                    :key="value"
+                    as-child
+                    :variant="
+                        value === props.statistics.window
+                            ? 'default'
+                            : 'outline'
+                    "
+                    size="sm"
+                >
+                    <Link
+                        :href="windowHref(value)"
+                        :aria-current="
+                            value === props.statistics.window
+                                ? 'true'
+                                : undefined
                         "
                     >
-                        <Link
-                            :href="windowHref(value)"
-                            :aria-current="
-                                value === props.statistics.window
-                                    ? 'true'
-                                    : undefined
-                            "
-                        >
-                            {{ value }}
-                        </Link>
-                    </Button>
-                </nav>
-            </div>
+                        {{ value }}
+                    </Link>
+                </Button>
+            </nav>
+        </div>
+
+        <!-- Analytics cards (design-11 Screen 2; flagged design call 3's
+             accepted reordering — these lead ahead of Ingest URL because "is
+             this working" is the reason a member opens a proxy from a
+             Dashboard drill-through, Flow C step 1). Split from one combined
+             card into the same four cards the Dashboard renders, on an Owner
+             ruling of 2026-08-26 — see the note in design-11. The window
+             selector is page-level and now sits in the page header, where it
+             stays reachable even in the zero-traffic state so a member can
+             check another window. -->
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Deliveries</h2>
 
             <p
                 v-if="!props.statistics.hasTraffic"
@@ -398,7 +396,7 @@ function confirmDeleteProxy(): void {
             </p>
 
             <template v-else>
-                <dl class="flex flex-col gap-1">
+                <dl class="flex flex-col gap-5">
                     <div>
                         <dt class="text-sm text-muted-foreground">
                             {{ DELIVERY_SUCCESS_LABEL }}
@@ -418,7 +416,7 @@ function confirmDeleteProxy(): void {
                             </p>
                         </dd>
                     </div>
-                    <div class="mt-4">
+                    <div>
                         <dt class="text-sm text-muted-foreground">
                             {{ ATTEMPT_SUCCESS_LABEL }}
                         </dt>
@@ -444,7 +442,12 @@ function confirmDeleteProxy(): void {
                 >
                     {{ bridgeText }}
                 </p>
+            </template>
+        </Card>
 
+        <template v-if="props.statistics.hasTraffic">
+            <Card class="gap-4 p-6">
+                <h2 class="text-base font-semibold">Trend</h2>
                 <TrendChart
                     :series="props.statistics.series"
                     :window="props.statistics.window"
@@ -540,9 +543,11 @@ function confirmDeleteProxy(): void {
                         </Table>
                     </CollapsibleContent>
                 </Collapsible>
+            </Card>
 
+            <Card class="gap-4 p-6">
                 <div>
-                    <h3 class="text-sm font-medium">Retry & replay</h3>
+                    <h3 class="text-base font-semibold">Retry & replay</h3>
                     <p class="text-sm text-muted-foreground">
                         {{ lastWindowSubtitle(props.statistics.window) }}
                     </p>
@@ -593,9 +598,11 @@ function confirmDeleteProxy(): void {
                         </dd>
                     </div>
                 </dl>
+            </Card>
 
+            <Card class="gap-4 p-6">
                 <div>
-                    <h3 class="text-sm font-medium">Latency</h3>
+                    <h3 class="text-base font-semibold">Latency</h3>
                     <p class="text-sm text-muted-foreground">
                         {{ lastWindowSubtitle(props.statistics.window) }}
                     </p>
@@ -607,7 +614,7 @@ function confirmDeleteProxy(): void {
                         <dt class="text-sm text-muted-foreground">
                             {{ LATENCY_AVERAGE_LABEL }}
                         </dt>
-                        <dd class="text-sm">
+                        <dd class="text-lg font-medium">
                             {{
                                 formatLatencyMs(
                                     props.statistics.latency.averageMs,
@@ -621,7 +628,7 @@ function confirmDeleteProxy(): void {
                         <dt class="text-sm text-muted-foreground">
                             {{ LATENCY_P95_LABEL }}
                         </dt>
-                        <dd class="text-sm">
+                        <dd class="text-lg font-medium">
                             {{
                                 formatLatencyMs(props.statistics.latency.p95Ms)
                             }}
@@ -631,12 +638,12 @@ function confirmDeleteProxy(): void {
                 <p class="text-sm text-muted-foreground">
                     {{ LATENCY_CAPTION }}
                 </p>
-            </template>
-        </Card>
+            </Card>
+        </template>
 
         <!-- Ingest URL card -->
-        <Card class="gap-3 p-6">
-            <h2 class="text-sm font-medium">Ingest URL</h2>
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Ingest URL</h2>
             <CopyField :value="props.proxy.ingest_url" />
             <p class="text-sm text-muted-foreground">
                 Anyone with this URL can post webhooks to this proxy. Keep it
@@ -645,8 +652,8 @@ function confirmDeleteProxy(): void {
         </Card>
 
         <!-- Response card -->
-        <Card class="gap-3 p-6">
-            <h2 class="text-sm font-medium">Response</h2>
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Response</h2>
             <p class="text-sm text-muted-foreground">
                 Returned to the sender immediately when the webhook is received
                 — independent of whether delivery to your destinations succeeds.
@@ -703,7 +710,7 @@ function confirmDeleteProxy(): void {
              deleted destination with historical traffic still gets a row. -->
         <Card class="gap-4 p-6">
             <div>
-                <h2 class="text-sm font-medium">Destinations</h2>
+                <h2 class="text-base font-semibold">Destinations</h2>
                 <p class="text-sm text-muted-foreground">
                     {{ lastWindowSubtitle(props.statistics.window) }}
                 </p>
@@ -769,8 +776,8 @@ function confirmDeleteProxy(): void {
         </Card>
 
         <!-- Retry policy card -->
-        <Card class="gap-3 p-6">
-            <h2 class="text-sm font-medium">Retry policy</h2>
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Retry policy</h2>
             <p class="text-sm text-muted-foreground">
                 Governs automatic re-attempts to your destinations after a
                 failed delivery.

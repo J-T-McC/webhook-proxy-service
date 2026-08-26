@@ -45,7 +45,7 @@ export const LIVE_VS_REPLAY_LABEL = 'Live vs replay (deliveries)';
 
 /** The "Latency" card's `dt` labels and fixed caption (AC12, AC20). */
 export const LATENCY_AVERAGE_LABEL = 'Average';
-export const LATENCY_P95_LABEL = '95th percentile';
+export const LATENCY_P95_LABEL = 'p95';
 export const LATENCY_CAPTION = 'Excludes time spent waiting in the queue.';
 
 /** Shared no-data text — a rate (Amendment A(i)) vs. a measure (AC20). */

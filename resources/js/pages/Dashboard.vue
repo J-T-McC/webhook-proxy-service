@@ -232,11 +232,12 @@ function proxyFailuresHref(proxyId: number) {
                     v-for="value in WINDOW_VALUES"
                     :key="value"
                     as-child
-                    variant="outline"
-                    size="sm"
-                    :class="
-                        value === props.statistics.window ? 'bg-accent' : ''
+                    :variant="
+                        value === props.statistics.window
+                            ? 'default'
+                            : 'outline'
                     "
+                    size="sm"
                 >
                     <Link
                         :href="windowHref(value)"
@@ -253,9 +254,9 @@ function proxyFailuresHref(proxyId: number) {
         </div>
 
         <!-- Deliveries card -->
-        <Card class="gap-3 p-6">
-            <h2 class="text-sm font-medium">Deliveries</h2>
-            <dl class="flex flex-col gap-1">
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Deliveries</h2>
+            <dl class="flex flex-col gap-5">
                 <div>
                     <dt class="text-sm text-muted-foreground">
                         {{ DELIVERY_SUCCESS_LABEL }}
@@ -275,7 +276,7 @@ function proxyFailuresHref(proxyId: number) {
                         </p>
                     </dd>
                 </div>
-                <div class="mt-4">
+                <div>
                     <dt class="text-sm text-muted-foreground">
                         {{ ATTEMPT_SUCCESS_LABEL }}
                     </dt>
@@ -300,10 +301,162 @@ function proxyFailuresHref(proxyId: number) {
             </p>
         </Card>
 
+        <!-- Trend card -->
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Trend</h2>
+            <p
+                v-if="!props.statistics.hasTraffic"
+                class="text-sm text-muted-foreground"
+            >
+                {{ TREND_NO_DATA_LABEL }}
+            </p>
+            <template v-else>
+                <TrendChart
+                    :series="props.statistics.series"
+                    :window="props.statistics.window"
+                    :bucket="props.statistics.bucket"
+                />
+                <!--
+                    The chart's "View as table" fallback is collapsed by
+                    default now that the chart above it is the primary
+                    representation (design-11 § Interactions).
+                -->
+                <Collapsible>
+                    <CollapsibleTrigger as-child>
+                        <Button variant="ghost" size="sm" class="w-fit">
+                            View as table
+                        </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>{{
+                                        trendTableFirstColumnHeader(
+                                            props.statistics.bucket,
+                                        )
+                                    }}</TableHead>
+                                    <TableHead>{{
+                                        DELIVERY_SUCCESS_COLUMN_LABEL
+                                    }}</TableHead>
+                                    <TableHead>{{
+                                        ATTEMPT_SUCCESS_COLUMN_LABEL
+                                    }}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
+                                    v-for="point in props.statistics.series"
+                                    :key="point.bucketStart"
+                                >
+                                    <TableCell>{{
+                                        formatBucketPeriod(
+                                            point.bucketStart,
+                                            props.statistics.bucket,
+                                        )
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        compactRateText(point.delivery)
+                                    }}</TableCell>
+                                    <TableCell>{{
+                                        compactRateText(point.attempt)
+                                    }}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </CollapsibleContent>
+                </Collapsible>
+            </template>
+        </Card>
+
+        <!-- Retry & replay card -->
+        <Card class="gap-4 p-6">
+            <div>
+                <h2 class="text-base font-semibold">Retry & replay</h2>
+                <p class="text-sm text-muted-foreground">
+                    {{ lastWindowSubtitle(props.statistics.window) }}
+                </p>
+            </div>
+            <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ EVENTUAL_SUCCESS_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{ props.statistics.retryReplay.eventualSuccess }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ TERMINAL_FAILURE_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{ props.statistics.retryReplay.terminalFailure }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ RETRY_VOLUME_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{ props.statistics.retryReplay.retryVolume }}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-sm text-muted-foreground">
+                        {{ LIVE_VS_REPLAY_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{
+                            liveVsReplayText(
+                                props.statistics.retryReplay.live,
+                                props.statistics.retryReplay.replay,
+                            )
+                        }}
+                    </dd>
+                </div>
+            </dl>
+        </Card>
+
+        <!-- Latency card -->
+        <Card class="gap-4 p-6">
+            <div>
+                <h2 class="text-base font-semibold">Latency</h2>
+                <p class="text-sm text-muted-foreground">
+                    {{ lastWindowSubtitle(props.statistics.window) }}
+                </p>
+            </div>
+            <dl class="flex flex-col gap-3">
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">
+                        {{ LATENCY_AVERAGE_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{
+                            formatLatencyMs(props.statistics.latency.averageMs)
+                        }}
+                    </dd>
+                </div>
+                <div
+                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                >
+                    <dt class="text-sm text-muted-foreground">
+                        {{ LATENCY_P95_LABEL }}
+                    </dt>
+                    <dd class="text-lg font-medium">
+                        {{ formatLatencyMs(props.statistics.latency.p95Ms) }}
+                    </dd>
+                </div>
+            </dl>
+            <p class="text-sm text-muted-foreground">{{ LATENCY_CAPTION }}</p>
+        </Card>
+
         <!-- Proxies card -->
         <Card class="gap-4 p-6">
             <div>
-                <h2 class="text-sm font-medium">Proxies</h2>
+                <h2 class="text-base font-semibold">Proxies</h2>
                 <p class="text-sm text-muted-foreground">
                     {{ lastWindowSubtitle(props.statistics.window) }}
                 </p>
@@ -444,158 +597,6 @@ function proxyFailuresHref(proxyId: number) {
                     </TableRow>
                 </TableBody>
             </Table>
-        </Card>
-
-        <!-- Trend card -->
-        <Card class="gap-4 p-6">
-            <h2 class="text-sm font-medium">Trend</h2>
-            <p
-                v-if="!props.statistics.hasTraffic"
-                class="text-sm text-muted-foreground"
-            >
-                {{ TREND_NO_DATA_LABEL }}
-            </p>
-            <template v-else>
-                <TrendChart
-                    :series="props.statistics.series"
-                    :window="props.statistics.window"
-                    :bucket="props.statistics.bucket"
-                />
-                <!--
-                    The chart's "View as table" fallback is collapsed by
-                    default now that the chart above it is the primary
-                    representation (design-11 § Interactions).
-                -->
-                <Collapsible>
-                    <CollapsibleTrigger as-child>
-                        <Button variant="ghost" size="sm" class="w-fit">
-                            View as table
-                        </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>{{
-                                        trendTableFirstColumnHeader(
-                                            props.statistics.bucket,
-                                        )
-                                    }}</TableHead>
-                                    <TableHead>{{
-                                        DELIVERY_SUCCESS_COLUMN_LABEL
-                                    }}</TableHead>
-                                    <TableHead>{{
-                                        ATTEMPT_SUCCESS_COLUMN_LABEL
-                                    }}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow
-                                    v-for="point in props.statistics.series"
-                                    :key="point.bucketStart"
-                                >
-                                    <TableCell>{{
-                                        formatBucketPeriod(
-                                            point.bucketStart,
-                                            props.statistics.bucket,
-                                        )
-                                    }}</TableCell>
-                                    <TableCell>{{
-                                        compactRateText(point.delivery)
-                                    }}</TableCell>
-                                    <TableCell>{{
-                                        compactRateText(point.attempt)
-                                    }}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </CollapsibleContent>
-                </Collapsible>
-            </template>
-        </Card>
-
-        <!-- Retry & replay card -->
-        <Card class="gap-4 p-6">
-            <div>
-                <h2 class="text-sm font-medium">Retry & replay</h2>
-                <p class="text-sm text-muted-foreground">
-                    {{ lastWindowSubtitle(props.statistics.window) }}
-                </p>
-            </div>
-            <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <div>
-                    <dt class="text-sm text-muted-foreground">
-                        {{ EVENTUAL_SUCCESS_LABEL }}
-                    </dt>
-                    <dd class="text-lg font-medium">
-                        {{ props.statistics.retryReplay.eventualSuccess }}
-                    </dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-muted-foreground">
-                        {{ TERMINAL_FAILURE_LABEL }}
-                    </dt>
-                    <dd class="text-lg font-medium">
-                        {{ props.statistics.retryReplay.terminalFailure }}
-                    </dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-muted-foreground">
-                        {{ RETRY_VOLUME_LABEL }}
-                    </dt>
-                    <dd class="text-lg font-medium">
-                        {{ props.statistics.retryReplay.retryVolume }}
-                    </dd>
-                </div>
-                <div>
-                    <dt class="text-sm text-muted-foreground">
-                        {{ LIVE_VS_REPLAY_LABEL }}
-                    </dt>
-                    <dd class="text-lg font-medium">
-                        {{
-                            liveVsReplayText(
-                                props.statistics.retryReplay.live,
-                                props.statistics.retryReplay.replay,
-                            )
-                        }}
-                    </dd>
-                </div>
-            </dl>
-        </Card>
-
-        <!-- Latency card -->
-        <Card class="gap-3 p-6">
-            <div>
-                <h2 class="text-sm font-medium">Latency</h2>
-                <p class="text-sm text-muted-foreground">
-                    {{ lastWindowSubtitle(props.statistics.window) }}
-                </p>
-            </div>
-            <dl class="flex flex-col gap-3">
-                <div
-                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                >
-                    <dt class="text-sm text-muted-foreground">
-                        {{ LATENCY_AVERAGE_LABEL }}
-                    </dt>
-                    <dd class="text-sm">
-                        {{
-                            formatLatencyMs(props.statistics.latency.averageMs)
-                        }}
-                    </dd>
-                </div>
-                <div
-                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                >
-                    <dt class="text-sm text-muted-foreground">
-                        {{ LATENCY_P95_LABEL }}
-                    </dt>
-                    <dd class="text-sm">
-                        {{ formatLatencyMs(props.statistics.latency.p95Ms) }}
-                    </dd>
-                </div>
-            </dl>
-            <p class="text-sm text-muted-foreground">{{ LATENCY_CAPTION }}</p>
         </Card>
     </div>
 </template>

@@ -1109,6 +1109,51 @@ Principal Engineer finds the filter unachievable as designed, that returns to th
 a fresh correction — item (10) deliberately pre-approves no fallback, because AC10 requires
 the outcome filter to exist.
 
+## Owner-directed presentation changes (Project Owner, 2026-08-26)
+
+Recorded so this specification does not silently drift from what ships. These were directed by
+the Project Owner after reviewing the built feature, outside the design gate and without a
+pipeline pass. **None of them changes a figure, a grain, a unit, a rate, a bucket, a
+drill-through obligation, or any acceptance criterion** — they are presentation only, which is
+why they were taken as Owner instruction rather than returned through Requirements.
+
+1. **"95th percentile" is now rendered "p95".** The label lives in
+   `resources/js/data/analyticsLabels.ts` as `LATENCY_P95_LABEL`, still the single source of
+   every unit-bearing string. Both this document's Screen 1 and Screen 2 mockups still write
+   the long form; the short form is what ships. The figure is unchanged — it remains the exact
+   nearest-rank 95th percentile ruled in `Q-11-03`.
+
+2. **Screen 2's single "Analytics" card is split into four sibling cards** — Deliveries, Trend,
+   Retry & replay, Latency — matching the four the Dashboard already renders. This document's
+   Screen 2 describes one combined card; that is superseded here. The reason is consistency: the
+   two screens presented the same figures in visibly different containers, and the Dashboard's
+   shape was chosen as the common one. Screen 2's other cards (Ingest URL, Response,
+   Destinations, Retry policy) are untouched and still follow the analytics block.
+
+3. **The Dashboard's Proxies table moves below the analytics cards**, beneath Latency, so both
+   screens open with the same four cards in the same order before diverging into
+   screen-specific content.
+
+4. **Screen 2's window selector moves from inside the Analytics card to the page header**, where
+   the Dashboard's already sits. This is what this document already meant by calling the selector
+   "page-level", and it keeps the selector reachable in the zero-traffic state — the property
+   `T19` preserved for the same reason.
+
+5. **Spacing and type scale were opened up** across both screens: card headings move from
+   `text-sm font-medium` to `text-base font-semibold`, the two-tier Deliveries list gains an even
+   vertical rhythm in place of a `gap-1` list patched with `mt-4`, and the latency figures move
+   from `text-sm` to `text-lg font-medium` so a measure does not read as body copy. No token,
+   colour or chart style changed.
+
+6. **The window selector's active state now uses the filled `default` button variant.** It
+   previously used `variant="outline"` plus `bg-accent`, which is also the hover colour for an
+   outline button, so the current window was hard to distinguish from a hovered one. The same
+   defect and the same fix applied to the paginator on the proxies and events lists.
+
+**Not reopened by any of the above:** the two-unit rule, the no-verdict rule, Amendment A(i)'s
+zero-denominator treatment, Amendment B's bucket sizes and day-grain-only drill-through, the
+`aria-hidden` canvas with no click target, and corrections C1–C6.
+
 ## Amendment B changes (Designer, 2026-08-26)
 
 Raised by the Project Owner from the built feature's behaviour: on the 24-hour window the
