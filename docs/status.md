@@ -188,6 +188,38 @@ plus both Owner flags ruled, 2026-08-26);
   Scoped further: the entry point is the **Proxy Show** trend table only — the C1 re-check
   states the Dashboard's team-grained trend is not a drill-through entry point at all, so its
   rows get no links **despite T23's own task text naming `Dashboard.vue`**.
+- **T23 complete** (Senior Developer, 2026-08-26) — the day-narrowed Trend drill-through landed
+  against Revision A's `date` parameter, and all four of T23's entry points are now wired.
+  Suite at **844/844**; `composer lint`, `composer types:check`, and the three `pnpm` checks
+  all green.
+- **M6 STOPPED AT T25 — awaiting a Project Owner ruling. The charting dependency was not
+  committed, and this is the task's own designed exit rather than a failure.** T25's check 2
+  is the decisive one, and it fails: **`@j-t-mcc/vue3-chartjs` 2.1.0 defeats `chart.js`
+  tree-shaking.** Its bundled source imports `chart.js`'s `registerables` export and, on every
+  mount, runs `Chart.register(...registerables)` unconditionally — the same effect
+  `chart.js/auto` has, reached by a different path. **The literal string `chart.js/auto` does
+  not appear in the package**, so a text search for it would have passed; the finding rests on
+  reading the wrapper's own bundled code, verified against the published 2.1.0 tarball fetched
+  from the registry rather than only against whatever resolved locally, and independently
+  re-checked by the orchestrator before this entry was written. `registerables` is an eagerly
+  constructed array naming every controller, element, scale and plugin the library ships, so
+  importing it pulls all of them into the module graph no matter what the consuming app
+  registers. **Measured, not only read:** two minimal esbuild bundles registering the same
+  seven line-chart pieces came out at **218.6 kB raw / 77.6 kB gzip with the wrapper** against
+  **159.4 kB / 57.0 kB without it** — roughly **59 kB raw, 20.6 kB gzip** of pure tax — and all
+  seven unused controllers (`BarController`, `BubbleController`, `DoughnutController`,
+  `PieController`, `PolarAreaController`, `RadarController`, `ScatterController`) appear in the
+  wrapper bundle and in none of the other. The packages were installed only to run checks 1 and
+  2 against the real published code rather than an assumption, then reverted; `package.json`
+  and `pnpm-lock.yaml` are unchanged and neither package is in `node_modules`. Checks 3 and 4
+  were not run, being conditioned on check 2 passing. **The Owner's standing ruling was that
+  the wrapper is used because it is the Owner's own package — but that approval was explicitly
+  conditional on these checks, and this is the condition it named.** The plan's own recorded
+  alternative is to adopt `chart.js` alone behind roughly forty lines of local `TrendChart.vue`
+  doing what the wrapper's component does — hold a `<canvas>` ref, construct in `onMounted`,
+  `update()` on prop change, `destroy()` on unmount — which needs no plan change beyond dropping
+  one package name. **Selecting between that, accepting the tax, and fixing the wrapper upstream
+  is the Owner's call.** T26, T27 and T28 are unstarted and blocked behind it; T29 is unstarted.
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
