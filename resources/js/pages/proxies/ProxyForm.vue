@@ -186,7 +186,12 @@ function submit(): void {
             <div class="grid gap-2">
                 <Label for="mode">Mode</Label>
                 <Select v-model="form.mode" :disabled="form.processing">
-                    <SelectTrigger id="mode" class="w-full sm:w-64">
+                    <SelectTrigger
+                        id="mode"
+                        class="w-full sm:w-64"
+                        :aria-invalid="form.errors.mode ? 'true' : undefined"
+                        aria-describedby="mode-help mode-error"
+                    >
                         <SelectValue placeholder="Select a mode" />
                     </SelectTrigger>
                     <SelectContent>
@@ -194,12 +199,16 @@ function submit(): void {
                         <SelectItem value="enhanced">Enhanced</SelectItem>
                     </SelectContent>
                 </Select>
-                <p class="text-sm text-muted-foreground">
-                    Enhanced mode enables per-proxy retry configuration below.
-                    Automatic retry itself applies to every proxy regardless of
-                    Mode.
+                <p id="mode-help" class="text-sm text-muted-foreground">
+                    Enhanced mode stores the payload actually dispatched,
+                    separately from the payload received, and lets this proxy
+                    configure its own retry attempts and backoff strategy below.
+                    Automatic retry, payload capture, retention, and replay
+                    apply to every proxy regardless of Mode.
                 </p>
-                <InputError :message="form.errors.mode" />
+                <span id="mode-error">
+                    <InputError :message="form.errors.mode" />
+                </span>
             </div>
 
             <div class="grid gap-2">

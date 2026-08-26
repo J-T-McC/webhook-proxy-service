@@ -494,7 +494,34 @@
   Create, read the corrected help text before choosing a mode; inspect the built page's DOM for
   `aria-describedby`/`aria-invalid` parity with the Processing field. Document the steps and outcome
   in the completion notes.
-- **Completion notes:** _pending_
+- **Completion notes:** `ProxyForm.vue`'s Mode `SelectTrigger` now carries
+  `aria-describedby="mode-help mode-error"` and `:aria-invalid="form.errors.mode ? 'true' : undefined"`,
+  matching the `processing_mode` trigger's wiring exactly; the help paragraph gained `id="mode-help"`
+  and the error is now wrapped in `span#mode-error` (previously a bare `InputError`). The help copy
+  was replaced verbatim with design-07 Screen 1's corrected text: "Enhanced mode stores the payload
+  actually dispatched, separately from the payload received, and lets this proxy configure its own
+  retry attempts and backoff strategy below. Automatic retry, payload capture, retention, and replay
+  apply to every proxy regardless of Mode." — naming both AC6 capabilities in present tense, the
+  mode-independent guarantees, no roadmap numbers, no mapping implication. The `Select` itself is
+  unchanged in shape — still exactly two `SelectItem`s (`simple`/`enhanced`, AC23).
+
+  **Manual verification (Flow A):** seeded a throwaway user via
+  `./vendor/bin/sail tinker --execute '...'` (`User::factory()->create()`, its default personal team),
+  logged in via the `playwright` skill (headless Chromium, real `/login` form submission, no session
+  faking), and navigated to `/{team-slug}/proxies/create` after a fresh `pnpm run build`. Read the
+  Mode help text before selecting anything — rendered verbatim as above. Inspected the built page's
+  DOM: Mode's `SelectTrigger` (`#mode`) outerHTML shows `aria-describedby="mode-help mode-error"` and
+  no `aria-invalid` attribute (no error present, matching `:undefined`'s omission behaviour); the
+  Processing trigger (`#processing_mode`) shows the identical pattern
+  (`aria-describedby="processing-help processing-error"`) — confirmed parity attribute-for-attribute.
+  Throwaway user retained for T8–T10's manual checks in the same session; will be cleaned up after T10.
+
+  Verified: `pnpm lint:check` (clean, repo-wide — the T6-documented `.claude/worktrees/` pollution is
+  gone, confirmed by a full, unscoped `eslint .` run); `pnpm types:check` (clean); `pnpm format:check`
+  (clean, after one Prettier auto-fix on the edited block); `pnpm run build` (succeeds,
+  `ProxyForm-*.js` chunk emitted); `composer lint` (Pint, clean); `composer types:check` (PHPStan
+  level 7, 0 errors); full backend suite `./vendor/bin/sail test --parallel` (759 passed, 2820
+  assertions, unchanged — this task is frontend-only).
 
 ## T8 — Downgrade disclosure (AC13, AC14(c); design-07 Screen 1 "Downgrade disclosure"; plan §Architecture F)
 - **Description:** Conditional `Alert`/`AlertTitle`/`AlertDescription` (`Info` icon), wrapped
