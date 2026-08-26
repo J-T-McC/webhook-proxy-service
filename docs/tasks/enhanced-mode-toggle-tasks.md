@@ -920,6 +920,97 @@
 
 ---
 
+## T14 — Revision A: the Simple → Enhanced re-seed (review-07 Finding 1, Major; plan §Milestones M7, §Technical ruling 4)
+- **Description:** Rework task for review-07's one blocking Major, re-ruled by the Project Owner
+  on 2026-08-26 (plan Revision A): `ProxyForm.vue`'s `watch(isEnhanced, …)` gains a symmetric
+  Simple → Enhanced arm that re-seeds both retry fields from the mount seed (`props.initial`),
+  using the same null-normalisation `useForm(…)`'s initialiser already uses. Unconditional — no
+  "if blank", no "if a seed exists", no `props.method === 'post'` guard. The Enhanced → Simple arm
+  (clearing) is untouched. One file, one watcher, per plan §Milestones M7.
+- **Dependencies:** T1–T13 (all landed)
+- **Files:** `resources/js/pages/proxies/ProxyForm.vue` only.
+- **Acceptance Criteria (plan §Technical ruling 4, cases 4(b)/4(d)/4(e)/4(f)/4(g)(1), plus design-07
+  Flow B step 3):** see manual-verification results below — all six pass.
+- **Testing:** no automated frontend harness exists (deferred backlog item; Risk 8). Frontend
+  triad (`pnpm lint:check`/`types:check`/`format:check`) + `pnpm run build`, then the six required
+  manual-verification steps from plan §Test strategy → Revision A, executed live against a fresh
+  build via the `playwright` skill, headless, with a real login. Backend suite run unmodified to
+  confirm no server-side regression.
+- **Completion notes:** Landed the ruling-4(b) arm exactly as specified — the `else` branch added
+  to the existing `watch(isEnhanced, …)` in `resources/js/pages/proxies/ProxyForm.vue`:
+
+  ```js
+  const isEnhanced = computed(() => form.mode === 'enhanced');
+  watch(isEnhanced, (enhanced) => {
+      if (!enhanced) {
+          form.retry_attempt_limit = '';
+          form.retry_backoff_strategy = '';
+      } else {
+          form.retry_attempt_limit =
+              props.initial.retryAttemptLimit?.toString() ?? '';
+          form.retry_backoff_strategy = props.initial.retryBackoffStrategy ?? '';
+      }
+  });
+  ```
+
+  The surrounding comment was rewritten to name the two kinds of value (mount-seeded persisted vs.
+  in-session typed) and point at plan §Technical ruling 4/Revision A. No `{ immediate: true }`, no
+  `onMounted` re-seed — the watcher still does not fire on mount (4(c)). No other file touched.
+
+  **Six required manual-verification steps** (plan §Test strategy → Revision A), run headless via
+  the `playwright` skill against a freshly built bundle (`pnpm run build` immediately prior),
+  fixtures seeded via `sail tinker` (`createQuietly()`, a throwaway user/team/proxies) and removed
+  afterwards:
+
+  1. **4(b) / Finding 1's reproduction.** Enhanced proxy persisting `4`/`fixed` → Edit (fieldset
+     reads `4` / `Fixed interval`) → Mode Simple (disclosure appears, 1 `[role="alert"]`) → Mode
+     Enhanced again → fieldset re-rendered `4` / `Fixed interval`, **not blank**. Save → observed
+     PUT body: `{"name":"M7 Enhanced 4-fixed","mode":"enhanced","processing_mode":"async",
+     "response_status":null,"response_body":null,"retry_attempt_limit":4,
+     "retry_backoff_strategy":"fixed","destinations":[]}`. Post-save DB state:
+     `{"mode":"enhanced","limit":4,"strategy":"fixed"}` — the persisted policy survived the
+     abandoned downgrade. **Pass.**
+  2. **4(d).** Same proxy, reloaded fresh (still `4`/`fixed`); typed `9` into Attempts; toggled
+     Simple → Enhanced without saving. Fieldset read **`4`**, the saved value — not `9`, not
+     blank. **Pass.**
+  3. **4(e).** An Enhanced proxy with NULL columns: initial render — Attempts empty, Backoff
+     `Default (Exponential)`. Toggled Simple → Enhanced: Attempts still empty, Backoff still
+     `Default (Exponential)` (no materialised default). Save → observed PUT body carried
+     `"retry_attempt_limit":null,"retry_backoff_strategy":null`; post-save DB state confirmed
+     `{"limit":null,"strategy":null}`, not `5`/`exponential`. **Pass.**
+  4. **4(f).** Create page: toggled Enhanced → Simple → Enhanced repeatedly. Attempts/Backoff read
+     empty/`Default (Exponential)` at every step — no `props.method === 'post'` branch needed or
+     added. **Pass.**
+  5. **4(g)(1).** A Simple proxy holding a dormant `8`/`fixed`: retry fieldset not rendered.
+     Saved **without touching Mode**. Observed PUT body: `{"name":"M7 Simple dormant
+     8-fixed","mode":"simple",…,"retry_attempt_limit":null,"retry_backoff_strategy":null,
+     "destinations":[]}`; HTTP response status **303** (a normal Inertia redirect, not a 422).
+     Post-save DB state: `{"mode":"simple","limit":8,"strategy":"fixed"}` — the dormant policy
+     was preserved, T9's normalisation and the server's omission rule both intact. **Pass.**
+  6. **design-07 Flow B step 3** (folds in review-07 Finding 3's coverage gap). The same
+     Simple-with-dormant-`8`/`fixed` proxy, reloaded (still `8`/`fixed` per the E save above):
+     selected Mode = Enhanced. Fieldset immediately pre-filled **`8` / `Fixed interval`**, nothing
+     re-entered. **Pass.**
+
+  **Ruling 4(g)'s five must-not-change properties — reconfirmed after the edit:** (1) T9's submit
+  normalisation (`form.transform`, keyed off `data.mode`) is untouched — case 5 above is direct
+  proof it still sends `null`/`null` on a genuine Simple-mode save regardless of field state. (2)
+  `prohibited_if:mode,simple` — untouched in both Form Requests; case 5's 303 (not 422) confirms
+  the client normalisation still keeps it satisfiable. (3) No controller, resource, Form Request,
+  resolver, or migration touched — `git diff` for this task is one file. (4) `ProxyResource` /
+  read-surface suppression untouched — no diff outside `ProxyForm.vue`. (5) The downgrade
+  disclosure — same render condition, same copy, still non-dismissible, still between Mode and
+  Save — untouched; case 1 confirms it still appears/disappears correctly across the round trip.
+
+  Gates: `./vendor/bin/sail test --parallel` — **759 passed, 2820 assertions**, unmodified from
+  T13's baseline (no backend file touched); `composer lint` clean; `composer types:check` (PHPStan
+  L7) 0 errors; `pnpm lint:check`/`pnpm types:check`/`pnpm format:check` all clean; `pnpm run
+  build` succeeded (996 ms) immediately before the manual-verification pass. Seeded fixtures
+  (3 proxies, 1 user, 1 personal team) removed after verification; the shared dev database was
+  confirmed clean by re-running the full suite (still 759/2820) after cleanup.
+
+---
+
 ## Handoff
 - **Inputs:** `docs/plans/plan-07-enhanced-mode-toggle.md` (Approved, PE self-certified in full,
   2026-08-25); `docs/product/prd-07-enhanced-mode-toggle.md` (Approved, Owner, 2026-08-21, incl.

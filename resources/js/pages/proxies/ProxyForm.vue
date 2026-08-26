@@ -87,12 +87,27 @@ const retryStrategySelect = computed({
 // The Retry policy section only renders in Enhanced mode (Flow F). Switching
 // Enhanced → Simple clears both fields to their default-sentinel state the
 // moment the section unmounts — a data operation, not a CSS toggle, so no stale
-// value can ever be submitted for a simple-mode proxy (Flow F step 4).
+// value can ever be submitted for a simple-mode proxy (Flow F step 4). This is
+// the deliberate discard of *in-session typed* values and is unchanged.
+//
+// Switching back Simple → Enhanced re-seeds both fields from the mount seed
+// (`props.initial`, never mutated) rather than leaving them blank (plan
+// §Technical ruling 4(b), Revision A). `props.initial.*` holds the proxy's
+// *persisted* configuration, not anything typed in this session, so restoring
+// it is not "undoing" the clear above — it is what makes AC14(b)(iii)'s promise
+// ("the preserved values are shown … on save") true on the round trip design-07
+// Flow C step 3 names ("Changes mind"). Unconditional and idempotent by
+// construction: it never materialises a default literal, so an unconfigured
+// Enhanced proxy (null columns) round-trips to blank, not to 5/exponential.
 const isEnhanced = computed(() => form.mode === 'enhanced');
 watch(isEnhanced, (enhanced) => {
     if (!enhanced) {
         form.retry_attempt_limit = '';
         form.retry_backoff_strategy = '';
+    } else {
+        form.retry_attempt_limit =
+            props.initial.retryAttemptLimit?.toString() ?? '';
+        form.retry_backoff_strategy = props.initial.retryBackoffStrategy ?? '';
     }
 });
 
