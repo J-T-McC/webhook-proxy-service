@@ -12,7 +12,7 @@
 // AdvanceProxyFifoQueue's docblock) — FIFO admits at most one event in
 // flight per proxy at a time; Async admits both concurrently. Every fact a
 // viewer needs is carried by the DOM legend below, never by canvas text.
-import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
+import { onMounted, onUnmounted, ref, useTemplateRef } from 'vue';
 
 // ---------------------------------------------------------------------------
 // Timeline schema (design spec "Timeline schema" section)
@@ -630,7 +630,6 @@ interface RenderState {
     isDark: boolean;
     visuals: ThemeVisuals;
     gridLayer: HTMLCanvasElement;
-    fontFamily: string;
 }
 
 function buildGridLayer(
@@ -755,19 +754,61 @@ function drawNodeLabel(
     text: string,
     color: string,
     fontPx: number,
-    fontFamily: string,
 ) {
     ctx.save();
-    ctx.font = `500 ${fontPx}px ${fontFamily}`;
+    ctx.font = `500 ${fontPx}px ${DIAGRAM_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = color;
-    ctx.fillText(text, center.x, center.y);
+    applyTracking(ctx, fontPx * 0.12);
+    ctx.fillText(text.toUpperCase(), center.x, center.y);
     ctx.restore();
 }
 
-const INGEST_LABELS = ['Event 1', 'Event 2'];
-const DEST_LABELS = ['Destination 1', 'Destination 2', 'Destination 3'];
+// `letterSpacing` is well supported in current Chrome and Safari but not
+// universal; where it is missing the text simply renders untracked rather than
+// throwing, which is an acceptable degradation for a decorative diagram.
+function applyTracking(ctx: CanvasRenderingContext2D, px: number): void {
+    if ('letterSpacing' in ctx) {
+        ctx.letterSpacing = `${px}px`;
+    }
+}
+
+// The mode legend, drawn top-left inside the canvas. The active mode sits at
+// full weight with the other dimmed beneath it, so a viewer landing mid-loop can
+// still see both modes exist.
+function drawModeLegend(state: RenderState, activeId: Schema['id']): void {
+    const { ctx, geo, tokens } = state;
+    const fontPx = Math.round(13 * geo.scale);
+    const x = geo.width * 0.035;
+    const y = geo.height * 0.08;
+    const lineHeight = fontPx * 1.9;
+
+    ctx.save();
+    ctx.font = `600 ${fontPx}px ${DIAGRAM_FONT}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    applyTracking(ctx, fontPx * 0.18);
+
+    (['async', 'fifo'] as const).forEach((id, i) => {
+        const isActive = id === activeId;
+        ctx.fillStyle = isActive
+            ? withAlpha(tokens.accentFrom, 1)
+            : withAlpha(tokens.mutedForeground, 0.4);
+        ctx.fillText(id.toUpperCase(), x, y + i * lineHeight);
+    });
+
+    ctx.restore();
+}
+
+// Numbers dropped — three boxes reading "Destination" is self-evident, and the
+// indices were noise. Uppercase monospace with generous tracking reads as a
+// technical diagram rather than as body copy set inside a box.
+const INGEST_LABELS = ['Event', 'Event'];
+const DEST_LABELS = ['Destination', 'Destination', 'Destination'];
+
+const DIAGRAM_FONT =
+    'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace';
 
 // A travelling heat band: the wire is at rest everywhere except around the
 // charge's current position, where it peaks and then drains off behind. The
@@ -870,7 +911,7 @@ function drawBaseScene(state: RenderState) {
     const nodeStrokeWidth = NODE_STROKE_WIDTH * geo.scale;
 
     const labelColor = withAlpha(tokens.mutedForeground, 0.9);
-    const fontPx = Math.round(12 * geo.scale);
+    const fontPx = Math.round(11 * geo.scale);
 
     geo.ingest.forEach((ingest, i) => {
         drawRoundedRect(
@@ -883,14 +924,7 @@ function drawBaseScene(state: RenderState) {
             nodeStroke,
             nodeStrokeWidth,
         );
-        drawNodeLabel(
-            ctx,
-            ingest,
-            INGEST_LABELS[i],
-            labelColor,
-            fontPx,
-            state.fontFamily,
-        );
+        drawNodeLabel(ctx, ingest, INGEST_LABELS[i], labelColor, fontPx);
     });
 
     geo.dest.forEach((dest, i) => {
@@ -904,14 +938,7 @@ function drawBaseScene(state: RenderState) {
             nodeStroke,
             nodeStrokeWidth,
         );
-        drawNodeLabel(
-            ctx,
-            dest,
-            DEST_LABELS[i],
-            labelColor,
-            fontPx,
-            state.fontFamily,
-        );
+        drawNodeLabel(ctx, dest, DEST_LABELS[i], labelColor, fontPx);
     });
 }
 
@@ -965,19 +992,47 @@ function drawEventArrival(
             Math.min(1, (elapsed - drainStart) / (duration - drainStart)),
         );
         const SOFT = 0.22;
-        const gradient = ctx.createLinearGradient(x, y, x + geo.nodeW, y);
-        const lead = Math.min(1, Math.max(0, sweep + SOFT));
-        const trail = Math.min(1, Math.max(0, sweep - SOFT));
+        // The gradient axis runs wider than the node so the lit band can travel
+        // fully off the right edge at constant width. Clamping the stops to the
+        // node's own width made the band compress into a vanishing sliver over
+        // the last fifth of the sweep — it read as the glow switching off at the
+        // edge rather than being drawn out into the pipe.
+        const PAD = SOFT;
+        const axisStart = x - geo.nodeW * PAD;
+        const axisWidth = geo.nodeW * (1 + PAD * 2);
+        const gradient = ctx.createLinearGradient(
+            axisStart,
+            y,
+            axisStart + axisWidth,
+            y,
+        );
+
+        // Map the sweep into the padded axis, then travel a full band-width past
+        // the far end so the trailing edge clears the node.
+        const span = 1 / (1 + PAD * 2);
+        const headPos = PAD * span + sweep * (1 + PAD) * span;
+        const soft = SOFT * span;
         const remaining = baseAlpha * (1 - sweep * 0.35);
 
-        gradient.addColorStop(0, withAlpha(tokens.accentFrom, 0));
+        const stops: Array<[number, number]> = [
+            [0, 0],
+            [headPos - soft, 0],
+            [headPos, remaining],
+            [1, remaining],
+        ];
 
-        if (trail > 0) {
-            gradient.addColorStop(trail, withAlpha(tokens.accentFrom, 0));
+        let previous = -1;
+
+        for (const [at, alpha] of stops) {
+            const clamped = Math.min(1, Math.max(0, at));
+
+            if (clamped <= previous) {
+                continue;
+            }
+
+            previous = clamped;
+            gradient.addColorStop(clamped, withAlpha(tokens.accentFrom, alpha));
         }
-
-        gradient.addColorStop(lead, withAlpha(tokens.accentFrom, remaining));
-        gradient.addColorStop(1, withAlpha(tokens.accentFrom, remaining));
 
         ctx.strokeStyle = gradient;
         ctx.shadowBlur =
@@ -1109,6 +1164,7 @@ function drawPulse(
 // arrivals) for this schema at this local time.
 function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
     drawBaseScene(state);
+    drawModeLegend(state, schema.id);
 
     const { paths, tokens, visuals } = state;
     const headColor = tokens.accentTo;
@@ -1191,6 +1247,7 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
 // mid-flight), so it is composed directly instead.
 function drawStaticFrame(state: RenderState) {
     drawBaseScene(state);
+    drawModeLegend(state, 'fifo');
     drawEventArrival(state, 2, ARRIVAL_IN_MS + 200, 3000);
 }
 
@@ -1201,21 +1258,7 @@ function drawStaticFrame(state: RenderState) {
 const containerRef = useTemplateRef<HTMLDivElement>('container');
 const canvasRef = useTemplateRef<HTMLCanvasElement>('canvas');
 
-const activePhase = ref<Schema['id']>('async');
 const prefersReducedMotion = ref(false);
-
-const asyncLineClass = computed(() => legendClass('async'));
-const fifoLineClass = computed(() => legendClass('fifo'));
-
-function legendClass(id: Schema['id']): string {
-    if (prefersReducedMotion.value) {
-        return 'text-foreground opacity-100';
-    }
-
-    return activePhase.value === id
-        ? 'text-foreground font-medium opacity-100'
-        : 'text-muted-foreground opacity-50';
-}
 
 let state: RenderState | null = null;
 let rafId: number | null = null;
@@ -1267,7 +1310,6 @@ function buildRenderState(
         isDark,
         visuals,
         gridLayer,
-        fontFamily: getComputedStyle(document.body).fontFamily,
     };
 }
 
@@ -1286,10 +1328,6 @@ function tick(now: number) {
     const isAsync = elapsed < ASYNC_SCHEMA.duration;
     const schema = isAsync ? ASYNC_SCHEMA : FIFO_SCHEMA;
     const localT = isAsync ? elapsed : elapsed - ASYNC_SCHEMA.duration;
-
-    if (activePhase.value !== schema.id) {
-        activePhase.value = schema.id;
-    }
 
     drawAnimatedFrame(state, schema, localT);
     rafId = requestAnimationFrame(tick);
@@ -1380,17 +1418,13 @@ onUnmounted(() => {
 
 <template>
     <div class="flex flex-col items-center">
-        <div class="flex flex-col items-center gap-1 text-center text-sm">
-            <p class="legend-line" :class="asyncLineClass">
-                Async — every destination receives it at once.
-            </p>
-            <p class="legend-line" :class="fifoLineClass">
-                FIFO — one event at a time per proxy, processed in the order
-                received.
-            </p>
-        </div>
+        <p class="sr-only">
+            The diagram alternates between two processing modes. Async delivers
+            an event to every destination at once. FIFO processes one event at a
+            time per proxy, in the order received.
+        </p>
 
-        <div ref="container" class="mx-auto mt-4 aspect-[2/1] w-full max-w-6xl">
+        <div ref="container" class="mx-auto aspect-[2/1] w-full max-w-6xl">
             <canvas
                 ref="canvas"
                 aria-hidden="true"
@@ -1399,11 +1433,3 @@ onUnmounted(() => {
         </div>
     </div>
 </template>
-
-<style scoped>
-.legend-line {
-    transition:
-        opacity 240ms cubic-bezier(0.22, 1, 0.36, 1),
-        color 240ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-</style>
