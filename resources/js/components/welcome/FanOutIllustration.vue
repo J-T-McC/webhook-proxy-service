@@ -776,35 +776,49 @@ function drawHotSegment(
     color: string,
 ): void {
     const { ctx, geo, visuals } = state;
-    const idleAlpha = visuals.idleLineAlpha;
-    const peakAlpha = idleAlpha + (visuals.hotLineAlpha - idleAlpha) * hot;
+    const peakAlpha = visuals.hotLineAlpha * hot;
     const width =
         (visuals.idleLineWidth +
             (visuals.hotLineWidth - visuals.idleLineWidth) * hot) *
         geo.scale;
 
-    const TRAIL = 0.4;
-    const LEAD = 0.06;
+    // Outside the lit band the gradient is fully transparent, so the base grey
+    // wire shows through untouched. Ending the band at the idle accent alpha
+    // instead tinted the whole pipe the instant the segment went hot, which
+    // read as the wire switching on rather than lighting along its length.
+    const TRAIL = 0.34;
+    const LEAD = 0.05;
     const gradient = ctx.createLinearGradient(
         spec.p0.x,
         spec.p0.y,
         spec.p1.x,
         spec.p1.y,
     );
-    const trailStop = Math.min(0.999, Math.max(0.001, head - TRAIL));
+
+    const trailStop = Math.min(0.998, Math.max(0, head - TRAIL));
     const headStop = Math.min(0.999, Math.max(trailStop + 0.001, head));
     const leadStop = Math.min(1, headStop + LEAD);
 
-    gradient.addColorStop(0, withAlpha(color, idleAlpha));
-    gradient.addColorStop(trailStop, withAlpha(color, idleAlpha));
+    if (trailStop > 0) {
+        gradient.addColorStop(0, withAlpha(color, 0));
+    }
+
+    gradient.addColorStop(trailStop, withAlpha(color, 0));
+    // A soft shoulder partway up the trail keeps the band from reading as a
+    // hard-edged wipe.
+    gradient.addColorStop(
+        trailStop + (headStop - trailStop) * 0.55,
+        withAlpha(color, peakAlpha * 0.45),
+    );
     gradient.addColorStop(headStop, withAlpha(color, peakAlpha));
 
     if (leadStop < 1) {
-        gradient.addColorStop(leadStop, withAlpha(color, idleAlpha));
+        gradient.addColorStop(leadStop, withAlpha(color, 0));
+        gradient.addColorStop(1, withAlpha(color, 0));
     }
 
-    gradient.addColorStop(1, withAlpha(color, idleAlpha));
-
+    ctx.save();
+    ctx.globalCompositeOperation = glowBlend(state);
     ctx.beginPath();
     ctx.moveTo(spec.p0.x, spec.p0.y);
 
@@ -814,8 +828,6 @@ function drawHotSegment(
         ctx.quadraticCurveTo(spec.c.x, spec.c.y, spec.p1.x, spec.p1.y);
     }
 
-    ctx.save();
-    ctx.globalCompositeOperation = glowBlend(state);
     ctx.lineCap = 'round';
     ctx.lineWidth = width;
     ctx.strokeStyle = gradient;
@@ -1098,7 +1110,11 @@ function drawAnimatedFrame(state: RenderState, schema: Schema, localT: number) {
         const eventPaths = paths[entry.event - 1];
 
         if (entry.kind === 'travel') {
-            const hot = heatEnvelope(localT, entry.start, entry.end);
+            // The wire starts lighting slightly before its pulse departs, so the
+            // node's draining border and the pipe waking up overlap instead of
+            // handing off with a visible seam.
+            const PRE_ROLL = 220;
+            const hot = heatEnvelope(localT, entry.start - PRE_ROLL, entry.end);
             const active = localT >= entry.start && localT < entry.end;
             const t = active
                 ? ease(
