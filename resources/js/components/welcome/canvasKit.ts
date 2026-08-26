@@ -204,19 +204,76 @@ export function readTokens(): Tokens {
         destructive: styles.getPropertyValue('--destructive').trim(),
     };
 }
+// Applying an alpha to a token colour.
+//
+// The format these tokens arrive in is NOT stable, and assuming it was caused a
+// bug that only appeared in a built asset. They are authored as `hsl(...)` in
+// `app.css`, but the production CSS minifier rewrites them to hex, and
+// `getComputedStyle` returns a custom property verbatim — so the canvas receives
+// `hsl(258 90% 68%)` against the dev server and `#9064f7` from a real build.
+//
+// The previous implementation regex-matched `hsl()` and, on no match, returned
+// the colour unchanged — silently dropping the alpha. Every fade, glow ramp and
+// dim idle line therefore rendered at full opacity in production while looking
+// correct locally, because the dev server never minifies.
+//
+// Parsing is delegated to the browser instead: assigning any CSS colour to a 2D
+// context's `fillStyle` and reading it back yields a normalised value. That
+// handles hsl, hex, rgb, named colours and anything else a minifier or a future
+// palette might produce, rather than one hand-written format.
+const rgbCache = new Map<string, string | null>();
+let colorProbe: CanvasRenderingContext2D | null = null;
 
-export function withAlpha(hslString: string, alpha: number): string {
-    const match = /hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%\s*\)/.exec(
-        hslString,
-    );
+function toRgbParts(color: string): string | null {
+    const cached = rgbCache.get(color);
 
-    if (!match) {
-        return hslString;
+    if (cached !== undefined) {
+        return cached;
     }
 
-    const [, h, s, l] = match;
+    if (!colorProbe) {
+        colorProbe = document.createElement('canvas').getContext('2d');
+    }
 
-    return `hsl(${h} ${s}% ${l}% / ${alpha})`;
+    let parts: string | null = null;
+
+    if (colorProbe) {
+        colorProbe.fillStyle = '#000000';
+        colorProbe.fillStyle = color;
+        const normalised = colorProbe.fillStyle;
+
+        if (normalised.startsWith('#') && normalised.length === 7) {
+            parts = [1, 3, 5]
+                .map((i) => parseInt(normalised.slice(i, i + 2), 16))
+                .join(', ');
+        } else {
+            const match = /rgba?\(([^)]+)\)/.exec(normalised);
+
+            if (match) {
+                parts = match[1]
+                    .split(',')
+                    .slice(0, 3)
+                    .map((part) => part.trim())
+                    .join(', ');
+            }
+        }
+    }
+
+    // Cached including a null result: this runs many times per frame, and a
+    // colour that could not be parsed once will not parse later either.
+    rgbCache.set(color, parts);
+
+    return parts;
+}
+
+export function withAlpha(color: string, alpha: number): string {
+    const parts = toRgbParts(color);
+
+    if (!parts) {
+        return color;
+    }
+
+    return `rgba(${parts}, ${alpha})`;
 }
 
 export function buildGridLayer(
