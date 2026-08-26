@@ -430,7 +430,29 @@
 - **Testing:** `tests/Unit/Services/DeliveryStatisticsSeriesTest.php` (new) — the densification
   case (a fixture with traffic on some days only), the series-length assertion for 7d and 30d, an
   all-empty-window series (every point zero/`null`).
-- **Completion notes:** _pending_
+- **Completion notes:** `seriesForTeam()`/`seriesForProxy()` run `dailyAggregates()` once per table
+  (`GROUP BY DATE(updated_at), status`), then `daysInWindow()` densifies in PHP — every calendar
+  day gets a `SeriesPoint` via `dailyUnitFigure()`, whether or not the raw `GROUP BY` result has a
+  row for that day. `DATE(updated_at)` is computed by MySQL's session timezone, which this
+  deployment reports as `SYSTEM`/`UTC` (checked directly via `SELECT @@session.time_zone,
+  @@system_time_zone`), matching `config('app.timezone')` — Technical ruling 9 holds without a
+  connection-level `time_zone` override, which stayed out of scope for this task.
+
+  One design decision the task's prose left open: the series window is **calendar-day aligned**
+  (`seriesWindowStart()`: today's start-of-day minus `days() - 1`), not the precise rolling
+  `windowStart()` every other figure in this class uses (`now() - interval`). This is what makes
+  "the series length equals the window's day count exactly" (T7's own AC) hold trivially for both
+  7d and 30d — a precise rolling cutoff spans `days() + 1` distinct calendar dates whenever the
+  cutoff time doesn't land exactly at midnight, which would either produce a partial boundary day
+  or an off-by-one day count. The headline figures (T4-T6) intentionally keep the precise
+  "last N hours" reading; only the trend series needs calendar buckets to have a fixed length.
+  `tests/Unit/Services/DeliveryStatisticsSeriesTest.php` covers the densification case (one day
+  of traffic in a 7-day window, asserting both the traffic day and a definitely-empty day), the
+  7d/30d length assertions, a sparse-`GROUP BY` case (traffic on exactly one of 30 days), and the
+  all-empty-window all-zero case. `composer lint`, `composer types:check` (PHPStan level 7, no
+  suppressions — `array_values()` wrapping was needed twice to make PHPStan recognize the `list<>`
+  return type from a `Collection::map()->all()`), and `./vendor/bin/sail test --parallel` all
+  green (791/791).
 
 ## T8 — `DeliveryStatistics`: `proxyBreakdown()` / `destinationBreakdown()`, deleted-parent labelling (AC6, AC15; plan § Architecture A, Technical ruling / Q-11-03(2); R7)
 - **Description:** The two whole-set breakdown methods, per plan § Services & Actions:

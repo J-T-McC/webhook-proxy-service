@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\Analytics\LatencyFigure;
 use App\Data\Analytics\RetryReplayFigures;
+use App\Data\Analytics\SeriesPoint;
 use App\Data\Analytics\UnitFigure;
 use App\Enums\AnalyticsWindow;
 use Carbon\CarbonImmutable;
@@ -103,6 +104,30 @@ class DeliveryStatistics
             $window,
             includePercentile: false,
         );
+    }
+
+    /**
+     * The densified daily trend series (AC16) for the given team, over the
+     * given window — one `SeriesPoint` per calendar day, including a day
+     * with no traffic (zero counts, `rate === null`), never a gap.
+     *
+     * @return list<SeriesPoint>
+     */
+    public function seriesForTeam(int $teamId, AnalyticsWindow $window): array
+    {
+        return $this->series(['team_id' => $teamId], $window);
+    }
+
+    /**
+     * The densified daily trend series (AC16) for the given proxy, over the
+     * given window — one `SeriesPoint` per calendar day, including a day
+     * with no traffic (zero counts, `rate === null`), never a gap.
+     *
+     * @return list<SeriesPoint>
+     */
+    public function seriesForProxy(int $proxyId, AnalyticsWindow $window): array
+    {
+        return $this->series(['proxy_id' => $proxyId], $window);
     }
 
     /**
@@ -394,5 +419,103 @@ class DeliveryStatistics
     private function windowStart(AnalyticsWindow $window): CarbonImmutable
     {
         return CarbonImmutable::now()->sub($window->interval());
+    }
+
+    /**
+     * The densified daily series for one grain: one `GROUP BY DATE(updated_at),
+     * status` query per table, then a PHP pass filling every calendar day in
+     * the window — a day with no traffic becomes a real point with zero
+     * counts and a `null` rate, never a gap (AC16; plan §§ Windowing,
+     * Architecture C). `DATE(updated_at)` is computed in the application
+     * timezone: this deployment's MySQL connection reports `SYSTEM` /
+     * `UTC`, matching `config('app.timezone')`, so no session `time_zone`
+     * override is needed (Technical ruling 9).
+     *
+     * @param  array<string, int>  $constraints
+     * @return list<SeriesPoint>
+     */
+    private function series(array $constraints, AnalyticsWindow $window): array
+    {
+        $deliveryRows = $this->dailyAggregates('deliveries', $constraints, $window);
+        $attemptRows = $this->dailyAggregates('delivery_attempts', $constraints, $window);
+
+        return array_values(collect($this->daysInWindow($window))
+            ->map(fn (string $date) => new SeriesPoint(
+                date: $date,
+                delivery: $this->dailyUnitFigure($deliveryRows, $date),
+                attempt: $this->dailyUnitFigure($attemptRows, $date),
+            ))
+            ->all());
+    }
+
+    /**
+     * One table's `(day, status) => count` rows for one grain, one window —
+     * the raw, possibly-sparse per-day counts `series()` densifies.
+     *
+     * @param  array<string, int>  $constraints
+     * @return Collection<int, stdClass>
+     */
+    private function dailyAggregates(string $table, array $constraints, AnalyticsWindow $window): Collection
+    {
+        $query = DB::table($table)
+            ->select(DB::raw('DATE(updated_at) as day'), 'status', DB::raw('COUNT(*) as aggregate'))
+            ->whereIn('status', ['succeeded', 'failed'])
+            ->whereBetween('updated_at', [$this->seriesWindowStart($window), CarbonImmutable::now()]);
+
+        foreach ($constraints as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        return $query->groupBy('day', 'status')->get();
+    }
+
+    /**
+     * One day's `UnitFigure` from a table's raw `dailyAggregates()` rows.
+     * `rate` is `null` when `total === 0` (Amendment A(i)) — never `0`, and a
+     * day absent from `$rows` entirely (no traffic that day) still produces
+     * a zeroed figure here rather than being skipped.
+     *
+     * @param  Collection<int, stdClass>  $rows
+     */
+    private function dailyUnitFigure(Collection $rows, string $date): UnitFigure
+    {
+        $dayRows = $rows->filter(fn (stdClass $row) => (string) $row->day === $date);
+
+        $succeeded = (int) $dayRows->where('status', 'succeeded')->sum('aggregate');
+        $failed = (int) $dayRows->where('status', 'failed')->sum('aggregate');
+        $total = $succeeded + $failed;
+
+        return new UnitFigure(
+            succeeded: $succeeded,
+            failed: $failed,
+            total: $total,
+            rate: $total === 0 ? null : $succeeded / $total,
+        );
+    }
+
+    /**
+     * Every calendar day (`Y-m-d`) in the window, oldest first — exactly
+     * `$window->days()` entries, densifying the trend series regardless of
+     * how sparse the underlying `GROUP BY` result is.
+     *
+     * @return list<string>
+     */
+    private function daysInWindow(AnalyticsWindow $window): array
+    {
+        $today = CarbonImmutable::now()->startOfDay();
+
+        return array_values(collect(range($window->days() - 1, 0))
+            ->map(fn (int $daysAgo) => $today->subDays($daysAgo)->format('Y-m-d'))
+            ->all());
+    }
+
+    /**
+     * The start of the series window (inclusive) — calendar-day aligned so
+     * the series densifies to exactly `$window->days()` points, unlike
+     * `windowStart()`'s precise rolling cutoff used by every other figure.
+     */
+    private function seriesWindowStart(AnalyticsWindow $window): CarbonImmutable
+    {
+        return CarbonImmutable::now()->startOfDay()->subDays($window->days() - 1);
     }
 }
