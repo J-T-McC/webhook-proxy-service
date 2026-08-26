@@ -7,6 +7,27 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Pulse used by the app logo's message line (AppLogoIcon). Distinct from
+ * Tailwind's own `animate-pulse`, which only dips to 50% opacity over two
+ * seconds — this one runs the full range and faster, so the line reads as
+ * traffic moving through the proxy rather than as a loading skeleton.
+ */
+@theme {
+    --animate-pulse-full-quick: pulse-full-quick 1.4s
+        cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+    @keyframes pulse-full-quick {
+        0%,
+        100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.1;
+        }
+    }
+}
+
 @theme inline {
     --font-sans:
         Instrument Sans, ui-sans-serif, system-ui, sans-serif,
