@@ -47,6 +47,14 @@ export const RATE_NO_DATA_LABEL = 'No deliveries yet';
 export const LATENCY_NO_DATA_LABEL = 'No data';
 
 /**
+ * The Trend card's zero-deliveries-in-window message (design-11 Screen 1
+ * state list) — the plotted series are rates, so a flat 0% line/table would
+ * read as total failure, which is false; this stands in for the whole trend
+ * representation instead.
+ */
+export const TREND_NO_DATA_LABEL = 'No data for this period.';
+
+/**
  * Window labels (design correction C2's "Last {window}" subtitles), kept in
  * lockstep with `AnalyticsWindow::label()` — `'24h'` → `'24 hours'`, etc.
  */

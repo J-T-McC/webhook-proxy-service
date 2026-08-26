@@ -6,6 +6,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
     Table,
     TableBody,
     TableCell,
@@ -26,6 +31,7 @@ import {
     RETRY_VOLUME_LABEL,
     TERMINAL_FAILURE_LABEL,
     TERMINAL_FAILURES_COLUMN_LABEL,
+    TREND_NO_DATA_LABEL,
     attemptCaption,
     bridgeSentence,
     compactRateText,
@@ -174,6 +180,15 @@ function proxyFailuresHref(proxyId: number) {
         { query: { window: props.statistics.window } },
     );
 }
+
+/** An ISO `Y-m-d` series date, formatted for the trend table's row label. */
+function formatSeriesDate(isoDate: string): string {
+    return new Date(`${isoDate}T00:00:00`).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+    });
+}
 </script>
 
 <template>
@@ -184,7 +199,29 @@ function proxyFailuresHref(proxyId: number) {
         :invitations="pendingInvitations"
     />
 
-    <div class="flex h-full flex-1 flex-col gap-6 p-4">
+    <!-- No proxies at all: the whole page below the header is a single
+         centered card — no window selector, no headline/table/chart shells
+         (design-11 Screen 1, "No proxies at all" state; nothing to window
+         over when there is nothing to measure yet). -->
+    <div
+        v-if="props.proxies.length === 0"
+        class="flex h-full flex-1 flex-col items-center justify-center p-4"
+    >
+        <Card class="max-w-md items-center gap-3 p-10 text-center">
+            <h2 class="text-lg font-medium">No proxies yet</h2>
+            <p class="text-sm text-muted-foreground">
+                Create a proxy to start receiving and delivering webhooks —
+                figures appear here once it does.
+            </p>
+            <Button variant="outline" as-child class="mt-2">
+                <Link :href="proxyRoutes.create(teamSlug)">
+                    Create a proxy
+                </Link>
+            </Button>
+        </Card>
+    </div>
+
+    <div v-else class="flex h-full flex-1 flex-col gap-6 p-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <h1 class="text-xl font-semibold">Dashboard</h1>
             <nav class="flex items-center gap-2" aria-label="Time window">
@@ -402,6 +439,62 @@ function proxyFailuresHref(proxyId: number) {
                     </TableRow>
                 </TableBody>
             </Table>
+        </Card>
+
+        <!-- Trend card -->
+        <Card class="gap-4 p-6">
+            <h2 class="text-sm font-medium">Trend</h2>
+            <p
+                v-if="!props.statistics.hasTraffic"
+                class="text-sm text-muted-foreground"
+            >
+                {{ TREND_NO_DATA_LABEL }}
+            </p>
+            <!--
+                No chart yet (T27/M6 adds the canvas above this table). The
+                table is therefore the only representation at this stage, so
+                it is rendered open by default — T27/T28 should switch this
+                back to collapsed-by-default once the chart lands beside it
+                (design-11 § Interactions: "collapsed by default").
+            -->
+            <Collapsible v-else default-open>
+                <CollapsibleTrigger as-child>
+                    <Button variant="ghost" size="sm" class="w-fit">
+                        View as table
+                    </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>{{
+                                    DELIVERY_SUCCESS_COLUMN_LABEL
+                                }}</TableHead>
+                                <TableHead>{{
+                                    ATTEMPT_SUCCESS_COLUMN_LABEL
+                                }}</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow
+                                v-for="point in props.statistics.series"
+                                :key="point.date"
+                            >
+                                <TableCell>{{
+                                    formatSeriesDate(point.date)
+                                }}</TableCell>
+                                <TableCell>{{
+                                    compactRateText(point.delivery)
+                                }}</TableCell>
+                                <TableCell>{{
+                                    compactRateText(point.attempt)
+                                }}</TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
+                </CollapsibleContent>
+            </Collapsible>
         </Card>
 
         <!-- Retry & replay card -->

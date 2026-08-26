@@ -997,7 +997,63 @@
 - **Testing:** manual verification (no harness) — `pnpm run build`, confirm the densified series
   table (seed a window with a gap day), the no-proxies-at-all state, and the zero-deliveries trend
   message, both themes.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented the "Trend" card between "Proxies" and "Retry & replay" (design
+  ordering) directly in `Dashboard.vue`: `props.statistics.hasTraffic` gates between the
+  `TREND_NO_DATA_LABEL` message (new in `analyticsLabels.ts`, T12's file — "No data for this
+  period.", the plotted-series no-data treatment "in place of the chart," read here as "in place
+  of the only representation that exists yet" since T27/M6 hasn't landed the canvas) and a
+  `Collapsible` wrapping a `Table` over `props.statistics.series` — Date | Delivery success |
+  Attempt success, each rate cell using `compactRateText()` (T15) for the same "96% (42/42)"
+  convention already established on the Proxies table. **Rendered `default-open` rather than
+  collapsed**, exactly as this task's own description requires ("visible by default at this
+  stage, since it is the only representation until M6 lands") — a code comment marks this for
+  T27/T28 to flip back to collapsed-by-default once the chart lands beside it, so that binding
+  design-11 § Interactions requirement isn't silently lost when this task's own justification for
+  the exception (no chart yet) stops being true.
+
+  **No-proxies-at-all state:** the entire template now branches on `props.proxies.length === 0` at
+  the top level — `true` renders a single centered `Card` ("No proxies yet" + helper text + a
+  **Create a proxy** link to `proxyRoutes.create`), matching the existing empty-state idiom
+  (`events/Index.vue`'s "No events yet"); `false` renders everything T14–T17 built (window
+  selector, all five cards). No window selector, no card shell of any kind renders in the `true`
+  branch, per this task's own AC.
+
+  Confirmed (rather than newly performed, per this task's own AC wording) that no
+  `PlaceholderPattern` import or usage remains anywhere in `Dashboard.vue` — T16's completion notes
+  already record removing the last usage and the now-dead import as an unavoidable consequence of
+  that task's own card placement (`pnpm lint:check`'s `no-unused-vars` rule would have failed T16's
+  own gate otherwise). This task's AC on that point is satisfied by inspection, not by a new edit.
+
+  **Manual verification:** `public/hot` removed, `pnpm run build`, seeded three throwaway
+  teams/proxies via `sail tinker`:
+  - **Densified series with a deliberate gap.** One team/proxy with a delivery today and a second
+    delivery whose `updated_at` was backdated to exactly 10 days ago (`Aug 16, 2026`, given the
+    session's current date of `Aug 26, 2026`), leaving a real, unambiguous gap day directly after
+    it (`Aug 17`) with zero raw `GROUP BY` rows. The rendered table (read directly, without
+    clicking "View as table" — it was already open) had **exactly 30 rows**, `Jul 28` through
+    `Aug 26` inclusive; the `Aug 16` row read `0% (0/1)` (correct — a failed attempt/delivery, not
+    absent); the `Aug 17` gap-day row read "No deliveries yet" on both columns rather than being
+    missing from the table entirely — proving genuine server-side densification, not merely a
+    coincidentally-complete raw aggregate; `Aug 26` (today) read `100% (1/1)`. Confirmed identically
+    in both light and dark theme via full-page screenshots.
+  - **No proxies at all.** A second team with zero proxies rendered exactly the single "No proxies
+    yet" card — no `<h1>Dashboard</h1>`, no window-selector `<nav>` (both asserted at `0` via
+    Playwright locator counts, not merely "not visually noticed"), confirmed in both themes.
+  - **Zero-deliveries-in-window trend message.** A third team with one proxy and zero deliveries
+    rendered "No data for this period." in the Trend card, with no "View as table" trigger present
+    at all (`0` matches) — while every other card on the same page still rendered its own
+    appropriate zero-state (headline "No deliveries yet", Proxies table's zero-traffic row, all-zero
+    Retry & replay tiles, "No data" Latency) — confirming the mixed per-card empty-state
+    presentation design-11 specifies for a single zero-traffic team, not one uniform "empty page"
+    treatment.
+
+  Cleaned up all three throwaway teams afterward.
+
+  Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green. Re-ran the full
+  backend gate at the close of this milestone since T14–T17 were frontend-only and hadn't been
+  re-checked since T13's commit: `composer lint`, `composer types:check` (PHPStan level 7, zero
+  errors), and `./vendor/bin/sail test --parallel` all green (817/817, unchanged from T13 — no
+  backend file touched by T14–T17).
 
 ---
 
