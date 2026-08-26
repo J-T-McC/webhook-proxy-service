@@ -57,7 +57,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
 | 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
-| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` revised and **pending PM re-approval**. **M8 (two tasks) not yet broken down.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
+| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` **fully Approved again** (PM, 2026-08-26) — Amendment B delta approved with no corrections, design gate closed. **M8 awaiting task breakdown.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
@@ -328,6 +328,30 @@ plus both Owner flags ruled, 2026-08-26);
   revision omits an hour wording for it, for the trend table's first-column header, or for a
   point's period label, `plan-11` requires a question document to the Designer rather than an
   invented string.
+- **`design-11` re-approved (PM, 2026-08-26) — Amendment B delta, no corrections. The design
+  gate is closed and `plan-11` Revision B's hour-wording dependency is discharged**, so M8's
+  frontend task is blocked only on its own task breakdown. **All three strings the PE named are
+  covered**: the bucket-conditional accessible summary ("Hourly … last 24 hours" against "Daily
+  … last 30 days"), the "Hour"/"Date" first-column header, and the date-qualified point label.
+  **No question document is owed to the Designer.** Named as explicitly *not* among them so it
+  is not misread as settled: the chart's individual **axis tick** strings, beyond the rule that a
+  tick states its period in the bucket's unit with the date shown at the day-boundary tick —
+  tick formatting is a charting-library detail, not one of the three reserved strings.
+  Three rulings from the gate worth carrying, because each answers a question an implementer
+  would otherwise have to guess at. **Hourly rows need no explanatory copy**: bucket size is a
+  property of the window, so a 24h table links nowhere and a 7d/30d table links everywhere, and
+  a member never sees linking and non-linking rows side by side — the case that would have
+  demanded an explanation. Amendment B(ii) also forbids an explanation phrased as a limitation,
+  and at this grain any such copy would be one. **The "Hour" header with a date-qualified value
+  is not a mismatch**: the column names the period, and the date qualifier disambiguates *which*
+  hour rather than redefining the column. **One residual was ruled rather than returned** — the
+  claim that a reader never infers a date from position holds absolutely for the table, but a
+  chart tick *left* of the day-boundary crossing does take its date from being left of it;
+  date-qualifying the first tick is therefore **permitted and not required**, additive rather
+  than a correction. The gate also **adopted the Designer's refusal to edit the historical
+  approval record as this document's standing rule**: those sections quote AC16 as it stood at
+  that gate, and rewriting them would make the record claim the gate considered something it
+  could not have. **A later agent must not tidy them.**
 - **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
   migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
   (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
@@ -396,6 +420,13 @@ plus both Owner flags ruled, 2026-08-26);
 - Roadmap **M1/M2** and **Q-08-03** are RESOLVED; the deferral does not reopen them.
 
 ## Backlog follow-ups (deferred, not gating any current item)
+
+- **`design-11`'s § Components row still describes the charting dependency as ungated.** A
+  pre-Amendment-B line the 2026-08-26 design gate deliberately did not reopen, since it falls
+  outside that gate's scope. The Owner ruled the dependency on 2026-08-26 (both packages
+  adopted), so the row is stale rather than wrong in a way that misleads implementation. Fix it
+  the next time `design-11` is opened for another reason; it does not warrant opening the
+  document on its own.
 
 - **Frontend test harness (Vitest + `@vue/test-utils` + DOM env + `test:js` script).**
   Deferred per Owner Option B (2026-07-31); captured as backlog task **T31** in
