@@ -155,6 +155,17 @@ export function zeroProxyTrafficMessage(window: AnalyticsWindowValue): string {
 }
 
 /**
+ * The trend chart's `aria-hidden` canvas is paired with a short summary on
+ * its surrounding figure (design-11 § Accessibility, plan-11 Implementation
+ * Note 14) — the sibling "View as table" fallback is the authoritative
+ * accessible representation, so this text only orients a screen-reader user
+ * to what the (skipped) chart shows and where the real values are.
+ */
+export function trendChartAriaLabel(window: AnalyticsWindowValue): string {
+    return `Daily delivery and attempt success rate, last ${windowLabel(window)} — see table below for exact values.`;
+}
+
+/**
  * An ISO `Y-m-d` series date, formatted for display. Shared by the Dashboard
  * and Proxy Show trend tables' Date column (T17/T19) and, on Proxy Show only,
  * the day-narrowed Events list Window chip a per-day drill-through link

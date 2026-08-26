@@ -2001,7 +2001,79 @@
   onMounted-only construction (no console error on a cold load), unmount-cleanup (navigate away and
   back with no duplicate canvas/leak), both series' colour and dash distinguishable in light and
   dark, `aria-hidden` present via devtools inspection.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented `resources/js/components/TrendChart.vue`, wrapping
+  `@j-t-mcc/vue3-chartjs`'s default-exported component (the approved package, per T25's Owner
+  ruling). Two `line`-type datasets — delivery success solid (`borderDash: []`), attempt success
+  dashed (`borderDash: [6, 4]`) — fed `props.series` (the same `SeriesPoint[]` T17/T19's tables
+  already render) and `props.window` (only used to build the `aria-label`, via a new
+  `trendChartAriaLabel()` export added to `resources/js/data/analyticsLabels.ts`, matching the
+  task's own example wording). A day's `null` rate (Amendment A(i), a zero-traffic day) is plotted
+  as a literal `null` data point rather than `0` — Chart.js's default `spanGaps: false` then renders
+  a genuine visual break in both lines rather than interpolating across it or drawing a false 0%
+  dip, which would read as "100% failure" for a day with no traffic at all (the same reasoning
+  `TREND_NO_DATA_LABEL` exists for at the whole-card level). Verified against
+  `AnalyticsDemoSeeder`'s documented deliberate zero-traffic gap day (Aug 11, 2026 on proxy 59,
+  "Payments Webhook") — both lines show a genuine break there, confirmed both by a canvas-only
+  screenshot and by reading the "View as table" fallback's own row for that date ("No deliveries
+  yet").
+
+  **Chart construction is exclusively inside `Vue3ChartJs`'s own `onMounted` hook** (its bundled
+  source, `dist/vue3-chartjs.es.js`: `w(() => l())`, where `l()` calls `new Chart(...)` the first
+  time) — `TrendChart.vue` itself never calls `new Chart` and nothing chart-related runs at module
+  scope, satisfying binding constraint 3/Implementation Note 15 by construction: the wrapper
+  component is only rendered as part of this component's own template, never invoked outside a
+  component tree, so it stays SSR-safe if an Inertia entrypoint is ever added. The wrapper exposes
+  no automatic cleanup of its own on unmount, so `onUnmounted` calls its exposed `destroy()`
+  explicitly — confirmed via the manual-verification navigation test below (canvas count stays
+  exactly 1 across repeated navigation away and back, never stacking).
+
+  **A defect found and worked around, not merely noted:** `@j-t-mcc/vue3-chartjs`'s exposed
+  `update()` method does not apply new `data`/`options` prop values. Reading its bundled source: the
+  component's `setup()` captures `props: { ...f }` — a one-time shallow spread of the props object
+  taken when the component is created — and its `update()`/`render()` function (`g`/`l` in the
+  minified source) always reads from that frozen snapshot, never from the component's live,
+  reactive `props`. Bound this empirically before writing the workaround: toggled the app's real
+  theme via `updateAppearance()` (dynamically importing the already-loaded `useAppearance` chunk
+  from within a live page, to drive the exact reactive path a member's own theme toggle would) while
+  a `<Vue3ChartJs :data="chartData">` binding and a call to the wrapper's exposed `update()` were
+  both in place — the canvas pixel colour never changed, confirming the snapshot is genuinely
+  frozen rather than a timing issue. **Worked around by bypassing the wrapper's own `update()` and
+  writing directly to its exposed `chartJSState.chart`** — the real, live `Chart` instance the
+  wrapper's `expose()` call already hands out — setting `chart.data` and calling `chart.update()` on
+  that instance directly, which is the actual Chart.js API the wrapper is a thin layer over and is
+  unaffected by the snapshot bug. This stays within "wrap the approved package" (construction and
+  destruction are still entirely the wrapper's own, and the component in the template is still
+  `Vue3ChartJs`, not a hand-rolled canvas); only the update path talks to the instance the wrapper
+  already exposes for exactly this purpose. Re-verified after the fix: a live, in-place
+  `updateAppearance('dark')` call while mounted repaints the same canvas element (no remount, canvas
+  count stays 1) to the correct dark-theme colours, and a follow-up `updateAppearance('light')`
+  repaints back — both confirmed by direct pixel/screenshot inspection, not merely by absence of a
+  console error.
+
+  **Manual verification (required per this task; no frontend test harness, backlog T31).** `pnpm
+  run build` with `public/hot` removed (confirmed absent before and throughout); verified against
+  the running `sail` app via a headless Playwright session, logged in as
+  `AnalyticsDemoSeeder`'s seeded Owner, against proxy 59 ("Payments Webhook," the seeder's main
+  showcase) and proxy 60 ("Quiet Integration," zero traffic):
+  - **Cold load, no console error**: zero `console.error`/`pageerror` events across every
+    navigation in the session (Dashboard, Show, back to Dashboard, Show again, the zero-traffic
+    proxy, and a `?window=24h` single-point-series load).
+  - **Canvas attributes**: `aria-hidden="true"`, `tabindex` absent, `onclick` absent, confirmed by
+    direct DOM inspection on every page load — never merely by code reading.
+  - **`aria-label`**: the surrounding `<figure>` carries exactly `"Daily delivery and attempt
+    success rate, last 30 days — see table below for exact values."` (window-appropriate text,
+    confirmed also for the `24h` window's "last 24 hours" wording).
+  - **Unmount cleanup**: navigating Dashboard → Show → Dashboard → Show kept the on-page canvas
+    count at exactly 1 at every step — no duplicate/leaked canvas from a missed `destroy()`.
+  - **Both themes, distinguishable by colour and dash style**: confirmed by canvas-only screenshots
+    at both Dashboard and Show, in light (`--chart-1`/`--chart-2` → `#e76e50`/`#2a9d90`) and dark
+    (→ `#2662d9`/`#2eb88a`) — solid vs. dashed line style holds in both, satisfying the
+    non-colour-encoding requirement independent of the colour check.
+  - **Live theme toggle, no remount**: covered above as part of finding and fixing the wrapper
+    defect — canvas count stays 1 and the same element repaints correctly in both toggle
+    directions.
+  - **24h window (single data point)**: no console error, a single unconnected point renders, "View
+    as table" shows the matching one-row table.
 
 ## T28 — Wire `TrendChart.vue` into Dashboard and Show, beside the existing accessible table (AC16, § Accessibility)
 - **Description:** Both trend cards (Dashboard's "Trend" card, T17; Proxy Show's Analytics card
