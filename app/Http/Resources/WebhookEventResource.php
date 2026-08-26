@@ -30,7 +30,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * a fabricated `Delivery` row, never a database write. The derived rows are
  * shaped to match `DeliveryResource`'s keys so the client renders both
  * uniformly, with the fields #6 cannot know about (`id`, `dispatch_uuid`,
- * `next_attempt_at`, `attempt_limit`, `attempts`) left `null`.
+ * `created_at`, `next_attempt_at`, `attempt_limit`, `attempts`) left `null`.
  *
  * @mixin WebhookEvent
  */
@@ -88,6 +88,7 @@ class WebhookEventResource extends JsonResource
                 'dispatch_uuid' => null,
                 'kind' => DispatchKind::Original->value,
                 'status' => $this->legacyStatusFor($attempt->status)->value,
+                'created_at' => null,
                 'next_attempt_at' => null,
                 'attempt_limit' => null,
                 'destination' => [

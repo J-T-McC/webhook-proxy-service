@@ -121,6 +121,7 @@ class WebhookEventResourceTest extends TestCase
         $this->assertNull($derived['dispatch_uuid']);
         $this->assertSame('original', $derived['kind']);
         $this->assertSame($expectedDeliveryStatus, $derived['status']);
+        $this->assertNull($derived['created_at']);
         $this->assertNull($derived['next_attempt_at']);
         $this->assertNull($derived['attempt_limit']);
         $this->assertNull($derived['attempts']);

@@ -89,10 +89,11 @@ class ReadSurfaceRevealAcceptanceTest extends TestCase
         $showResponse->assertInertia(fn (Assert $page) => $page->missing('event.body')->missing('event.headers'));
         $this->assertStringNotContainsString('secret-body-marker', $showResponse->getContent() ?: '');
 
-        // The one derived-data gap flagged in the task notes: DeliveryResource
-        // carries no `created_at` — asserted here as the real, current shape,
-        // not silently added.
-        $showResponse->assertInertia(fn (Assert $page) => $page->missing('event.deliveries.0.created_at'));
+        // review-06 Minor 5 (rider 2): DeliveryResource now carries
+        // `created_at` — the events-detail replay-group label/ordering
+        // derives from it directly (T12). The prior "gap" this pinned is
+        // closed; assert presence, not absence.
+        $showResponse->assertInertia(fn (Assert $page) => $page->has('event.deliveries.0.created_at'));
     }
 
     // --- AC22/AC25: the payload (reveal) endpoint, the full matrix ----------

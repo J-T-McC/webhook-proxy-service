@@ -643,7 +643,70 @@
   frontend test harness): open an event detail page with a FIFO replay queued behind a held line
   (zero attempts yet) — the replay group shows a real time label, not a bare "Replay"; replay groups
   sort newest-first by `created_at`. `pnpm run build` required before this check.
-- **Completion notes:** _pending_
+- **Completion notes:** `DeliveryResource::toArray()` now emits `created_at` (`$this->created_at`,
+  serialized verbatim, no cast change — the column already exists) alongside the existing fields; the
+  class docblock names review-06 Minor 5/rider 2 and points at `events/Show.vue` as the consumer.
+  `events/Show.vue`'s `deliveryGroups` computed no longer derives the group's "{time}" label from the
+  earliest attempt's `started_at`, nor group ordering from the highest `Delivery.id` — both now read
+  `Delivery.created_at` directly (any row in a group is created together, ahead of dispatch, by the
+  same `DeliverStep` batch, so any row's `created_at` is the group's own creation time); the
+  surrounding docblock comment was rewritten to describe the new derivation and name the defect it
+  closes (a FIFO replay queued behind a held line with zero attempts degrading to a bare "Replay").
+  `groupLabel()` itself is unchanged — it already handled `group.time` being `null` gracefully.
+  `resources/js/types/proxies.ts`'s `Delivery` interface gained `created_at: string | null`, with its
+  docblock updated to include it in the pre-#6 legacy-fallback null list and to name rider 2. The
+  pinning assertion at `tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php:95`
+  (`->missing('event.deliveries.0.created_at')`) is inverted to `->has(...)`, with its surrounding
+  comment rewritten from "the one derived-data gap" to noting the gap is now closed. `PipelineFactory`
+  not touched; no migration (the column already existed — serialization only).
+
+  **Collateral fix required to keep the shape internally consistent (judgment call, same pattern as
+  T1's fixture fixes):** `WebhookEventResource`'s legacy-fallback derivation (`legacyDeliveries()`,
+  for a pre-#6 event with zero real `deliveries` rows) builds a `DeliveryResource`-shaped array by
+  hand and previously left out `created_at` entirely — since a legacy row has no real `Delivery`
+  model to read it from. Left alone, this would leave the two `DeliveryResource`-shaped payloads
+  (real vs. legacy-derived) with different key sets, and the TypeScript `Delivery.created_at: string
+  | null` field would be `undefined` (not `null`) at runtime for a legacy row. Added `'created_at' =>
+  null` to the derived array (the field #6 cannot know about, same treatment as `id`/`dispatch_uuid`/
+  `next_attempt_at`/`attempt_limit`), and extended its docblock's "left null" list to name it. This
+  file is outside T12's stated Files list but is `DeliveryResource`'s direct shape sibling — not
+  touching it would have left a dead-shape inconsistency, not a passing-but-incomplete diff. No
+  behaviour change for a legacy row: `dispatch_uuid` is still `null` for every legacy row, so they
+  still group into a single synthetic "Original delivery" group (kind is hardcoded `Original`), which
+  never reads `group.time` for its label — the addition is presentation-shape parity only, not a
+  behaviour change PRD-07 scopes.
+
+  Extended `tests/Unit/Http/Resources/DeliveryResourceTest.php::test_it_maps_the_expected_fields` with
+  a `created_at` assertion (`equalTo`, since both sides read the same Carbon-cast attribute).
+  Extended `tests/Unit/Http/Resources/WebhookEventResourceTest.php::test_legacy_fallback_derives_the_expected_status`
+  (all 3 data-provider cases) with `assertNull($derived['created_at'])`. No new test methods — per the
+  task's Testing section, this task extends existing assertions and inverts the named pin; it does not
+  add a new acceptance test file.
+
+  **Manual verification (required — no frontend test harness):** ran `pnpm run build` first (fresh
+  bundle, per review-06 M-3). Seeded via `sail tinker` (cleaned up after): a FIFO proxy, one event, and
+  three delivery groups on it — an `original` group (oldest `created_at`); a `replay` group B with one
+  succeeded attempt, `created_at` 10 minutes old, inserted *second* (so it received the *higher*
+  `Delivery.id`); and a `replay` group C with **zero attempts** (`status = Pending`, simulating a FIFO
+  replay still queued behind a held line), `created_at` set to "now" (the newest), inserted *first* (so
+  it received the *lower* `Delivery.id` — deliberately inverted from creation order, to prove ordering
+  follows `created_at` and not `id`). Logged in via Playwright (headless Chromium) as a fresh team
+  owner, opened `/{team}/proxies/{proxy}/events/{event}`, and read the three group `<h3>` label texts
+  in DOM order. Observed: `["Original delivery", "Replay — Aug 26, 2026, 12:24 AM", "Replay — Aug 26,
+  2026, 12:14 AM"]` — group C (zero attempts, lower id, newest `created_at`) rendered a real time label
+  ("12:24 AM") rather than a bare "Replay", and appeared *before* group B (has an attempt, higher id,
+  older `created_at`) — confirming both the label fix and that ordering is driven by `created_at`, not
+  `Delivery.id` (the pre-fix mechanism would have ranked B before C, since B's id is higher). Test data
+  and the temporary team/user were deleted afterward via `sail tinker`.
+
+  Verified: `./vendor/bin/sail test --filter "DeliveryResourceTest|WebhookEventResourceTest|ReadSurfaceRevealAcceptanceTest"`
+  (25 passed, 164 assertions); full suite `./vendor/bin/sail test --parallel` (759 passed, 2820
+  assertions — up from 759/2816 by this task's 4 new assertions on existing tests, no new test
+  methods); `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors); `pnpm
+  types:check` (clean); `pnpm format:check` (clean); scoped `npx eslint resources/js/pages/proxies/events/Show.vue
+  resources/js/types/proxies.ts` (clean — full-repo `pnpm lint:check` remains blocked by the unrelated
+  concurrent-worktree pollution documented in T6); `pnpm run build` (succeeded, fresh bundle used for
+  the manual check above).
 
 ---
 

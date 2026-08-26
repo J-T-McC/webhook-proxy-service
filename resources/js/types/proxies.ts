@@ -150,21 +150,27 @@ export interface DeliveryAttempt {
 
 /**
  * One `deliveries` row — an original send or a replay batch (mirrors
- * `DeliveryResource` exactly, T25). Never `body`/`headers` (AC22/AC25).
+ * `DeliveryResource` exactly, T25/T12-rider-2). Never `body`/`headers`
+ * (AC22/AC25).
  *
- * `id`/`dispatch_uuid`/`next_attempt_at`/`attempt_limit` are `null` only for
- * a pre-#6 legacy-fallback row (an event captured before this feature, no
- * real `deliveries` row exists — `WebhookEventResource`'s derived
- * presentation). `attempts` is `undefined` when the caller didn't
+ * `id`/`dispatch_uuid`/`created_at`/`next_attempt_at`/`attempt_limit` are
+ * `null` only for a pre-#6 legacy-fallback row (an event captured before
+ * this feature, no real `deliveries` row exists — `WebhookEventResource`'s
+ * derived presentation). `attempts` is `undefined` when the caller didn't
  * eager-load `deliveryAttempts` (the events **list** page, T26 — the
  * `whenLoaded` key is omitted entirely from the JSON), and `null` for a
  * legacy-fallback row.
+ *
+ * `created_at` (review-06 Minor 5, rider 2) is the row's own creation
+ * timestamp — the events-detail replay-group label and newest-first
+ * ordering (`events/Show.vue`) derive from it directly.
  */
 export interface Delivery {
     id: number | null;
     dispatch_uuid: string | null;
     kind: DispatchKind;
     status: ProxyDeliveryStatus;
+    created_at: string | null;
     next_attempt_at: string | null;
     attempt_limit: number | null;
     destination: {

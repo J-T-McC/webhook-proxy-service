@@ -18,7 +18,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `destination`, which reads through `withTrashed()` (eager-loaded by the
  * caller) so a since-deleted destination still renders its historical
  * url/method rather than 404ing the whole resource. Never `body`/`headers`
- * (AC22/AC25) — this row carries none.
+ * (AC22/AC25) — this row carries none. `created_at` (review-06 Minor 5,
+ * rider 2) is the row's own creation timestamp, serialized verbatim — the
+ * events-detail replay-group label/ordering (`events/Show.vue`) derives from
+ * it directly, replacing the earlier started_at/id-based derivation.
  *
  * @mixin Delivery
  */
@@ -39,6 +42,7 @@ class DeliveryResource extends JsonResource
             'dispatch_uuid' => $this->dispatch_uuid,
             'kind' => $this->kind->value,
             'status' => $this->status->value,
+            'created_at' => $this->created_at,
             'next_attempt_at' => $this->next_attempt_at,
             'attempt_limit' => app(RetryPolicy::class)->attemptLimitFor($this->proxy()->withTrashed()->firstOrFail()),
             'destination' => [

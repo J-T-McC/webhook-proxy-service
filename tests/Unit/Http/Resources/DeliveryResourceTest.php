@@ -58,6 +58,7 @@ class DeliveryResourceTest extends TestCase
         $this->assertSame($delivery->dispatch_uuid, $array['dispatch_uuid']);
         $this->assertSame($delivery->kind->value, $array['kind']);
         $this->assertSame($delivery->status->value, $array['status']);
+        $this->assertTrue($delivery->created_at->equalTo($array['created_at']));
         $this->assertSame($delivery->destination->url, $array['destination']['url']);
         $this->assertSame($delivery->destination->http_method->value, $array['destination']['http_method']);
     }
