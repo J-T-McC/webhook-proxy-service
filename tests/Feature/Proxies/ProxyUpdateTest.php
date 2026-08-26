@@ -223,7 +223,13 @@ class ProxyUpdateTest extends TestCase
         $this->assertNull($proxy->retry_backoff_strategy);
     }
 
-    public function test_switching_from_enhanced_to_simple_clears_the_retry_policy_to_null(): void
+    /**
+     * ADR-018 Decision 3 (partially supersedes ADR-015 Decision 3, review-06
+     * Minor 8(c)): a downgrade save no longer clears the stored policy — it
+     * preserves it, dormant, ready to reactivate on a later return to
+     * Enhanced (PRD-07 AC14).
+     */
+    public function test_switching_from_enhanced_to_simple_preserves_the_retry_policy(): void
     {
         $user = $this->actingUser();
         $proxy = Proxy::factory()->createQuietly([
@@ -248,8 +254,8 @@ class ProxyUpdateTest extends TestCase
 
         $proxy->refresh();
         $this->assertSame(ProxyMode::Simple, $proxy->mode);
-        $this->assertNull($proxy->retry_attempt_limit);
-        $this->assertNull($proxy->retry_backoff_strategy);
+        $this->assertSame(5, $proxy->retry_attempt_limit);
+        $this->assertSame('fixed', $proxy->retry_backoff_strategy->value);
     }
 
     public function test_update_that_would_leave_zero_live_destinations_is_rejected(): void

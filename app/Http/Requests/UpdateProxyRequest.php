@@ -45,12 +45,16 @@ class UpdateProxyRequest extends FormRequest
             // with a non-empty body is rejected. `prohibited_if` fails when the field
             // is present-and-non-empty while response_status is 204.
             'response_body' => ['nullable', 'string', 'prohibited_if:response_status,204', 'max:'.config('ingest.response_body_max_bytes')],
-            // Per-proxy retry policy (AC2, AC20) — enhanced-mode-only (Q-06-01
-            // ruling): a value present on a `mode = simple` submission is
-            // rejected, mirroring the `response_body`/204 `prohibited_if` idiom.
-            // NULL/absent always passes regardless of mode (system default), and
-            // is how an enhanced→simple mode switch clears any previously
-            // configured values in the controller (T30).
+            // Per-proxy retry policy (AC14(a), AC14(b); ADR-018 Decision 3) —
+            // enhanced-mode-only: a value present on a `mode = simple`
+            // submission is rejected, mirroring the `response_body`/204
+            // `prohibited_if` idiom. Kept deliberately even though the
+            // controller now preserves rather than clears a dormant value on
+            // a Simple-mode save (review-06 Minor 8(a) proposed relaxing this
+            // rule; plan-07 §Technical ruling 2 declines): it is the second,
+            // independent guard that a Simple-mode save can never change a
+            // dormant policy it cannot see. NULL/absent always passes
+            // regardless of mode (system default).
             'retry_attempt_limit' => ['nullable', 'integer', 'min:1', 'max:10', 'prohibited_if:mode,simple'],
             'retry_backoff_strategy' => ['nullable', Rule::enum(RetryBackoffStrategy::class), 'prohibited_if:mode,simple'],
             'destinations' => ['required', 'array', 'min:1'],

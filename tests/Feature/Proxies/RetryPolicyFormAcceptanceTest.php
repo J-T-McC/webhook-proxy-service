@@ -135,7 +135,12 @@ class RetryPolicyFormAcceptanceTest extends TestCase
         )->assertJsonValidationErrors(['retry_attempt_limit']);
     }
 
-    public function test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null(): void
+    /**
+     * ADR-018 Decision 3 / review-06 Minor 8(c): a downgrade save no longer
+     * clears the stored policy — it preserves it, dormant, ready to reactivate
+     * on a later return to Enhanced (PRD-07 AC14).
+     */
+    public function test_switching_enhanced_to_simple_on_update_preserves_stored_values(): void
     {
         $user = $this->actingUser();
         $proxy = Proxy::factory()->createQuietly([
@@ -151,8 +156,9 @@ class RetryPolicyFormAcceptanceTest extends TestCase
         )->assertRedirect();
 
         $fresh = $proxy->fresh();
-        $this->assertNull($fresh->retry_attempt_limit);
-        $this->assertNull($fresh->retry_backoff_strategy);
+        $this->assertSame(ProxyMode::Simple, $fresh->mode);
+        $this->assertSame(4, $fresh->retry_attempt_limit);
+        $this->assertSame('fixed', $fresh->retry_backoff_strategy->value);
     }
 
     // --- ProxyResource emits both fields on index/show/edit ------------------

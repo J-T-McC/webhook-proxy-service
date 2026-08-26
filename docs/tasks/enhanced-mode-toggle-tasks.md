@@ -143,7 +143,52 @@
   `configuredAttemptLimitFor()`/`configuredStrategyFor()` null/value cases; confirmation the existing
   config-sanity and `worstCaseSpan()` tests are unaffected. No feature-level HTTP test in this task —
   T2 covers the controller/endpoint persistence behaviour end to end.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented both halves of review-06 Minor 8 in one commit. `RetryPolicy`
+  gained `configuredAttemptLimitFor()`/`configuredStrategyFor()` (the ADR-018 Decision 2 mode gate,
+  the only place either retry column is read to decide what governs a proxy); `attemptLimitFor()`/
+  `strategyFor()` now route through them, with the existing `[1, max_attempt_limit]` clamp and
+  `positiveConfigInt()` guards unchanged and applied after the gate. `delayBefore()`/
+  `worstCaseSpan()` are byte-for-byte unchanged. `ProxyController::store()`/`update()` now omit
+  both retry keys from the write array entirely unless the submitted mode is Enhanced
+  (`$data['mode'] === ProxyMode::Enhanced->value`) — a Simple-mode save never writes either column,
+  not a value, not NULL; an Enhanced-mode save writes exactly what was submitted, `?? null` still
+  clearing to the unconfigured sentinel. `prohibited_if:mode,simple` is unchanged in both Form
+  Requests — only their docblocks were rewritten, from the retired T30-era "clears on switch"
+  framing to ADR-018 Decision 3's purpose (a Simple-mode save can never change a dormant policy it
+  cannot see). `PipelineFactory` was not touched.
+
+  Added 9 new cases to `tests/Unit/Services/RetryPolicyTest.php`: the two `configured*For()`
+  null/value cases; the headline Simple-with-dormant-policy-vs-Simple-never-configured
+  identical-resolution case (AC14(a)/AC21, asserted over both proxies); Enhanced-resolves-columns;
+  NULL-Enhanced-resolves-default; the post-gate clamp in both modes.
+
+  **Judgment call — collateral fixes required to keep every commit green (plan/reality gap the
+  Task Planner's per-file audit did not catch):** the ADR-018 mode gate is a genuine behaviour
+  change to `attemptLimitFor()`/`strategyFor()`, and four pre-existing tests outside T1's own Files
+  list constructed proxies with a raw retry column set but no explicit `mode` (defaulting to the
+  factory's `Simple`), asserting the column value was honored — now correctly gated to `null` for
+  those proxies. Left broken, these would have made this commit fail the standing "every commit
+  leaves `sail test` green" invariant. Fixed by adding `'mode' => ProxyMode::Enhanced` (or the
+  update-array equivalent) to each fixture, which is the correct fix under ADR-018, not a
+  workaround: `tests/Unit/Actions/DeliveryStatusTransitionTest.php` (the raw
+  `Proxy::query()->update(['retry_attempt_limit' => ...])` fixture); `tests/Unit/Http/Resources/DeliveryResourceTest.php`
+  (`test_attempt_limit_reflects_the_proxys_effective_policy`,
+  `test_attempt_limit_still_resolves_when_the_proxy_has_been_soft_deleted`);
+  `tests/Feature/Proxies/ProxyUpdateTest.php` (`test_switching_from_enhanced_to_simple_clears_the_retry_policy_to_null`,
+  renamed to `test_switching_from_enhanced_to_simple_preserves_the_retry_policy` and inverted — a
+  second, previously-unnamed instance of the same #6-era assumption review-06 Minor 8(c) named once
+  in `RetryPolicyFormAcceptanceTest.php`); and
+  `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php`'s own named test
+  (`test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`), renamed to
+  `test_switching_enhanced_to_simple_on_update_preserves_stored_values` per review-06 Minor 8(c) and
+  T2's own Acceptance Criteria — landed here (not deferred to T2) purely to keep this commit's tree
+  green; T2 adds the rest of its named cases on top without re-touching this one. No production
+  defect found in any of the four — all were test fixtures assuming the retired invariant.
+
+  Verified: `./vendor/bin/sail test --filter RetryPolicyTest` (40 passed, 73 assertions); full suite
+  `./vendor/bin/sail test --parallel` (730 passed, 2660 assertions — up from the pre-existing
+  baseline only by T1's own 9 new cases, net of the 4 fixture fixes above); `composer lint` (Pint,
+  clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T2 — Persistence acceptance tests: preservation, restoration, and the retained boundary (AC14, AC14(b)(iv); review-06 Minor 8(c); plan §Test strategy "Persistence")
 - **Description:** Prove T1's persistence rule end to end through the real `store()`/`update()`

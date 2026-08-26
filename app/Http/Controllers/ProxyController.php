@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Data\ProxyPermissions;
+use App\Enums\ProxyMode;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
 use App\Http\Resources\ProxyResource;
@@ -66,15 +67,24 @@ class ProxyController extends Controller
             // Pass the validated payload straight to mass-assignment: only
             // name/mode/processing_mode/retry_*/response_* are fillable (see
             // Proxy #[Fillable]), so the `destinations` key is ignored and the
-            // ingest token/hash stay server-minted, never from input. `?? null`
-            // on the retry fields lets an omitted/simple-mode-rejected value
-            // default to NULL (AC2/AC20) — Proxy::make() only assigns keys
-            // present in $data, so this is set explicitly rather than relying
-            // on mass-assignment omission.
-            $proxy = Proxy::make(array_merge($data, [
-                'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
-                'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
-            ]));
+            // ingest token/hash stay server-minted, never from input. The two
+            // retry keys are added to the array only when the submitted mode
+            // is Enhanced (ADR-018 Decision 3, review-06 Minor 8(b)) — a
+            // Simple-mode create never writes either column, not a value, not
+            // NULL; on create this is behaviourally identical to writing NULL
+            // (there is nothing yet to preserve), but the code reads as the
+            // same one rule `update()` applies, rather than two. `?? null`
+            // lets an omitted/absent value default to NULL (AC2/AC20) when the
+            // mode IS Enhanced — Proxy::make() only assigns keys present in
+            // $data, so this is set explicitly rather than relying on
+            // mass-assignment omission.
+            $proxy = Proxy::make(array_merge(
+                $data,
+                $data['mode'] === ProxyMode::Enhanced->value ? [
+                    'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
+                    'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
+                ] : [],
+            ));
             $tokens->assignTo($proxy);
             $proxy->save();
 
@@ -148,20 +158,27 @@ class ProxyController extends Controller
 
         DB::transaction(function () use ($data, $proxy): void {
             // Persist response/retry config alongside name/mode. `?? null` lets
-            // an omitted/explicit-null field clear a previously configured value
-            // (AC3, AC20). For the retry fields, an enhanced->simple mode switch
-            // clears both automatically: the request rejects any non-null value
-            // when `mode = simple` (T29's `prohibited_if`), so validated data
-            // never carries a value to persist in that case — this line just
-            // writes exactly what validation returned.
+            // an omitted/explicit-null field clear a previously configured
+            // response value (AC3, AC20). The two retry keys are OMITTED from
+            // the array entirely unless the submitted mode is Enhanced
+            // (ADR-018 Decision 3, review-06 Minor 8(b)) — a Simple-mode save
+            // never writes either retry column, not a value, not NULL, so a
+            // proxy already holding a dormant policy keeps it verbatim
+            // (PRD-07 AC14). An Enhanced-mode save writes exactly what
+            // validation returned; `?? null` there still lets an explicit
+            // NULL clear to the unconfigured system-default sentinel
+            // (PRD-06 AC2). Preservation is achieved by not writing, not by a
+            // read-before-write.
             $proxy->update([
                 'name' => $data['name'],
                 'mode' => $data['mode'],
                 'processing_mode' => $data['processing_mode'],
                 'response_status' => $data['response_status'] ?? null,
                 'response_body' => $data['response_body'] ?? null,
-                'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
-                'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
+                ...($data['mode'] === ProxyMode::Enhanced->value ? [
+                    'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
+                    'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
+                ] : []),
             ]);
 
             $keptIds = [];
