@@ -6,15 +6,20 @@
   that no delegated plan gate covers; and it adopts the first charting library this project has
   ever had, which is a new-dependency gate on the same list. **Both gates are now cleared** — see
   **§ Owner rulings on both flags**, immediately after the flags themselves. No approval remains
-  outstanding, and no milestone is withheld from the Task Planner.
+  outstanding, and no milestone is withheld from the Task Planner. **The plan now stands at
+  `Revision B`** — self-certified in full at both revisions, with neither Owner flag reopened by
+  either.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-26
 - **PRD:** `docs/product/prd-11-analytics.md` — **Approved** (Project Owner, 2026-08-26), 37
   acceptance criteria, ratifying **D-11-1..7**, plus **`## Amendment A`** (Product Manager,
   2026-08-26). **Amendment A governs where it and a criterion's literal wording differ**, and this
   plan is written that way: rates with a zero denominator are `null`, never `0%` (A(i)), and the
-  daily series and the percentile are obliged at the **team and proxy** grains only (A(ii)).
-  Numbering frozen; nothing here renumbers, adds, removes or weakens a criterion.
+  series and the percentile are obliged at the **team and proxy** grains only (A(ii)). **Plus
+  `## Amendment B`** (Product Manager, 2026-08-26 — `D-11-8`, `D-11-9`), which governs the same way
+  and which this plan carries at **Revision B**: AC16's bucket size **depends on the window**
+  (hourly on `24h`, daily on `7d`/`30d`), and the per-bucket drill-through is obliged **at day
+  buckets only**. Numbering frozen; nothing here renumbers, adds, removes or weakens a criterion.
 - **Design spec:** `docs/design/design-11-analytics.md` — **fully approved** (Product Manager,
   2026-08-26; design gate delegated per `CLAUDE.md`). All six corrections C1–C6 landed and **C1 is
   cleared** on the section-scoped re-check of Flow E and Screen 4. As with plan-08, the spec's
@@ -32,7 +37,48 @@
   the ADR bar — see § *Why no ADR was warranted here when the previous item needed one*.
 - **Approved by / date:** Principal Engineer, 2026-08-26 — **partial**, see Status.
 - **Revised:** **Revision A**, Principal Engineer, 2026-08-26 — answering
-  `docs/questions/prd-11-q-11-04-trend-day-drill-through.md`. See § *Revision A* immediately below.
+  `docs/questions/prd-11-q-11-04-trend-day-drill-through.md`. **Revision B**, Principal Engineer,
+  2026-08-26 — carrying the Product Manager's **`## Amendment B`** on PRD-11 (`D-11-8`, `D-11-9`).
+  The two revision sections follow immediately below, most recent first; **Revision A's section is
+  unchanged and stands exactly as written**.
+
+## Revision B — what Amendment B changed here, and why (Principal Engineer, 2026-08-26)
+
+The Project Owner observed that on the **24-hour** window the trend chart renders a single point at
+the far left of an otherwise empty chart. That is `DeliveryStatistics::series()` behaving exactly as
+this plan specified it — one point per calendar day, so a 24-hour window can only ever produce one
+or two points. **The specification was wrong, not the code.** The Product Manager has ruled on it in
+PRD-11 **`## Amendment B`**, as calls **`D-11-8`** (the bucket size depends on the window) and
+**`D-11-9`** (the per-bucket drill-through is obliged at day buckets only), on the same `D-11-4`
+authority that set AC16's granularity in the first place.
+
+Amendment B governs over the literal wording of the criteria it names, and this plan is now written
+that way. **The Product Manager states the obligation; this revision states the mechanism**, which
+is what Amendment B(ii)'s closing paragraph assigns to the Principal Engineer. Everything the
+amendment leaves alone is left alone here: AC17's three windows and 30-day default, AC18's
+indefinite retention, AC10, the window anchor, and `Q-11-04`'s `date` parameter with its half-open
+calendar-day bound.
+
+**This revision reopens neither Owner-approval flag.** The four-index change set is unchanged —
+Revision B adds no index, no column, no table and no migration, and § *Technical rulings* 11 states
+why an hourly `GROUP BY` still reads the approved indexes. The charting dependency ruling is
+unchanged. **No new ADR.**
+
+| Section | Prior position | Now |
+|---|---|---|
+| § *Technical rulings* 9, §§ *Architecture B*, *C* | The bucket expression is fixed at `DATE(updated_at)` for every window; the series is one point per calendar day | The bucket size **depends on the window**: hourly for `24h` (24 points), daily for `7d` and `30d` (7 and 30 points). Ruling 9 is amended in place and the expression per bucket is stated at **new § *Technical rulings* 11** |
+| §§ *Architecture C*, *Services & Actions*, *API* | The series window is calendar-day aligned (`seriesWindowStart()`) while every other figure uses a rolling `now − interval` cutoff (`windowStart()`), and the Events list builds a third copy of the same rolling bound | **One window definition for the whole feature**: the window's range is exactly the span its own buckets cover, `[first bucket start, now)`, resolved once on `AnalyticsWindow`. Amendment B(i)'s partition property obliges this — **new § *Technical rulings* 12** |
+| § *API*, the `SeriesPoint` DTO | `date` (ISO `Y-m-d`), one point per day | Gains **`bucketStart`** (local ISO-8601 `Y-m-d\TH:i:s`, the inclusive start of the bucket, present at both bucket sizes). **`date` keeps its exact Revision A meaning** — the value the `date` query parameter takes — and is **`null` at an hourly bucket**, which is how the drill-through is suppressed. `StatisticsPanel` gains **`bucket`** (`hour` \| `day`) |
+| § *Architecture E*, § *Technical rulings* 10 | Every trend-table row carries a per-day, per-unit drill-through link | Day-bucket rows are **unchanged**. Hourly rows carry **no link at all** — no disabled control, no dead link, no empty action cell — enforced by the `null` `date` rather than by display logic. **New § *Technical rulings* 13** |
+| § *Data Model* (Owner flag 2) | Four indexes serving a daily `GROUP BY` | **Unchanged, not reopened.** An hourly `GROUP BY` filters through the same `(grain, status, updated_at)` prefix over a **strictly narrower** range; the grouping expression was never the indexed part (§ *Technical rulings* 11) |
+| § *Milestones* | M1–M7 | **M8 appended** (nothing renumbered): the Amendment B bucket work, which is new task material — see § *Handoff* |
+| § *Implementation Notes*, § *Test strategy* | Notes 9 and 20 speak of days; the window/bucket tests assert daily behaviour | Note 9 speaks of buckets, note 20 gains an hour formatter, and **notes 21–23 are added** (one place decides the bucket, bucket-aware labels whose wording stays the Designer's, plain-text hourly rows). The test strategy gains the per-window point count, the partition sum, the half-open bucket boundary, the timezone-agreement assertion, and hourly link absence |
+| § *Handoff*, Outstanding Questions | None | Still none. Amendment B is a ruling, not a question. It needs nothing further from the Product Manager, and nothing from the Designer beyond the `design-11` update Amendment B already routes there — one string inside that update's scope is named at § *Re-certification at Revision B* so it is not missed |
+
+**What this revision does not decide.** An **hour-precise** drill-through is *permitted and not
+required* under Amendment B(ii) and is **not built at #11** (§ *Explicitly out of scope*). No
+query-parameter contract for one is invented here: `date` stays a calendar day, and inventing an
+unused hour parameter now would fix a shape nobody has to live with yet.
 
 ## Revision A — what changed here, and why (Principal Engineer, 2026-08-26)
 
@@ -89,8 +135,13 @@ Restated once so every section below reads as a consequence rather than a choice
   #11. The technical half was left to me and is answered at `Q-11-03(1)`; § *Risks* R1 carries it.
 - **The Product Manager (2026-08-26):** the seven PM-derived calls D-11-1..7, ratified by the
   PRD's approval; **Amendment A(i)** (a zero-denominator rate is not a percentage) and
-  **A(ii)** (the daily series and the percentile are obliged at team and proxy grain only);
+  **A(ii)** (the series and the percentile are obliged at team and proxy grain only);
   and the design-gate rulings on all nine flagged design calls.
+- **The Product Manager (2026-08-26, `## Amendment B`):** **D-11-8**, the bucket size depends on
+  the window, with the partition, period-naming, empty-bucket and grain properties it states as
+  binding; and **D-11-9**, the per-bucket drill-through is obliged at day buckets only, an hourly
+  row owing none and never carrying a day-grained one. The **mechanism** for both is explicitly
+  left to the Principal Engineer and is ruled at § *Technical rulings* 11–13.
 - **The Designer (2026-08-26, approved):** the screens, states, flows, labels, empty states,
   chip behaviour and accessibility rules of `design-11`, with C1–C6 landed.
 - **The Principal Engineer (this plan and `Q-11-03`):** the query shape, the anchor timestamp, the
@@ -146,9 +197,11 @@ resolves.
 ### B. The figure set, per grain, and the query that produces each (AC7, AC15, AC16, AC19, AC20)
 
 Grains are **team**, **proxy** and **destination-within-a-proxy** (AC15). Windows are 24 h / 7 d /
-30 d, default 30 d (AC17). Buckets are one point per day (AC16). Under **Amendment A(ii)** the
-daily series and the percentile are obliged at **team and proxy** only; the destination grain
-carries both units and an **average** duration.
+30 d, default 30 d (AC17). *(Amended 2026-08-26 — Revision B.)* **Buckets depend on the window
+(AC16 as governed by Amendment B(i)): one point per hour on the 24-hour window — 24 points — and
+one point per day on the 7-day and 30-day windows — 7 and 30 points.** Under **Amendment A(ii)**
+the series and the percentile are obliged at **team and proxy** only; the destination grain carries
+both units and an **average** duration.
 
 | Figure | Grain(s) | Source | Shape |
 |---|---|---|---|
@@ -156,7 +209,7 @@ carries both units and an **average** duration.
 | Attempt success rate + counts (AC7, AC13) | team · proxy · destination | `delivery_attempts` | one `GROUP BY status` per grain, carrying `SUM(attempt_number > 1)` (**retry volume**, AC19(c)), `AVG(duration_ms)` and `COUNT(duration_ms)` in the same pass |
 | Eventual success (AC19(a)) | team · proxy | `deliveries` + `EXISTS` on attempts | one count |
 | Bridge-sentence failed attempts | team · proxy | `delivery_attempts` joined to the window's succeeded `deliveries` | one count |
-| Daily series, both units (AC16) | team · proxy | both tables | two `GROUP BY <day>, status` queries; the server **fills missing days** |
+| Trend series, both units (AC16) | team · proxy | both tables | two `GROUP BY <bucket>, status` queries — the bucket expression varies by window (§ *Technical rulings* 11) — and the server **fills every missing bucket** |
 | Average duration (AC20) | team · proxy · destination | `delivery_attempts.duration_ms` | folded into the attempt-level pass |
 | 95th percentile (AC20) | team · proxy | `delivery_attempts.duration_ms` | one ordered `LIMIT 1 OFFSET` query — see § *Technical rulings* 4 |
 | Per-proxy breakdown rows (Screen 1) | team | both tables | two `GROUP BY proxy_id, status` queries + one label lookup |
@@ -176,11 +229,19 @@ The full reasoning and the rejected alternative are at § *Technical rulings* 1.
 matter architecturally: a past bucket can never change once written, and the four new indexes lead
 with the grain column, carry `status`, and range on `updated_at` (§ *Data Model*).
 
-Day buckets are computed in SQL from the anchor (`DATE(updated_at)`), which is portable across
-MySQL 8.0 and SQLite, and the **series is densified in PHP**: a day with no traffic is a real
-point carrying zero counts and a `null` rate, never a gap the chart interpolates across. AC18's
-"never present a truncated trend as a complete one" holds trivially at #11 — no horizon exists —
-and the densification is what stops a sparse `GROUP BY` from *looking* like one.
+*(Amended 2026-08-26 — Revision B.)* **Buckets are computed in SQL from the anchor, at a size that
+depends on the window** — `DATE(updated_at)` for a day bucket and an hour-truncating expression for
+an hour bucket, both stated exactly at § *Technical rulings* 11 — and the **series is densified in
+PHP**: a bucket with no traffic is a real point carrying zero counts and a `null` rate, never a gap
+the chart interpolates across (Amendment B(i): "a bucket with no traffic is a bucket, not a gap").
+AC18's "never present a truncated trend as a complete one" holds trivially at #11 — no horizon
+exists — and the densification is what stops a sparse `GROUP BY` from *looking* like one.
+
+**The window's range is the span its buckets cover, and there is one definition of it for the whole
+feature** (§ *Technical rulings* 12): `[first bucket start, now)`, resolved once on
+`AnalyticsWindow` and used by every figure, by the series, and by the Events list's window filter.
+This is what makes Amendment B(i)'s partition property true — every record the window's
+single-number figure counts falls in exactly one bucket of the series beside it.
 
 ### D. Read surfaces — extend, never annex (AC21, AC27, AC28; design § Scope note)
 
@@ -237,6 +298,16 @@ given — the half-open interval `[that day 00:00, the next day 00:00)` in the a
 on whichever column ruling 3 already selected. There is no second window predicate, no branch of
 its own, and no new index: the day is a strictly narrower range over the same
 `(proxy_id, status, updated_at)` index the Outcome drill-through already reads.
+
+**That drill-through exists at day buckets and at no other bucket size** (Revision B; Amendment
+B(ii); § *Technical rulings* 13). On the 24-hour window the trend table's rows are hourly, they owe
+no drill-through, and they must never carry a day-grained one — a row reading three terminal
+failures for one hour that linked to a whole day's forty would be a direct AC10 breach. The
+suppression is carried in the data (`SeriesPoint.date` is `null` at hourly grain), not in display
+logic, and it renders as **plain figures with no control at all** — never a disabled or dead one.
+The window-grain entry points are untouched and still work on the 24-hour window: the Dashboard
+Proxies table's Terminal failures cell, the proxy's Retry & replay Terminal failure tile, and the
+Destinations table's *View events* action.
 
 **Deleted parents at this layer split** (`Q-11-03(9)`): a **deleted destination**'s *View events*
 link stays live, because the destination travels as a query filter on a live proxy's route and
@@ -365,11 +436,26 @@ that does not belong to this proxy, an unknown outcome token, or a value that is
 `date`'s case with the Window chip reading the unnarrowed window, so the surface never claims a
 filter it did not apply.
 
-**9. Day buckets are days in the application timezone.** No per-user timezone exists anywhere in
-the schema, so there is nothing to render them in; `DATE(updated_at)` in the application timezone
-is the only honest bucket available, and inventing a per-user timezone would be new capture and a
-new requirement. AC8's obligation is met by the window statement the design already requires on
-every figure-bearing block (C2), not by a timezone note.
+**9. Buckets are days — and, on the 24-hour window, hours — in the application timezone.**
+*(Amended 2026-08-26 — Revision B: extended from days to whichever bucket size ruling 11 selects.)*
+No per-user timezone exists anywhere in the schema, so there is nothing to render them in; a bucket
+truncated in the application timezone is the only honest bucket available, and inventing a per-user
+timezone would be new capture and a new requirement. AC8's obligation is met by the window
+statement the design already requires on every figure-bearing block (C2), not by a timezone note.
+
+**An hourly bucket is far more sensitive to a timezone mismatch than a daily one, so the condition
+this ruling has always rested on is now stated as an obligation rather than as an observation.**
+The SQL that truncates the anchor and the PHP that densifies the series must agree on the
+timezone, exactly, or every point is displaced by whole hours and the series stops describing the
+same traffic as the headline beside it. Under a daily bucket a mismatch of a few hours moves a
+minority of records across one boundary; under an hourly bucket it moves *every* record by the full
+offset, and it does so without any figure looking obviously wrong. The obligation:
+`config('app.timezone')`, the database session timezone under which the bucket expression is
+evaluated, and the timezone `CarbonImmutable::now()` resolves in must be the same zone, and
+**§ *Test strategy* pins it** rather than leaving it to a deployment note. The current deployment
+satisfies it — the MySQL connection reports `SYSTEM`/`UTC`, matching `config('app.timezone')` — and
+that is a fact about this deployment, not a property of the code, which is precisely why it is
+asserted.
 
 **10. The trend table's per-day drill-through travels as a fourth optional query parameter,
 `date`, which replaces the window's range bound with that single calendar day.** *(Added
@@ -385,16 +471,23 @@ The mechanism is therefore named here rather than left to implementation.
 
 - **Name and value.** `date`, an ISO-8601 calendar date in `Y-m-d` form. It is the same string
   `SeriesPoint.date` already carries, so a trend row's link is built from that row's own `date`
-  value verbatim and there is no second date format to keep in step with the first.
+  value verbatim and there is no second date format to keep in step with the first. *(Amended
+  2026-08-26 — Revision B: that tie is kept exactly, and `SeriesPoint.date` is now **`string|null`**
+  — the same `Y-m-d` string at a day bucket, and `null` at an hourly bucket, where no drill-through
+  is owed. A row whose `date` is `null` builds no link at all; see ruling 13. The hour a point
+  covers travels in the separate `bucketStart` field, which is never a `date` parameter value, so
+  there is still exactly one date format on this parameter.)*
 - **Resolution.** Parsed strictly — the value must round-trip through `Y-m-d` exactly, so
   `2026-8-4`, a timestamp, a relative word or any other shape is not a date here. **An absent or
   malformed `date` means no day-narrowing:** the request resolves exactly as it does today, with
   the range the resolved `AnalyticsWindow` gives it. It never raises a validation error and never
   returns a 422, for the reason ruling 8 gives for the other three parameters.
 - **Effect.** A resolved `date` **replaces** the window's range bound with the half-open interval
-  `[that day 00:00, the next day 00:00)` in the application timezone — the same partition ruling
-  9's `DATE(updated_at)` bucket produces, which is what makes a day cell's figure and that day's
-  drill-through describe the same records (AC10, at the day grain). The bound must be written
+  `[that day 00:00, the next day 00:00)` in the application timezone — the same partition a **day
+  bucket** produces (`DATE(updated_at)`; ruling 9, and ruling 11 from Revision B), which is what
+  makes a day cell's figure and that day's drill-through describe the same records (AC10, at the
+  day grain). **A day bucket is the only bucket this parameter has ever described**, which is why
+  Amendment B(ii) leaves it untouched and why an hourly row must not carry it. The bound must be written
   half-open — `>= start` and `< end` — and not with an inclusive `whereBetween`, so that no instant
   at a day boundary belongs to two days or to neither.
 - **Which column it bounds.** Whichever column ruling 3 already selects, with no branch of its own:
@@ -426,7 +519,8 @@ approved three-chip row rather than adding to either, so **nothing here returns 
 If the Designer later prefers distinct wording for a day-narrowed Window chip, that is a copy
 change with no query, parameter or plan consequence, and it does not reopen this ruling.
 
-*Scope: the entry point is the Proxy Show trend table only.* Flow E's table names "Proxy Show Trend
+*Scope: the entry point is the Proxy Show trend table only — and, from Revision B, only its
+day-bucket rows.* Flow E's table names "Proxy Show Trend
 chart's 'View as table' row" (Screen 2, Flow C step 3), and the C1 re-check states that the
 **Dashboard's** Trend chart is not a drill-through entry point at all, because no single proxy
 resolves from a team-grained series. The Dashboard trend table's rows therefore carry no link, and
@@ -451,6 +545,170 @@ the behaviour. Against the ADR bar walked in § *Why no ADR was warranted here*:
 persisted shape, adds no entity, and is an application of ruling 3 to a narrower range rather than
 a new decision about the data. It is an API-contract call inside the Principal Engineer's own
 decision authority, and it is ruled here rather than escalated.
+
+**11. The bucket expression varies by window: an hour-truncating expression on `24h`, and
+`DATE(updated_at)` on `7d` and `30d`.** *(Added 2026-08-26 — Revision B. Carries PRD-11
+Amendment B(i) / `D-11-8`.)*
+
+Amendment B(i) fixes the bucket size per window and this plan states the expression that produces
+it. **The window is the only input to that choice**, and the choice is made in exactly one place:
+`AnalyticsWindow::bucket()` returns a `SeriesBucket` (`hour` or `day`), and nothing else in the
+feature branches on the window value to decide a bucket.
+
+| Window | Bucket | Points | Bucket key produced | Expression |
+|---|---|---|---|---|
+| `24h` | hour | 24 | `Y-m-d H` (e.g. `2026-08-26 14`) | `SUBSTRING(updated_at, 1, 13)` — see the portability note below |
+| `7d` | day | 7 | `Y-m-d` | `DATE(updated_at)` — unchanged |
+| `30d` | day | 30 | `Y-m-d` | `DATE(updated_at)` — unchanged |
+
+- **Boundaries are half-open, at both bucket sizes, for the same reason ruling 10 gives for the
+  `date` bound.** An hour bucket covers `[H:00:00, H+1:00:00)` and a day bucket covers
+  `[00:00:00, next day 00:00:00)`. No instant belongs to two buckets or to neither. A truncating
+  expression produces exactly that partition by construction — `SUBSTRING(updated_at, 1, 13)` and
+  `DATE(updated_at)` both map every instant within an hour, or within a day, to one key and no
+  instant to two — so the partition is a property of the grouping rather than a pair of comparisons
+  somebody has to write correctly. **Nowhere in the series path may an inclusive `whereBetween`
+  stand in for a bucket boundary.**
+- **Timezone.** Ruling 9, as amended, governs: the truncation happens in the application timezone,
+  and the SQL, the database session and `CarbonImmutable::now()` must agree on it, asserted by test.
+- **The last bucket is the current, partial one** — the hour or the day in progress — at both
+  sizes. That is unchanged behaviour rather than a new decision: today's daily series already ends
+  on a partial "today". It is what makes the series end at *now* rather than at the last completed
+  period, and ruling 12 makes the window agree with it.
+- **Portability, and the fallback that is pre-approved here.** `DATE()` is native to both MySQL 8.0
+  and SQLite; **no hour-truncating function is**, so the single portable form is a leading substring
+  of the anchor's canonical `Y-m-d H:i:s` rendering. `SUBSTRING(updated_at, 1, 13)` relies on each
+  engine's implicit datetime-to-string conversion producing that rendering, which is a property of
+  the engines and not of this repository — so, exactly as the § *Dependencies* checks do for the
+  charting packages, **the implementing task verifies it on MySQL 8.0 and on SQLite before relying
+  on it** rather than taking my word for it. **If it does not hold on either engine the fallback is
+  pre-approved and needs no plan change**: select the expression by connection driver —
+  `DATE_FORMAT(updated_at, '%Y-%m-%d %H')` on MySQL and `strftime('%Y-%m-%d %H', updated_at)` on
+  SQLite — in the same single place `bucket()` is consulted. The portable form is preferred
+  *because* the suite runs on MySQL under Sail and on SQLite locally, so a driver branch leaves one
+  of its two paths exercised only by whichever engine a developer happened to use. That is a
+  preference about testability, not about elegance, and taking the fallback is not a defeat.
+- **Rejected: bucketing in PHP over raw `updated_at` values.** It would need no dialect at all, and
+  it was rejected because it replaces a grouped aggregate with a fetch of every resolved row in the
+  window — bounded today and unbounded in principle, on tables AC18 keeps forever. § *Risks* R1's
+  whole argument is that a window's cost tracks traffic in the window rather than table size; a PHP
+  bucketing pass keeps that true of the rows *read* and breaks it for memory.
+
+**The four approved indexes still serve this query, and Owner flag 2 is not reopened.** The series
+query filters `WHERE <grain> = ? AND status IN ('succeeded','failed') AND updated_at >= ?` and then
+groups on the bucket expression. **The grouping expression was never the indexed part** — neither
+`DATE(updated_at)` nor an hour truncation is sargable, and the daily version has never been
+index-fed either. What the index serves is the *filter*, through the approved
+`(grain, status, updated_at)` prefix — leading equality, then the two-value `IN`, then the range —
+and that is unchanged, verbatim. The hourly case reads a **strictly narrower** range than the daily
+cases the gate was approved against: 24 hours of traffic rather than 30 days. Grouping happens over
+an already-bounded row set, exactly as it does today. **No index is added, dropped, altered or
+reordered by Revision B, and no migration changes.**
+
+**12. The window's range is exactly the span its buckets cover, and one definition of it serves the
+whole feature.** *(Added 2026-08-26 — Revision B. Carries Amendment B(i)'s partition property.)*
+
+Amendment B(i) states as binding that "every record the window's single-number figure counts falls
+in exactly one bucket — no gap, no overlap, no record counted twice and none dropped at a boundary.
+This is what lets a member read the series and the headline as descriptions of the same traffic."
+**That property is not true of this plan as certified, and the divergence pre-dates Amendment B.**
+The series is computed from a calendar-aligned start (the first of `N` day buckets) while every
+other figure uses a rolling `now − interval` cutoff, so on the 30-day window the headline counts
+records from the hours between `now − 30 days` and the start of the 30th-back calendar day that
+**no bucket in the chart covers**. The chart and the headline have therefore always described
+slightly different traffic. The difference is smaller than one bucket, which is exactly the kind of
+quiet inconsistency AC10 exists to forbid. Amendment B(i) now states the property explicitly, so it
+has to be made true rather than tolerated.
+
+**The ruling: the window's range is `[first bucket start, now)`, resolved in one place —
+`AnalyticsWindow::start(CarbonImmutable $now)`.**
+
+| Window | Range |
+|---|---|
+| `24h` | `[now->startOfHour()->subHours(23), now)` — the 24 clock hours ending with the current one |
+| `7d` | `[now->startOfDay()->subDays(6), now)` — the 7 calendar days ending with today |
+| `30d` | `[now->startOfDay()->subDays(29), now)` — the 30 calendar days ending with today |
+
+- **Every figure uses it**: the headline units, retry and replay, latency, the percentile, both
+  breakdown tables, the series, and the Events list's window filter. The three separate
+  constructions of a window bound that exist today — `DeliveryStatistics::windowStart()`,
+  `DeliveryStatistics::seriesWindowStart()`, and the bound `ProxyEventController` builds — collapse
+  into one call. This *removes* duplication rather than adding a branch: `ProxyEventController`
+  keeps its single `$start`/`$end` build point and takes `$start` from the enum.
+- **`AnalyticsWindow::interval()` stops being the window definition** and, with both its callers
+  gone, is removed. `days()` keeps its meaning (the window's length in whole days) and its
+  remaining callers; it is no longer the series length, which comes from `bucketCount()`.
+- **This stays inside AC17 and needs nothing from the Product Manager.** AC17 names three windows
+  and a default and is untouched. "Last 24 hours" now means the 24 clock hours ending with the
+  current one — a span of between 23 and 24 hours — rather than a rolling 24 hours to the second,
+  and the corresponding shift applies to the two day windows. That is the plain reading of a window
+  rendered as 24 hourly points, and Amendment B(i) obliges it.
+- **User-visible consequence, stated rather than left to be discovered:** a record that resolved
+  more than 23 hours but less than 24 hours ago is no longer counted on the 24-hour window, and the
+  corresponding sliver drops off each day window. The boundary moves by less than one bucket, and
+  what it buys is that **the series and the headline now describe the same records** — which is what
+  a member reading a chart beside a number is entitled to assume.
+- *Rejected: aligning the buckets to `now` instead of aligning the window to the buckets.* Hourly
+  buckets running `[now − 1h, now)`, `[now − 2h, now − 1h)` and so on would partition a rolling
+  window exactly, with no partial bucket. Rejected because it destroys the calendar alignment that
+  two settled things depend on: `Q-11-04`'s `date` parameter is a **calendar day** (ruling 10), and
+  a bucket spanning 14:37 on one day to 14:37 on the next is not a period AC8 lets a point name
+  honestly. Aligning the window to the buckets keeps both.
+- **Not a data-model change, and it changes no anchor.** The anchor is still `updated_at` on both
+  fact tables (ruling 1). Only the start instant moves, by less than one bucket, over the same
+  indexes.
+
+**13. At an hourly bucket the trend row carries no drill-through, and the absence is carried in the
+data rather than in display logic.** *(Added 2026-08-26 — Revision B. Carries Amendment B(ii) /
+`D-11-9`.)*
+
+Amendment B(ii) is the requirement — day buckets keep `Q-11-04`'s drill-through exactly as ruling
+10 states it, hourly buckets owe none, and an hourly row carrying a day-grained link is forbidden
+outright as a direct AC10 breach. What this plan decides is **where that decision lives in the
+code**, and the answer is: in the server's DTO, not in a Vue conditional.
+
+- **`SeriesPoint.date` is `string|null`.** It is the value of the `date` query parameter, exactly as
+  ruling 10 defines it, and the server emits `null` for an hourly point because there is no correct
+  day value to emit. A row builds a link **when and only when it has a `date`**. The frontend
+  therefore never decides whether a link is owed; it renders what the data supports. This is the
+  same idiom the feature already uses twice — `UnitFigure.rate` is `null` where a percentage would
+  be a false statement, and `ProxyBreakdownRow.canDrillThrough` is `false` where a route would
+  resolve wrongly — and it is chosen for the same reason: a display-layer condition is one refactor
+  away from being lost, while an absent value cannot be turned into a link by accident.
+- **No separate "is this hourly" flag is consulted at the row level.** `StatisticsPanel.bucket`
+  exists for labelling and axis formatting (§ *API*), not for gating the link. Two independent
+  signals for one decision is how they drift apart.
+- **The absence renders as nothing at all.** The cell shows its figures as plain text — no
+  `<Link>`, no `<button>`, no `aria-disabled`, no muted-but-present control, no empty action column,
+  and no explanatory note phrased as a limitation. Amendment B(ii) requires exactly this, and it is
+  restated here because "render nothing" is the kind of instruction an implementer improves on. The
+  contrast with the deleted-proxy degradation is deliberate and worth naming: there the design
+  pre-approved a **muted, non-interactive** treatment, because a member is being told something
+  about a proxy that was deleted; here nothing is being communicated at all, so nothing is rendered.
+- **The Dashboard is unaffected either way.** Its trend rows carry no links at any bucket size
+  (ruling 10's scope paragraph), so hourly suppression is a Proxy Show change only.
+- **The window-grain entry points are untouched**, so the 24-hour window still has three routes into
+  the evidence (Amendment B(ii)); the per-event surface they land on shows each event's own time,
+  which is how a member reaches a particular hour from there.
+
+*Why rulings 11, 12 and 13 need no Owner gate and no ADR, walked item by item.* Against
+`CLAUDE.md`'s major-decision list: **no new dependency** — no package, Composer or pnpm, is added or
+changed; **no stack change** — `docs/stack/stack.md` is untouched, and both bucket expressions are
+ordinary SQL on the two engines it already names; **no data-model change** — no table, no column, no
+persisted enum value, no index added, dropped or altered, and no migration, because ruling 11 reads
+the four approved indexes over a narrower range and ruling 12 moves a start instant by less than one
+bucket over those same indexes (the new PHP enum and the new DTO fields are a wire shape and an
+in-memory type, neither of which is persisted); **no security surface** — the bucket size carries no
+authorization, cannot widen any result set (the 24-hour series reads strictly fewer rows than
+before), and adds no parameter, no route and no egress, with every affected page staying behind
+`EnsureTeamMembership`, `ApplyTeamScope` and `ProxyPolicy::view`; **nothing irreversible** — every
+change here is a read-path computation that reverting restores exactly, and no stored record is
+written, moved or reinterpreted. Against the ADR bar walked at § *Why no ADR was warranted here*:
+these rulings decide no persisted shape, add no entity, and apply AC16 as the Product Manager has
+now amended it rather than making a new decision about the data. **This is requirement-carrying
+work, not requirement-making work** — the Product Manager ruled the obligation in Amendment B and
+assigned the mechanism to the Principal Engineer in the same breath, and query semantics and prop
+contracts are the Principal Engineer's decision authority. Ruled here, not escalated.
 
 ## Data Model
 
@@ -507,6 +765,12 @@ slowly.
 - **No backfill.** Pre-#6 `delivery_id` NULLs stay NULL (ADR-015's deliberate no-backfill, F4);
   nothing is fabricated for historical rows, per `docs/standards/architecture.md`.
 - **No new permission, role or policy class** (AC24, D-11-2), and no new route middleware.
+- **Nothing added, removed or altered by Revision B.** *(2026-08-26.)* Amendment B changes the
+  bucket size of a read-only `GROUP BY` and the start instant of a range predicate. It adds no
+  index for the hourly grouping and needs none — the grouping expression was never index-fed at
+  either bucket size, and the hourly filter reads a strictly narrower range of the same approved
+  `(grain, status, updated_at)` prefix (§ *Technical rulings* 11). **This change set, and Owner
+  flag 2, stand exactly as the Project Owner approved them.**
 
 ### Every figure traces to an existing column — verified column by column (AC29)
 
@@ -523,7 +787,7 @@ every figure; nothing on the approved surfaces is unsupported.**
 | Live vs replay (AC19(d)) | `deliveries.kind` | Yes |
 | Average duration and 95th percentile (AC20) | `delivery_attempts.duration_ms` | Yes |
 | Bridge sentence | `deliveries.status`, `delivery_attempts.status`, `.delivery_id` | Yes |
-| Daily series (AC16) | the anchor, `updated_at`, on both tables | Yes |
+| Trend series, daily **and hourly** (AC16, Amendment B(i)) | the anchor, `updated_at`, on both tables — truncated to the hour or to the day in SQL (§ *Technical rulings* 11) | Yes — an hourly bucket is derivable from the timestamp already stored, so AC29 and D-11-3 hold, as Amendment B states |
 | Deleted labelling (AC6) | `proxies.deleted_at`, `destinations.deleted_at` | Yes |
 | Destination row identity (AC15) | `destinations.url`, `.http_method`, `.proxy_id` | Yes |
 | Drill-through, delivery grain (AC21) | `deliveries.webhook_event_id`, `.status`, `.proxy_id`, `.updated_at` | Yes |
@@ -572,9 +836,12 @@ not `Http/Resources/`, because they serialize a computation rather than an Eloqu
 camelCase, matching `ProxyPermissions`/`TeamPermissions` rather than the snake_case of
 `ProxyResource`.
 
-- `StatisticsPanel` — `window`, `delivery: UnitFigure`, `attempt: UnitFigure`,
-  `bridgeFailedAttempts: int`, `retryReplay: RetryReplayFigures`, `latency: LatencyFigure`,
-  `series: SeriesPoint[]`, `hasTraffic: bool`.
+- `StatisticsPanel` — `window`, **`bucket: 'hour'|'day'`** *(Revision B)*, `delivery: UnitFigure`,
+  `attempt: UnitFigure`, `bridgeFailedAttempts: int`, `retryReplay: RetryReplayFigures`,
+  `latency: LatencyFigure`, `series: SeriesPoint[]`, `hasTraffic: bool`. `bucket` is
+  `AnalyticsWindow::bucket()`'s value and exists so the surface formats a point's period and the
+  chart's axis without re-deriving the bucket size from the window — one mapping, stated
+  server-side (§ *Technical rulings* 11). **It is not a drill-through gate**; ruling 13 says why.
 - `UnitFigure` — `succeeded: int`, `failed: int`, `total: int`, `rate: float|null`
   (**`null` when `total === 0`** — § *Technical rulings* 6).
 - `RetryReplayFigures` — `eventualSuccess: int`, `terminalFailure: int`, `retryVolume: int`,
@@ -582,8 +849,22 @@ camelCase, matching `ProxyPermissions`/`TeamPermissions` rather than the snake_c
 - `LatencyFigure` — `averageMs: int|null`, `p95Ms: int|null`, `sampleCount: int`. Both values
   `null` when `sampleCount === 0`; the surface reads "No data" (AC12, AC20). `p95Ms` is `null` at
   the destination grain by design (Amendment A(ii)).
-- `SeriesPoint` — `date` (ISO `Y-m-d`), plus each unit's `succeeded`/`failed`/`rate`. One point per
-  day across the window, **densified**, never sparse.
+- `SeriesPoint` *(amended at Revision B)* — **`bucketStart` (local ISO-8601 `Y-m-d\TH:i:s`)**,
+  **`date` (ISO `Y-m-d`, or `null`)**, plus each unit's `succeeded`/`failed`/`rate`. One point per
+  **bucket** across the window — hourly on `24h`, daily otherwise — **densified**, never sparse.
+  The two string fields have two different jobs and are deliberately not merged:
+  - **`bucketStart` names the period the point covers** (AC8) and is present at both bucket sizes,
+    a day bucket reading `2026-08-26T00:00:00` and an hour bucket `2026-08-26T14:00:00`. It is the
+    single display anchor — the trend table's first column, the chart's axis label, and the row
+    key — so no surface formats a point's period from a conditional pair of fields. A local
+    ISO-8601 date-time with no offset parses as local time in every browser, which is what the
+    existing `formatSeriesDate` already relies on.
+  - **`date` is the drill-through parameter value and nothing else**, exactly as § *Technical
+    rulings* 10 defines it, and it is **`null` at an hourly bucket**. Its nullability is how the
+    hourly drill-through is suppressed (ruling 13). It is redundant with `bucketStart`'s first ten
+    characters at a day bucket, and that redundancy is deliberate: one field is a label anchor and
+    the other is a query-parameter value whose absence is load-bearing, and overloading one field
+    with both jobs is how a link gets built for a bucket that owes none.
 - `ProxyBreakdownRow` — `id`, `name`, `isDeleted: bool`, `delivery: UnitFigure`,
   `attempt: UnitFigure`, `terminalFailures: int`, `canDrillThrough: bool`.
 - `DestinationBreakdownRow` — `id`, `url`, `httpMethod`, `isDeleted: bool`, `delivery`, `attempt`,
@@ -615,21 +896,48 @@ same tradition as `RetryPolicy` and `StoredPayloadLookup`. Public surface:
 - `destinationBreakdown(Proxy $proxy, AnalyticsWindow $window): list<DestinationBreakdownRow>`
 
 Private helpers do the grouped aggregates, the percentile read, the densification and the
-`withTrashed()` label lookups. **No other class may build an analytics query** — not a controller,
+`withTrashed()` label lookups. *(Amended 2026-08-26 — Revision B: the public surface above is
+unchanged — the bucket size is a property of the window the caller already passes, not a new
+argument — and three things change behind it. The per-day grouping helper becomes a per-**bucket**
+one, taking its expression from `AnalyticsWindow::bucket()` and from nowhere else; densification
+walks `bucketCount()` bucket starts rather than a day range, formatting each one into both the SQL
+bucket key it matches on and the `bucketStart` it emits, from a single Carbon value so the two
+cannot drift; and the two window-start helpers collapse into one call to
+`AnalyticsWindow::start()`, per § Technical rulings 12. **The window value must not be inspected
+anywhere else in the service** — one `match` on the window, inside the enum.)*
+**No other class may build an analytics query** — not a controller,
 not a model scope, not a Vue component computing a rate from raw counts on the client. A rate
 computed in two places is a rate that eventually disagrees with itself, and **AC10** requires the
 same metric to read the same on every surface it appears on; one producer is how that is
 guaranteed rather than tested for.
 
 **`App\Enums\AnalyticsWindow`** — a string-backed enum (`24h`, `7d`, `30d`) carrying its own
-`label()`, `days()`/`interval()` and `default()`. Not persisted anywhere, so it is not a data-model
+`label()`, `days()` and `default()`. Not persisted anywhere, so it is not a data-model
 change; it exists so an unrecognised query parameter is impossible to propagate rather than merely
-validated against.
+validated against. *(Amended 2026-08-26 — Revision B.)* It is also **the single place the window's
+bucket size and the window's range are decided**, and it gains exactly three members for that:
+
+- `bucket(): SeriesBucket` — `hour` for `24h`, `day` for `7d` and `30d` (§ *Technical rulings* 11).
+- `bucketCount(): int` — 24, 7, 30. The number of points the series densifies to.
+- `start(CarbonImmutable $now): CarbonImmutable` — the window's inclusive start, which is the first
+  bucket's start (§ *Technical rulings* 12). `interval()` is removed: its two callers now call
+  this, and leaving a second, subtly different window definition in the enum is how the divergence
+  ruling 12 closes would come back.
+
+**`App\Enums\SeriesBucket`** *(Revision B)* — a string-backed enum with cases `hour` and `day`,
+serialized straight onto `StatisticsPanel.bucket`. Not persisted; it carries the bucket's key
+format and its step interval so that the SQL expression, the PHP densification and the wire value
+cannot disagree about what a bucket is. **Nothing outside `AnalyticsWindow::bucket()` may construct
+one from a window**, and no code may branch on `AnalyticsWindow` to infer a bucket size.
 
 **`App\Http\Controllers\ProxyEventController`** gains a private filter resolver that turns the
 **four** query parameters — `window`, `destination`, `outcome` and `date` (Revision A) — into
 (a) query predicates and (b) the `EventListFilters` chip descriptors, from one place, so the chips
-and the query can never disagree about what was applied.
+and the query can never disagree about what was applied. *(Amended 2026-08-26 — Revision B: it
+keeps its single `$start`/`$end` build point and takes `$start` from `AnalyticsWindow::start()`
+instead of constructing its own rolling cutoff, so the events a drill-through lands on are bounded
+by the same window the figure was. The four parameters, the chip shapes, the short-circuit and the
+`date` semantics are all unchanged.)*
 
 Unchanged and untouched: `ProcessIngestedWebhook`, `DeliverStep`, `DeliverToDestination`,
 `RetryDelivery`, `SweepDueRetries`, `AdvanceProxyFifoQueue`, `SweepStalledFifoDispatches`,
@@ -850,8 +1158,13 @@ defect; none is stylistic.
 
 8. **A rate with a zero denominator is `null`, never `0`** — server-side, in the DTO. Counts are
    always rendered, including `0` (Amendment A(i), C3, § *Technical rulings* 6).
-9. **The daily series is densified server-side.** Every day in the window is a point; a day with
-   no traffic carries zero counts and a `null` rate (AC16).
+9. **The trend series is densified server-side.** *(Amended 2026-08-26 — Revision B: "day" becomes
+   "bucket".)* Every bucket in the window is a point — 24 hourly points on `24h`, 7 and 30 daily
+   points on `7d` and `30d` — and a bucket with no traffic carries zero counts and a `null` rate
+   (AC16; Amendment B(i): "a bucket with no traffic is a bucket, not a gap"). **No empty bucket may
+   be dropped from the series** at either bucket size, and nothing may shorten the series to the
+   buckets that happen to carry traffic; that would present a shorter trend as a complete one
+   (AC18).
 10. **The Events-list paginator must carry the active filters** (`->withQueryString()`). The
     shipped list navigates with `router.get(link.url)` over `props.events.links`, so without it
     page 2 silently drops the filter a member arrived with.
@@ -905,11 +1218,41 @@ defect; none is stylistic.
     special-case the outcome branches, and do not use an inclusive `whereBetween` for the day
     itself. Widen the resolver's "arrived directly, no filter" short-circuit so that it also
     requires `date` to be unresolved (§ *Technical rulings* 10).
-20. **A day is rendered one way across the feature.** The trend table's Date column and the
+20. **A day is rendered one way across the feature.** The trend table's first column and the
     day-narrowed Window chip use the same formatter, sourced from
     `resources/js/data/analyticsLabels.ts` (R6). The chip is the existing Window chip carrying a
     day as its value — **not** a fourth chip, and not a re-worded template
-    (§ *Technical rulings* 10).
+    (§ *Technical rulings* 10). *(Amended 2026-08-26 — Revision B: the day formatter keeps that
+    job unchanged, and an **hour** formatter joins it in the same file. A day-narrowed Window chip
+    is still only ever produced by a day-bucket row, so no chip ever renders an hour.)*
+
+**Buckets (added at Revision B)**
+
+21. **The bucket expression is selected in exactly one place and the window is read in exactly one
+    place.** The expression comes from `AnalyticsWindow::bucket()`; the range comes from
+    `AnalyticsWindow::start()`. No controller, no DTO, no query builder and no Vue component may
+    `match` on the window value to work out a bucket size, a point count or a range — every one of
+    those is a method on the enum (§ *Technical rulings* 11, 12). **Verify the hour expression on
+    both engines before relying on it**, and take the pre-approved driver-selected fallback if it
+    does not hold; record which form was adopted in the task's completion note, because a later
+    reader must not have to re-derive it from the SQL.
+22. **Every unit-bearing and period-bearing label still comes from
+    `resources/js/data/analyticsLabels.ts`, which gains a bucket-aware form of each** — the trend
+    table's first-column header, the point's own period label, and the chart's axis and accessible
+    summary, each selected by `StatisticsPanel.bucket`. No `.vue` file may hold a free-standing
+    string for any of them (Note 13, R6). **The wording is the Designer's, not the implementer's:**
+    the strings for the hour forms come from the pending `design-11` update Amendment B routed to
+    the Designer, and the existing daily strings — including the chart's "Daily delivery and
+    attempt success rate…" summary, which is false on the 24-hour window — are wrong at hourly
+    grain. If that update does not supply an hour wording for the first-column header, the point
+    label format, or the chart's axis and summary text, **that is a question document to the
+    Designer, not an implementation choice.**
+23. **An hourly trend row renders its figures as plain text.** Build the link from the row's own
+    `date` and build nothing when `date` is `null` — no `<Link>`, no `<button>`, no
+    `aria-disabled`, no muted placeholder control, no empty action cell and no explanatory note
+    (§ *Technical rulings* 13; Amendment B(ii)). The row key becomes `bucketStart`, which is
+    present at both bucket sizes; **it must not stay `date`**, which is `null` for every hourly row
+    and would collapse 24 keys into one.
 
 ## Test strategy
 
@@ -950,8 +1293,30 @@ PHPUnit class-based under `tests/Feature` and `tests/Unit`, grouped by acceptanc
 
 - Each of 24 h / 7 d / 30 d selects the right records; an absent or garbage `window` parameter
   yields the 30-day default and a 200, never a 422.
-- **Densification** — a window containing a day with no traffic still returns a point for that
-  day, with zero counts and a `null` rate.
+- **Densification** — a window containing a bucket with no traffic still returns a point for that
+  bucket, with zero counts and a `null` rate.
+- **Bucket size per window (Amendment B(i), § *Technical rulings* 11).** `24h` returns exactly
+  **24** points and each one's `bucketStart` is a distinct whole hour, consecutive and ascending;
+  `7d` returns **7** and `30d` returns **30**, each a distinct consecutive calendar day. Asserted
+  on the Dashboard props and on the Proxy Show props, at both grains the series is obliged at.
+- **The buckets partition the window (Amendment B(i), § *Technical rulings* 12).** Summing the
+  series' per-bucket counts, at each unit, equals the window's single-number figure for the same
+  unit, subject and window — on all three windows. This is the amendment's own stated property and
+  it is the test that would have caught the divergence ruling 12 closes.
+- **Bucket boundaries are half-open and exclusive of each other.** A record resolved at exactly
+  `H:00:00.000` falls in bucket `H` and not in `H−1`; one resolved at the last instant before
+  `H+1:00:00` falls in `H` and not in `H+1`. The same assertion at day boundaries, which is the
+  existing `date` drill-through's partition (ruling 10) re-checked against the bucket that
+  produces it.
+- **Timezone agreement (§ *Technical rulings* 9, as amended).** With a known application timezone,
+  a record written at a known instant lands in the bucket that instant belongs to — asserted at
+  hourly grain, where a session-timezone mismatch displaces every point rather than a minority of
+  them, and asserted through the database rather than in PHP alone so that the SQL truncation is
+  what is being checked.
+- **The hour expression works on the engine under test.** The bucket keys the grouped query
+  produces match the keys densification generates, exactly, with no rows falling through to a
+  bucket that was never emitted — the assertion that fails first if the portable `SUBSTRING` form
+  does not hold on an engine and the driver-selected fallback is needed.
 - **Anchor immutability (R2)** — a delivery that terminalized inside the window stays in its
   bucket after a re-driven settle attempt and after a GC pass; a terminal row's `updated_at` is
   asserted unchanged.
@@ -1006,6 +1371,12 @@ PHPUnit class-based under `tests/Feature` and `tests/Unit`, grouped by acceptanc
   narrows to that day rather than being dropped. `date` composes with `destination` and with each
   `outcome` unit conjunctively, and survives pagination. `?date=` alone, with no `destination` and
   no `outcome`, still narrows (the "arrived directly" short-circuit does not swallow it).
+- **Hourly buckets owe no drill-through (Amendment B(ii), § *Technical rulings* 13).** On the
+  24-hour window every `SeriesPoint.date` is `null` and the Proxy Show trend rows render no link;
+  on the 7-day and 30-day windows every `SeriesPoint.date` is the point's own `Y-m-d` and every row
+  links exactly as it does today. **No hourly row emits a `date` parameter in any href** — the
+  assertion that pins the AC10 breach the amendment forbids outright. The day-narrowed behaviour of
+  the `date` parameter itself is unchanged and its tests above stand.
 - The Events list without filters renders byte-identically to today's props (the shipped surface
   is unchanged, AC28).
 
@@ -1048,8 +1419,13 @@ Named so the Task Planner does not infer them and the Reviewer can check the abs
 - **Any change to retention, GC, holds, retry policy, replay, processing mode, the mode attribute,
   or the masked payload viewer and its reveal** — AC27/AC28; #5, #6, #7 and #10 own them.
 - **Any second events surface, event-detail view or per-received-event statistic** — AC21/AC28.
-- **A per-destination daily series or per-destination percentile** — permitted but not required by
+- **A per-destination series or per-destination percentile** — permitted but not required by
   **Amendment A(ii)**; additive later, not built now.
+- **An hour-precise drill-through from an hourly trend bucket** — **permitted and not required** by
+  **Amendment B(ii)**; additive later, not built now, and **no query-parameter contract for one is
+  invented here**. `date` stays a calendar day (§ *Technical rulings* 10). Whoever builds it must
+  land on exactly the records that bucket counts, at that bucket's unit; anything approximate is
+  the AC10 breach Amendment B(ii) forbids.
 - **A worst-first default sort, a verdict colour, a badge, a reference line or any evaluative
   wording** — AC22(b) and the binding conditions on flagged design calls 5 and 6.
 
@@ -1068,6 +1444,14 @@ rest immediately.
 | **M6** | Charting dependency and `TrendChart.vue`: the four verification checks, registration, token resolution, theme change, `aria-hidden` canvas beside the M3/M4 table | **✋ Owner flag 1** |
 | **M7** | Whole-surface verification pass against a **production build with `public/hot` removed** (R4): both themes, all three windows, all empty states, contrast | M6 |
 
+| **M8** | *(Appended at Revision B, 2026-08-26 — nothing above is renumbered.)* **Amendment B bucket work:** `SeriesBucket`, `AnalyticsWindow::bucket()`/`bucketCount()`/`start()` with `interval()` removed, the per-bucket grouping and densification in `DeliveryStatistics`, the one window definition applied across the service and `ProxyEventController`, the `SeriesPoint`/`StatisticsPanel` shapes, the bucket-aware labels, and hourly link suppression on Proxy Show | — |
+
+**M8 is not blocked by an Owner gate**, and it is not blocked by M7 either — it precedes it. M7's
+whole-surface verification pass must run **after** M8, because the 24-hour window is one of the
+three windows it sweeps and it would otherwise certify the single-point rendering Amendment B
+exists to correct. Sequencing that is the Task Planner's; the ordering constraint is stated here so
+it is not inferred from the milestone numbers.
+
 M3 and M4 deliberately ship the chart's accessible data table **before** the chart exists. That is
 not a workaround: `design-11` § Accessibility makes the table the authoritative representation and
 the chart the supplement, so building it first is the right order — and it means a `no` on Owner
@@ -1075,7 +1459,9 @@ flag 1 costs the feature a chart, not a milestone.
 
 ## Handoff
 
-- **Inputs:** Approved **PRD-11** (37 ACs, D-11-1..7 ratified) and its **Amendment A**;
+- **Inputs:** Approved **PRD-11** (37 ACs, D-11-1..7 ratified), its **Amendment A**, and its
+  **Amendment B** (Product Manager, 2026-08-26 — `D-11-8`, `D-11-9`), which governs over the
+  literal wording of AC16 and of the per-bucket drill-through obligation;
   fully-approved **design-11** with its approval record governing and C1–C6 landed and cleared;
   **`Q-11-03`** (RESOLVED here, all ten items); **`Q-11-01`** and **`Q-11-02`** (RESOLVED, Project
   Owner); ADR-003, ADR-010, ADR-012, ADR-013, ADR-014, ADR-015, ADR-016, ADR-017, ADR-018;
@@ -1095,8 +1481,26 @@ flag 1 costs the feature a chart, not a milestone.
   the Product Manager or the Designer.
 - **Dependencies:** one new pnpm dependency pair, gated (§ *Dependencies*). No Composer change, no
   stack change, no new service, no infrastructure.
+- **New task material at Revision B, named so the Task Planner routes it rather than the Senior
+  Developer inferring it:** **M8** above is new work against a task list that is otherwise 28 of 29
+  complete, and it does not fit inside any existing task. It splits naturally in two — a **backend**
+  task (`SeriesBucket`; `AnalyticsWindow::bucket()`/`bucketCount()`/`start()` with `interval()`
+  removed; per-bucket grouping and densification; the one window definition applied across
+  `DeliveryStatistics` and `ProxyEventController`; the `SeriesPoint` and `StatisticsPanel` shapes;
+  the § *Test strategy* additions) and a **frontend** task (the TypeScript `SeriesPoint`
+  and `StatisticsPanel` types; bucket-aware labels and formatters in
+  `resources/js/data/analyticsLabels.ts`; the trend tables' first column and row keys on both the
+  Dashboard and Proxy Show; `TrendChart.vue`'s axis labels and accessible summary; hourly link
+  suppression on Proxy Show). **T29's whole-surface sweep must run after both**, and must include
+  the 24-hour window on both pages explicitly. The frontend task **depends on the pending
+  `design-11` update** for its hour wording (Implementation Note 22).
 - **Outstanding Questions:** **none.** `Q-11-01`, `Q-11-02`, `Q-11-03` and — at Revision A —
-  **`Q-11-04`** are all resolved. `Q-11-04` is answered by § *Technical rulings* 10, which unblocks
+  **`Q-11-04`** are all resolved. **Amendment B raises none**: it is a ruling rather than a
+  question, and everything it left to the Principal Engineer is ruled at § *Technical rulings*
+  11–13. The one thing that could become a question is named rather than assumed — if the
+  Designer's `design-11` update does not supply hour wording for the trend table's first-column
+  header, a point's period label, or the chart's axis and accessible summary, that is a question
+  document to the Designer (Implementation Note 22). `Q-11-04` is answered by § *Technical rulings* 10, which unblocks
   the fifth entry point of **T23** (the Proxy Show trend table's per-day, per-unit rows) without
   changing any other task; **T27 and T28 need nothing from it**. The
   two contingencies the design gate left for me are **pulled and recorded**: the latency
@@ -1245,6 +1649,12 @@ bar and none clears it:
   GET route, narrowing an existing bound over indexes that already exist. It decides no persisted
   shape, adds no entity, and is removable by deleting one parameter. The full walk against both the
   ADR bar and `CLAUDE.md`'s Owner-gate list is in § *Technical rulings* 10.
+- **The per-window bucket size, the single window definition, and the hourly link suppression**
+  *(added at Revision B)* — a read-path grouping expression, a range start that moves by less than
+  one bucket over indexes that already exist, and a DTO field that is `null` where no link is owed.
+  They decide no persisted shape, add no entity, and carry a requirement the Product Manager ruled
+  in PRD-11 Amendment B rather than making one. The full walk against both the ADR bar and
+  `CLAUDE.md`'s Owner-gate list is at the end of § *Technical rulings* 13.
 
 **And the ADRs this feature touches, walked explicitly so the answer is "considered", not
 "overlooked":** **ADR-003** — its "retained on their own lifecycle" wording is aspirational and
@@ -1314,10 +1724,76 @@ data rather than copy.
 carve-out above it concerns the two Owner flags, which were ruled before this revision and are not
 touched by it.
 
+### Re-certification at Revision B (Principal Engineer, 2026-08-26)
+
+I have read PRD-11's **`## Amendment B`** in full and carried it into this plan. I have added
+§ *Technical rulings* 11, 12 and 13; amended rulings 9 and 10 in place, each with a dated
+parenthetical; and brought §§ *Architecture B*, *C* and *E*, *Data Model*, *API*, *Services &
+Actions*, *Implementation Notes*, *Test strategy*, *Explicitly out of scope* and *Milestones* into
+line with them, so that the plan and the amendment cannot drift apart. **Revision A's section, its
+rulings and its re-certification are unchanged**, except where Revision B amends a named sentence in
+place and says so.
+
+The authorising basis is my own plan authority over query semantics and prop contracts under
+`CLAUDE.md`'s delegated plan gate — **not** an Owner ruling, and none was sought, because the
+change trips no item on `CLAUDE.md`'s major-decision list. That walk is at the end of § *Technical
+rulings* 13, written item by item so it can be checked rather than trusted. The Product Manager
+assigned the mechanism to the Principal Engineer explicitly in Amendment B(ii), and Amendment B's
+closing paragraph names this plan as the artifact that must change; **carrying an amendment is not
+making a requirement**, and nothing here adds, removes, renumbers or weakens an acceptance
+criterion.
+
+Four things this revision explicitly does **not** do, stated so the Reviewer can check the absence:
+
+1. **It does not reopen either Owner-approval flag.** The four-index change set stands exactly as
+   the Project Owner approved it — Revision B adds no index and needs none, because the grouping
+   expression was never the indexed part and the hourly filter reads a strictly narrower range of
+   the same approved prefix (§ *Technical rulings* 11, and the added bullet in § *Data Model*'s
+   "Explicitly *not* in the change set"). The two-package charting dependency and the T25 check-2
+   ruling are untouched.
+2. **It does not amend `design-11`, and it does not edit it.** Amendment B routes seven specific
+   places in that spec to the **Designer**, whose work is gated by the Product Manager. This plan
+   implements whatever that update lands and invents none of its wording; Implementation Note 22
+   says so, and says that a missing hour wording is a question to the Designer rather than an
+   implementation choice. **One thing is worth the Designer's attention beyond the seven the
+   Product Manager listed**: the chart's accessible summary currently reads "Daily delivery and
+   attempt success rate…", which is false on the 24-hour window. It sits inside the chart labelling
+   the amendment already routes, so it is named here rather than raised as a separate question.
+3. **It does not touch `Q-11-04`'s ruling.** The `date` parameter, its strict `Y-m-d` parsing, its
+   half-open calendar-day bound, its no-422 fallback and its rendering as the existing Window chip's
+   value all stand exactly as Revision A ruled them. `SeriesPoint.date` becoming nullable **keeps**
+   the tie Revision A made — the link is still built from that row's own `date` value verbatim —
+   and adds the only new fact the amendment creates: that some rows owe no link.
+4. **It does not decide an hour-precise drill-through.** Amendment B(ii) makes one permitted and not
+   required; none is built, and no parameter contract for one is invented (§ *Explicitly out of
+   scope for this plan*).
+
+**Every ADR this feature touches was re-walked at this revision, one by one, and none needs
+amending.** Revision B changes a read-path grouping expression, moves a range start by less than one
+bucket, and adds two fields to a wire shape; it writes nothing, captures nothing, and changes no
+persisted shape — so ADR-003, ADR-012, ADR-014, ADR-015, ADR-016, ADR-017 and ADR-018 stand exactly
+as § *Why no ADR was warranted here* leaves them, and **no new ADR is warranted either**. **AC29 and
+D-11-3 hold**: an hourly bucket is derivable from a timestamp already stored, which is the amendment's
+own reasoning and is re-checked in § *Data Model*'s AC29 trace.
+
+**One approved-copy consequence, routed rather than resolved here.** The daily wording in
+`resources/js/data/analyticsLabels.ts` is wrong at hourly grain. Copy is the Designer's and the
+Product Manager's, so the hour strings come from the pending `design-11` update; this plan states
+only the seam (one label source, selected by `StatisticsPanel.bucket`) and never a string.
+
+**Revision B is self-certified in full, on the same terms as the original certification and as
+Revision A** — the carve-out above concerns the two Owner flags, both ruled on 2026-08-26 and
+neither touched here.
+
 - **Next Agent:** **Task Planner — unblocked.** Both Owner flags were ruled on 2026-08-26
   (§ *Owner rulings on both flags*), so the earlier sequencing constraint no longer applies:
   **M1–M7 may all be broken down and sequenced** — M1 under the approved four-index change set,
   M6/M7 under the approved two-package charting dependency. **At Revision A the immediate next
   agent is the Senior Developer**, to finish the one entry point **T23** paused on, under
   § *Technical rulings* 10; no task needs re-planning and no new task is created.
+  **At Revision B the immediate next agent is the Task Planner**, because Amendment B is the first
+  thing on #11 that does *not* fit an existing task: **M8** is new work, it splits into a backend
+  and a frontend task as § *Handoff* describes, and **T29's whole-surface sweep must run after
+  both**. The frontend half depends on the Designer's pending `design-11` update for its hour
+  wording; the backend half depends on nothing and can be sequenced first.
 

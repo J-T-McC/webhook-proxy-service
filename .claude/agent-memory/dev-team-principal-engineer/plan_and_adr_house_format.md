@@ -88,6 +88,21 @@ Where the ruling has a user-visible shape the upstream spec constrains, resolve 
 approved template with a new value** rather than authoring copy — that is what keeps it off the
 Designer's desk, and say so in the ruling.
 
+**Revision letters keep going, and a later one goes *above* the earlier** (plan-11 gained `## Revision B`
+carrying a **PM amendment** — PRD `Amendment B` — onto an already-implemented plan). Shape: revision
+sections **most recent first** at the top with a line saying the earlier one is unchanged; a new
+`Revised:` clause in the header bullets; new rulings **appended by number** (11, 12, 13) with
+*(Added YYYY-MM-DD — Revision B)*; earlier rulings amended **in place** with *(Amended … — Revision B)*;
+a **new milestone appended** (M8), never renumbered, plus an explicit line on how it orders against
+existing ones; a dated `### Re-certification at Revision B` **below** Revision A's. Two things this
+shape adds over Revision A's: say in the re-certification that **carrying a PM amendment is not making
+a requirement** (the PM ruled the obligation and assigned the mechanism), and when the amendment
+creates **new task material** that fits no existing task, name the split in § *Handoff* and route the
+Task Planner rather than letting the Senior Developer infer it. Also: when a binding property the
+amendment states turns out to be **already false in the certified plan**, say so plainly ("this
+divergence pre-dates the amendment") and fix it in a numbered ruling — that is the walk being checkable
+rather than trusted.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
