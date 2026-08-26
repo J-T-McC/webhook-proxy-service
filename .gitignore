@@ -28,3 +28,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Isolated agent worktrees — scratch checkouts, never part of the repo
+.claude/worktrees/
