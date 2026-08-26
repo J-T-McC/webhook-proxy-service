@@ -284,7 +284,7 @@ class ProxyEventController extends Controller
             $start = $date;
             $end = $date->addDay();
         } else {
-            $start = CarbonImmutable::now()->sub($window->interval());
+            $start = $window->start(CarbonImmutable::now());
             $end = CarbonImmutable::now();
         }
 

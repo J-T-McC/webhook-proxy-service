@@ -10,6 +10,7 @@ use App\Data\Analytics\SeriesPoint;
 use App\Data\Analytics\StatisticsPanel;
 use App\Data\Analytics\UnitFigure;
 use App\Enums\AnalyticsWindow;
+use App\Enums\SeriesBucket;
 use App\Models\Destination;
 use App\Models\Proxy;
 use Carbon\CarbonImmutable;
@@ -59,7 +60,7 @@ class DeliveryStatistics
      * `unitFigures()`, `retryReplayAndBridge()`
      * (`eventualSuccessCount()`/`bridgeFailedAttemptsCount()` included),
      * `latencyFigure()`/`percentileDurationMs()`, and `series()`
-     * (`dailyAggregates()`) takes its grain constraint from the
+     * (`bucketAggregates()`) takes its grain constraint from the
      * `$constraints` array this class's public `*ForTeam()`/`*ForProxy()`
      * methods build (`['team_id' => $teamId]` / `['proxy_id' => $proxyId]`)
      * and applies it via a plain `where($column, $value)` loop — there is no
@@ -80,6 +81,7 @@ class DeliveryStatistics
 
         return new StatisticsPanel(
             window: $window,
+            bucket: $window->bucket(),
             delivery: $units['delivery'],
             attempt: $units['attempt'],
             bridgeFailedAttempts: $retryReplay['bridgeFailedAttempts'],
@@ -104,6 +106,7 @@ class DeliveryStatistics
 
         return new StatisticsPanel(
             window: $window,
+            bucket: $window->bucket(),
             delivery: $units['delivery'],
             attempt: $units['attempt'],
             bridgeFailedAttempts: $retryReplay['bridgeFailedAttempts'],
@@ -181,9 +184,10 @@ class DeliveryStatistics
     }
 
     /**
-     * The densified daily trend series (AC16) for the given team, over the
-     * given window — one `SeriesPoint` per calendar day, including a day
-     * with no traffic (zero counts, `rate === null`), never a gap.
+     * The densified trend series (AC16; Amendment B(i)) for the given team,
+     * over the given window — one `SeriesPoint` per bucket (hourly on
+     * `24h`, daily on `7d`/`30d`), including a bucket with no traffic (zero
+     * counts, `rate === null`), never a gap.
      *
      * @return list<SeriesPoint>
      */
@@ -193,9 +197,10 @@ class DeliveryStatistics
     }
 
     /**
-     * The densified daily trend series (AC16) for the given proxy, over the
-     * given window — one `SeriesPoint` per calendar day, including a day
-     * with no traffic (zero counts, `rate === null`), never a gap.
+     * The densified trend series (AC16; Amendment B(i)) for the given proxy,
+     * over the given window — one `SeriesPoint` per bucket (hourly on
+     * `24h`, daily on `7d`/`30d`), including a bucket with no traffic (zero
+     * counts, `rate === null`), never a gap.
      *
      * @return list<SeriesPoint>
      */
@@ -583,76 +588,130 @@ class DeliveryStatistics
     }
 
     /**
-     * The start of the window (inclusive), anchored on `updated_at` (Technical
-     * ruling 1) — never `created_at`, never `received_at`.
+     * The start of the window (inclusive), anchored on `updated_at`
+     * (Technical ruling 1) — never `created_at`, never `received_at`. The
+     * one call site for `AnalyticsWindow::start()` in this class (Technical
+     * ruling 12) — every figure, the series, and (via `ProxyEventController`)
+     * the Events list resolve their range through the same method against
+     * the same window value, so a record the headline figure counts and a
+     * record the series' buckets partition are always drawn from the same
+     * range.
      */
     private function windowStart(AnalyticsWindow $window): CarbonImmutable
     {
-        return CarbonImmutable::now()->sub($window->interval());
+        return $window->start(CarbonImmutable::now());
     }
 
     /**
-     * The densified daily series for one grain: one `GROUP BY DATE(updated_at),
-     * status` query per table, then a PHP pass filling every calendar day in
-     * the window — a day with no traffic becomes a real point with zero
-     * counts and a `null` rate, never a gap (AC16; plan §§ Windowing,
-     * Architecture C). `DATE(updated_at)` is computed in the application
-     * timezone: this deployment's MySQL connection reports `SYSTEM` /
-     * `UTC`, matching `config('app.timezone')`, so no session `time_zone`
-     * override is needed (Technical ruling 9).
+     * The densified series for one grain: one `GROUP BY <bucket
+     * expression>, status` query per table, then a PHP pass filling every
+     * bucket in the window — a bucket with no traffic becomes a real point
+     * with zero counts and a `null` rate, never a gap (AC16; Amendment
+     * B(i); plan §§ Windowing, Architecture C, Technical ruling 11). The
+     * bucket expression is computed in the application timezone: this
+     * deployment's MySQL connection reports `SYSTEM`/`UTC`, matching
+     * `config('app.timezone')`, so no session `time_zone` override is
+     * needed (Technical ruling 9). Every bucket start — the SQL bucket key
+     * it matches and the `bucketStart`/`date` it emits — comes from the one
+     * `bucketStarts()` list, so the two cannot drift.
      *
      * @param  array<string, int>  $constraints
      * @return list<SeriesPoint>
      */
     private function series(array $constraints, AnalyticsWindow $window): array
     {
-        $deliveryRows = $this->dailyAggregates('deliveries', $constraints, $window);
-        $attemptRows = $this->dailyAggregates('delivery_attempts', $constraints, $window);
+        $bucket = $window->bucket();
 
-        return array_values(collect($this->daysInWindow($window))
-            ->map(fn (string $date) => new SeriesPoint(
-                date: $date,
-                delivery: $this->dailyUnitFigure($deliveryRows, $date),
-                attempt: $this->dailyUnitFigure($attemptRows, $date),
-            ))
+        $deliveryRows = $this->bucketAggregates('deliveries', $constraints, $window);
+        $attemptRows = $this->bucketAggregates('delivery_attempts', $constraints, $window);
+
+        return array_values(collect($this->bucketStarts($window))
+            ->map(function (CarbonImmutable $bucketStart) use ($bucket, $deliveryRows, $attemptRows) {
+                $key = $this->bucketKey($bucketStart, $bucket);
+
+                return new SeriesPoint(
+                    bucketStart: $bucketStart->format('Y-m-d\TH:i:s'),
+                    date: $bucket === SeriesBucket::Day ? $bucketStart->format('Y-m-d') : null,
+                    delivery: $this->bucketUnitFigure($deliveryRows, $key),
+                    attempt: $this->bucketUnitFigure($attemptRows, $key),
+                );
+            })
             ->all());
     }
 
     /**
-     * One table's `(day, status) => count` rows for one grain, one window —
-     * the raw, possibly-sparse per-day counts `series()` densifies.
+     * One table's `(bucket key, status) => count` rows for one grain, one
+     * window — the raw, possibly-sparse per-bucket counts `series()`
+     * densifies. The bucket-grouping expression is selected in exactly this
+     * one place (Technical ruling 11/21) — an hour-truncating expression on
+     * `24h`, the unchanged `DATE(updated_at)` on `7d`/`30d`. Inlined as a
+     * `match` (rather than routed through a helper returning `string`) so
+     * PHPStan's `literal-string` check on `DB::raw()` sees the literal SQL
+     * directly — a helper's declared `string` return type erases that at
+     * the call boundary.
+     *
+     * `SUBSTRING(updated_at, 1, 13)` is the portable hour-truncating form:
+     * a leading 13-character substring of the anchor's canonical
+     * `Y-m-d H:i:s` rendering yields `Y-m-d H` (e.g. `2026-08-26 14`) on
+     * both engines this suite runs on. Verified identical, via Laravel's
+     * query builder, on MySQL 8.4 under Sail and on SQLite (bundled
+     * libsqlite3 3.53, which registers `SUBSTRING` as a `substr()` alias)
+     * — see T30's completion note for the exact check. No driver branch
+     * was needed; the pre-approved `DATE_FORMAT`/`strftime` fallback is not
+     * in use.
      *
      * @param  array<string, int>  $constraints
      * @return Collection<int, stdClass>
      */
-    private function dailyAggregates(string $table, array $constraints, AnalyticsWindow $window): Collection
+    private function bucketAggregates(string $table, array $constraints, AnalyticsWindow $window): Collection
     {
         $query = DB::table($table)
-            ->select(DB::raw('DATE(updated_at) as day'), 'status', DB::raw('COUNT(*) as aggregate'))
+            ->select(DB::raw(match ($window->bucket()) {
+                SeriesBucket::Hour => 'SUBSTRING(updated_at, 1, 13) as bucket_key',
+                SeriesBucket::Day => 'DATE(updated_at) as bucket_key',
+            }), 'status', DB::raw('COUNT(*) as aggregate'))
             ->whereIn('status', ['succeeded', 'failed'])
-            ->whereBetween('updated_at', [$this->seriesWindowStart($window), CarbonImmutable::now()]);
+            ->whereBetween('updated_at', [$this->windowStart($window), CarbonImmutable::now()]);
 
         foreach ($constraints as $column => $value) {
             $query->where($column, $value);
         }
 
-        return $query->groupBy('day', 'status')->get();
+        return $query->groupBy('bucket_key', 'status')->get();
     }
 
     /**
-     * One day's `UnitFigure` from a table's raw `dailyAggregates()` rows.
-     * `rate` is `null` when `total === 0` (Amendment A(i)) — never `0`, and a
-     * day absent from `$rows` entirely (no traffic that day) still produces
-     * a zeroed figure here rather than being skipped.
+     * The bucket key a given bucket start matches in `bucketAggregates()`'s
+     * SQL result — `Y-m-d H` for an hour bucket (matching
+     * `SUBSTRING(updated_at, 1, 13)`), `Y-m-d` for a day bucket (matching
+     * `DATE(updated_at)`). Derived from the same `CarbonImmutable` value
+     * `series()` also formats into `bucketStart`/`date`, so the SQL key and
+     * the PHP-side value can never disagree about which bucket an instant
+     * belongs to.
+     */
+    private function bucketKey(CarbonImmutable $bucketStart, SeriesBucket $bucket): string
+    {
+        return match ($bucket) {
+            SeriesBucket::Hour => $bucketStart->format('Y-m-d H'),
+            SeriesBucket::Day => $bucketStart->format('Y-m-d'),
+        };
+    }
+
+    /**
+     * One bucket's `UnitFigure` from a table's raw `bucketAggregates()`
+     * rows. `rate` is `null` when `total === 0` (Amendment A(i)) — never
+     * `0`, and a bucket absent from `$rows` entirely (no traffic in that
+     * bucket) still produces a zeroed figure here rather than being
+     * skipped.
      *
      * @param  Collection<int, stdClass>  $rows
      */
-    private function dailyUnitFigure(Collection $rows, string $date): UnitFigure
+    private function bucketUnitFigure(Collection $rows, string $bucketKey): UnitFigure
     {
-        $dayRows = $rows->filter(fn (stdClass $row) => (string) $row->day === $date);
+        $bucketRows = $rows->filter(fn (stdClass $row) => (string) $row->bucket_key === $bucketKey);
 
-        $succeeded = (int) $dayRows->where('status', 'succeeded')->sum('aggregate');
-        $failed = (int) $dayRows->where('status', 'failed')->sum('aggregate');
+        $succeeded = (int) $bucketRows->where('status', 'succeeded')->sum('aggregate');
+        $failed = (int) $bucketRows->where('status', 'failed')->sum('aggregate');
         $total = $succeeded + $failed;
 
         return new UnitFigure(
@@ -664,29 +723,24 @@ class DeliveryStatistics
     }
 
     /**
-     * Every calendar day (`Y-m-d`) in the window, oldest first — exactly
-     * `$window->days()` entries, densifying the trend series regardless of
-     * how sparse the underlying `GROUP BY` result is.
+     * Every bucket's start, oldest first — exactly `$window->bucketCount()`
+     * entries, each `AnalyticsWindow::start()`'s value stepped forward by
+     * one bucket step at a time, so the series densifies to exactly that
+     * many points regardless of how sparse the underlying `GROUP BY` result
+     * is (AC16, AC18). The first entry is always `$window->start($now)`
+     * itself (Technical ruling 12) — the window's range is exactly the
+     * span its buckets cover.
      *
-     * @return list<string>
+     * @return list<CarbonImmutable>
      */
-    private function daysInWindow(AnalyticsWindow $window): array
+    private function bucketStarts(AnalyticsWindow $window): array
     {
-        $today = CarbonImmutable::now()->startOfDay();
+        $first = $this->windowStart($window);
+        $bucket = $window->bucket();
 
-        return array_values(collect(range($window->days() - 1, 0))
-            ->map(fn (int $daysAgo) => $today->subDays($daysAgo)->format('Y-m-d'))
+        return array_values(collect(range(0, $window->bucketCount() - 1))
+            ->map(fn (int $i) => $bucket === SeriesBucket::Hour ? $first->addHours($i) : $first->addDays($i))
             ->all());
-    }
-
-    /**
-     * The start of the series window (inclusive) — calendar-day aligned so
-     * the series densifies to exactly `$window->days()` points, unlike
-     * `windowStart()`'s precise rolling cutoff used by every other figure.
-     */
-    private function seriesWindowStart(AnalyticsWindow $window): CarbonImmutable
-    {
-        return CarbonImmutable::now()->startOfDay()->subDays($window->days() - 1);
     }
 
     /**

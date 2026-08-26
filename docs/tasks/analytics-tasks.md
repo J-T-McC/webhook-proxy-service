@@ -2309,7 +2309,93 @@
   document the SQLite verification method used, since this suite's SQLite runs are local rather than
   Sail-orchestrated). New `tests/Feature/Analytics/AnalyticsWindowConsistencyTest.php` — the
   `ProxyEventController`-vs-`DeliveryStatistics` window-agreement test.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented as specified. New `App\Enums\SeriesBucket` (cases `Hour`/`Day`,
+  string-backed). `AnalyticsWindow` gained `bucket()`, `bucketCount()` and
+  `start(CarbonImmutable $now)` exactly per the Technical ruling 12 table; `interval()` and its
+  `CarbonInterval` import were removed, and its two callers (`DeliveryStatistics::windowStart()`,
+  `ProxyEventController::applyFilters()`) now call `$window->start(CarbonImmutable::now())`
+  instead — the only two call sites for `AnalyticsWindow::start()` in the diff, matching the plan's
+  "resolved once... used by every figure, the series, and the Events list" description (every other
+  analytics query already routed through `DeliveryStatistics::windowStart()`).
+
+  `SeriesPoint` gained `bucketStart: string` and `date` became `?string`. `StatisticsPanel` gained
+  `bucket: SeriesBucket`, set from `$window->bucket()` in both `forTeam()` and `forProxy()`.
+  `DeliveryStatistics`'s per-day machinery (`dailyAggregates()`/`dailyUnitFigure()`/
+  `daysInWindow()`/`seriesWindowStart()`) was replaced by per-bucket equivalents
+  (`bucketAggregates()`/`bucketUnitFigure()`/`bucketStarts()`/`bucketKey()`); the bucket-grouping
+  SQL expression is inlined as a `match` on `$window->bucket()` directly inside
+  `bucketAggregates()`'s `select()` call (not routed through a `string`-returning helper) because
+  PHPStan's `literal-string` check on `DB::raw()` sees a literal `match` at the call site but not a
+  helper's erased return type — this was the one implementation choice not dictated verbatim by the
+  plan, and it changes no behaviour, only where the `match` sits.
+
+  **Bucket expression, and what the dual-engine verification showed.** Adopted the portable form
+  named by ruling 11 without needing the fallback: `SUBSTRING(updated_at, 1, 13) as bucket_key` for
+  the hour bucket, unchanged `DATE(updated_at) as bucket_key` for the day bucket. Verified two ways.
+  (1) Via Laravel's query builder against a temporary table, on both engines: `sail artisan tinker`
+  against MySQL 8.4 (`docker ps` shows the Sail `mysql:8.4` image) confirmed `SUBSTRING(updated_at,
+  1, 13)` produces `2026-08-26 14`/`2026-08-26 13`/`2026-08-26 15` for instants at `14:00:00`,
+  `14:59:59`, `13:59:59` and `15:00:00`; running the identical query builder call with
+  `DB_CONNECTION=sqlite DB_DATABASE=:memory: php artisan tinker` (local PHP 8.5.9, bundled SQLite
+  3.53.4) produced byte-identical keys — SQLite registers `SUBSTRING` as a `substr()` alias, so no
+  driver branch was needed. (2) Through the feature's own machinery, under Sail/MySQL:
+  `DeliveryStatisticsSeriesTest::test_no_hourly_bucket_key_falls_through_between_sql_grouping_and_densification`
+  places one record in every one of the 24 hourly buckets and asserts every bucket receives exactly
+  one — this is the exercise that would fail first if the SQL key and the PHP-formatted key ever
+  disagreed, and it passed on the first correct attempt (an earlier draft failed once, from the
+  test's own use of unfrozen wall-clock `now()` placing its last record after the window's upper
+  bound depending on the minute the suite happened to run — fixed by freezing `now` to a fixed
+  offset past the hour; not a production-code defect).
+
+  **One environment finding, flagged rather than silently worked around.** This project's full
+  migration set cannot run against SQLite at all — `ALTER TABLE ... ADD body LONGBLOB ... AFTER
+  content_type` (the `webhook_events` payload-capture migration) is raw MySQL DDL syntax SQLite's
+  parser rejects (`near "AFTER": syntax error`), pre-dating this task and unrelated to it. So
+  `./vendor/bin/sail test` (MySQL, this task's tests included) is genuinely the only way this
+  project's test suite runs today, despite `stack.md`'s "Local/default: SQLite" line and this task's
+  own testing note anticipating a SQLite-orchestrated local run; the dual-engine verification above
+  was therefore done at the query-builder level (bare temporary table, no migrations) rather than by
+  running the PHPUnit suite itself under SQLite. Not fixed here — out of T30's Files list and not a
+  regression this task introduced; flagging for whoever owns `stack.md`/the migration.
+
+  **Consistency test.** `AnalyticsWindowConsistencyTest::test_the_events_list_and_the_service_agree_on_the_window_start_at_all_three_windows`
+  places one failed delivery exactly at `$window->start($now)` (must be counted) and one one second
+  earlier (must be excluded), at all three windows, and asserts both `DeliveryStatistics::forProxy()`
+  and a live `GET proxies.events.index?outcome=delivery_failed&window=...` request agree on which one
+  is in and which is out — proving the controller's and the service's window resolutions are the same
+  value for the same window and the same `now()`.
+
+  **Partition-property test.** `DeliveryStatisticsSeriesTest::test_the_series_partitions_the_window_matching_the_headline_figure_on_all_three_windows`
+  scatters delivery/attempt records across three buckets inside each window and asserts
+  `sum(series[*].delivery.total) === panel.delivery.total` (and `.succeeded`, and `.attempt.total`)
+  on all three windows — the test the plan names as the one that would have caught the pre-existing
+  calendar-vs-rolling divergence ruling 12 closes.
+
+  **Existing tests updated, and why each change is a legitimate behaviour change, not a relaxation.**
+  `tests/Unit/Enums/AnalyticsWindowTest.php` — removed `test_interval_returns_a_carbon_interval...`
+  (the method no longer exists) and added tests for `bucket()`, `bucketCount()`, `start()` and an
+  explicit `method_exists(..., 'interval')` absence check, per the AC. `tests/Unit/Services/
+  DeliveryStatisticsSeriesTest.php` — the four pre-existing tests needed no behavioural change (all
+  four exercise `7d`/`30d`, whose bucket size and per-bucket boundaries are unchanged in shape by
+  Revision B) and were left passing as-is, with two of them additionally asserting the new
+  `bucketStart` field now that `SeriesPoint`'s shape carries it; `test_series_length_equals_the_
+  window_day_count_for_seven_and_thirty_days` was renamed to `..._equals_the_bucket_count_for_all_
+  three_windows` and extended to assert 24 points on `24h`, reflecting that "one point per day, every
+  window" is exactly the shape Amendment B superseded. No test's assertion was weakened; every change
+  either added coverage or renamed a test to match the concept it now covers.
+
+  Nothing outside the plan's own Files list changed. Nothing in `docs/` other than this note was
+  touched; T29 and T32 are untouched, as instructed.
+
+  **Verification:** `composer lint` — passed. `composer types:check` (PHPStan level 7) — passed
+  (one finding fixed during implementation: `DB::raw()` needed a `literal-string`, not a
+  helper-returned `string` — see above). `./vendor/bin/sail test --parallel` — 857/857 passed
+  (844 baseline + 13 new: 2 `SeriesBucketTest`, 4 net-new `AnalyticsWindowTest` cases, 6 new
+  `DeliveryStatisticsSeriesTest` cases, 1 new `AnalyticsWindowConsistencyTest` case).
+
+  **Commits:** `9f8e5a1` `feat(item-11): SeriesBucket enum, bucket-aware AnalyticsWindow, and the
+  one window definition (T30)` — see `git log` on `feat/item-11-analytics` for the exact SHA at
+  merge time; committed once, green, after the full verification above.
 
 > **T31 is deliberately unused in this file.** This document refers to "backlog T31" — the
 > deferred frontend test harness on `docs/tasks/walking-skeleton-tasks.md` — in seven places,
