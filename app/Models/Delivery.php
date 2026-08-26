@@ -35,7 +35,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $next_attempt_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
- * @property-read Proxy $proxy
+ * @property-read Proxy|null $proxy
  * @property-read Destination $destination
  * @property-read WebhookEvent $webhookEvent
  */
@@ -55,7 +55,11 @@ class Delivery extends Model
     use BelongsToCurrentTeam, HasFactory;
 
     /**
-     * The proxy this delivery belongs to.
+     * The proxy this delivery belongs to. Excludes a soft-deleted proxy by
+     * `Proxy`'s own `SoftDeletes` scope — a consumer that must keep resolving
+     * an in-flight/historical delivery's proxy after it's been soft-deleted
+     * (e.g. `RetryPolicy::attemptLimitFor()`, non-nullable) needs
+     * `proxy()->withTrashed()->firstOrFail()` explicitly.
      *
      * @return BelongsTo<Proxy, $this>
      */
