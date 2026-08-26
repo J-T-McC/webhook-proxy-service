@@ -212,3 +212,15 @@ Backend test setup idioms (PHPUnit, `Tests\TestCase`):
   `Schedule::call()` closures (e.g. the team-invitation cleanup) have no such split — they run
   in-process and `schedule:run` tests their real effect directly. Found adding the
   `queue:prune-failed` schedule entry (Q-05-05/Q-05-06 fix).
+- **Adding a resolution-time gate to an existing resolver (e.g. `RetryPolicy`'s ADR-018
+  `mode === Enhanced` check before reading a per-proxy column) breaks any PRE-EXISTING test whose
+  proxy fixture relies on the factory's default for the gating attribute while setting only the
+  gated column directly** (`Proxy::factory()->createQuietly(['retry_attempt_limit' => 3])` — factory
+  default `mode` is `Simple`, so the column is now dormant and the old assertion of `3` silently
+  becomes the system default instead). These failures are scattered outside the changed files' own
+  test suite (found in `DeliveryStatusTransitionTest`, `DeliveryResourceTest`, and a second, unnamed
+  copy of a since-fixed test in `ProxyUpdateTest` beyond the one instance the task plan named) — after
+  any such gate change, grep for every `createQuietly` (or raw `Proxy::query()->update(...)`) that
+  sets the gated column without the gating one, not just the files the task's own Files: list names.
+  Fix is to add the gating attribute explicitly to the fixture (the correct fix under the new
+  invariant, not a workaround). Found under #7 T1 (ADR-018 mode gate).

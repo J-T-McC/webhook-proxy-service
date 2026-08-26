@@ -1,2 +1,2 @@
-- [Review gates](review_gates.md) — runnable lint/type/test/build commands, review-doc naming, and how rework/re-reviews are recorded
-- [Codebase gotchas](codebase_gotchas.md) — authorization/serialization/config traps, and how to run a live browser a11y check
+- [Review gates](review_gates.md) — lint/type/test/build commands, review-doc naming, re-review format, and how to run a live browser check + runtime A/B
+- [Codebase gotchas](codebase_gotchas.md) — auth/serialization/config traps, the proxy-form watcher rules, and why a live save can silently be rejected

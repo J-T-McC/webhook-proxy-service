@@ -16,7 +16,11 @@ Frontend gates (all runnable, clean exit): `pnpm types:check` (vue-tsc --noEmit)
 host Node is now v22.23.2 (sail's is v24), satisfying `engines.node >= 22`. Verified 2026-08-22.
 
 No JS test framework exists (deferred backlog item T31) — but **a live browser check IS
-available and is the right standard for accessible-name findings**; see `codebase_gotchas.md`.
+available and is the right standard for accessible-name findings, and for any client-side
+behaviour an AC turns on**; see `codebase_gotchas.md`. At review-07 a live check was what
+turned an unverified restore-prefill claim into evidence AND surfaced the one Major nobody's
+tests or manual steps covered — when the notes say "manual verification" for a flow, re-drive
+the flow, and also drive the *reversal* path the flow's own spec names.
 
 Useful sandbox probes when verifying a claim rather than trusting it:
 `git diff main..HEAD -- <path>` + `md5 <file>` vs `git show main:<file> | md5` proves a file is
@@ -28,10 +32,33 @@ available in this shell — never probe a suspected infinite loop by running it.
 `./vendor/bin/sail test --parallel` works and emits `{"tool":"paratest",...}` — use it for
 large suites (~4 s vs ~9 s serial).
 
+When a diff stat in a completion note disagrees with yours by a small amount, check whether
+the note was written before its own docs commit — usually that, not drift. Say so rather than
+raising it.
+
 Severity precedent to stay consistent with: a non-`createQuietly()` factory call is **Minor**
 (review-04 #3, re-affirmed at #6 even at 30 sites — the factories set `team_id` explicitly so
 the `creating` hook is a no-op); an unimplemented plan §Validation config-sanity invariant is
-**Major** (review-05 M-1, review-06 M-2).
+**Major** (review-05 M-1, review-06 M-2); newly-shipped user-facing copy that promises an
+outcome the same screen falsifies on a path the approved design names, with real data loss, is
+**Major** even when no AC's literal text is breached and the underlying behaviour is
+pre-existing (review-07 Finding 1) — route it to the role whose ruling forbids the fix (there,
+the Principal Engineer), not to the Senior Developer.
+
+**Live-browser tooling:** the project has **no** playwright dependency; the skill at
+`/Users/tyson/.claude/skills/playwright` carries its own `node_modules` — run a script with
+`cd /Users/tyson/.claude/skills/playwright && node run.js /abs/path/script.js`. Browsers live in
+`~/Library/Caches/ms-playwright`, not `~/.cache`.
+
+**Two verification techniques worth reusing:**
+- *Runtime A/B to prove a client fix is causal.* For a one-line frontend fix, "it works now" is
+  weak. Use `page.route()` to rewrite the served module and strip the fix out, then re-run the
+  same steps: the defect must reproduce. **Nothing on disk changes**, which matters because the
+  Reviewer must not modify source (attempting `git show <rev>:file > file` is also blocked by the
+  permission classifier — correctly).
+- *Proving a comment-only PHP change altered no behaviour.* Strip `T_COMMENT`/`T_DOC_COMMENT`/
+  `T_WHITESPACE` via `token_get_all()` from both revisions and compare md5s. Stronger than reading
+  the diff, and cheap.
 
 Review docs live in `docs/reviews/`, named `review-<NN>-<feature-slug>.md` (e.g.
 `review-02-role-based-collaboration.md`). Format: header (Reviewer/date, Scope, Inputs,
