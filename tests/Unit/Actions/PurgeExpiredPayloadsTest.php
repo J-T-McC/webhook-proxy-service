@@ -210,6 +210,33 @@ class PurgeExpiredPayloadsTest extends TestCase
         $this->assertTrue(true, 'PurgeExpiredPayloads::run() must not throw for a zero horizon.');
     }
 
+    // Q-05-05(b), review-05 Nit 9 — the resolved dispatch horizon must be
+    // strictly less than the resolved retention window, asserted per team
+    // beside `RetentionPolicy::cutoffFor($team)` so a V5 per-team
+    // `windowFor()` override cannot bypass it.
+
+    public function test_run_throws_when_dispatch_horizon_minutes_is_at_or_above_the_resolved_retention_window(): void
+    {
+        Proxy::factory()->createQuietly();
+        Config::set('retention.days', 1);
+        Config::set('retention.dispatch_horizon_minutes', 24 * 60); // exactly one day: at the window, not below it
+
+        $this->expectException(RuntimeException::class);
+
+        PurgeExpiredPayloads::run();
+    }
+
+    public function test_a_dispatch_horizon_minutes_strictly_below_the_resolved_retention_window_is_allowed(): void
+    {
+        Proxy::factory()->createQuietly();
+        Config::set('retention.days', 1);
+        Config::set('retention.dispatch_horizon_minutes', 24 * 60 - 1);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertTrue(true, 'PurgeExpiredPayloads::run() must not throw when the horizon is strictly below the window.');
+    }
+
     // T19 (AC18; ADR-015 Decision 7) — GC hold H5: an event with a `retrying`
     // delivery, or a `pending` delivery still within the dispatch horizon, is
     // held from erasure; terminal deliveries hold nothing.

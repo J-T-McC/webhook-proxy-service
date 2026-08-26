@@ -35,13 +35,27 @@ return [
     | Dispatch Horizon (minutes)
     |--------------------------------------------------------------------------
     |
-    | Hold H4: an event with zero `delivery_attempts` rows is eligible for
-    | erasure only once it is older than this horizon — bounding the window in
-    | which an Async event has been captured but its processing job has not yet
-    | started (ADR-012 Decision 4, plan Risk 3).
+    | Governs two holds: H4 — an event with zero `delivery_attempts` rows is
+    | eligible for erasure only once it is older than this horizon, bounding
+    | the window in which an Async event has been captured but its processing
+    | job has not yet started (ADR-012 Decision 4, plan Risk 3); and H5 — a
+    | `deliveries` row with status `pending` (an attempt-1 job, original or
+    | replay, that has not yet run) holds erasure only while younger than this
+    | horizon (ADR-015 Decision 7). H5's `pending` clause is the one this value
+    | materially governs in practice: for any event past its retention window,
+    | H4's age branch is already trivially satisfied, so H4 reduces to its
+    | `whereExists` branch (Q-05-05).
+    |
+    | Default is one full GC cycle (24h, the daily 02:00 pass cadence) so a
+    | replay's by-reference dispatch (`ProxyEventReplayController`) cannot be
+    | erased out from under it by the very next pass while genuinely still
+    | queued (Q-05-05 instance (b); PRD-06 AC18). Must resolve to strictly
+    | less than the resolved retention window — enforced once per team in
+    | `PurgeExpiredPayloads::purgeForTeam()`, beside `RetentionPolicy::
+    | cutoffFor($team)`.
     |
     */
 
-    'dispatch_horizon_minutes' => (int) env('RETENTION_DISPATCH_HORIZON_MINUTES', 60),
+    'dispatch_horizon_minutes' => (int) env('RETENTION_DISPATCH_HORIZON_MINUTES', 1440),
 
 ];

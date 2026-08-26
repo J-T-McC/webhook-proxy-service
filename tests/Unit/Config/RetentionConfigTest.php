@@ -42,9 +42,9 @@ class RetentionConfigTest extends TestCase
         $this->assertSame(250, $resolved['purge_batch']);
     }
 
-    public function test_dispatch_horizon_minutes_defaults_to_60_when_env_not_set(): void
+    public function test_dispatch_horizon_minutes_defaults_to_1440_when_env_not_set(): void
     {
-        $this->assertSame(60, config('retention.dispatch_horizon_minutes'));
+        $this->assertSame(1440, config('retention.dispatch_horizon_minutes'));
     }
 
     public function test_dispatch_horizon_minutes_uses_env_override_when_set(): void
