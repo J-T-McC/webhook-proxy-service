@@ -2173,7 +2173,211 @@
 - **Testing:** the full automated suite (part 1) plus the manual matrix (part 2), both recorded in
   the completion note — this task's own record is the evidence that a "verified against a fresh
   build" claim in this feature is not, per review-07 Finding 8, actually served from a dev server.
-- **Completion notes:** _pending_
+- **Completion notes:** Ran after T30 and T32, per the sequencing note — the `24h` window walked
+  below is the post-Amendment-B, hourly-bucket shape, not the single-point defect that prompted M8.
+
+  **Part 1 — automated.** `composer lint` (Pint) — passed. `composer types:check` (PHPStan level
+  7) — passed, 0 errors. `pnpm lint:check` (eslint) — clean, no output. `pnpm types:check`
+  (vue-tsc --noEmit) — clean, no output. `./vendor/bin/sail test --parallel` — 857/857, 4041
+  assertions, unchanged from T32's baseline (this task adds no test — it is verification-only per
+  its own Files line). `pnpm format:check` (Prettier) also run, clean — not one of the task's five
+  named checks but part of the plan's per-task frontend gate, included for completeness.
+
+  **Implementation Notes, re-checked against the finished diff by inspection, not merely by
+  re-reading T30/T32's own completion notes.**
+  - Note 1 (no lock/transaction on the analytics path): no `lockForUpdate()`, `sharedLock()`, or
+    `DB::transaction()` anywhere in `DeliveryStatistics.php`, `DashboardController.php`,
+    `ProxyEventController.php`. The three `DB::transaction()` hits in the diff are all in
+    `ProxyController` (create/update/soft-delete), outside the analytics read path — not a
+    violation.
+  - Note 2 (no `webhook_events.body`/`headers`, no `WebhookEvent` hydration in an aggregate): no
+    match in `DeliveryStatistics.php`; `WebhookEvent::` only appears in `ProxyEventController.php`,
+    which is the Events list itself (not an aggregate path) and predates this feature for its base
+    query.
+  - Note 3 (`withTrashed()` confined to documented sites): `DeliveryStatistics.php` carries exactly
+    the two label lookups (`Proxy::withTrashed()` for the Proxies breakdown, `Destination::
+    withTrashed()` for the Destinations breakdown). `ProxyEventController::resolveDestination()`
+    (`Destination::withTrashed()->where('proxy_id', ...)->find($id)`) is a third, separately
+    documented site — the Events list's destination-filter resolution, per plan § Architecture E /
+    Validation and `Q-11-03(9)`, already called out in T21's own completion note — not an
+    undocumented leak. The remaining `withTrashed()` hits found by a full-project grep
+    (`DeliveryResource.php`, `WebhookEventResource.php`, `IngestController.php`) are all outside
+    the 24-file `#11` diff (pre-existing, from #6/#7) and out of this task's scope.
+  - Note 4 (every query carries `team_id` or a policy-gated `proxy_id`): every one of
+    `DeliveryStatistics`'s public entry points builds its constraint array from `team_id`,
+    `proxy_id`, or both (`forTeam`, `forProxy`, `forDestination`, the two breakdown methods) — no
+    entry point queries without one.
+  - Note 5 (`duration_ms` guarded uniformly): `whereNotNull('duration_ms')`-style null-safety is
+    shared by the average, count and percentile calculation (`$sampleCount === 0 ? null : ...`
+    guards all three consistently) — confirmed by inspection of `latencyFigure()`.
+  - Note 6 (no blind `save()` on `deliveries`/`delivery_attempts`): none in the `#11` diff — this
+    feature only reads these tables.
+  - Note 7 (no per-row query): no query call inside a `foreach`/loop body in
+    `DeliveryStatistics.php`; the `foreach` occurrences found are all over an in-memory
+    `$constraints` array building one `where()` chain, not issuing a query per iteration.
+  - Note 8 (zero denominator → `null`, never `0`): `rate: $total === 0 ? null : $succeeded /
+    $total` at all four rate call sites; `$averageMs`/percentile use the equivalent `$sampleCount
+    === 0 ? null : ...` guard.
+  - Note 9 (series densified server-side, no bucket dropped): confirmed both by grep (T30's
+    `bucketStarts()`/`bucketAggregates()` machinery, unchanged since T30/T32) and live in the
+    browser — the `24h` trend table renders exactly 24 rows, `7d` exactly 7, `30d` exactly 30, on
+    both Dashboard and Proxy Show, including the deliberate zero-traffic gap day and a zero-traffic
+    proxy's full 30-row zero series.
+  - Note 10 (`withQueryString()` on the Events paginator): present (`->withQueryString()` at
+    `ProxyEventController.php:65`); confirmed live — paginating the 30-day, outcome-filtered Events
+    list for Payments Webhook across all pages kept `outcome=delivery_failed&window=30d` in the URL
+    throughout.
+  - Note 11 (Destinations table sourced from the analytics prop, not `ProxyResource.destinations`):
+    `proxies/Show.vue`'s Destinations table iterates `props.destinations` (T18's
+    `DestinationBreakdownRow[]`), confirmed by a code comment naming this explicitly and by the
+    live page showing a soft-deleted destination row that `ProxyResource.destinations`
+    (`whenLoaded`, live rows only) could never supply.
+  - Note 12 (no control/class/colour/icon conditioned on a figure's value): no `rate >`/`rate <`
+    style conditional anywhere in `Dashboard.vue`, `proxies/Show.vue`, or `TrendChart.vue`; visually
+    confirmed a 76% row (Retired Webhook, attempt success) and a 100% row render with identical
+    chrome.
+  - Note 13 (unit labels sourced from `analyticsLabels.ts`): confirmed present and exported
+    (`DELIVERY_SUCCESS_LABEL`, `ATTEMPT_SUCCESS_LABEL`, etc.) — no free-standing unit string found
+    in either page component by inspection.
+  - Note 14 (chart `aria-hidden`, table fallback visible/server-rendered): `TrendChart.vue`'s
+    `<Vue3ChartJs>` carries `aria-hidden="true"`; the "View as table" fallback renders from the same
+    `props.series` prop, confirmed live — expanding it on all three windows shows exactly the
+    bucket count of rows, sourced from the same data the chart plots.
+  - Note 15 (chart created/destroyed via `onMounted`/`onUnmounted`, nothing at module scope):
+    confirmed by inspection — construction happens inside the wrapper's own `onMounted` (documented
+    in `TrendChart.vue`'s own header comment), and `onUnmounted` explicitly calls `destroy()`.
+  - Note 16 (colour resolution via the browser round-trip, not pattern-matching): `chartTokens.ts`
+    implements exactly the `canvas.fillStyle` round-trip technique named in the note, with the same
+    rationale (PR #12) recorded in its own header comment.
+  - Note 17 (`PlaceholderPattern` removed from `Dashboard.vue`): zero matches.
+  - Notes 19–20 (day narrowing, one formatter): unaffected by M8 in shape; `formatSeriesDate` still
+    the single day formatter, the day-narrowed Window chip still the same chip carrying a day value
+    (confirmed live — the events list header on a day-filtered request reads `Window: Aug 24, 2026`
+    with a removable `×`, not a fourth chip).
+  - Notes 21–23 (bucket expression/window resolved once, bucket-aware labels, hourly plain-text
+    rows): re-confirmed live rather than re-trusting T30/T32's own notes — see Part 2 below for the
+    concrete observations (24 hourly rows with zero links, "Hourly ..." aria-label, day rows
+    unaffected).
+
+  **Scope-boundary re-check (plan § Explicitly out of scope), against the full `#11` diff.** No
+  export/CSV/download control (`git diff main...feat/item-11-analytics` searched for
+  "export"/"csv"/"download" — the only hits are TypeScript `export const`/`export function`
+  declarations, not a feature). No alert/threshold/notification. No per-event-type or payload-
+  derived figure. No retention/GC/retry/replay/processing-mode/masked-viewer change (`Retry &
+  replay` panel and `Retry policy` card are read-only displays of existing #6/#7 state, not new
+  behaviour). No second events surface. No worst-first sort (Proxies table default sort is
+  alphabetical ascending, per its own code comment "never worst-first"; `DeliveryStatistics`'s only
+  `orderBy` calls are `orderBy('name')` and the percentile's `orderBy('duration_ms')`, neither a
+  breakdown-row value sort) and no verdict colour/badge tied to a rate's magnitude anywhere in the
+  diff.
+
+  **Part 2 — manual, against a real production build.** `public/hot` confirmed absent before and
+  after the build (review-07 Finding 8 trap). `pnpm run build` run fresh; `vite build` completed
+  clean (3393 modules transformed, manifest and fonts-manifest emitted, `TrendChart` chunk
+  206.07 kB / gzip 70.84 kB — chart.js is chunked separately from the app entry, consistent with
+  T25's tree-shaking check). Sail (`http://localhost`, port 80, not the dev server) served every
+  page below.
+
+  Seeded fresh via `./vendor/bin/sail artisan db:seed --class=AnalyticsDemoSeeder` (seeder itself
+  untouched) — Team A `analytics-demo-20260826-224722` (6 normal proxies, a zero-traffic proxy
+  "Quiet Integration", a soft-deleted proxy "Retired Webhook", and the gap day landing this run on
+  "Product Reviews"), Team B `analytics-demo-second-team-20260826-224722` for scoping. Driven with
+  Playwright, logged in as each seeded owner.
+
+  - **Dashboard, all three windows.** `24h` renders 24 trend-table rows (header "Hour"), zero `<a>`
+    tags in any row (Dashboard carries no drill-through at any bucket size, per ruling 10 — unlike
+    Proxy Show, this is unaffected by bucket size); chart `aria-label` reads exactly "Hourly
+    delivery and attempt success rate, last 24 hours — see table below for exact values." `7d`
+    renders 7 rows (header "Date"), `aria-label` "Daily … last 7 days …". `30d` renders 30 rows,
+    `aria-label` "Daily … last 30 days …". The word "Daily" never appears on the `24h` window.
+    `max-w-6xl` present (count 1).
+  - **Proxy Show (Payments Webhook, id 106 this run — the seeder's main showcase proxy: divergence,
+    retries, terminal failures, latency spread, one deleted destination), all three windows.**
+    `24h`: 24 hourly rows, zero links in any row (`linkHrefs: []` on every one, confirmed by
+    extracting `<a>` `href`s from every `<tr>`, not just a visual spot-check); sample rows read
+    date-qualified hour labels ("Aug 25, 11:00 PM", "Aug 26, 12:00 AM", …), never a bare hour. `7d`
+    and `30d`: day rows each carry exactly 2 links (`…&date=YYYY-MM-DD&outcome=delivery_failed` and
+    `…&outcome=attempt_failed`), confirmed on every sampled row across both windows. `max-w-6xl`
+    present at all three windows.
+  - **Deleted-parent treatments (`Q-11-03(9)`), confirmed to differ by parent type exactly as
+    specified.** Destinations table on Payments Webhook: the deleted destination
+    (`legacy.example.com`) carries a `Deleted` badge but its "View events" link is live
+    (`…/events?window=30d&destination=123`) — a deleted destination keeps a live link. Dashboard
+    Proxies table: the soft-deleted "Retired Webhook" row carries a `Deleted` badge, its name is
+    plain text (no `<a>` in that cell, confirmed by DOM extraction), its terminal-failures count
+    (`8`) is plain text with no link, and its action cell reads `—` instead of `View` — a deleted
+    proxy loses both its name link and its terminal-failures link, matching the brief's
+    differentiation exactly. Direct navigation to `/proxies/113` (the deleted proxy's id) returns
+    HTTP 404 — pre-existing #7 behaviour, unaffected by this feature, confirmed still true.
+  - **Zero-state behaviour (Amendment A(i)).** "Quiet Integration" (zero-traffic proxy): both rate
+    figures read "No deliveries yet", never `0%` or `100%` (checked by regexing the full page body
+    for both literal strings — neither appears); raw counts still read `0` (Dashboard row: "No
+    deliveries yet · No deliveries yet · 0"). Its Destinations table shows the same "No deliveries
+    yet" for both rate cells and, distinctly, "No data" (not "No deliveries yet" and not `0`) for
+    Latency (avg) — the Count-figure/Measure-figure empty-state distinction the PRD Definitions
+    table draws is honoured correctly, not collapsed to one string.
+  - **The gap day, day-bucket, still links.** "Product Reviews", `30d` window: the seeded gap day
+    (Aug 11) renders "No deliveries yet" for both units and still carries its per-day link
+    (`…&date=2026-08-11&outcome=delivery_failed`) — a zero-traffic bucket is still a bucket, per
+    Implementation Note 9, and being a day bucket it is not exempt from the drill-through
+    obligation the way an hourly bucket is.
+  - **Ruling 12's single window definition — drill-through/figure agreement, walked live rather
+    than only trusted from T30's unit test.** Payments Webhook, `30d`, Terminal failure (deliveries)
+    figure reads 28. Clicking its link lands on the Events list filtered to
+    `outcome=delivery_failed&window=30d`; walking every page (15 rows page 1, 13 rows page 2, 0 on
+    page 3) totals exactly 28 — figure and drill-through agree. The Events list itself states the
+    general relationship correctly for the case where it would not be 1:1 ("Showing events with at
+    least one matching delivery — one event can hold more than one, so this list's row count won't
+    match the figure's count exactly"), so this exact match is a property of this fixture's data
+    shape, not a claim the UI makes generally — verified so no false conclusion is drawn from one
+    coincidental equality.
+  - **Both-unit divergence.** Every figure pair (Dashboard headline, Proxy Show headline,
+    Destinations breakdown rows) always renders Delivery success and Attempt success side by side,
+    separately labelled; no unit toggle control exists anywhere in the diff — confirmed by
+    inspection and by the absence of any such control in every screenshot taken.
+  - **Page widths.** `max-w-6xl` count 1 on Dashboard, Proxy Show (all three windows), the proxies
+    list, and the Events list. The proxy create form: `max-w-3xl` count 1, `max-w-6xl` count 0 —
+    no width regression across any of the four wide surfaces or the one narrow form.
+  - **Empty states, all four reproduced live.** "No proxies at all": a throwaway zero-proxy team
+    created via `sail artisan tinker` (the pattern `AnalyticsDemoSeeder::makeTeam()` itself uses —
+    `User::factory()->create()`'s `afterCreating` hook auto-provisions a personal team, renamed
+    after) shows the centred "No proxies yet" card with no window selector — confirmed
+    (`text=24h` count 0 on that page) — and the throwaway user/team were `forceDelete()`d
+    afterward, not left behind. "Zero traffic for a proxy, ever": Quiet Integration's Events list
+    reads "No events yet … Events appear here once this proxy's ingest URL receives a webhook."
+    "Empty-filtered Events list": Payments Webhook filtered to a day/outcome combination with no
+    matches (`date=2026-08-24&outcome=delivery_failed`, a day that was 100% successful) reads "No
+    events match these filters … Remove a filter above, or clear them all" with both filter chips
+    independently removable — a different, correctly distinct string from the zero-traffic-proxy
+    state. "Zero traffic for a destination" is subsumed by Quiet Integration's own destination,
+    already covered above.
+  - **Narrow viewport (375px), Events list.** `document.documentElement.scrollWidth` equals
+    `clientWidth` (375 = 375) — the page itself does not scroll sideways. The table's own wrapper
+    (`Table.vue`'s shared `overflow-x-auto` container) does: `wrapperClientWidth` 343 vs
+    `wrapperScrollWidth`/`tableScrollWidth` 552 — the overflow is genuinely absorbed by the table's
+    own scroll container, not merely clipped, exactly as designed.
+  - **Both themes.** Dark mode driven through the real mechanism — `/settings/appearance`'s "Dark"
+    control (`useAppearance`'s `updateAppearance`), confirmed by reading
+    `document.documentElement.className` (`"dark"`) both immediately after the click and again
+    after navigating to the Dashboard — not a raw class toggle. Screenshots of the Dashboard (`24h`)
+    and Proxy Show (`24h`, full page) in dark, and the Dashboard and proxies list in light,
+    inspected: legible in both, no unstyled/invisible text, and the trend chart's two series remain
+    visually distinguishable by line style (solid vs. dashed) as well as colour — the non-text
+    contrast / colour-independent requirement `design-11` § Accessibility states.
+  - **Team scoping by eye.** Team B's Dashboard shows only its own one proxy ("Team B
+    Notifications"); Team B's owner navigating directly to Team A's dashboard URL receives HTTP 403.
+  - **Console/page errors.** None observed across any of the pages exercised above (`pageerror` and
+    console-`error` listeners attached throughout; empty on every run).
+
+  **Findings.** None. Every Implementation Note holds, every scope-boundary item is respected, and
+  every named surface × theme × window × empty-state combination in the manual matrix renders
+  correctly against a genuine production build. No defect was found, trivial or otherwise, so
+  nothing was fixed and nothing is escalated. Item #11's implementation is, in my judgement,
+  complete against PRD-11 as amended (Amendments A and B) and against `design-11` as re-approved.
+
+  **Commit:** `docs(item-11): T29 production-build verification pass — clean, no defects found` —
+  one commit, on `feat/item-11-analytics`, containing only this completion note (no production code
+  changed).
 
 ## Handoff
 - **Inputs:** `docs/plans/plan-11-analytics.md` (fully approved, both Owner flags ruled);
