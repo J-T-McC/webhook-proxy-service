@@ -1,12 +1,15 @@
 # Technical Plan: Enhanced-mode toggle — item #7
 
-- **Status:** **Approved (Principal-Engineer self-certified) — in full.** There are **no**
-  outstanding Owner-approval flags. The one Owner gate #7 ever carried — **ADR-018**, the
-  partial supersession of ADR-015 Decision 3 — was **Accepted by the Project Owner on
-  2026-08-25**, before this plan was written, so nothing here is contingent. See
-  **Handoff → Owner-approval flags (✋)**, which records the cleared gate rather than omitting it.
+- **Status:** **Approved (Principal-Engineer self-certified) — in full**, and **re-certified in
+  full at Revision A (2026-08-26)**. There are **no** outstanding Owner-approval flags. The one
+  Owner gate #7 ever carried — **ADR-018**, the partial supersession of ADR-015 Decision 3 — was
+  **Accepted by the Project Owner on 2026-08-25**, before this plan was written, so nothing here is
+  contingent. See **Handoff → Owner-approval flags (✋)**, which records the cleared gate rather
+  than omitting it.
 - **Author:** Principal Engineer
-- **Date:** 2026-08-25
+- **Date:** 2026-08-25 · **Revised:** 2026-08-26 (**Revision A** — § *Technical rulings* 4
+  rewritten under the Project Owner's 2026-08-26 ruling on review-07 Finding 1; § *Test strategy*
+  reconciled with § *Architecture C* per review-07 Minor 4; **M7** added)
 - **PRD:** `docs/product/prd-07-enhanced-mode-toggle.md` — **Approved** (Project Owner,
   2026-08-21), **amended** 2026-08-25 (**Amendment A** — AC14(b) scoped to read surfaces, AC12's
   closing sentence split by surface kind; **Amendment B** — the Show page presents Mode in its
@@ -19,7 +22,42 @@
 - **ADRs:** **ADR-018** — *one mode selector, two evaluation points* (**Accepted**, Project Owner,
   2026-08-25; partially supersedes **ADR-015 Decision 3**, which now carries the inline
   supersession annotation). **This plan proposes no new ADR** — see § *Why no new ADR*.
-- **Approved by / date:** Principal Engineer, 2026-08-25.
+- **Approved by / date:** Principal Engineer, 2026-08-25; **re-certified at Revision A,
+  2026-08-26** (§ *Certification*).
+
+## Revision A — what the 2026-08-26 Owner ruling changed here
+
+`docs/reviews/review-07-enhanced-mode-toggle.md` **Finding 1 (Major)** reproduced, live, a silent
+destruction of a persisted retry policy: an Enhanced proxy holding `4` / `fixed`, downgraded to
+Simple in the form, then switched **back** to Enhanced before saving — **design-07 Flow C step 3
+verbatim, an explicitly designed path** — re-renders the retry fieldset blank, submits
+`null` / `null`, and the Enhanced save writes both columns NULL. `ProxyForm.vue` implemented
+§ *Technical rulings* 4 exactly; **the defect is in the ruling**, which described the values lost
+this way as *"in-session **typed** values"* when nothing in that reproduction is typed. What is
+lost is **mount-seeded persisted data** — a case neither ruling 4 nor PRD-07 AC14's closing
+paragraph considered. The mechanism is the asymmetry of `watch(isEnhanced, …)`: it clears on the
+way down and nothing re-seeds on the way back up.
+
+**The Project Owner ruled on 2026-08-26: keep the preservation rule, fix the re-seed.** The Owner
+**considered and rejected** reverting to null-on-downgrade, on two grounds worth recording by name
+so it is not re-proposed: (a) nulling would **not** fix the data loss — the same six steps under a
+null-on-downgrade rule still persist `null` and still destroy the values; it would only remove the
+broken promise; and (b) reverting would require superseding **ADR-018 Decision 3** and unwinding
+the reason T5's `ProxyResource` suppression / `ProxyFormResource` carve-out, T6's `ProxyFormProxy`
+and T9's submit normalisation exist, plus amending PRD-08's D-08-1 and design-08. **Q-07-01(b) —
+preservation — stands.**
+
+| Prior position | Now |
+|---|---|
+| § *Technical rulings* **4**: values lost across an in-session Enhanced → Simple → Enhanced round trip are *"in-session typed values"*; the asymmetry "is intended by both artifacts and must not be 'fixed'" | **Rewritten.** Ruling 4 now distinguishes **mount-seeded persisted values** — which **must** be restored on the Simple → Enhanced in-session transition — from **in-session typed values**, whose clearing is deliberate and stays. The fix is now **required**, not forbidden |
+| `ProxyForm.vue`'s `watch(isEnhanced, …)` has one arm (clear on the down leg) — § *Architecture F*, § *Services & Actions* | Gains a **symmetric second arm**: re-seed both fields from `props.initial` on the up leg (ruling 4(b)). Down-leg clearing is **unchanged** — `design-06` Flow F step 4 is untouched |
+| § *Test strategy*, non-Edit bullet: assert "**no** proxy retry-column **key** at all" on the events surfaces | **Corrected** (review-07 Minor 4). § *Architecture C* governs and always did: the keys **stay** in `ProxyResource`'s payload and the assertion is on the **value** — `null`. The shipped assertions are the right ones |
+| § *Milestones* M1–M6 (all landed) | **M7 added** — the Revision A rework, with the manual-verification steps review-07 Findings 1 and 3 both need |
+| **ADR-018** | **Unchanged.** Walked decision by decision at ruling 4(i) — considered, not overlooked. No amendment, no annotation, no superseding ADR, no new ADR |
+| **PRD-07 AC14(c) disclosure copy / design-07 / design-06 Flow F** | **Unchanged, and none of it is reopened.** No Product Manager or Designer decision is required — ruling 4(h) and 4(j). The amended rule makes the approved copy *more* true, not less |
+
+Nothing else in this plan changes: no requirement, no acceptance criterion, no ADR, no data-model
+element, no server-side rule, no dependency, no stack entry.
 
 ## Overview
 
@@ -306,6 +344,12 @@ Built exactly as specified; this plan changes nothing about them and adds nothin
 - **Show caption (AC16, Amendment B).** One muted `<p>` directly below the existing header row
   (name + Mode badge + Processing badge). **No new card.** Simple and Enhanced copy per the spec,
   both referencing the Retry policy card rather than repeating a value.
+- **Retry policy fieldset — the in-session mode round trip (Revision A).** The fieldset's
+  visibility (`v-if="isEnhanced"`) and its Enhanced → Simple clearing are unchanged
+  (`design-06` Flow F step 4). The Simple → Enhanced transition **re-seeds both fields from
+  `props.initial`**, so design-07 Flow B step 3 and Flow C step 3 ("Changes mind") both restore the
+  proxy's saved values rather than rendering blank. Specified in full, edge case by edge case, at
+  § *Technical rulings* 4 — that ruling is the binding statement; this bullet is a pointer.
 - **Retry policy card.** Layout, placement, `dl`/`dt`/`dd` shape and simple-mode note all
   unchanged. Its two computeds are unchanged in code; correctness now comes from the server
   (§ *Architecture C*, § *Technical rulings* 5).
@@ -344,16 +388,143 @@ Each stays inside the approved artifacts' assumptions; none reinterprets a requi
    authoritative, and is the mechanism Q-07-03 Option A named ("the client nulls both fields on
    submit whenever `mode === 'simple'`, so `prohibited_if:mode,simple` still holds"). It is a
    normalisation, not a gate: the server never trusts it (§ *Architecture B* preserves the values
-   regardless of what a Simple submission carries).
+   regardless of what a Simple submission carries). **Unchanged by Revision A, and load-bearing
+   under it:** ruling 4(b) adds a Simple → Enhanced arm to the same watcher but touches neither the
+   down-leg clearing nor the mount behaviour this paragraph reasons from, and the transform keys off
+   the **submitted mode**, so it still nulls both fields on every Simple submission — including one
+   made after a restore. See ruling 4(g)(1).
 
-4. **`design-06` Flow F is unchanged and is not in conflict.** Flow F governs **in-form,
-   in-session** behaviour — hidden retry fields still clear to their default sentinel; values typed
-   in the current session are still not restored when the member toggles back before saving. AC14
-   governs **persistence** — what an already-saved proxy carries across a saved mode change. Both
-   hold simultaneously (PRD-07 AC14, closing paragraph). Concretely: mount-seeded values survive a
-   Simple → Enhanced toggle (the watcher does not fire on mount), and in-session typed values do
-   not survive an Enhanced → Simple → Enhanced round trip. That asymmetry is intended by both
-   artifacts and must not be "fixed".
+4. **The in-session mode round trip: mount-seeded persisted values are restored, in-session typed
+   values are not.** *(**Amended 2026-08-26 — Revision A**, under the Project Owner's ruling of
+   that date on review-07 Finding 1. This supersedes the original ruling 4, which grouped both
+   kinds of value under "in-session typed values" and therefore forbade the fix to a real defect.
+   `design-06` Flow F is still unchanged and still not in conflict — see 4(a) and 4(g).)*
+
+   **Two kinds of value can sit in the two retry fields, and they are not the same thing.**
+   - **Mount-seeded persisted values** — `props.initial.retryAttemptLimit` /
+     `props.initial.retryBackoffStrategy`: the proxy's `proxies` columns as `ProxyFormResource`
+     served them when this form instance mounted (the Amendment A carve-out). They are the
+     member's **saved** configuration. `props.initial` is never mutated, so they stay available and
+     unchanged for the whole life of the form instance — no new state is needed to restore them.
+   - **In-session typed values** — whatever the member has since entered into either field in this
+     form instance. Unsaved, and the thing `design-06` Flow F step 4 exists to discard.
+
+   **(4a) Enhanced → Simple in-session transition — unchanged.** Both fields clear to their
+   unconfigured sentinel (`retry_attempt_limit = ''`, `retry_backoff_strategy = ''`) as the
+   fieldset unmounts. This is `design-06` Flow F step 4 verbatim and design-07 Flow C step 2
+   restates it; it is a Designer artifact and not mine to change. **Do not remove or condition
+   this arm.**
+
+   **(4b) Simple → Enhanced in-session transition — new, and required.** The same watcher gains a
+   symmetric second arm that **re-seeds both fields from `props.initial`**, using exactly the
+   null-normalisation the mount-time `useForm(…)` initialiser already uses:
+   `form.retry_attempt_limit = props.initial.retryAttemptLimit?.toString() ?? ''` and
+   `form.retry_backoff_strategy = props.initial.retryBackoffStrategy ?? ''`. The assignment is
+   **unconditional** — *not* "only if the field is currently blank", *not* "only if a mount seed
+   exists", *not* "only if the member downgraded earlier in this session". Expressing it as a plain
+   restatement of the mount seed is what makes it idempotent across any number of round trips and
+   what makes 4(d), 4(e) and 4(f) fall out with **no branch of their own**.
+
+   **(4c) The watcher still must not fire on mount.** No `{ immediate: true }`, no `onMounted`
+   re-seed. Mount-time seeding stays `useForm`'s job exactly as today; 4(b) governs **in-session
+   transitions only**.
+
+   **(4d) Seeded `4`/`fixed`, member types `9`, toggles to Simple, toggles back ⇒ the member sees
+   `4`/`fixed`.** The mount seed — not the typed `9`, and not blank. Ruled deliberately, for four
+   reasons: (i) it keeps *"in-session typed values do not survive a round trip"* **literally
+   true**, which is the half of the original ruling that was deliberate and that both PRD-07 AC14's
+   closing paragraph and `design-06` Flow F state; (ii) restoring `9` would require either
+   capturing state on the way down — form state whose only purpose is to defeat a clearing rule the
+   same change is preserving — or not clearing at all, which reverses Flow F step 4, a Designer
+   decision I have no authority to make; (iii) `4` is a **true** statement about what the next save
+   would persist, so AC12's "must never show one thing while the save does another" holds; (iv) it
+   is idempotent — the field contents after a round trip do not depend on how many round trips
+   preceded it, which a captured-state design would not guarantee.
+
+   **(4e) Seeded with NULL columns (an Enhanced proxy that never configured a policy), toggled down
+   and back ⇒ blank stays blank.** `props.initial.*` is `null`, so 4(b) assigns `''`/`''` — an empty
+   Attempts field and the `Default (Exponential)` sentinel, identical to the unconfigured state
+   `design-06` specifies. **The re-seed must never write a default literal into a field** — not
+   `RETRY_DEFAULT_ATTEMPT_LIMIT`, not `'exponential'`, not `RETRY_STRATEGY_DEFAULT`'s label.
+   "Unconfigured" must round-trip to "unconfigured", because `null` is what carries PRD-06 AC2's
+   *"use the system default"* meaning on the following save; materialising `5`/`exponential` into
+   the columns would silently convert an unconfigured proxy into a configured one that merely looks
+   the same today and would then **not** follow a later change to the system default. That is a
+   data change, and it is forbidden.
+
+   **(4f) Create is unaffected — and needs no branch to be unaffected.** `Create.vue` hard-codes
+   `initial.mode: 'simple'` with both retry values `null`, so 4(b) restores `''`/`''`, identical to
+   the cleared state, whatever the member does with the toggle. **Do not add a
+   `props.method === 'post'` / "edit only" guard**: it would be a conditional no test could
+   distinguish and no reader could falsify — the dead-branch shape ruling 5 rejects elsewhere in
+   this plan.
+
+   **(4g) What must NOT change — five properties, each checkable separately at review.**
+   1. **T9's submit normalisation stays exactly as it is.** A submission whose `data.mode ===
+      'simple'` still sends `null` for **both** retry fields regardless of field state, so a
+      genuine Simple-mode save still sends `null`/`null`. It keys off the **submitted mode**, never
+      off the fields, so 4(b) cannot leak a restored value into a Simple-mode save — the re-seed
+      only ever populates the fields while the form's mode reads Enhanced. It also remains the
+      **only** thing covering the mount-seeded-Simple path (open Edit on a dormant-carrying Simple
+      proxy, save without touching Mode), which the watcher has never fired on and still does not.
+      Removing or weakening it re-opens Risk 4's unfixable 422.
+   2. **`prohibited_if:mode,simple` stays** on both fields in both Form Requests (ruling 2,
+      ADR-018 Decision 3). Nothing here relaxes it and nothing here needs it relaxed.
+   3. **The server is unchanged and stays authoritative.** ADR-018 Decision 3's omission rule
+      governs whatever the client sends: a Simple save writes neither column; an Enhanced save
+      writes exactly what was submitted. **No controller, resource, Form Request, resolver,
+      migration or data-model change follows from this ruling.** The fix is a client-side
+      restoration of a value the Edit payload **already carried** under the Amendment A carve-out —
+      no new prop, no new key on the wire, no second caller of `ProxyFormResource`.
+   4. **No read surface changes.** `ProxyResource` still emits the per-proxy override **in force**
+      and `null` for every Simple proxy (§ *Architecture C*); ADR-018 Decision 4 is untouched.
+   5. **The disclosure is untouched** — same render condition
+      (`props.initial.mode === 'enhanced' && form.mode === 'simple'`), same approved copy, still
+      not a gate, still non-dismissible, still between the Mode control and the submit action.
+
+   **(4h) Why this is a correction inside the approved artifacts, not a new requirement.** PRD-07
+   **AC14(b)(iii)** is binding and already states the required outcome: *"once the member selects
+   Enhanced in the form, the preserved values are shown as the configuration that **will** be in
+   force on save, which is true, and may be tuned in that same save."* It is written as a condition
+   of the member **selecting Enhanced in the form**, with no exception for a selection that follows
+   an in-session downgrade — and design-07 Flow C step 3 names that exact path ("Changes mind:
+   switches Mode back to Enhanced before saving"). The original ruling 4 did not contradict
+   AC14(b)(iii) deliberately; it grouped the mount-seeded case under "typed" and so never tested it
+   against that criterion. Restoring the mount seed makes **AC14(b)(iii)**, **AC14(c)**'s
+   disclosure promise and **AC12**'s write-surface clause simultaneously true on **every** path
+   through the form. No requirement is reinterpreted, no approved copy is rewritten, and nothing
+   routes back to the Product Manager or the Designer.
+
+   **(4i) ADR-018 needs nothing — checked decision by decision, not assumed.** **D1** (one
+   selector, two evaluation points): the form's `isEnhanced` is a **rendering** condition that
+   predates #7 and this ruling adds **no** `mode` read anywhere in `app/`; the two behavioural
+   evaluation points remain `PipelineFactory::stepsFor()` and `RetryPolicy`. **D2** (the
+   resolution-time gate): untouched — no resolver, consumer, clamp or config guard changes. **D3**
+   (a Simple save omits the columns; an Enhanced save writes what was submitted): the **rule** is
+   unchanged and stays authoritative; what changes is the **body the client sends** on one path,
+   and it changes towards what the member is being shown — which is what D3 assumed all along.
+   **D4** (no dormant value on a read surface): untouched — the restored value is one the Edit
+   payload already carried, and the Edit payload is Amendment A's single carve-out. **D5** (mode is
+   never snapshotted): untouched — `props.initial.mode` is one page's loaded form state, not a mode
+   serialized into a job argument, an event/delivery row, or a cache. Also checked against ADR-018's
+   rejected alternative *"let the UI carry the invariant"*: the invariants (a Simple proxy resolves
+   the default; a Simple save writes nothing) stay **wholly server-owned and server-tested**; what
+   the client carries here is write-surface ergonomics — restoring a value the member is about to
+   submit — which Amendment A explicitly assigned to the form. **No amendment, no inline
+   annotation, no superseding ADR, and no new ADR** (§ *Why no new ADR*).
+
+   **(4j) The approved disclosure copy stays as it is, and no Product Manager decision is needed.**
+   Bullet 3 promises *"It applies again, with the same values, if you turn Enhanced back on."*
+   Under the amended rule that promise is **true on every path**: after a real downgrade save the
+   values are re-seeded at mount, and after an abandoned in-session downgrade they are re-seeded by
+   4(b). The one case that could look like an exception — 4(d), where the member sees the saved `4`
+   rather than the typed-but-unsaved `9` — is precisely what the copy says, since it promises the
+   values *"you've **saved**"*. So 4(d) is also the reading that keeps the approved copy true
+   **without touching it**, which is why it is the reading I chose. **I have rewritten no copy and
+   routed no copy question**; had the resolution required a copy change, that call would have been
+   the Product Manager's, not mine. *(If the Product Manager ever revisits this copy for an
+   unrelated reason, review-07 Nits 5 and 6 are its natural companions — neither is a consequence
+   of this ruling and neither is mine to schedule.)*
 
 5. **No client-side mode guard on the Show page's Retry policy card.** design-07's approval note
    (correction C1) makes the enforcement server-side and delegates the defence-in-depth question to
@@ -451,7 +622,8 @@ proxy's mode — **#7 introduces no permission** (AC5, AC8).
 - **Frontend** (per design-07, no new primitive or dependency; `AlertTitle` is an
   already-generated, currently-unused primitive — its first application use, not an addition):
   `ProxyForm.vue` (Mode field a11y wiring + corrected help text + `isDowngrading` disclosure +
-  the ruling-3 submit normalisation); `proxies/Show.vue` (mode-summary caption; rewritten Retry
+  the ruling-3 submit normalisation + **Revision A**: the ruling-4(b) Simple → Enhanced re-seed in
+  `watch(isEnhanced, …)`, the *only* source change Revision A causes); `proxies/Show.vue` (mode-summary caption; rewritten Retry
   policy card comment; no computed change); `Edit.vue` (`ProxyFormProxy` prop type);
   `types/proxies.ts` (`ProxyDetail`/`ProxyListItem` docblocks, new `ProxyFormProxy`, `Delivery.created_at`);
   `proxies/events/Show.vue` (replay-group label/order from `created_at` — rider 2). The
@@ -589,7 +761,19 @@ Reviewer routed them.
 7. **Rider 1 turns a previously-legal `0` into a startup-time exception on the sweep path.** No
    environment sets the key; every test reads the resolved value. Consistent with the six sibling
    keys and with the review-05 M-1 posture. **Non-blocking; ruled at § *Technical rulings* 7.**
-8. **AC19/AC22/AC23/AC24/AC25 rest on inspection, not on an automated gate** — they assert the
+8. **The ruling-4(b) re-seed is client-only and, with no frontend harness, unpinnable by test
+   (Revision A).** It depends on `props.initial` remaining the immutable mount seed; a later change
+   that mutates `props.initial`, or that "tidies" the watcher back to a single arm, silently
+   restores review-07 Finding 1 — silent destruction of a persisted policy, with the disclosure
+   still promising the opposite. This is the same exposure class as Risk 4 and it is why ruling
+   4(b) is written as an unconditional restatement of the mount seed rather than as conditional
+   logic: the defect shape is *absence*, and absence is what a reader can see. Mitigations: the
+   explicit manual-verification list on M7, ruling 4(g)'s five must-not-change properties stated as
+   separately checkable items, and — the durable one — the **backend** guarantees, which are
+   unaffected either way (a Simple proxy always resolves the default; a Simple save never writes).
+   The worst case remains a member re-typing two clamped scalars, never a wrong policy in force.
+   **Fourth concrete argument for closing the frontend-harness gap.**
+9. **AC19/AC22/AC23/AC24/AC25 rest on inspection, not on an automated gate** — they assert the
    absence of things (no mapping, no processing change, no third mode, no audit surface, no
    numeric target). The same posture review-06 recorded for #6's AC19/21/23/24. **Stated so the
    Reviewer's AC-coverage verdict is accurate rather than optimistic.**
@@ -709,9 +893,19 @@ tasks. Mapped to acceptance criteria:
 - An **Enhanced** proxy with 6 / fixed emits 6 / fixed on Index, Show **and** Edit — the existing
   `test_proxy_resource_emits_both_fields_on_index_show_and_edit` continues to pass unmodified
   (it uses an Enhanced proxy), and is kept as the companion to the Simple case.
-- No **non-Edit** response carries a dormant value: the events list, event detail and delivery
-  payloads are asserted to contain no proxy retry-column key at all (AC14(b)'s "any response shaped
-  for one of them").
+- **No non-Edit response carries a dormant value** (AC14(b)'s "any response shaped for one of
+  them"). *(**Corrected 2026-08-26 — Revision A**, review-07 Minor 4. This bullet previously asked
+  for "no proxy retry-column **key** at all", which contradicts § *Architecture C*. **Architecture C
+  governs, and always did**: both keys stay in `ProxyResource`'s payload precisely so the
+  frontend's `(default)` rendering keeps working, so the assertion is on the **value**, not on the
+  key's presence. The shipped assertions are the correct ones.)* Concretely:
+  - Every payload shaped by **`ProxyResource`** — Index, Show, and the events index and event
+    detail pages, which embed it under their `proxy` prop — emits **both keys, with the value
+    `null`**, for a Simple proxy holding a dormant policy.
+  - Payloads that never carried the proxy retry columns at all — **`DeliveryResource`**,
+    **`WebhookEventResource`** — are unaffected and keep carrying no such key; nothing is to be
+    added to them. `DeliveryResource.attempt_limit` is a **resolved** value, not a column echo, and
+    is covered by the consumer group above.
 
 **Switch safety and lifecycle (AC1, AC9, AC10, AC11, AC13, AC17) — feature:**
 - A proxy switched Simple → Enhanced composes `CaptureDispatchedStep` for its **next** event and
@@ -739,6 +933,31 @@ tasks. Mapped to acceptance criteria:
   not-yet-due / terminal cases keep passing through the new accessor (rider 1).
 - `DeliveryResource` emits a real `created_at`; the pinning `->missing('event.deliveries.0.created_at')`
   assertion is inverted to a `where`/present assertion (rider 2).
+
+**Revision A — the in-session mode round trip (AC14(b)(iii), AC14(c), AC12) — manual, and
+manual is the honest word for it.** There is **no frontend test harness**, and § *Technical
+rulings* 4 is entirely client-side, so these are **required manual-verification steps on M7's
+task**, written out here so they are scheduled rather than assumed (review-07 Finding 3 is exactly
+what happens when they are not). Each is one of ruling 4's cases, in its order:
+- **4(b) / Finding 1's reproduction:** an Enhanced proxy persisting `4`/`fixed` → Edit → Mode
+  Simple (disclosure appears, fieldset unmounts) → Mode Enhanced again → **the fieldset re-renders
+  `4` / `Fixed interval`, not blank** → Save → the PUT body carries `4`/`fixed` and the DB still
+  holds `4`/`fixed`.
+- **4(d):** the same proxy, but type `9` before toggling down → after toggling back the fieldset
+  reads **`4`**, the saved value, not `9` and not blank.
+- **4(e):** an Enhanced proxy with **NULL** columns → toggle down and back → Attempts is **empty**
+  and Backoff reads **`Default (Exponential)`**; Save persists **NULL/NULL**, not `5`/`exponential`.
+- **4(f):** **Create** → toggle Enhanced → Simple → Enhanced → the fieldset is blank throughout and
+  a save with both fields untouched persists NULL/NULL.
+- **4(g)(1):** a **Simple** proxy holding a dormant `8`/`fixed` → Edit → Save **without touching
+  Mode** → the PUT body still carries `null`/`null`, there is no 422, and the DB still holds
+  `8`/`fixed` (the T9 normalisation and the server's omission rule, both still intact).
+- **design-07 Flow B step 3** (review-07 Finding 3's coverage gap, folded in here as review-07
+  Recommendation 3 directs): a **Simple** proxy holding a dormant `8`/`fixed` → Edit → select
+  Enhanced → the fieldset pre-fills `8` / `Fixed interval` with nothing re-entered.
+The server-side halves of all of the above are already pinned by the persistence and presentation
+groups and **must stay green unmodified** — if a backend test needs changing to accommodate M7,
+something has gone wrong.
 
 **Inspection-only (no automated gate, recorded honestly):** AC4, AC7, AC8, AC15, AC18, AC19,
 AC22–AC25 — each asserts the absence of a thing (no backfill, no new mode gate, no entitlement, no
@@ -776,6 +995,16 @@ Owner gate cleared on 2026-08-25.
   (a stale checked-in bundle proved nothing at review-06 M-3 — rebuild before any live check), and
   a docs cross-check: every docblock citing "a simple-mode proxy's columns are always NULL" or
   ADR-015 Decision 3's persistence invariant now points at ADR-018.
+- **M7 — Revision A: the Simple → Enhanced re-seed (review-07 Finding 1, Major).** *Added
+  2026-08-26, after M1–M6 landed.* **One file, one watcher**: `ProxyForm.vue`'s
+  `watch(isEnhanced, …)` gains the ruling-4(b) arm, plus a comment rewrite naming the two kinds of
+  value and pointing at ruling 4 (the current comment at `:87-90` explains only the down leg).
+  **Nothing else may be touched** — not the submit normalisation, not the disclosure or its copy,
+  not `Show.vue`, not a resource, controller, Form Request, resolver or test fixture. *Verify:* the
+  frontend triad + `pnpm run build`, then **every** manual step in § *Test strategy* → *Revision A*
+  including the folded-in Flow B step 3 (Finding 3); and the **backend suite green unmodified**.
+  Review-07's Findings 2 and Nits 5–7 are **not** part of this milestone — they were routed to the
+  Senior Developer and the backlog and must not ride along.
 
 ## Handoff
 
@@ -789,14 +1018,24 @@ Owner gate cleared on 2026-08-25.
   `proxies/Show.vue`, `proxies/events/Show.vue`, `types/proxies.ts`,
   `data/proxyRetryBackoffStrategies.ts`, `components/ui/alert/*`, and the retry/proxy test suites);
   `docs/standards/` (architecture, coding, testing, planning, documentation); `docs/stack/stack.md`.
-- **Outputs:** this plan. **No new ADR** and no new question document.
+- **Inputs added at Revision A (2026-08-26):** `docs/reviews/review-07-enhanced-mode-toggle.md`
+  (Finding 1 Major, Finding 3, Minor 4) and the **Project Owner's 2026-08-26 ruling** on it;
+  `docs/tasks/enhanced-mode-toggle-tasks.md` T1–T13 as landed; the shipped `ProxyForm.vue`
+  (`watch(isEnhanced, …)`, the T9 `form.transform()`, the T8 disclosure) and
+  `tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php` on
+  `feat/item-07-enhanced-mode-toggle`.
+- **Outputs:** this plan, including **Revision A**. **No new ADR**, no ADR amendment, and no new
+  question document.
 - **Dependencies:** none new; within stack.
 - **Outstanding Questions:** **none.** Q-07-01, Q-07-02 and Q-07-03 are all resolved, and this plan
   needed nothing further from the Product Manager or the Designer: every PRD-07 acceptance criterion
   is feasible as stated, and design-07 as approved is buildable as specified. No requirement is
   reinterpreted and no design decision is re-made — the two calls delegated to me (design-07's
   correction C1 enforcement point, and whether a client guard survives) are ruled at
-  § *Technical rulings* 5 and 6.
+  § *Technical rulings* 5 and 6. **Revision A raises none either**: review-07 Finding 1 resolves
+  against the **behaviour**, not the copy, so no question routes to the Product Manager
+  (§ *Technical rulings* 4(j)); the down-leg clearing is untouched, so none routes to the Designer
+  (4(a)); and ADR-018 needs nothing (4(i)).
 
 ### Owner-approval flags (✋) — **none outstanding**
 
@@ -828,6 +1067,18 @@ normalisation is the mechanism Q-07-03 Option A named; keeping `prohibited_if` i
 line. Each is recorded as a **named technical ruling** above instead, per the house convention for
 rulings on matters the upstream artifacts left silent.
 
+**Why Revision A adds none either, and amends none.** The 2026-08-26 re-ruling was assessed against
+the same bar, and against **every ADR-018 decision individually** at § *Technical rulings* 4(i). It
+changes **one watcher arm in one Vue component**: no data-model element, no dependency, no stack
+entry, no route, permission or gate; no security-relevant surface (it moves no value the Edit
+payload was not already carrying under Amendment A, and adds no key to any wire format); nothing
+irreversible — the whole change reverts in four lines; and **no server-side rule**. It implements an
+outcome PRD-07 **AC14(b)(iii)** already requires rather than deciding anything new, so it is a
+ruling correction, not a decision. **ADR-018 is untouched and no superseding ADR is proposed** —
+recorded here explicitly so a Reviewer knows the question was asked and answered rather than
+overlooked. Revision A therefore carries **no Owner-approval flag**, and the flag list above stands
+unchanged at *none outstanding*.
+
 ### Certification (Principal Engineer, 2026-08-25)
 
 I have verified that **PRD-07 is Owner-approved** (2026-08-21, amended in place by the Product
@@ -847,9 +1098,37 @@ decision** to the Project Owner. `docs/stack/stack.md` is unchanged. Nothing her
 requirement or reopens Q-07-01, Q-07-02, Q-07-03, PRD-05's retention lifecycle, Q-06-01's retry
 values, or the #4 processing axis.
 
-- **Next Agent:** **Task Planner** — unblocked immediately; no approval is pending. Two standing
-  constraints to carry into the breakdown: review-06 Minor 8's **(a) and (b) must be one task**
-  (a partial landing is a shipped defect), and the two items under § *Explicitly out of scope for
-  this plan* — the `DeliverToDestination.php:197` soft-delete `TypeError` and the missing
-  `trustProxies()` configuration — belong to the Senior Developer on a separate branch off `main`
-  and must **not** appear in #7's task list.
+### Re-certification at Revision A (Principal Engineer, 2026-08-26)
+
+**Authorising ruling:** the **Project Owner, 2026-08-26** — *keep the preservation rule, fix the
+re-seed* — on review-07 **Finding 1 (Major)**, with null-on-downgrade explicitly considered and
+rejected (§ *Revision A*). I have re-read PRD-07 AC12/AC13/AC14 incl. Amendment A and its closing
+paragraph, design-07 Flows B and C and its *dormant-value restore on upgrade* interaction note,
+`design-06` Flow F, ADR-018 in full, review-07 Findings 1–4, and the shipped `ProxyForm.vue` and
+`ProxyRetryFieldPresentationAcceptanceTest` on this branch.
+
+Two changes, both inside the approved artifacts: § *Technical rulings* **4** is rewritten to
+distinguish mount-seeded persisted values from in-session typed values and to **require** the
+re-seed it previously forbade — the outcome PRD-07 **AC14(b)(iii)** already binds us to — and
+§ *Test strategy*'s non-Edit bullet is reconciled with § *Architecture C* (review-07 Minor 4;
+Architecture C governs). **No requirement, acceptance criterion, design decision, approved copy,
+Owner ruling or ADR is changed, reinterpreted or reopened** — in particular AC14(c)'s disclosure
+copy stands unedited and needs no Product Manager decision (ruling 4(j)), `design-06` Flow F step 4
+stands unedited and needs no Designer decision (ruling 4(a)), and **ADR-018 is untouched**, checked
+decision by decision (ruling 4(i)).
+
+**I re-certify this plan in full** under the delegated plan gate in `CLAUDE.md`. There is still no
+carve-out and **no new Owner-approval flag**: Revision A introduces no data-model change, no
+dependency, no stack change, no route/permission/gate, no security-relevant surface and nothing
+irreversible. `docs/stack/stack.md` remains unchanged. Outstanding Questions remain **none**.
+
+- **Next Agent:** **Task Planner** — one rework task for **M7** (`ProxyForm.vue`'s watcher, ruling
+  4(b), plus its manual-verification list), then **Senior Developer**, then back to the
+  **Reviewer** for the re-review recorded in place in `docs/reviews/review-07-enhanced-mode-toggle.md`.
+  Constraints to carry into that breakdown: **M7 touches one file** and must not absorb review-07's
+  Findings 2 or Nits 5–7 (Senior Developer / backlog, separately routed); ruling **4(g)**'s five
+  must-not-change properties are review checkpoints, not commentary; and the two items under
+  § *Explicitly out of scope for this plan* — the `DeliverToDestination.php:197` soft-delete
+  `TypeError` and the missing `trustProxies()` configuration — remain out of #7's task list.
+  *(The original breakdown constraint stands on the record: review-06 Minor 8's **(a) and (b) had
+  to be one task**, and were — review-07 verified it.)*
