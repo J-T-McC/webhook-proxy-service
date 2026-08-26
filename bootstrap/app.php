@@ -23,6 +23,24 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Trust the immediate connection's X-Forwarded-* headers (all of it — no
+        // deploy target/static load-balancer IP range is defined yet, docs/reviews/
+        // review-01-walking-skeleton.md finding #2; Laravel's own documented
+        // alternative for platforms without an enumerable proxy IP range, e.g.
+        // AWS ALB/ELB, Heroku, Cloudflare). Required for `EnsureIngestIsSecure`'s
+        // `isSecure()` to observe the client's true HTTPS scheme when TLS is
+        // terminated at a load balancer in front of the app, rather than reading
+        // the app's own plaintext connection from the LB as `http`. Safe ONLY
+        // because the app must never be reachable except through that LB — an
+        // infra/network-layer guarantee this line does not itself enforce.
+        $middleware->trustProxies(
+            at: '*',
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_HOST
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->web(append: [

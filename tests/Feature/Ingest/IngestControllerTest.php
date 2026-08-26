@@ -91,6 +91,37 @@ class IngestControllerTest extends TestCase
         Http::assertNothingSent();
     }
 
+    /**
+     * Regression (trusted-proxy config, `bootstrap/app.php`): a request whose
+     * own connection to the app is plain HTTP — as it is for every app instance
+     * sitting behind a TLS-terminating load balancer — but which carries the
+     * load balancer's `X-Forwarded-Proto: https` must be accepted. Failed
+     * before `trustProxies()` was configured (the header was ignored and the
+     * app-perceived scheme stayed `http`).
+     */
+    public function test_https_forwarded_via_a_trusted_proxy_header_is_accepted(): void
+    {
+        [, $token] = $this->proxyWithToken();
+
+        $this->post($this->ingestUrl($token, 'http'), [], ['X-Forwarded-Proto' => 'https'])
+            ->assertStatus(202);
+    }
+
+    /**
+     * The forwarded-header trust must not become a blanket bypass: an explicit
+     * `X-Forwarded-Proto: http` (the load balancer itself received plaintext,
+     * or never terminated TLS) is still rejected.
+     */
+    public function test_forwarded_proto_of_http_is_still_rejected(): void
+    {
+        [, $token] = $this->proxyWithToken();
+
+        $this->post($this->ingestUrl($token, 'http'), [], ['X-Forwarded-Proto' => 'http'])
+            ->assertStatus(403);
+
+        Http::assertNothingSent();
+    }
+
     public function test_body_size_and_rate_limit_config_defaults_are_high_placeholders(): void
     {
         $this->assertSame(52_428_800, config('ingest.max_body_bytes'));

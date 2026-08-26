@@ -386,4 +386,49 @@ class DeliverToDestinationTest extends TestCase
         RetryDelivery::assertPushed(1);
         Event::assertDispatchedTimes(DeliveryExhausted::class, 1);
     }
+
+    public function test_a_failed_attempt_settles_instead_of_throwing_when_the_proxy_has_been_soft_deleted(): void
+    {
+        // Regression: `$delivery->proxy` (the default, trashed-exclusive relation)
+        // resolves to null once the proxy is soft-deleted, and RetryPolicy::
+        // attemptLimitFor() takes a non-nullable Proxy — settleDelivery() threw a
+        // TypeError from inside the queue worker before the fix.
+        Queue::fake();
+        Event::fake();
+        Http::fake(['*' => Http::response('nope', 500)]);
+
+        $proxy = Proxy::factory()->enhanced()->createQuietly(['retry_attempt_limit' => 2]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $delivery = $this->deliveryFor($destination);
+        $proxy->delete();
+
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id, attemptNumber: 1));
+
+        // Below the soft-deleted proxy's own limit of 2 — settles to retrying,
+        // per that proxy's original policy, not thrown/lost.
+        $fresh = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Retrying, $fresh->status);
+        RetryDelivery::assertPushed(1);
+        Event::assertNotDispatched(DeliveryExhausted::class);
+    }
+
+    public function test_a_failed_attempt_at_the_limit_exhausts_instead_of_throwing_when_the_proxy_has_been_soft_deleted(): void
+    {
+        Queue::fake();
+        Event::fake();
+        Http::fake(['*' => Http::response('nope', 500)]);
+
+        $proxy = Proxy::factory()->enhanced()->createQuietly(['retry_attempt_limit' => 2]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $delivery = $this->deliveryFor($destination);
+        $proxy->delete();
+
+        DeliverToDestination::run($this->unit($destination, deliveryId: $delivery->id, attemptNumber: 2));
+
+        $fresh = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Failed, $fresh->status);
+        $this->assertNull($fresh->next_attempt_at);
+        RetryDelivery::assertNotPushed();
+        Event::assertDispatchedTimes(DeliveryExhausted::class, 1);
+    }
 }
