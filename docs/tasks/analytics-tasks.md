@@ -686,7 +686,39 @@
 - **Testing:** non-behavioral — a data-const module with no logic; no frontend test harness exists
   (backlog T31). Correctness is verified by every consuming task's manual-verification step reading
   the rendered label text against this file's values.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented `resources/js/data/analyticsLabels.ts`, mirroring
+  `data/proxyDeliveryStates.ts`'s data-const-plus-small-pure-functions style. Exports every
+  C4-required label verbatim (`DELIVERY_SUCCESS_LABEL`, `ATTEMPT_SUCCESS_LABEL`,
+  `TERMINAL_FAILURES_COLUMN_LABEL`, `EVENTUAL_SUCCESS_LABEL`, `TERMINAL_FAILURE_LABEL`,
+  `RETRY_VOLUME_LABEL`, `LIVE_VS_REPLAY_LABEL`, `LATENCY_AVERAGE_LABEL`, `LATENCY_P95_LABEL`,
+  `LATENCY_CAPTION`).
+
+  Two additions beyond the literal 7-label list, both within the task's "typed object or set of
+  named constants" latitude and named here rather than left implicit: (1)
+  `DELIVERY_SUCCESS_COLUMN_LABEL`/`ATTEMPT_SUCCESS_COLUMN_LABEL` — the Proxies table's (T15) and
+  the future Destinations table's (T20) column headers, one word shorter than the headline's
+  `ATTEMPT_SUCCESS_LABEL` because a column header pairs with its neighbour rather than repeating
+  the headline's "— destination health" qualifier; without a shared constant these two tables
+  (T15 now, T20 later) would each hand-write "Attempt success" independently, which is exactly the
+  drift R6 exists to prevent. (2) A `windowLabel()`/`lastWindowSubtitle()` pair mirroring
+  `AnalyticsWindow::label()` (`'24h'` → `'24 hours'`, etc.) for design correction C2's "Last
+  {window}" subtitles, which the task's own prose names as appearing on four cards/tables — another
+  multi-surface wording that belongs in the single-source file rather than four separate template
+  literals. Also added, since every consumer needs them and a second copy anywhere would be the
+  same drift risk: `formatRate()` (a `rate: number|null` → `"NN%"` or `RATE_NO_DATA_LABEL`,
+  Amendment A(i)), `formatLatencyMs()` (→ `"NNN ms"` / `"N.N s"` / `LATENCY_NO_DATA_LABEL`),
+  `deliveryCaption()`/`attemptCaption()` (the "N of M delivered/attempts succeeded · last {window}"
+  captions), `bridgeSentence()` (AC14(d)'s descriptive, never-arithmetic gap sentence, returning
+  `null` when there is nothing to bridge), and `liveVsReplayText()` (the "N live · M replay"
+  two-labelled-numbers text, § Accessibility's non-colour-only requirement). `AnalyticsWindowValue`
+  is imported from `resources/js/types/analytics.ts` (new, added ahead of its own task since T13's
+  props and this file's functions both need it — see T13's completion notes).
+
+  `pnpm types:check` passes. Nothing in this file is a component; `nothing in this file is a
+  component (pure data)` per the task's own AC is read, per `data/proxyDeliveryStates.ts`'s
+  established precedent in this codebase, as "no `.vue` component" rather than "no functions" —
+  small pure formatting/lookup functions alongside the constants they format is the existing
+  pattern this file follows, not a departure from it.
 
 ## T13 — `DashboardController`: analytics props (AC7, AC8, AC17, AC23; plan §§ API, Validation, R7)
 - **Description:** `DashboardController::__invoke` gains, alongside the existing
