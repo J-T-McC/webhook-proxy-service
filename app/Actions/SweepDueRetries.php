@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\DeliveryStatus;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
+use App\Services\RetryPolicy;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 /**
@@ -14,7 +15,7 @@ use Lorisleiva\Actions\Concerns\AsAction;
  * Scheduled every minute (`routes/console.php`), beside the FIFO sweeper.
  *
  * Re-dispatches {@see RetryDelivery} for every `retrying` delivery whose
- * `next_attempt_at` passed more than `config('retry.sweep_grace_seconds')`
+ * `next_attempt_at` passed more than {@see RetryPolicy::sweepGraceSeconds()}
  * ago — i.e. its delayed job was dropped or lost. The next attempt number is
  * derived fresh from that delivery's own attempt rows (`MAX(attempt_number) +
  * 1`), never assumed from `next_attempt_at`'s own scheduling context. A
@@ -30,7 +31,7 @@ class SweepDueRetries
 
     public function handle(): void
     {
-        $cutoff = now()->subSeconds((int) config('retry.sweep_grace_seconds'));
+        $cutoff = now()->subSeconds(app(RetryPolicy::class)->sweepGraceSeconds());
 
         $overdue = Delivery::query()
             ->where('status', DeliveryStatus::Retrying)

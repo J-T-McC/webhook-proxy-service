@@ -5,6 +5,7 @@ namespace Tests\Unit\Actions;
 use App\Actions\DeliverToDestination;
 use App\Actions\RetryDelivery;
 use App\Enums\DeliveryStatus;
+use App\Enums\ProxyMode;
 use App\Events\DeliveryExhausted;
 use App\Models\Delivery;
 use App\Models\Destination;
@@ -114,7 +115,12 @@ class DeliveryStatusTransitionTest extends TestCase
         Http::fake(['*' => $httpSucceeds ? Http::response('ok', 200) : Http::response('nope', 500)]);
 
         $delivery = $this->deliveryWithStatus($from);
-        Proxy::query()->whereKey($delivery->proxy_id)->update(['retry_attempt_limit' => $limit]);
+        // Enhanced (ADR-018 Decision 2): the configured limit is only
+        // consulted for an Enhanced proxy — the default fixture is Simple.
+        Proxy::query()->whereKey($delivery->proxy_id)->update([
+            'mode' => ProxyMode::Enhanced,
+            'retry_attempt_limit' => $limit,
+        ]);
 
         DeliverToDestination::run($this->unitFor($delivery, $attemptNumber));
 

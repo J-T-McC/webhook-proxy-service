@@ -11,8 +11,10 @@ use App\Models\Destination;
 use App\Models\WebhookEvent;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\TestCase;
 
 class SweepDueRetriesTest extends TestCase
@@ -110,6 +112,24 @@ class SweepDueRetriesTest extends TestCase
         // exactly one more, never a duplicate attempt 2.
         $this->assertSame(2, DeliveryAttempt::where('delivery_id', $delivery->id)->count());
         $this->assertSame(DeliveryStatus::Succeeded, $delivery->fresh()->status);
+    }
+
+    public function test_a_zero_sweep_grace_seconds_throws_instead_of_sweeping_every_retrying_delivery(): void
+    {
+        // Rider 1 (review-06 Minor 9): the accessor swap — SweepDueRetries now
+        // reads RetryPolicy::sweepGraceSeconds(), which guards the key. A
+        // blank/zero env used to make the cutoff `now()` and re-dispatch every
+        // `retrying` delivery on every tick; it must now fail loudly instead.
+        Queue::fake();
+        Config::set('retry.sweep_grace_seconds', 0);
+        $this->retryingDelivery(now()->subSeconds(60));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("config('retry.sweep_grace_seconds')");
+
+        SweepDueRetries::run();
+
+        RetryDelivery::assertNotPushed();
     }
 
     public function test_the_sweep_is_registered_to_run_every_minute(): void

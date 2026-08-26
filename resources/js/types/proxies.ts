@@ -41,7 +41,12 @@ export interface ProxyListItem {
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;
     response_body: string | null;
-    /** Per-proxy retry policy; null = unconfigured (RetryPolicy resolves the system default). */
+    /**
+     * The per-proxy override in force; null whenever the system default
+     * governs, including a Simple proxy holding a dormant policy (AC14(b);
+     * ADR-018 Decision 4) — never the raw column. The Edit-only carve-out is
+     * {@link ProxyFormProxy}.
+     */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
@@ -71,12 +76,42 @@ export interface ProxyDetail {
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;
     response_body: string | null;
-    /** Per-proxy retry policy; null = unconfigured (RetryPolicy resolves the system default). */
+    /**
+     * The per-proxy override in force; null whenever the system default
+     * governs, including a Simple proxy holding a dormant policy (AC14(b);
+     * ADR-018 Decision 4) — never the raw column. The Edit-only carve-out is
+     * {@link ProxyFormProxy}.
+     */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
     destinations: ProxyDestination[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
+}
+
+/**
+ * The proxy prop shape for the Edit form only (Amendment A; mirrors
+ * `ProxyFormResource` exactly, T5/T6) — the single sanctioned carve-out from
+ * {@link ProxyDetail}/{@link ProxyListItem}'s read-surface suppression rule.
+ * Unlike those two, whose retry fields are `null` for a Simple proxy even
+ * when it holds a dormant policy, this shape always carries the raw
+ * persisted values regardless of mode, so the Edit form can pre-fill a
+ * dormant policy the member left behind. `Edit.vue`'s prop type is this
+ * interface, never `ProxyDetail`/`ProxyListItem`.
+ */
+export interface ProxyFormProxy {
+    id: number;
+    name: string;
+    mode: ProxyMode;
+    /** Per-proxy processing mode (ADR-011). */
+    processing_mode: ProcessingMode;
+    /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
+    response_status: ProxyResponseStatus | null;
+    response_body: string | null;
+    /** Raw persisted values, regardless of mode (Amendment A) — never null-suppressed. */
+    retry_attempt_limit: number | null;
+    retry_backoff_strategy: RetryBackoffStrategy | null;
+    destinations: DestinationRow[];
 }
 
 export interface PaginationLink {
@@ -115,21 +150,27 @@ export interface DeliveryAttempt {
 
 /**
  * One `deliveries` row — an original send or a replay batch (mirrors
- * `DeliveryResource` exactly, T25). Never `body`/`headers` (AC22/AC25).
+ * `DeliveryResource` exactly, T25/T12-rider-2). Never `body`/`headers`
+ * (AC22/AC25).
  *
- * `id`/`dispatch_uuid`/`next_attempt_at`/`attempt_limit` are `null` only for
- * a pre-#6 legacy-fallback row (an event captured before this feature, no
- * real `deliveries` row exists — `WebhookEventResource`'s derived
- * presentation). `attempts` is `undefined` when the caller didn't
+ * `id`/`dispatch_uuid`/`created_at`/`next_attempt_at`/`attempt_limit` are
+ * `null` only for a pre-#6 legacy-fallback row (an event captured before
+ * this feature, no real `deliveries` row exists — `WebhookEventResource`'s
+ * derived presentation). `attempts` is `undefined` when the caller didn't
  * eager-load `deliveryAttempts` (the events **list** page, T26 — the
  * `whenLoaded` key is omitted entirely from the JSON), and `null` for a
  * legacy-fallback row.
+ *
+ * `created_at` (review-06 Minor 5, rider 2) is the row's own creation
+ * timestamp — the events-detail replay-group label and newest-first
+ * ordering (`events/Show.vue`) derive from it directly.
  */
 export interface Delivery {
     id: number | null;
     dispatch_uuid: string | null;
     kind: DispatchKind;
     status: ProxyDeliveryStatus;
+    created_at: string | null;
     next_attempt_at: string | null;
     attempt_limit: number | null;
     destination: {

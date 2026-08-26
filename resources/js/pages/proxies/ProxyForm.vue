@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Link, useForm } from '@inertiajs/vue3';
+import { Info } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
 import DestinationRows from '@/components/DestinationRows.vue';
 import InputError from '@/components/InputError.vue';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +24,8 @@ import {
 } from '@/data/proxyResponseStatuses';
 import {
     PROXY_RETRY_BACKOFF_STRATEGIES,
+    proxyRetryBackoffStrategyLabel,
+    RETRY_DEFAULT_ATTEMPT_LIMIT,
     RETRY_STRATEGY_DEFAULT,
     RETRY_STRATEGY_DEFAULT_LABEL,
 } from '@/data/proxyRetryBackoffStrategies';
@@ -83,14 +87,48 @@ const retryStrategySelect = computed({
 // The Retry policy section only renders in Enhanced mode (Flow F). Switching
 // Enhanced → Simple clears both fields to their default-sentinel state the
 // moment the section unmounts — a data operation, not a CSS toggle, so no stale
-// value can ever be submitted for a simple-mode proxy (Flow F step 4).
+// value can ever be submitted for a simple-mode proxy (Flow F step 4). This is
+// the deliberate discard of *in-session typed* values and is unchanged.
+//
+// Switching back Simple → Enhanced re-seeds both fields from the mount seed
+// (`props.initial`, never mutated) rather than leaving them blank (plan
+// §Technical ruling 4(b), Revision A). `props.initial.*` holds the proxy's
+// *persisted* configuration, not anything typed in this session, so restoring
+// it is not "undoing" the clear above — it is what makes AC14(b)(iii)'s promise
+// ("the preserved values are shown … on save") true on the round trip design-07
+// Flow C step 3 names ("Changes mind"). Unconditional and idempotent by
+// construction: it never materialises a default literal, so an unconfigured
+// Enhanced proxy (null columns) round-trips to blank, not to 5/exponential.
 const isEnhanced = computed(() => form.mode === 'enhanced');
 watch(isEnhanced, (enhanced) => {
     if (!enhanced) {
         form.retry_attempt_limit = '';
         form.retry_backoff_strategy = '';
+    } else {
+        form.retry_attempt_limit =
+            props.initial.retryAttemptLimit?.toString() ?? '';
+        form.retry_backoff_strategy = props.initial.retryBackoffStrategy ?? '';
     }
 });
+
+// The downgrade disclosure (design-07 Screen 1) renders only while the form's
+// *loaded* mode was Enhanced and the *current* selection is Simple — never at
+// Create (initial.mode is always 'simple' there), never for a proxy that is
+// already Simple and stays Simple, and it disappears immediately on switching
+// back to Enhanced before submit, with nothing ever sent to the server. It is
+// not a gate: it renders alongside the normal Save action with no confirm
+// click, checkbox, or modal.
+const isDowngrading = computed(
+    () => props.initial.mode === 'enhanced' && form.mode === 'simple',
+);
+
+// The disclosure's third bullet interpolates the system default rather than
+// hard-coding a second copy of it — the same source Show's Retry policy card
+// display helpers read from (@/data/proxyRetryBackoffStrategies), so a future
+// default change can't leave this copy stale relative to the card it
+// describes.
+const defaultAttemptLimit = RETRY_DEFAULT_ATTEMPT_LIMIT;
+const defaultBackoffStrategy = proxyRetryBackoffStrategyLabel(null);
 
 // Status is the closed set from PROXY_RESPONSE_STATUSES plus a "default" sentinel
 // (the unconfigured state → 202). The sentinel maps to '' so submit still sends
@@ -133,12 +171,23 @@ function submit(): void {
             data.response_status === '' ? null : Number(data.response_status),
         response_body: data.response_body === '' ? null : data.response_body,
         // Same idiom for the retry fields: blank/sentinel → null (unconfigured).
+        // A Simple-mode submission ALWAYS sends null for both, regardless of
+        // the fields' in-memory state — required because the Edit form's
+        // initial state is seeded from the persisted values whatever the
+        // proxy's mode (T5/T6), while `watch(isEnhanced, ...)` above only
+        // clears fields on an in-session change, never on mount. Without this,
+        // opening Edit on a Simple proxy holding a dormant retry policy and
+        // saving without touching Mode would submit the dormant values
+        // alongside mode: 'simple' and be 422'd by prohibited_if on a field
+        // the form does not render (plan Risk 4). This is a normalisation,
+        // not a gate — the server's omission rule (T1) is authoritative
+        // regardless of what a Simple submission carries.
         retry_attempt_limit:
-            data.retry_attempt_limit === ''
+            data.mode === 'simple' || data.retry_attempt_limit === ''
                 ? null
                 : Number(data.retry_attempt_limit),
         retry_backoff_strategy:
-            data.retry_backoff_strategy === ''
+            data.mode === 'simple' || data.retry_backoff_strategy === ''
                 ? null
                 : data.retry_backoff_strategy,
     })).submit(props.method, props.action, {
@@ -186,7 +235,12 @@ function submit(): void {
             <div class="grid gap-2">
                 <Label for="mode">Mode</Label>
                 <Select v-model="form.mode" :disabled="form.processing">
-                    <SelectTrigger id="mode" class="w-full sm:w-64">
+                    <SelectTrigger
+                        id="mode"
+                        class="w-full sm:w-64"
+                        :aria-invalid="form.errors.mode ? 'true' : undefined"
+                        aria-describedby="mode-help mode-error"
+                    >
                         <SelectValue placeholder="Select a mode" />
                     </SelectTrigger>
                     <SelectContent>
@@ -194,12 +248,56 @@ function submit(): void {
                         <SelectItem value="enhanced">Enhanced</SelectItem>
                     </SelectContent>
                 </Select>
-                <p class="text-sm text-muted-foreground">
-                    Enhanced mode enables per-proxy retry configuration below.
-                    Automatic retry itself applies to every proxy regardless of
-                    Mode.
+                <p id="mode-help" class="text-sm text-muted-foreground">
+                    Enhanced mode stores the payload actually dispatched,
+                    separately from the payload received, and lets this proxy
+                    configure its own retry attempts and backoff strategy below.
+                    Automatic retry, payload capture, retention, and replay
+                    apply to every proxy regardless of Mode.
                 </p>
-                <InputError :message="form.errors.mode" />
+                <span id="mode-error">
+                    <InputError :message="form.errors.mode" />
+                </span>
+            </div>
+
+            <!-- Downgrade disclosure (Enhanced → Simple edit only, AC13/AC14(c)) -->
+            <div aria-live="polite">
+                <Alert
+                    v-if="isDowngrading"
+                    class="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-100 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400"
+                >
+                    <Info class="size-4" />
+                    <AlertTitle>Switching to Simple mode</AlertTitle>
+                    <AlertDescription class="text-blue-900 dark:text-blue-100">
+                        <ul class="list-disc space-y-1 pl-4">
+                            <li>
+                                Enhanced-only steps — payload storage and retry
+                                configuration — stop running for events
+                                processed after you save. Automatic retry,
+                                payload capture, retention, and replay are
+                                unaffected; they apply to every proxy regardless
+                                of mode.
+                            </li>
+                            <li>
+                                Dispatched payloads already stored for this
+                                proxy's past events are kept, unchanged, and
+                                expire on their normal 30-day schedule — the
+                                same as always. Nothing is deleted by this
+                                switch.
+                            </li>
+                            <li>
+                                Any retry configuration you've saved for this
+                                proxy is kept but stops applying while it's
+                                Simple — the system default ({{
+                                    defaultAttemptLimit
+                                }}
+                                attempts, {{ defaultBackoffStrategy }}) governs
+                                meanwhile. It applies again, with the same
+                                values, if you turn Enhanced back on.
+                            </li>
+                        </ul>
+                    </AlertDescription>
+                </Alert>
             </div>
 
             <div class="grid gap-2">

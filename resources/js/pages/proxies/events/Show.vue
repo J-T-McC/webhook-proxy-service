@@ -110,15 +110,14 @@ const payloadUrl = computed(
  * groups them together into a single synthetic "Original delivery" group,
  * exactly as intended (there is only ever one legacy-fallback batch).
  *
- * `DeliveryResource` carries no `created_at` for the group's own "{time}"
- * label (T25's resource shape has no such field) — derived instead from the
- * earliest attempt's `started_at` across the group's destinations, falling
- * back to no time suffix ("Replay" alone) when the group has no attempts yet
- * (e.g. a FIFO replay still queued behind the line). Newest-first ordering
- * for Replay groups uses each group's highest `Delivery.id` (a reliable
- * creation-order proxy — a fresh row from `Delivery::create()` always gets a
- * strictly higher id) rather than the derived time, which can be delayed or
- * absent under backoff.
+ * The group's own "{time}" label and newest-first ordering for Replay groups
+ * (review-06 Minor 5, rider 2) derive directly from `Delivery.created_at` —
+ * every delivery row in a group is created together, ahead of dispatch, by
+ * the same batch (`DeliverStep`), so any row's `created_at` is the group's
+ * creation time. This replaces the earlier derivation from the earliest
+ * attempt's `started_at` (which degraded to no time suffix — a bare
+ * "Replay" — for a FIFO replay still queued behind a held line, with zero
+ * attempts yet) and from the group's highest `Delivery.id` for ordering.
  */
 interface DeliveryGroup {
     key: string;
@@ -142,12 +141,8 @@ const deliveryGroups = computed<DeliveryGroup[]>(() => {
     }
 
     const groups = Array.from(byKey.entries()).map(([key, deliveries]) => {
-        const ids = deliveries
-            .map((delivery) => delivery.id)
-            .filter((id): id is number => id !== null);
-        const startedTimes = deliveries
-            .flatMap((delivery) => delivery.attempts ?? [])
-            .map((attempt) => attempt?.started_at)
+        const createdAts = deliveries
+            .map((delivery) => delivery.created_at)
             .filter((value): value is string => !!value)
             .sort();
 
@@ -155,15 +150,14 @@ const deliveryGroups = computed<DeliveryGroup[]>(() => {
             key,
             kind: deliveries[0].kind,
             deliveries,
-            sortId: ids.length > 0 ? Math.max(...ids) : -1,
-            time: startedTimes.length > 0 ? startedTimes[0] : null,
+            time: createdAts.length > 0 ? createdAts[0] : null,
         };
     });
 
     const original = groups.filter((group) => group.kind === 'original');
     const replays = groups
         .filter((group) => group.kind === 'replay')
-        .sort((a, b) => b.sortId - a.sortId);
+        .sort((a, b) => (b.time ?? '').localeCompare(a.time ?? ''));
 
     return [...original, ...replays];
 });

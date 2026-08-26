@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Proxy;
+use App\Services\RetryPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -42,12 +43,16 @@ class ProxyResource extends JsonResource
             // them; the index doesn't render them but the shape stays consistent.
             'response_status' => $this->response_status,
             'response_body' => $this->response_body,
-            // Per-proxy retry policy (AC2, AC20; ADR-015 Decision 3). Raw column
-            // values, nullable = unconfigured -> RetryPolicy resolves the system
-            // default. Exposed so the shared Create/Edit form pre-fills them and
-            // the Show-page Retry policy card can derive its display state.
-            'retry_attempt_limit' => $this->retry_attempt_limit,
-            'retry_backoff_strategy' => $this->retry_backoff_strategy?->value,
+            // Per-proxy retry policy override in force (AC2, AC20, AC14(b);
+            // ADR-018 Decision 4). Resolved through RetryPolicy's mode gate, NOT
+            // the raw columns: an Enhanced proxy emits its column values, a
+            // Simple proxy emits null for both, always — even if it holds a
+            // dormant policy from a prior Enhanced save. This is a read-surface
+            // rule only; the Edit form's pre-fill needs the raw persisted values
+            // regardless of mode (Amendment A) and gets them from
+            // `ProxyFormResource`, the sole sanctioned override of these two keys.
+            'retry_attempt_limit' => app(RetryPolicy::class)->configuredAttemptLimitFor($this->resource),
+            'retry_backoff_strategy' => app(RetryPolicy::class)->configuredStrategyFor($this->resource)?->value,
             // Built server-side from config, never the request Host header (ADR-006).
             'ingest_url' => $this->ingestUrl(),
             'destinations' => DestinationResource::collection($this->whenLoaded('destinations')),

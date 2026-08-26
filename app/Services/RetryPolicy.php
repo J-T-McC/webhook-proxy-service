@@ -2,21 +2,31 @@
 
 namespace App\Services;
 
+use App\Actions\SweepDueRetries;
+use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
 use App\Models\Proxy;
 use Carbon\CarbonInterval;
 use RuntimeException;
 
 /**
- * The single resolver of retry policy (ADR-015 Decision 3/4, plan-06
- * §Services). `RetryPolicy` is the ONLY reader of the two `proxies` retry
- * columns and of `config('retry.*')` (plan-06 binding invariant) — no other
- * place in the codebase may read either directly.
+ * The single resolver of retry policy (ADR-015 Decision 3/4, ADR-018 Decision
+ * 2; plan-06/plan-07 §Services). `RetryPolicy` is the ONLY reader of the two
+ * `proxies` retry columns and of `config('retry.*')` (plan-06 binding
+ * invariant, reaffirmed by ADR-018) — no other place in the codebase may read
+ * either directly.
  *
- * A per-proxy column value, when set, overrides the matching config default;
- * `attemptLimitFor` additionally hard-clamps to `[1, max_attempt_limit]`
- * regardless of column content (a column value above the cap is only
- * reachable if the config cap was lowered after the value was saved).
+ * **The mode gate (ADR-018 Decision 2, binding).** `configuredAttemptLimitFor()`/
+ * `configuredStrategyFor()` establish `mode === ProxyMode::Enhanced` before
+ * reading either column, returning `null` otherwise — a Simple proxy's column
+ * is dormant and resolves the system default whatever it holds
+ * (PRD-07 AC14(a)/AC21). `attemptLimitFor()`/`strategyFor()` route through
+ * them, so every consumer of those two methods inherits the gate with no
+ * branch of its own. A per-proxy override, when the gate lets it through,
+ * overrides the matching config default; `attemptLimitFor` additionally
+ * hard-clamps to `[1, max_attempt_limit]` after the gate, regardless of
+ * column content (a column value above the cap is only reachable if the
+ * config cap was lowered after the value was saved).
  *
  * Also enforces plan-06's Config sanity invariant (mirroring `RetentionPolicy`
  * / review-05 M-1 precedent): `default_attempt_limit`, `max_attempt_limit`,
@@ -28,9 +38,33 @@ use RuntimeException;
 class RetryPolicy
 {
     /**
-     * The maximum number of delivery attempts for a proxy (AC2). The column
-     * value if set, else `config('retry.default_attempt_limit')`, always
-     * clamped to `[1, config('retry.max_attempt_limit')]`.
+     * The per-proxy attempt-limit override in force (ADR-018 Decision 2) —
+     * the column value on an Enhanced proxy, `null` on a Simple one whatever
+     * the column holds. The ONLY place `retry_attempt_limit` is read to
+     * decide what governs a proxy.
+     */
+    public function configuredAttemptLimitFor(Proxy $proxy): ?int
+    {
+        return $proxy->mode === ProxyMode::Enhanced ? $proxy->retry_attempt_limit : null;
+    }
+
+    /**
+     * The per-proxy backoff-strategy override in force (ADR-018 Decision 2) —
+     * the column value on an Enhanced proxy, `null` on a Simple one whatever
+     * the column holds. The ONLY place `retry_backoff_strategy` is read to
+     * decide what governs a proxy.
+     */
+    public function configuredStrategyFor(Proxy $proxy): ?RetryBackoffStrategy
+    {
+        return $proxy->mode === ProxyMode::Enhanced ? $proxy->retry_backoff_strategy : null;
+    }
+
+    /**
+     * The maximum number of delivery attempts for a proxy (AC2, AC14(a)).
+     * `configuredAttemptLimitFor()`'s value if the proxy is Enhanced and the
+     * column is set, else `config('retry.default_attempt_limit')`, always
+     * clamped to `[1, config('retry.max_attempt_limit')]` — the clamp applies
+     * after the mode gate, in both modes.
      *
      * @throws RuntimeException if `default_attempt_limit`/`max_attempt_limit`
      *                          does not resolve to a positive integer.
@@ -38,18 +72,19 @@ class RetryPolicy
     public function attemptLimitFor(Proxy $proxy): int
     {
         $max = $this->positiveConfigInt('max_attempt_limit');
-        $limit = $proxy->retry_attempt_limit ?? $this->positiveConfigInt('default_attempt_limit');
+        $limit = $this->configuredAttemptLimitFor($proxy) ?? $this->positiveConfigInt('default_attempt_limit');
 
         return max(1, min($limit, $max));
     }
 
     /**
-     * The backoff strategy for a proxy (AC2). The column value if set, else
-     * `Exponential`.
+     * The backoff strategy for a proxy (AC2, AC14(a)).
+     * `configuredStrategyFor()`'s value if the proxy is Enhanced and the
+     * column is set, else `Exponential`.
      */
     public function strategyFor(Proxy $proxy): RetryBackoffStrategy
     {
-        return $proxy->retry_backoff_strategy ?? RetryBackoffStrategy::Exponential;
+        return $this->configuredStrategyFor($proxy) ?? RetryBackoffStrategy::Exponential;
     }
 
     /**
@@ -108,6 +143,22 @@ class RetryPolicy
         $delay = $base * ($multiplier ** ($attemptNumber - 2));
 
         return min($delay, $cap);
+    }
+
+    /**
+     * The sweep grace period, in seconds, added on top of `next_attempt_at`
+     * before {@see SweepDueRetries} treats a `retrying` delivery
+     * as overdue (review-06 Minor 9; plan §Riders 1). The ONLY place
+     * `config('retry.sweep_grace_seconds')` is read — a blank or explicit
+     * `0` throws rather than silently coercing to a cutoff of `now()`, which
+     * would re-dispatch every `retrying` delivery on every sweep tick.
+     *
+     * @throws RuntimeException if `sweep_grace_seconds` does not resolve to a
+     *                          positive integer.
+     */
+    public function sweepGraceSeconds(): int
+    {
+        return $this->positiveConfigInt('sweep_grace_seconds');
     }
 
     /**

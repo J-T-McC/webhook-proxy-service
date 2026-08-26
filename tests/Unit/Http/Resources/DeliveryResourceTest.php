@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Http\Resources;
 
+use App\Enums\ProxyMode;
 use App\Http\Resources\DeliveryResource;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
@@ -57,13 +58,16 @@ class DeliveryResourceTest extends TestCase
         $this->assertSame($delivery->dispatch_uuid, $array['dispatch_uuid']);
         $this->assertSame($delivery->kind->value, $array['kind']);
         $this->assertSame($delivery->status->value, $array['status']);
+        $this->assertTrue($delivery->created_at->equalTo($array['created_at']));
         $this->assertSame($delivery->destination->url, $array['destination']['url']);
         $this->assertSame($delivery->destination->http_method->value, $array['destination']['http_method']);
     }
 
     public function test_attempt_limit_reflects_the_proxys_effective_policy(): void
     {
-        $delivery = $this->delivery(['proxy' => ['retry_attempt_limit' => 3]]);
+        // Enhanced (ADR-018 Decision 2): the column is only consulted for an
+        // Enhanced proxy.
+        $delivery = $this->delivery(['proxy' => ['mode' => ProxyMode::Enhanced, 'retry_attempt_limit' => 3]]);
 
         $this->assertSame(3, $this->toArray($delivery)['attempt_limit']);
     }
@@ -100,7 +104,7 @@ class DeliveryResourceTest extends TestCase
         // resolves to null once the proxy is soft-deleted, and RetryPolicy::
         // attemptLimitFor() takes a non-nullable Proxy — a bare access threw a
         // TypeError here before the fix.
-        $delivery = $this->delivery(['proxy' => ['retry_attempt_limit' => 3]]);
+        $delivery = $this->delivery(['proxy' => ['mode' => ProxyMode::Enhanced, 'retry_attempt_limit' => 3]]);
         $delivery->proxy->delete();
 
         $this->assertSame(3, $this->toArray($delivery)['attempt_limit']);

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
 use App\Models\Proxy;
 use App\Models\Team;
@@ -13,11 +14,119 @@ use Tests\TestCase;
 
 class RetryPolicyTest extends TestCase
 {
+    // --- ADR-018 Decision 2: the mode gate --------------------------------
+
+    public function test_configured_accessors_return_null_for_a_simple_proxy_whatever_the_columns_hold(): void
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Simple,
+            'retry_attempt_limit' => 8,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+        $policy = new RetryPolicy;
+
+        $this->assertNull($policy->configuredAttemptLimitFor($proxy));
+        $this->assertNull($policy->configuredStrategyFor($proxy));
+    }
+
+    public function test_configured_accessors_return_the_column_value_for_an_enhanced_proxy(): void
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Enhanced,
+            'retry_attempt_limit' => 8,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+        $policy = new RetryPolicy;
+
+        $this->assertSame(8, $policy->configuredAttemptLimitFor($proxy));
+        $this->assertSame(RetryBackoffStrategy::Fixed, $policy->configuredStrategyFor($proxy));
+    }
+
+    /**
+     * The headline AC14(a)/AC21 proof: a Simple proxy holding a dormant policy
+     * resolves IDENTICALLY to a Simple proxy that never had one — "identical"
+     * is the assertion over both proxies, not an inference from one.
+     */
+    public function test_a_simple_proxy_with_a_dormant_policy_resolves_identically_to_one_that_never_had_a_policy(): void
+    {
+        $policy = new RetryPolicy;
+
+        $withDormantPolicy = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Simple,
+            'retry_attempt_limit' => 8,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+        $neverConfigured = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Simple,
+            'retry_attempt_limit' => null,
+            'retry_backoff_strategy' => null,
+        ]);
+
+        $this->assertSame(
+            $policy->attemptLimitFor($neverConfigured),
+            $policy->attemptLimitFor($withDormantPolicy),
+        );
+        $this->assertSame(5, $policy->attemptLimitFor($withDormantPolicy));
+        $this->assertSame(
+            $policy->strategyFor($neverConfigured),
+            $policy->strategyFor($withDormantPolicy),
+        );
+        $this->assertSame(RetryBackoffStrategy::Exponential, $policy->strategyFor($withDormantPolicy));
+    }
+
+    public function test_an_enhanced_proxy_with_the_same_columns_resolves_the_configured_values(): void
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Enhanced,
+            'retry_attempt_limit' => 8,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+        $policy = new RetryPolicy;
+
+        $this->assertSame(8, $policy->attemptLimitFor($proxy));
+        $this->assertSame(RetryBackoffStrategy::Fixed, $policy->strategyFor($proxy));
+    }
+
+    public function test_an_enhanced_proxy_with_null_columns_resolves_the_unconfigured_default(): void
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Enhanced,
+            'retry_attempt_limit' => null,
+            'retry_backoff_strategy' => null,
+        ]);
+        $policy = new RetryPolicy;
+
+        $this->assertSame(5, $policy->attemptLimitFor($proxy));
+        $this->assertSame(RetryBackoffStrategy::Exponential, $policy->strategyFor($proxy));
+    }
+
+    public function test_the_clamp_still_applies_after_the_gate_on_an_enhanced_proxy(): void
+    {
+        Config::set('retry.max_attempt_limit', 10);
+        $proxy = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Enhanced,
+            'retry_attempt_limit' => 250,
+        ]);
+
+        $this->assertSame(10, (new RetryPolicy)->attemptLimitFor($proxy));
+    }
+
+    public function test_a_simple_proxy_with_a_column_above_the_cap_still_resolves_the_default(): void
+    {
+        Config::set('retry.max_attempt_limit', 10);
+        $proxy = Proxy::factory()->createQuietly([
+            'mode' => ProxyMode::Simple,
+            'retry_attempt_limit' => 250,
+        ]);
+
+        $this->assertSame(5, (new RetryPolicy)->attemptLimitFor($proxy));
+    }
+
     // --- attemptLimitFor -----------------------------------------------
 
     public function test_attempt_limit_for_returns_the_column_value_when_set(): void
     {
-        $proxy = Proxy::factory()->createQuietly(['retry_attempt_limit' => 3]);
+        $proxy = Proxy::factory()->createQuietly(['mode' => ProxyMode::Enhanced, 'retry_attempt_limit' => 3]);
 
         $this->assertSame(3, (new RetryPolicy)->attemptLimitFor($proxy));
     }
@@ -35,7 +144,7 @@ class RetryPolicyTest extends TestCase
     public function test_attempt_limit_for_clamps_a_column_value_above_the_cap(): void
     {
         Config::set('retry.max_attempt_limit', 10);
-        $proxy = Proxy::factory()->createQuietly(['retry_attempt_limit' => 250]);
+        $proxy = Proxy::factory()->createQuietly(['mode' => ProxyMode::Enhanced, 'retry_attempt_limit' => 250]);
 
         $this->assertSame(10, (new RetryPolicy)->attemptLimitFor($proxy));
     }
@@ -53,7 +162,7 @@ class RetryPolicyTest extends TestCase
 
     public function test_strategy_for_returns_the_column_value_when_set(): void
     {
-        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
+        $proxy = Proxy::factory()->createQuietly(['mode' => ProxyMode::Enhanced, 'retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
 
         $this->assertSame(RetryBackoffStrategy::Fixed, (new RetryPolicy)->strategyFor($proxy));
     }
@@ -105,7 +214,7 @@ class RetryPolicyTest extends TestCase
     {
         Config::set('retry.fixed_interval_seconds', 300);
 
-        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
+        $proxy = Proxy::factory()->createQuietly(['mode' => ProxyMode::Enhanced, 'retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
         $policy = new RetryPolicy;
 
         foreach (range(2, 10) as $attemptNumber) {
@@ -286,7 +395,7 @@ class RetryPolicyTest extends TestCase
     public function test_delay_before_throws_when_fixed_interval_seconds_is_zero(): void
     {
         Config::set('retry.fixed_interval_seconds', 0);
-        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
+        $proxy = Proxy::factory()->createQuietly(['mode' => ProxyMode::Enhanced, 'retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("config('retry.fixed_interval_seconds')");
@@ -297,7 +406,7 @@ class RetryPolicyTest extends TestCase
     public function test_delay_before_throws_when_fixed_interval_seconds_is_negative(): void
     {
         Config::set('retry.fixed_interval_seconds', -300);
-        $proxy = Proxy::factory()->createQuietly(['retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
+        $proxy = Proxy::factory()->createQuietly(['mode' => ProxyMode::Enhanced, 'retry_backoff_strategy' => RetryBackoffStrategy::Fixed]);
 
         $this->expectException(RuntimeException::class);
 
@@ -463,5 +572,70 @@ class RetryPolicyTest extends TestCase
         $this->expectException(RuntimeException::class);
 
         (new RetryPolicy)->worstCaseSpan();
+    }
+
+    // --- Rider 1 (review-06 Minor 9): sweepGraceSeconds() ------------------
+
+    public function test_sweep_grace_seconds_returns_the_configured_value(): void
+    {
+        Config::set('retry.sweep_grace_seconds', 120);
+
+        $this->assertSame(120, (new RetryPolicy)->sweepGraceSeconds());
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_value_is_zero(): void
+    {
+        Config::set('retry.sweep_grace_seconds', 0);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("config('retry.sweep_grace_seconds')");
+
+        (new RetryPolicy)->sweepGraceSeconds();
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_value_is_negative(): void
+    {
+        Config::set('retry.sweep_grace_seconds', -1);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->sweepGraceSeconds();
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_env_value_is_blank(): void
+    {
+        // Reproduces review-06 Minor 9's repro: a blank env value casts to 0,
+        // which used to make the sweep cutoff `now()` and re-dispatch every
+        // `retrying` delivery on every tick.
+        putenv('RETRY_SWEEP_GRACE_SECONDS=');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_SWEEP_GRACE_SECONDS');
+        }
+
+        Config::set('retry.sweep_grace_seconds', $resolved['sweep_grace_seconds']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->sweepGraceSeconds();
+    }
+
+    public function test_sweep_grace_seconds_throws_when_the_env_value_is_non_numeric(): void
+    {
+        putenv('RETRY_SWEEP_GRACE_SECONDS=not-a-number');
+
+        try {
+            $resolved = require base_path('config/retry.php');
+        } finally {
+            putenv('RETRY_SWEEP_GRACE_SECONDS');
+        }
+
+        Config::set('retry.sweep_grace_seconds', $resolved['sweep_grace_seconds']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new RetryPolicy)->sweepGraceSeconds();
     }
 }
