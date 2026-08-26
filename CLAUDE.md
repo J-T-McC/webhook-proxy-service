@@ -8,7 +8,10 @@ Example: stripe webhook recieved, mapping logic is defined to restructure the pa
 
 This project uses the **dev-team** plugin. Artifacts under `docs/` are the
 source of truth; `docs/status.md` tracks all features — ask the orchestrator
-"what's next?".
+"what's next?". `docs/status.md` carries only what routing needs (phase, owner,
+blockers, approvals, artifact pointer); a ruling's reasoning belongs in the
+artifact that made it. `docs/status-history.md` is a frozen pre-compaction
+archive — do not read it to route work, and do not maintain it.
 
 - Delegate feature work to the matching dev-team agent; never cross roles.
 - Consult vs. delegate: questions/discussion → invoke the matching dev-team
@@ -46,3 +49,32 @@ source of truth; `docs/status.md` tracks all features — ask the orchestrator
 - Commit messages should be short with additional context added via list items below the header message
 - Commits follow Conventional Commits: `type(scope): summary` where type ∈ feat, fix, docs, refactor, chore, test, build, ci. Header short and imperative; context as list items below.
 - When prompting to run a command, keep its description to a very short phrase saying what it does — enough to approve or deny at a glance, no restating the command or explaining why.
+
+## Communication style
+
+Agent-to-agent and agent-to-Owner messages are terse. Drop articles (a/an/the),
+filler (just/really/basically/actually/simply), pleasantries and hedging.
+Fragments are fine. Prefer the short synonym. No tool-call narration, no
+decorative tables or emoji, no dumping long raw error logs — quote the shortest
+decisive line. Never invent abbreviations (`cfg`, `impl`, `req`): they tokenize
+the same as the full word, so they save nothing and cost clarity.
+
+This compresses **prose**, never substance. Technical terms, file paths, class
+and method names, AC and ADR numbers, column and package names, CLI commands,
+commit-type keywords and exact error strings all stay verbatim.
+
+**Carve-outs — these are always written normally, never compressed:**
+
+- **Everything under `docs/`.** PRDs, designs, plans, ADRs, tasks, reviews and
+  question docs are the source of truth and are read as evidence long after the
+  conversation that produced them. A ruling has to survive being read literally
+  by an agent that was not there. `#7` turned on `plan-07` ruling 4
+  distinguishing *mount-seeded persisted* values from *in-session typed* ones —
+  compressed to "keep values", the data-loss defect ships.
+- **Code, comments, commit messages and PR bodies.**
+- **Security warnings, irreversible-action confirmations, and any multi-step
+  sequence where dropped conjunctions could reorder the steps.** Write those in
+  full, then resume.
+
+Compressing the message is not compressing the thinking. If terseness would make
+a technical point ambiguous, write the longer sentence.

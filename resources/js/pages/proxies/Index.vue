@@ -106,7 +106,7 @@ function confirmDelete(): void {
 <template>
     <Head title="Proxies" />
 
-    <div class="flex h-full flex-1 flex-col gap-6 p-4">
+    <div class="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-6 p-4">
         <div class="flex items-center justify-between">
             <h1 class="text-xl font-semibold">Proxies</h1>
             <Button v-if="permissions.canCreateProxy" as-child>
@@ -241,11 +241,10 @@ function confirmDelete(): void {
                 <Button
                     v-for="link in proxies.links"
                     :key="link.label"
-                    variant="outline"
+                    :variant="link.active ? 'default' : 'outline'"
                     size="sm"
                     :disabled="!link.url"
                     :aria-current="link.active ? 'page' : undefined"
-                    :class="link.active ? 'bg-accent' : ''"
                     @click="link.url && router.get(link.url)"
                 >
                     <span v-html="link.label" />

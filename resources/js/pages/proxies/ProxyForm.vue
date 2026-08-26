@@ -208,7 +208,7 @@ function submit(): void {
 <template>
     <form
         ref="formEl"
-        class="mx-auto w-full max-w-2xl"
+        class="mx-auto w-full max-w-3xl"
         @submit.prevent="submit"
     >
         <Card class="gap-6 p-6">

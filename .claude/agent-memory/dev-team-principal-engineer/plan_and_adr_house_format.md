@@ -45,6 +45,22 @@ the gate a single reversible decision. Certification then names exactly what the
 and states that everything else needs no further sign-off; Next Agent reads "Task Planner — **after**
 Owner approval of items N".
 
+**Flags without an ADR is a real shape** (plan-11): a plan can carry Owner gates — a new dependency,
+an index-only data-model change — and still warrant **no ADR**, because the gates *are* the decision
+record and an ADR would restate them. When that happens, invert the no-flag case's paragraph:
+*"Why no ADR was warranted here, **when the previous item needed one**"*, walking each candidate
+against the bar, **then** walk every ADR the feature touches one by one and say explicitly that it
+needs no amendment (imprecise-but-not-contradicted wording — e.g. ADR-003's unimplemented
+"own lifecycle" — is *not* grounds to supersede an Accepted ADR). Also useful in the flags case:
+sequence **§ Milestones** so the gate-blocked ones are named, and say how many are *not* blocked, so
+a pending gate doesn't stall the Task Planner.
+
+**Where a design spec's flagged calls are *contingencies whose trigger the PM assigned to the PE***,
+the plan must **pull them explicitly** — name the call, state which branch it resolves to, and state
+the user-visible consequence (a caption that now renders nothing, a label that must *not* say
+"approximation") so the Designer and Reviewer don't infer it. Same for a feasibility question that
+pre-approves a fallback: say precisely where the fallback is taken and where it is not.
+
 **When an Owner amendment lands mid-design** (the PRD "Amendment A" pattern), the house response is
 a `## Revision A — what the ruling changed here` table (*prior position → now*) at the top of every
 artifact it touches, the plan included. Rules observed: revise a **Proposed** ADR in place (nothing
@@ -57,6 +73,35 @@ ADR-010 while ADR-014 was Proposed; plan-06 did the same to ADR-011 for ADR-016)
 doc gets an appended `## Amendment A — superseded answers` table, never an edit to its answer. ACs
 are never renumbered. The Owner-flag list is restated **in full** in the plan (it is the single place
 the Owner reads it) and grows as the amendment ripples.
+
+**`## Revision A` also covers the PE's *own* post-certification ruling** — a question doc from a
+downstream agent that a fully-approved plan cannot answer as written (plan-11 / `Q-11-04`: the design
+required a per-day drill-through the plan's three-parameter resolver had no mechanism for). Same shape
+as the Owner cases — Revision table at the top, new ruling appended (never renumbered), the affected
+prior ruling rewritten in place with an *(Amended YYYY-MM-DD — Revision A)* parenthetical, dated
+`### Re-certification at Revision A` below the original Certification — with two differences that
+matter: the re-certification names **plan authority under the delegated gate, not an Owner ruling, and
+says none was sought**, and it states explicitly that **no already-ruled Owner flag reopens**. Put the
+"why this needs no Owner gate and no ADR" walk **inside the new ruling** (against `CLAUDE.md`'s
+major-decision list item by item), then add one line for it to the existing *Why no ADR* list.
+Where the ruling has a user-visible shape the upstream spec constrains, resolve it by **reusing the
+approved template with a new value** rather than authoring copy — that is what keeps it off the
+Designer's desk, and say so in the ruling.
+
+**Revision letters keep going, and a later one goes *above* the earlier** (plan-11 gained `## Revision B`
+carrying a **PM amendment** — PRD `Amendment B` — onto an already-implemented plan). Shape: revision
+sections **most recent first** at the top with a line saying the earlier one is unchanged; a new
+`Revised:` clause in the header bullets; new rulings **appended by number** (11, 12, 13) with
+*(Added YYYY-MM-DD — Revision B)*; earlier rulings amended **in place** with *(Amended … — Revision B)*;
+a **new milestone appended** (M8), never renumbered, plus an explicit line on how it orders against
+existing ones; a dated `### Re-certification at Revision B` **below** Revision A's. Two things this
+shape adds over Revision A's: say in the re-certification that **carrying a PM amendment is not making
+a requirement** (the PM ruled the obligation and assigned the mechanism), and when the amendment
+creates **new task material** that fits no existing task, name the split in § *Handoff* and route the
+Task Planner rather than letting the Senior Developer infer it. Also: when a binding property the
+amendment states turns out to be **already false in the certified plan**, say so plainly ("this
+divergence pre-dates the amendment") and fix it in a numbered ruling — that is the walk being checkable
+rather than trusted.
 
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the

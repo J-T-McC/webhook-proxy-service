@@ -10,6 +10,20 @@
   of concern, compounded by F1) and deliberately left to the PE at `Q-11-03(1)` rather than
   scoped into this feature. **Next gate: the Designer** — `## UX Direction` is present and a
   PM-approved `design-11` is a prerequisite for Technical Design.
+- **Amendment A (Product Manager, 2026-08-26)** — two clarifications raised by the `design-11`
+  approval gate: **AC12**'s empty-state rule as it applies to a rate with a **zero denominator**,
+  and the **grain** at which AC16's daily series and AC20's percentile are obliged. **No criterion
+  is added, removed, renumbered or weakened**; both clarify what an existing criterion already
+  required, and both are recorded so the Reviewer does not read a literal phrase against a design
+  the Product Manager approved. See § Amendment A, after the acceptance criteria.
+- **Amendment B (Product Manager, 2026-08-26)** — raised by the Project Owner from the behaviour of
+  the built feature: on the 24-hour window a daily series can only ever produce one or two points, so
+  the trend renders as a single point at the far left of an otherwise empty chart. Amendment B sets
+  **AC16's bucket size per window** — hourly for the 24-hour window, daily for the 7-day and 30-day
+  windows — and rules that the **per-bucket drill-through obligation stands at day buckets only**.
+  **No criterion is added, removed, renumbered or weakened**; AC17's three windows and 30-day default
+  are unchanged, and AC18's indefinite retention and the window anchor are untouched. See
+  § Amendment B, after § Amendment A.
 - **Author:** Product Manager
 - **Date:** 2026-08-26 · **Revised:** 2026-08-26 — the Owner's V7 and V8 rulings rendered into
   **AC13–AC21** (V7) and **AC22** (V8), with **AC33** finalised under the V8 ruling. **AC7, AC9
@@ -60,7 +74,7 @@ Engineer and any future V8 or V3 ruling inherit one vocabulary rather than re-ar
 | **Count figure** | A figure whose natural empty value is **zero** (counts, rates over counts). |
 | **Measure figure** | A figure that summarises observations and has **no meaningful value when there are none** — delivery duration in particular. Its empty state is *no data*, never `0`. |
 | **Window** | The period a figure covers (24 hours, 7 days, or 30 days — AC17). |
-| **Bucket** | A subdivision of a window that turns one figure into a series: **one point per day** (AC16). |
+| **Bucket** | A subdivision of a window that turns one figure into a series. **The bucket size depends on the window** (AC16, as governed by § Amendment B(i)): the 24-hour window buckets by **hour** — one point per hour — and the 7-day and 30-day windows bucket by **day** — one point per day. |
 | **Drill-down** | Moving from an aggregate figure to the records behind it, ending at the **already-shipped** per-event surface (PRD-06 AC25). |
 | **Mode** | The simple/enhanced axis (ADR-002). Never the `processing_mode` (Async/FIFO) axis — the two stay orthogonal (PRD-07 § Definitions). |
 
@@ -420,10 +434,16 @@ Design**. Direction only — screens, states, components, chart forms and copy a
     chronic problem is distinguishable from a bad afternoon. *(Daily granularity is **PM-derived —
     D-11-4**: the Owner ruled Tier 3 but did not rule granularity. Hourly is a second axis of cost
     for a question — "which hour did it break" — the per-event surface already answers exactly.)*
+    **Governed by § Amendment B(i): the bucket size depends on the window** — one point per hour for
+    the 24-hour window, one point per day for the 7-day and 30-day windows. The requirement is
+    unchanged; only the bucket size varies. **§ Amendment B(ii)** states the grain at which this
+    series owes a drill-through.
 17. **Three windows are selectable: last 24 hours, last 7 days, last 30 days; 30 days is the
     default.** *(**PM-derived — D-11-4**.) Basis: 30 days matches the retention window members
     already understand, giving the trend a familiar frame without implying statistics expire with
-    payloads — a confusion AC18 exists to prevent.*
+    payloads — a confusion AC18 exists to prevent.* **Unchanged by § Amendment B**: the three windows
+    and the default stand exactly as written. Amendment B(i) assigns each of the three a bucket size
+    and adds no window.
 18. **The underlying records are kept indefinitely; a trend never truncates silently.** *(**PM-derived
     — D-11-5**.)* No statistics-retention window, cap, prune or rollup-with-discard is introduced at
     #11: attempts and deliveries are kept, and a figure over a window is computed from every record
@@ -571,6 +591,168 @@ definitions settled)**
     or scheduled reports, external analytics or BI integration, a user-configurable metric builder,
     or saved views. No roadmap item claims any of them, and the vision's exclusion of a
     workflow-builder-style UI applies in spirit.
+
+## Amendment A — Product Manager, 2026-08-26
+
+Raised by the `design-11` approval gate. Both clauses clarify an existing criterion; **no criterion
+is added, removed, renumbered or weakened**, and no requirement the Project Owner did not state is
+introduced. Where this section and a criterion's literal wording differ, this section governs.
+
+**(i) AC12 — a rate whose denominator is zero is *undefined*, not `0%`.** § Definitions classifies
+"rates over counts" as **count figures** whose natural empty value is zero. That classification is
+correct for the *counts* and wrong for the *rate computed from them*: `0%` over zero deliveries
+asserts that everything failed, which is exactly the false statement AC12 exists to prevent — the
+same defect AC12 already names for latency. AC12 is therefore read as:
+
+- **Raw counts always read `0`** in an empty window (`0 of 0 delivered`, `0` terminal failures,
+  `0` retries, `0` replays), with an indication of what would populate them. A count figure is
+  never replaced by a "no data" treatment — a count of zero is a true and useful statement.
+- **A rate whose denominator is zero is not rendered as a percentage at all.** It takes the same
+  no-false-number treatment AC12 gives a measure figure (wording such as "No deliveries yet"),
+  never `0%` and never `100%`.
+- **Measure figures are unchanged** — AC20's durations read "no data", never `0`.
+
+*Basis: the UX Direction's "zero traffic is a normal state, not an empty error … with an
+explanation of what would populate them", read together with AC8's requirement that every figure be
+honest about what it counts. Ratifies `design-11`'s flagged design call 2, which raised the conflict
+rather than resolving it silently.*
+
+**(ii) AC15/AC16/AC20 — the grain at which a daily series and a percentile are obliged.** AC15 names
+three grains (team, proxy, destination). AC16 ("each figure is available as a daily series") and
+AC20 ("average **and** a high-percentile figure … for the window and grain") do not name a grain,
+and a literal cross-product reading would oblige a per-destination daily series and a
+per-destination percentile. That cross product was never ruled: the Owner's Tier 3 ruling lists the
+per-destination split and the daily trend as **separate** elements of the tier, not as a matrix, and
+AC16/AC17's granularity is **PM-derived (D-11-4)**, so its scope is the Product Manager's to state.
+AC16 and AC20 are therefore obliged at the **team and proxy** grains. The **destination** grain
+carries the both-unit success/failure figures (AC15, AC13/AC14 in full) and an **average** duration
+for the window; a per-destination daily series and a per-destination percentile are **permitted and
+not required**, and adding either later is additive rather than a scope change.
+
+*This narrows no figure the Owner ruled: every element of Tier 3 remains present, at the grain where
+a member reads it. Ratifies `design-11`'s flagged design call 9.*
+
+## Amendment B — Product Manager, 2026-08-26
+
+Raised by the Project Owner from the behaviour of the built feature, not from a document review. On
+the **24-hour** window the trend chart renders **a single point at the far left of an otherwise empty
+chart**. That is AC16 working exactly as written — a series of one point per day across a 24-hour
+window can only ever contain one or two points — and the result tells a member nothing. AC16 exists
+so that "a chronic problem is distinguishable from a bad afternoon"; at the 24-hour window the
+criterion as literally worded cannot serve its own stated purpose.
+
+**Authority.** AC16 and AC17's granularity is **PM-derived — D-11-4** (see the PM-derived table:
+`Q-11-01(d)` was not separately ruled by the Owner, who directed the Product Manager to settle it).
+Per-window bucket granularity is the same call D-11-4 already made, made once more with the
+behaviour of the built surface in evidence. The two calls below are recorded as **D-11-8** and
+**D-11-9**; they were not among the seven the Owner ratified at approval, and they are stated here
+so the Owner sees them rather than having them buried in a design or a plan.
+
+**Both clauses govern over the literal wording of the criteria they name.** No criterion is added,
+removed, renumbered or weakened. AC17 (three windows, 30-day default), AC18 (records kept
+indefinitely, no truncation presented as complete), AC10 (each unit reconciles within its own unit)
+and the window anchor are all unchanged, and no new capture, column, table, route or export is
+introduced — AC29 and D-11-3 hold, an hourly bucket being derivable from the timestamps already
+stored.
+
+**(i) AC16 — the bucket size depends on the window (D-11-8).** AC16's "one point per day" is
+replaced, for every purpose, by a bucket size stated per window. Each of `AnalyticsWindow`'s three
+values buckets as follows, and no downstream agent needs to infer any of it:
+
+| Window (AC17) | Bucket | Points in a full window |
+|---|---|---|
+| **24 hours** (`24h`) | **One point per hour** | 24 hourly points |
+| **7 days** (`7d`) | **One point per day** | 7 daily points |
+| **30 days** (`30d`) | **One point per day** | 30 daily points |
+
+Binding properties of the series, at either bucket size:
+
+- **The buckets partition the window.** Every record the window's single-number figure counts falls
+  in exactly one bucket — no gap, no overlap, no record counted twice and none dropped at a
+  boundary. This is what lets a member read the series and the headline as descriptions of the same
+  traffic.
+- **Every point names the period it covers** (AC8, unchanged). An hourly point states its hour, a
+  daily point states its day. A member must never have to infer a point's period from its position.
+- **A bucket with no traffic is a bucket, not a gap.** AC12 and Amendment A(i) govern its value
+  exactly as they do today: a count reads `0`, and a rate with a zero denominator is not rendered as
+  a percentage at all. Nothing may drop empty buckets from the series and thereby present a shorter
+  trend as a complete one (AC18).
+- **The grains are unchanged from Amendment A(ii):** the series is obliged at the **team** and
+  **proxy** grains; a per-destination series stays **permitted and not required**.
+- **AC17 is untouched.** Three windows, 30 days the default. Amendment B assigns each of the three a
+  bucket size; it adds no window, removes none, and changes no default.
+
+*Basis: AC16's own stated purpose, and AC8's requirement that a figure be honest about what it
+counts. D-11-4's recorded reasoning against hourly buckets was that "hourly is a second axis of cost
+for a question — 'which hour did it break' — the per-event surface already answers exactly." That
+reasoning was written against hourly buckets **as an additional axis on every window** — 30 days at
+hourly grain — and it still holds there, which is why the 7-day and 30-day windows stay daily. It
+was never a reason to render a 24-hour window as one point.*
+
+**(ii) The per-bucket drill-through is obliged at day buckets only (D-11-9).** The trend series
+carries a per-bucket drill-through into the existing per-event surface (AC21, and `design-11`
+Flow C step 3 / Flow E). `Q-11-04` resolved that drill-through against a **single calendar day**, and
+AC10 is what makes it correct: the drill-through must land on **the same records the bucket counts**,
+or the member is shown a number that does not match the number they clicked — a silently wrong
+answer, which is the failure `Q-11-04` was raised to prevent. Clause (i) introduces a bucket that
+this obligation has no correct form for, so the obligation is stated here explicitly rather than
+inferred at implementation time:
+
+- **At a day bucket** (the 7-day and 30-day windows) the per-bucket drill-through is **obliged and
+  unchanged**. It carries the proxy, the day, and the clicked cell's unit, exactly as `Q-11-04`
+  resolved it. Nothing in Amendment B disturbs it.
+- **At an hourly bucket** (the 24-hour window) a trend row **owes no drill-through**. The obligation
+  stands at day grain; it does not extend to the hourly grain, and a 24-hour trend row that offers no
+  drill-through satisfies AC16, AC21 and AC10 in full.
+- **An hourly bucket must never carry a day-grained drill-through.** A row reading 3 terminal
+  failures for one hour that links to a whole day's 40 is a direct breach of **AC10** and is
+  forbidden outright. There is no acceptable "close enough" form of this link.
+- **If an hourly drill-through is ever built, it must be hour-precise** — landing on exactly the
+  records that bucket counts, at that bucket's unit. It is **permitted and not required**; building
+  it later is additive rather than a scope change. **Its shape is not decided here.** A
+  query-parameter contract is a technical decision and belongs to the **Principal Engineer** on
+  `plan-11-analytics.md`, in the same place and on the same authority `Q-11-04`'s `date` parameter
+  was ruled. The Product Manager states the obligation; the Principal Engineer states the mechanism.
+- **The member is not left without a route into the evidence on the 24-hour window.** Every
+  window-grain entry point still works there and still carries the 24-hour window: the Dashboard
+  Proxies table's Terminal failures cell, the proxy's Retry & replay Terminal failure tile, and the
+  Destinations table's View events action. What is unavailable at the 24-hour window is narrowing
+  the events list *to one hour* — and the per-event surface it lands on already shows each event's
+  own time, which is how a member reaches a particular hour's events from there.
+- **The absence of a link must not read as a broken one.** A 24-hour trend row simply presents its
+  figures; it must not render a disabled control, a dead link, an empty action column that looks like
+  a missing value, or an explanation phrased as a limitation. Presentation detail beyond that is the
+  Designer's.
+
+*Basis: AC21 obliges that a member can move from an aggregate figure to the records behind it, and
+that route exists at every window through the window-grain entry points; it has never obliged a
+drill-through from **every bucket of every series**. That cross-product was not ruled, and
+Amendment A(ii) already set the precedent for how an unruled cross-product is resolved: obliged where
+a member reads it, permitted elsewhere. AC10 does the rest — where a correct drill-through cannot be
+formed, no drill-through is the only truthful option, because the alternative is a link that answers
+a different question than the one clicked.*
+
+**What this obliges elsewhere — named, not actioned here.**
+
+- **`design-11-analytics.md` must change**, and it is the **Designer's** artifact — the Product
+  Manager does not edit it and it returns to the Product Manager for approval afterwards. What
+  changes: § Summary's "Daily buckets; 24h/7d/30d windows" line; **Screen 1**'s Trend card
+  ("data table, same series, one row per day"); **Screen 2**'s Analytics card trend and its "View as
+  table" fallback; the accessible table's first column, which is built per day and needs an hour form
+  for the 24-hour window (its header and its value format); **Flow C step 3**, which describes the
+  chart as "the **daily** trend chart" and its per-row link as narrowing "to that single day"; and
+  **Flow E**'s entry-point table row "Proxy Show Trend chart's 'View as table' row, per day, per
+  unit", which must state that the entry point exists at day buckets and is absent at hourly ones.
+  The chart's own axis labelling ("the chart's own axis/labelling already states the window it
+  spans") must state hours on the 24-hour window. Nothing else in `design-11` is reopened by this
+  amendment: the two-unit labelling, the no-verdict rule, the empty-state treatments, the chart
+  tokens and the three-chip row all stand as approved.
+- **`plan-11-analytics.md` must change**, and it is the **Principal Engineer's**. The bucket
+  expression is fixed at a single day today; it must vary by window. Whether anything else follows —
+  the series DTO, the labels source, the approved indexes — is the Principal Engineer's to walk and
+  state. `Q-11-04`'s `date` parameter and its half-open day bound are **unaffected and stay exactly
+  as ruled**: clause (ii) leaves the day-grain drill-through in place and adds no hour-grain
+  counterpart.
 
 ## Out of Scope
 Each points to the item that owns it.

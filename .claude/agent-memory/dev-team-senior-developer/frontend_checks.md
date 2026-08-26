@@ -110,3 +110,24 @@ work. Click the `SelectTrigger` by its `id` to open it, then
 value back via the trigger's rendered text (`SelectValue`'s `innerText`), not
 `inputValue()`. See [[manual_verification_recipe]] for the rest of the seed/verify/cleanup
 recipe — this is the Select-specific piece it doesn't cover.
+
+This app has two co-existing, deliberate action-column header conventions — pick per the design
+doc's own punctuation, don't harmonise the two: a header written **parenthesised** in a design
+mockup (e.g. `(View)`) renders as visually `sr-only` text (present for assistive tech, nothing in
+the `thead`); a header written **bare/unparenthesised** (e.g. `Actions`) renders as normal visible
+text, matching `proxies/Index.vue`'s long-standing "Actions" column. Confirmed by the Owner
+directly on item #11: Dashboard's Proxies-table action column was fixed from visible "View" to
+`sr-only` (design-11 writes it as `(View)`, the only parenthesised entry in that row), while T20's
+Destinations-table Actions column stayed visible (design-11 writes it as bare `Actions`, no
+parens) — same feature, same session, deliberately different treatment per the source doc's own
+wording.
+
+`components/ui/collapsible`'s `Collapsible` accepts a `default-open` boolean prop
+(reka-ui `CollapsibleRootProps.defaultOpen`) for a section that should render expanded
+without controlled `v-model:open` state (item #11 T17's Trend table, rendered open
+until the chart lands beside it at T27/M6). Playwright verification gotcha: if it's
+already open by default, clicking its `CollapsibleTrigger` button *closes* it — a
+manual-verification script that unconditionally clicks "View as table" before reading
+the table will see 0 rows and wrongly look like a densification bug. Read the content
+directly without clicking when `default-open` is set; only click to test the
+collapse/expand toggle itself.

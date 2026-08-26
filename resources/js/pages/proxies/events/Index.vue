@@ -15,6 +15,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { formatSeriesDate, windowLabel } from '@/data/analyticsLabels';
 import {
     proxyAggregateDeliveryState,
     proxyAggregateDeliveryStateOption,
@@ -24,6 +25,7 @@ import { formatByteSize, formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
 import type { Team } from '@/types';
+import type { EventListFilters } from '@/types/analytics';
 import type {
     Paginated,
     ProxyDetail,
@@ -34,6 +36,7 @@ import type {
 const props = defineProps<{
     proxy: ProxyDetail;
     events: Paginated<WebhookEventListItem>;
+    filters: EventListFilters;
     permissions: ProxyPermissions;
     fifoHeldByRetry: boolean;
 }>();
@@ -72,6 +75,96 @@ defineOptions({
 const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
+// --- Filter chips (T24; T23/T24 Revision A, `Q-11-04`; AC10, AC21;
+// design-11 Screen 4) --------------------------------------------------------
+//
+// A chip row (window + destination + outcome, up to three at once) renders
+// only once `destination`, `outcome` or `day` actually resolved — an arrival
+// with none of the three is "arrived directly," visually identical to the
+// pre-#11 shipped surface (T21's own reading of AC28), so no chip row
+// renders there either. A resolved `day` is **not** a fourth chip — plan
+// Technical ruling 10 renders it as the value of the existing Window chip
+// (see `windowChipValue` below), so the chip row stays fixed at three.
+
+const hasActiveFilters = computed(
+    () =>
+        props.filters.destination !== null ||
+        props.filters.outcome !== null ||
+        props.filters.day !== null,
+);
+
+/**
+ * The Window chip's rendered value — the day-narrowed date (same formatter
+ * as the trend table's Date column, ruling 10/Implementation Note 20) when
+ * `filters.day` resolved, otherwise the usual "last {window}" text.
+ */
+const windowChipValue = computed(() =>
+    props.filters.day
+        ? formatSeriesDate(props.filters.day)
+        : `last ${windowLabel(props.filters.window)}`,
+);
+
+/** The `outcome` query token this filter's resolved `unit` came from (T21). */
+function outcomeQueryToken(unit: string): string {
+    return unit === 'delivery' ? 'delivery_failed' : 'attempt_failed';
+}
+
+/**
+ * Rebuilds the Events list URL from the currently active filters, dropping
+ * exactly the one named — a chip's remove control is a real re-navigation
+ * (design-11 § Interactions: "not a client-side row filter"), never
+ * client-side state, so the server-side query and the URL stay the single
+ * source of truth for what's shown. Removing `'window'` drops `date`
+ * alongside it — the day-narrowed Window chip's `×` removes both together
+ * (ruling 10), since a resolved day is that chip's value, not a filter of
+ * its own.
+ */
+function filterHref(remove: 'window' | 'destination' | 'outcome' | 'all') {
+    const query: Record<string, string | number> = {};
+
+    if (remove !== 'window' && remove !== 'all') {
+        query.window = props.filters.window;
+
+        if (props.filters.day) {
+            query.date = props.filters.day;
+        }
+    }
+
+    if (
+        remove !== 'destination' &&
+        remove !== 'all' &&
+        props.filters.destination
+    ) {
+        query.destination = props.filters.destination.id;
+    }
+
+    if (remove !== 'outcome' && remove !== 'all' && props.filters.outcome) {
+        query.outcome = outcomeQueryToken(props.filters.outcome.unit);
+    }
+
+    return proxyEventRoutes.index(
+        { current_team: teamSlug.value, proxy: props.proxy.id },
+        { query },
+    ).url;
+}
+
+/**
+ * The explanatory line shown only while an Outcome chip is active (C1(b)) —
+ * the filtered list shows the **events containing** a matching delivery or
+ * attempt, not one row per counted delivery or attempt, so a member is never
+ * misled into expecting the row count to equal the figure they drilled from.
+ */
+const outcomeExplanatoryLine = computed(() => {
+    if (props.filters.outcome === null) {
+        return null;
+    }
+
+    const noun =
+        props.filters.outcome.unit === 'attempt' ? 'attempt' : 'delivery';
+
+    return `Showing events with at least one matching ${noun} — one event can hold more than one, so this list's row count won't match the figure's count exactly.`;
+});
+
 function aggregateDeliveryBadge(event: WebhookEventListItem) {
     const state = proxyAggregateDeliveryState(
         event.deliveries.map((delivery) => delivery.status),
@@ -98,7 +191,7 @@ function openReplay(event: WebhookEventListItem): void {
 <template>
     <Head :title="`Events for ${props.proxy.name}`" />
 
-    <div class="flex h-full flex-1 flex-col gap-6 p-4">
+    <div class="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-6 p-4">
         <h1 class="text-xl font-semibold">
             Events for &ldquo;{{ props.proxy.name }}&rdquo;
         </h1>
@@ -115,17 +208,91 @@ function openReplay(event: WebhookEventListItem): void {
             </AlertDescription>
         </Alert>
 
+        <!-- Filter chips (T24) — window, destination and/or outcome, up to
+             three at once (design-11 Screen 4). Renders only once a
+             drill-through actually narrowed the list (`destination` or
+             `outcome` resolved); an unfiltered arrival is visually
+             identical to today (AC28). -->
+        <div
+            v-if="hasActiveFilters"
+            class="flex flex-wrap items-center gap-2"
+            aria-label="Active filters"
+        >
+            <Badge variant="secondary" class="gap-1.5 py-1 pr-1.5 pl-2.5">
+                Window: {{ windowChipValue }}
+                <button
+                    type="button"
+                    aria-label="Remove window filter"
+                    class="rounded-full opacity-70 hover:opacity-100"
+                    @click="router.get(filterHref('window'))"
+                >
+                    ×
+                </button>
+            </Badge>
+            <Badge
+                v-if="props.filters.destination"
+                variant="secondary"
+                class="gap-1.5 py-1 pr-1.5 pl-2.5"
+            >
+                Destination: {{ props.filters.destination.httpMethod }}
+                {{ props.filters.destination.url }}
+                <button
+                    type="button"
+                    :aria-label="`Remove destination filter: ${props.filters.destination.url}`"
+                    class="rounded-full opacity-70 hover:opacity-100"
+                    @click="router.get(filterHref('destination'))"
+                >
+                    ×
+                </button>
+            </Badge>
+            <Badge
+                v-if="props.filters.outcome"
+                variant="secondary"
+                class="gap-1.5 py-1 pr-1.5 pl-2.5"
+            >
+                Outcome: {{ props.filters.outcome.label }}
+                <button
+                    type="button"
+                    aria-label="Remove outcome filter"
+                    class="rounded-full opacity-70 hover:opacity-100"
+                    @click="router.get(filterHref('outcome'))"
+                >
+                    ×
+                </button>
+            </Badge>
+        </div>
+        <p v-if="outcomeExplanatoryLine" class="text-sm text-muted-foreground">
+            {{ outcomeExplanatoryLine }}
+        </p>
+
         <!-- Empty state -->
         <Card
             v-if="props.events.data.length === 0"
             class="items-center gap-3 p-10 text-center"
         >
-            <h2 class="text-lg font-medium">No events yet</h2>
+            <h2 class="text-lg font-medium">
+                {{
+                    hasActiveFilters
+                        ? 'No events match these filters'
+                        : 'No events yet'
+                }}
+            </h2>
             <p class="text-sm text-muted-foreground">
-                Events appear here once this proxy's ingest URL receives a
-                webhook.
+                {{
+                    hasActiveFilters
+                        ? 'Remove a filter above, or clear them all, to see more events.'
+                        : "Events appear here once this proxy's ingest URL receives a webhook."
+                }}
             </p>
-            <Button variant="outline" as-child class="mt-2">
+            <Button
+                v-if="hasActiveFilters"
+                variant="outline"
+                as-child
+                class="mt-2"
+            >
+                <Link :href="filterHref('all')">Clear filters</Link>
+            </Button>
+            <Button v-else variant="outline" as-child class="mt-2">
                 <Link
                     :href="
                         proxyRoutes.show({
@@ -240,11 +407,10 @@ function openReplay(event: WebhookEventListItem): void {
                 <Button
                     v-for="link in props.events.links"
                     :key="link.label"
-                    variant="outline"
+                    :variant="link.active ? 'default' : 'outline'"
                     size="sm"
                     :disabled="!link.url"
                     :aria-current="link.active ? 'page' : undefined"
-                    :class="link.active ? 'bg-accent' : ''"
                     @click="link.url && router.get(link.url)"
                 >
                     <span v-html="link.label" />
