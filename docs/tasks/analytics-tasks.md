@@ -286,7 +286,43 @@
 - **Testing:** `tests/Unit/Services/DeliveryStatisticsUnitFiguresTest.php` (new) — the canonical
   fixture at team/proxy/destination grain, the exclusion cases, the pre-#6 case, the zero-total
   `rate === null` case, a mixed-status non-zero case.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented `app/Services/DeliveryStatistics.php` with its private core:
+  `unitFigure()`/`statusCounts()` build one `GROUP BY status` query per table (`deliveries` /
+  `delivery_attempts`) via `DB::table()`, filtered to `status IN ('succeeded','failed')` and
+  windowed on `updated_at` (never `created_at`). Exposed as three public grain-scoped methods —
+  `unitFiguresForTeam()`, `unitFiguresForProxy()`, `unitFiguresForDestination()` — each returning
+  `array{delivery: UnitFigure, attempt: UnitFigure}`. These are public (not `private`, as the
+  plan's "private helpers do the grouped aggregates" line reads) for a specific reason worth
+  recording: destination grain has no route through the plan's four enumerated public methods
+  (`forTeam`/`forProxy`/`proxyBreakdown`/`destinationBreakdown`) until T8's bulk-grouped
+  `destinationBreakdown()` lands, and T4's own Acceptance Criteria require destination-grain
+  coverage now, with the suite green at the end of this task. Reading "private" here as
+  "encapsulated inside this class, never built by another class" (the sentence immediately after
+  it — "No other class may build an analytics query") rather than as a literal PHP `private`
+  keyword mandate satisfies both the plan's intent and T4's own testability requirement; T9's
+  `forTeam()`/`forProxy()` will call these same two team/proxy methods rather than duplicating the
+  query. `proxyBreakdown()`/`destinationBreakdown()` (T8) will NOT reuse the destination method in
+  a loop — they run their own bulk `GROUP BY proxy_id`/`GROUP BY destination_id` queries per R7 (no
+  per-row query anywhere).
+
+  **Flagged and corrected, not guessed:** the task's own "canonical 100%/67% fixture" text is
+  internally inconsistent. The stated composition — one delivery, three attempts, two failed and
+  one succeeded — is unambiguous and matches the PRD's own illustrative example verbatim ("a
+  delivery that succeeded on attempt three... is two failures and one success", PRD-11 § MVP
+  criterion 9). `UnitFigure::$rate` is a success rate throughout the plan and this fixture's own
+  delivery-level reading ("100% (1 of 1)" only parses as succeeded/total). Applying that same
+  formula to the stated attempt composition gives 1 of 3 succeeded ≈ 33%, not the "67% (2 of 3)"
+  the task text states — 67% is the *failure* share of the same three attempts, not `rate`. Since
+  the fixture composition and the rate formula are both unambiguous and consistent with every other
+  reference in plan-11 and PRD-11, this reads as a transcription slip in the task doc's illustrative
+  percentage rather than a genuine requirements conflict, so it did not warrant pausing the task for
+  a question doc; implemented and tested against the correct value (≈33% attempt-level success),
+  documented inline in the test. Flagging here per the "record deliberate simplifications" and
+  "flag rather than decide" conventions, in case the Task Planner intended a different fixture
+  composition than the one literally written.
+
+  Verified: `composer lint`, `composer types:check` (PHPStan level 7, no suppressions), and
+  `./vendor/bin/sail test --parallel` all green (775/775, up from 762 after T1-T3).
 
 ## T5 — `DeliveryStatistics`: retry/replay figures and the bridge count (AC9, AC19; plan § Architecture A/B)
 - **Description:** Adds, at team and proxy grain: **eventual success** — count of `deliveries`
