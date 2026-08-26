@@ -82,3 +82,19 @@ module-scoped ref — the already-mounted page's own components are subscribed t
 `mod.n().updateAppearance('dark')` (minified export name — read the chunk to confirm, it changes
 per build) then genuinely triggers every real watcher in the live page, exactly as a user's own click
 on the Settings page would if it were on the same page.
+
+**Simpler alternative when the verification plan already does a fresh `page.goto()` per
+viewport/theme combo (no same-page live toggle needed):** `page.evaluate(() =>
+localStorage.setItem('appearance', 'dark'))` before the `goto()`. `app.ts` calls
+`initializeTheme()` on boot, which reads `localStorage.getItem('appearance')` and calls
+`updateTheme()` for real; `useAppearance()`'s own `onMounted` hook also reads the same key and sets
+the reactive `appearance` ref from it. Because both run as part of real page-load initialisation
+(not a post-mount patch), every component watching `resolvedAppearance` — chart colour tokens
+included — reacts correctly with zero extra chunk-hunting. Confirmed working for
+`TrendChart`/`chartTokens` (feat/item-11-analytics width-parity fix, 2026-08-26): dark-theme
+screenshots showed correct chart line/grid colours immediately, no washed-out mid-transition frame.
+
+**Sail's exposed HTTP port is 80 (`docker ps`), not whatever `APP_URL` in `.env` says** (this
+project's `.env` has `APP_URL=http://localhost:8000`, stale/unused for local browsing) — check
+`docker ps` or curl `http://localhost` first rather than trusting `APP_URL` for the Playwright
+`TARGET_URL`.
