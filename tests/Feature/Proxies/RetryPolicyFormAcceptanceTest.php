@@ -161,6 +161,108 @@ class RetryPolicyFormAcceptanceTest extends TestCase
         $this->assertSame('fixed', $fresh->retry_backoff_strategy->value);
     }
 
+    /**
+     * PRD-07 AC14(b)(iv): a Simple proxy already holding a dormant policy,
+     * saved again as Simple with no mode change, is neither overwritten nor
+     * cleared — the update simply never touches the two retry columns.
+     */
+    public function test_re_saving_an_already_simple_proxy_holding_a_dormant_policy_leaves_it_untouched(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'mode' => ProxyMode::Simple,
+            'retry_attempt_limit' => 4,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            $this->payload(['mode' => 'simple', 'name' => 'Renamed, still simple']),
+        )->assertRedirect();
+
+        $fresh = $proxy->fresh();
+        $this->assertSame(ProxyMode::Simple, $fresh->mode);
+        $this->assertSame(4, $fresh->retry_attempt_limit);
+        $this->assertSame('fixed', $fresh->retry_backoff_strategy->value);
+    }
+
+    /**
+     * PRD-07 AC14 lead sentence — the upgrade round trip, end to end: a
+     * Simple proxy holding a dormant policy, saved as Enhanced with the
+     * SAME (unedited) retry values resubmitted (the values reach the save
+     * from the Edit payload per Amendment A — this test drives the
+     * controller/persistence layer directly, not the client normalisation
+     * T9 covers), persists those values with nothing re-entered.
+     */
+    public function test_upgrading_resubmits_the_preserved_values_and_they_persist_unedited(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'mode' => ProxyMode::Simple,
+            'retry_attempt_limit' => 4,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            $this->payload(['mode' => 'enhanced', 'retry_attempt_limit' => 4, 'retry_backoff_strategy' => 'fixed']),
+        )->assertRedirect();
+
+        $fresh = $proxy->fresh();
+        $this->assertSame(ProxyMode::Enhanced, $fresh->mode);
+        $this->assertSame(4, $fresh->retry_attempt_limit);
+        $this->assertSame('fixed', $fresh->retry_backoff_strategy->value);
+    }
+
+    /**
+     * PRD-07 AC14(b)(iii): an upgrade save that ALSO tunes the value in the
+     * same save persists the tuned value, not the prior one.
+     */
+    public function test_upgrading_while_tuning_in_the_same_save_persists_the_tuned_value(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'mode' => ProxyMode::Simple,
+            'retry_attempt_limit' => 4,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            $this->payload(['mode' => 'enhanced', 'retry_attempt_limit' => 9, 'retry_backoff_strategy' => 'fixed']),
+        )->assertRedirect();
+
+        $this->assertSame(9, $proxy->fresh()->retry_attempt_limit);
+    }
+
+    /**
+     * PRD-06 AC2's unconfigured meaning is not collateral damage: an
+     * Enhanced-mode save with NULL retry fields still clears to the system
+     * default, exactly as before ADR-018.
+     */
+    public function test_an_enhanced_save_with_null_retry_fields_still_clears_to_the_unconfigured_sentinel(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $user->current_team_id,
+            'mode' => ProxyMode::Enhanced,
+            'retry_attempt_limit' => 4,
+            'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
+        ]);
+
+        $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            $this->payload(['mode' => 'enhanced']),
+        )->assertRedirect();
+
+        $fresh = $proxy->fresh();
+        $this->assertNull($fresh->retry_attempt_limit);
+        $this->assertNull($fresh->retry_backoff_strategy);
+    }
+
     // --- ProxyResource emits both fields on index/show/edit ------------------
 
     public function test_proxy_resource_emits_both_fields_on_index_show_and_edit(): void

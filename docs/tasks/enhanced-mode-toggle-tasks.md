@@ -215,7 +215,29 @@
   - The existing `test_mode_gates_only_the_retry_policy_pair_nothing_else` (AC20 parity — unrelated
     fields still settable under `mode = simple`) stays green, unmodified.
 - **Testing:** the cases above, in the existing acceptance test file named above.
-- **Completion notes:** _pending_
+- **Completion notes:** The rename/inversion of
+  `test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null` →
+  `test_switching_enhanced_to_simple_on_update_preserves_stored_values` was already landed under
+  T1's commit (necessary there to keep that commit's tree green against its own production change —
+  see T1's completion notes). This task adds the remaining new cases to
+  `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php`:
+  `test_re_saving_an_already_simple_proxy_holding_a_dormant_policy_leaves_it_untouched` (AC14(b)(iv)
+  — a Simple proxy already holding 4/fixed, saved again as Simple with only its name changed, keeps
+  4/fixed exactly, no overwrite, no clear); `test_upgrading_resubmits_the_preserved_values_and_they_persist_unedited`
+  (the AC14 lead-sentence round trip — Simple 4/fixed → `mode = enhanced` resubmitting the SAME
+  4/fixed, as the Edit payload would per Amendment A — persists 4/fixed with nothing re-entered, at
+  the controller/persistence layer; T9 covers the client-side normalisation that makes this the
+  real submitted shape); `test_upgrading_while_tuning_in_the_same_save_persists_the_tuned_value`
+  (AC14(b)(iii) — Simple 4/fixed → `mode = enhanced` with `retry_attempt_limit = 9` in the same save
+  persists 9, not 4); `test_an_enhanced_save_with_null_retry_fields_still_clears_to_the_unconfigured_sentinel`
+  (PRD-06 AC2's unconfigured meaning is not collateral damage under ADR-018). The two `prohibited_if`
+  cases (store and update) and `test_mode_gates_only_the_retry_policy_pair_nothing_else` already
+  existed, pass unmodified, and needed no change — pinning plan §Technical ruling 2 and AC20 parity
+  as required.
+
+  Verified: `./vendor/bin/sail test --filter RetryPolicyFormAcceptanceTest` (12 passed, 78
+  assertions); full suite `./vendor/bin/sail test --parallel` (734 passed, 2673 assertions);
+  `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
 
 ## T3 — Consumers inherit the gate without branching — acceptance tests (AC6(b), AC14(a); plan §Architecture A "why `DeliverToDestination` and `DeliveryResource` inherit... without branching")
 - **Description:** Prove `DeliverToDestination::settleDelivery()` (`app/Actions/DeliverToDestination.php:198,216`)
