@@ -634,7 +634,36 @@
     inspection or reflection over the built SQL, not merely by code review).
 - **Testing:** `tests/Feature/Analytics/AnalyticsSeparationTest.php` (new) — one test method per
   bullet above.
-- **Completion notes:** _pending_
+- **Completion notes:** Test-only, as scoped — no production file touched.
+
+  - **AC2** (`test_ac2_every_figure_is_numerically_identical_before_and_after_purge_expired_payloads`)
+    computes every public `DeliveryStatistics` method's output (`unitFiguresFor*()`,
+    `latencyFor*()`, `seriesForTeam()`, `retryReplayForTeam()`, `proxyBreakdown()`,
+    `destinationBreakdown()`, `forTeam()`) against a fixture with a 31-day-old received event and
+    a terminal delivery/two attempts, runs `PurgeExpiredPayloads`, confirms the event really was
+    erased (`payload_cleaned_at` set — a real cleanup, not a skip), recomputes every figure, and
+    asserts the whole result set `assertEquals` identical.
+  - **AC3** builds two proxies with identically-shaped traffic, ages and purges only one of them,
+    and asserts `forProxy()`'s `delivery`/`attempt` `UnitFigure`s match exactly between the cleaned
+    and retained proxy, plus that the cleaned proxy's destination still resolves in
+    `destinationBreakdown()`.
+  - **AC5** snapshots `(id, updated_at)` for every row in `deliveries`, `delivery_attempts`,
+    `webhook_events`, `dispatched_payloads`, and `fifo_dispatches` (all five populated — a
+    `DispatchedPayload` and a `FifoDispatch` row were added to the fixture specifically so this
+    assertion has something to prove for those two tables, not just an unpopulated no-op), calls
+    every public method (including several beyond `computeEveryFigure()`'s set — a second
+    `forProxy()` call and three more grain/window combinations), and asserts the full snapshot
+    unchanged.
+  - **AC1/AC4** captures every SQL statement `computeEveryFigure()` issues via `DB::listen` and
+    asserts none references `webhook_events` (table name) or the literal `` `body` ``/`` `headers`
+    ``` column identifiers, plus a source-level check (via `ReflectionClass` + `token_get_all()`
+    stripping comments/doc-blocks, same technique T9 used to avoid a comment-text false positive)
+    that `DeliveryStatistics`'s executable code never references the `WebhookEvent` class at all —
+    stronger than "no query happens to touch it today," since the class cannot touch it without a
+    code change this test would then fail on.
+
+  `composer lint`, `composer types:check` (PHPStan level 7), and `./vendor/bin/sail test
+  --parallel` (810/810) and a serial `./vendor/bin/sail test` (810/810) both green.
 
 ---
 
