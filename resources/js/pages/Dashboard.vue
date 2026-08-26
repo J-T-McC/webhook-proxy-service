@@ -380,7 +380,9 @@ function formatSeriesDate(isoDate: string): string {
                                 </span>
                             </button>
                         </TableHead>
-                        <TableHead class="text-right">View</TableHead>
+                        <TableHead class="text-right">
+                            <span class="sr-only">View</span>
+                        </TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>

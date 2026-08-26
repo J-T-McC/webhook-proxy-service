@@ -922,6 +922,20 @@
 
   Verified: `pnpm lint:check`, `pnpm types:check`, `pnpm format:check` all green.
 
+  **Rework (Owner-reported, fixed before T18):** the action column's `TableHead` originally rendered
+  a visible "View" header, which design-11 line 271 writes as `(View)` — parenthesised, unlike the
+  four bare column labels beside it — reading as an unlabelled action column, not a fifth labelled
+  header. Fixed by wrapping the text in a `sr-only` span (`<span class="sr-only">View</span>`)
+  inside the existing `TableHead`, so the column keeps its cell and alignment but nothing renders
+  visibly in the `thead`. Deliberately not harmonised with `proxies/Index.vue`'s visible `Actions`
+  header, which is a genuine counter-precedent the Owner was shown and chose not to apply here.
+  Verified via Playwright against a production build (`public/hot` removed, `pnpm run build`):
+  the header cell's rendered text is empty, the `sr-only` span's computed style is
+  `position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)` (visually
+  clipped, present for assistive tech), and the column still lines up with its body cells (the
+  "View" link renders directly beneath the now-empty header). `pnpm lint:check`, `pnpm types:check`,
+  `pnpm format:check` all green.
+
 ## T16 — `Dashboard.vue`: Retry & replay tiles + Latency block (AC12, AC19, AC20, correction C3/C4; plan Technical ruling 5)
 - **Description:** "Retry & replay" card: four stat tiles — Eventual success (deliveries), Terminal
   failure (deliveries), Retry volume (attempts), Live vs replay (deliveries: "42 live · 3 replay",
