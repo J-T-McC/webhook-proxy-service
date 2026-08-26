@@ -117,7 +117,12 @@ const TIME_SCALE = 2.5;
 // and that difference is the modes' difference made visible. Real milliseconds,
 // deliberately outside TIME_SCALE: these are "long enough to read" beats, not
 // part of the motion's tempo.
-const ARRIVAL_IN_MS = 300;
+// Shared rise time for any node lighting up — an ingest node when its event
+// lands, and a destination when a delivery reaches it. Both ends of a journey
+// light identically; only what follows differs (a hold then a drain at the
+// ingest end, a long decay at the destination end).
+const NODE_GLOW_IN_MS = 300;
+const ARRIVAL_IN_MS = NODE_GLOW_IN_MS;
 const ARRIVAL_OUT_MS = 380;
 
 // The two webhooks do not land together — one follows the other closely, in
@@ -990,18 +995,35 @@ function drawArrivalRingAndWash(
     localT: number,
 ) {
     const { ctx, geo, tokens, visuals } = state;
-    const normalized = Math.min(
-        1,
-        Math.max(0, (localT - entry.start) / (entry.end - entry.start)),
-    );
-    const decay = ease(entry.easing, normalized);
+    const elapsed = localT - entry.start;
+    const duration = entry.end - entry.start;
     const dest = geo.dest[entry.dest - 1];
 
     // Edge glow only. The node's own border brightens to the accent and blooms,
     // then eases back — nothing expands outward and the interior is untouched.
     // The earlier expanding ring read as an explosion at each destination,
     // which fought the calm of the travelling pulse.
-    const glow = 1 - decay;
+    //
+    // The rise uses the same NODE_GLOW_IN_MS ease as an ingest node lighting on
+    // arrival, so both ends of a journey light up identically. Previously a
+    // destination snapped to full on the arriving frame while the ingest node
+    // ramped, and the mismatch was visible whenever both were on screen.
+    const rise = Math.min(1, elapsed / NODE_GLOW_IN_MS);
+    const glow =
+        elapsed < NODE_GLOW_IN_MS
+            ? ease('out', rise)
+            : 1 -
+              ease(
+                  entry.easing,
+                  Math.min(
+                      1,
+                      Math.max(
+                          0,
+                          (elapsed - NODE_GLOW_IN_MS) /
+                              (duration - NODE_GLOW_IN_MS),
+                      ),
+                  ),
+              );
     const x = dest.x - geo.nodeW / 2;
     const y = dest.y - geo.nodeH / 2;
 
