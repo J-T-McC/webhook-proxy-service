@@ -58,4 +58,27 @@ no dev server is running; if `public/hot` is present, remove it or stop the dev 
 running `pnpm run build` and re-checking.
 
 See also [[frontend_checks]] for the scoped-eslint / stale-worktree gotcha that often comes up in the
-same tasks that require this recipe.
+same tasks that require this recipe, and [[charting_vue3_chartjs]] for a chart-specific dependency bug
+found via the technique below.
+
+**`useAppearance()`'s `resolvedAppearance` does NOT react to a raw `document.documentElement.classList
+.add('dark')`/`.toggle('dark')`** — that only flips the CSS `.dark` scope (fine for a static
+before/after screenshot of two separately-loaded page states), but the composable's `appearance` ref
+and its `resolvedAppearance` computed are untouched by it, so anything watching `resolvedAppearance`
+(e.g. a chart re-resolving its colours on theme change) will NOT fire. It also does not react to a
+live OS/system theme change while `appearance === 'system'` — `prefersDark()` is read as a plain
+non-reactive function call inside the computed, not tracked. The only thing that actually mutates the
+reactive ref is calling the composable's own `updateAppearance(value)`, which in the real app is only
+reachable from `AppearanceTabs.vue` on the Settings > Appearance page — a different Inertia page than
+most components that would want to react to it, so there's no on-page toggle to click during a
+manual-verification pass for, say, a chart on the Dashboard.
+
+**To actually exercise that reactive path in a headless verification session without navigating
+away:** dynamically `import()` the exact built chunk URL that already contains the composable (e.g.
+`await import('/build/assets/useAppearance-<hash>.js')` — find the hash via `grep useAppearance
+public/build/assets/*.js` or the manifest) from inside `page.evaluate`. ES module instances are
+cached per absolute URL by the browser, so this returns the SAME module — and therefore the SAME
+module-scoped ref — the already-mounted page's own components are subscribed to; calling
+`mod.n().updateAppearance('dark')` (minified export name — read the chunk to confirm, it changes
+per build) then genuinely triggers every real watcher in the live page, exactly as a user's own click
+on the Settings page would if it were on the same page.
