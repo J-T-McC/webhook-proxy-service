@@ -576,6 +576,8 @@ interface ThemeVisuals {
     arrivalEdgeAlpha: number;
     arrivalEdgeBlur: number;
     queuedEdgeAlpha: number;
+    nodeStrokeAlpha: number;
+    labelAlpha: number;
 }
 
 const DARK_VISUALS: ThemeVisuals = {
@@ -592,10 +594,12 @@ const DARK_VISUALS: ThemeVisuals = {
     arrivalEdgeAlpha: 0.95,
     arrivalEdgeBlur: 18,
     queuedEdgeAlpha: 0.8,
+    nodeStrokeAlpha: 0.45,
+    labelAlpha: 0.9,
 };
 
 const LIGHT_VISUALS: ThemeVisuals = {
-    gridLineAlpha: 0.12,
+    gridLineAlpha: 0.3,
     idleLineWidth: 1.5,
     idleLineAlpha: 0.3,
     hotLineWidth: 2,
@@ -608,6 +612,8 @@ const LIGHT_VISUALS: ThemeVisuals = {
     arrivalEdgeAlpha: 0.9,
     arrivalEdgeBlur: 8,
     queuedEdgeAlpha: 0.85,
+    nodeStrokeAlpha: 0.9,
+    labelAlpha: 1,
 };
 
 const JUNCTION_ALPHA = 0.4; // same both themes — static anchor, always drawn
@@ -907,10 +913,13 @@ function drawBaseScene(state: RenderState) {
         ctx.fill();
     }
 
-    const nodeStroke = withAlpha(tokens.mutedForeground, 0.45);
+    const nodeStroke = withAlpha(
+        tokens.mutedForeground,
+        visuals.nodeStrokeAlpha,
+    );
     const nodeStrokeWidth = NODE_STROKE_WIDTH * geo.scale;
 
-    const labelColor = withAlpha(tokens.mutedForeground, 0.9);
+    const labelColor = withAlpha(tokens.mutedForeground, visuals.labelAlpha);
     const fontPx = Math.round(11 * geo.scale);
 
     geo.ingest.forEach((ingest, i) => {
