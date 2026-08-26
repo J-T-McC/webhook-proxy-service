@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Data\Analytics\LatencyFigure;
 use App\Data\Analytics\RetryReplayFigures;
 use App\Data\Analytics\UnitFigure;
 use App\Enums\AnalyticsWindow;
@@ -70,6 +71,38 @@ class DeliveryStatistics
     public function unitFiguresForDestination(int $proxyId, int $destinationId, AnalyticsWindow $window): array
     {
         return $this->unitFigures(['proxy_id' => $proxyId, 'destination_id' => $destinationId], $window);
+    }
+
+    /**
+     * Average and 95th-percentile duration for the given team, over the
+     * given window (AC12, AC20).
+     */
+    public function latencyForTeam(int $teamId, AnalyticsWindow $window): LatencyFigure
+    {
+        return $this->latencyFigure(['team_id' => $teamId], $window, includePercentile: true);
+    }
+
+    /**
+     * Average and 95th-percentile duration for the given proxy, over the
+     * given window (AC12, AC20).
+     */
+    public function latencyForProxy(int $proxyId, AnalyticsWindow $window): LatencyFigure
+    {
+        return $this->latencyFigure(['proxy_id' => $proxyId], $window, includePercentile: true);
+    }
+
+    /**
+     * Average duration for the given destination within the given proxy,
+     * over the given window (AC12, AC20). `p95Ms` is always `null` here —
+     * no percentile query is issued at destination grain (Amendment A(ii)).
+     */
+    public function latencyForDestination(int $proxyId, int $destinationId, AnalyticsWindow $window): LatencyFigure
+    {
+        return $this->latencyFigure(
+            ['proxy_id' => $proxyId, 'destination_id' => $destinationId],
+            $window,
+            includePercentile: false,
+        );
     }
 
     /**
@@ -259,11 +292,16 @@ class DeliveryStatistics
 
     /**
      * `delivery_attempts`' single grouped aggregate for one grain, one
-     * window: `status => (count, retry count)`. Feeds both the attempt-level
-     * `UnitFigure` and, with no extra query, `RetryReplayFigures`' retry
-     * volume (`SUM(attempt_number > 1)`, AC19(c); plan-11 § Architecture B).
-     * `pending`/`retrying`/`dispatched` rows are excluded by the `status`
-     * predicate, never counted as failures (AC13).
+     * window: `status => (count, retry count, duration sum, duration
+     * count)`. Feeds the attempt-level `UnitFigure`, `RetryReplayFigures`'
+     * retry volume (`SUM(attempt_number > 1)`, AC19(c)), and
+     * `LatencyFigure`'s average/sample-count, all with no extra query
+     * (plan-11 § Architecture B). `pending`/`retrying`/`dispatched` rows are
+     * excluded by the `status` predicate, never counted as failures (AC13).
+     * `SUM(duration_ms)`/`COUNT(duration_ms)` skip `NULL` rows by ordinary
+     * SQL aggregate-function semantics — the same population a
+     * `whereNotNull('duration_ms')` filter would select, without a separate
+     * clause to keep in sync (AC20; plan Technical ruling 4).
      *
      * @param  array<string, int>  $constraints
      * @return Collection<int, stdClass>
@@ -275,6 +313,8 @@ class DeliveryStatistics
                 'status',
                 DB::raw('COUNT(*) as aggregate'),
                 DB::raw('SUM(CASE WHEN attempt_number > 1 THEN 1 ELSE 0 END) as retry_aggregate'),
+                DB::raw('SUM(duration_ms) as duration_sum'),
+                DB::raw('COUNT(duration_ms) as duration_count'),
             )
             ->whereIn('status', ['succeeded', 'failed'])
             ->whereBetween('updated_at', [$this->windowStart($window), CarbonImmutable::now()]);
@@ -284,6 +324,67 @@ class DeliveryStatistics
         }
 
         return $query->groupBy('status')->get();
+    }
+
+    /**
+     * `LatencyFigure` for one grain: average and sample count come from
+     * `attemptAggregates()`'s existing duration columns (no extra query);
+     * the 95th percentile, when requested, is one further ordered
+     * `LIMIT 1 OFFSET` read (Technical ruling 4) that does not run when
+     * `sampleCount === 0`. `averageMs`/`p95Ms` are `null` when `sampleCount
+     * === 0` — never `0` (AC12, AC20).
+     *
+     * @param  array<string, int>  $constraints
+     */
+    private function latencyFigure(array $constraints, AnalyticsWindow $window, bool $includePercentile): LatencyFigure
+    {
+        $rows = $this->attemptAggregates($constraints, $window);
+
+        $durationSum = (int) $rows->sum('duration_sum');
+        $sampleCount = (int) $rows->sum('duration_count');
+
+        $averageMs = $sampleCount === 0 ? null : (int) round($durationSum / $sampleCount);
+
+        $p95Ms = $includePercentile && $sampleCount > 0
+            ? $this->percentileDurationMs($constraints, $window, $sampleCount)
+            : null;
+
+        return new LatencyFigure(
+            averageMs: $averageMs,
+            p95Ms: $p95Ms,
+            sampleCount: $sampleCount,
+        );
+    }
+
+    /**
+     * The 95th percentile of resolved attempts' `duration_ms` by nearest-rank
+     * (Technical ruling 4): ordinal `CEIL(0.95 × n)`, read with `ORDER BY
+     * duration_ms ASC LIMIT 1 OFFSET CEIL(0.95 × n) − 1`, over the same
+     * `whereNotNull('duration_ms')`-guarded population `attemptAggregates()`
+     * counted. `$sampleCount` is the already-computed resolved-attempt count
+     * at this grain — the caller does not run this query when it is `0`.
+     *
+     * @param  array<string, int>  $constraints
+     */
+    private function percentileDurationMs(array $constraints, AnalyticsWindow $window, int $sampleCount): ?int
+    {
+        $ordinal = (int) ceil(0.95 * $sampleCount);
+
+        $query = DB::table('delivery_attempts')
+            ->whereIn('status', ['succeeded', 'failed'])
+            ->whereNotNull('duration_ms')
+            ->whereBetween('updated_at', [$this->windowStart($window), CarbonImmutable::now()]);
+
+        foreach ($constraints as $column => $value) {
+            $query->where($column, $value);
+        }
+
+        $value = $query->orderBy('duration_ms')
+            ->offset($ordinal - 1)
+            ->limit(1)
+            ->value('duration_ms');
+
+        return $value === null ? null : (int) $value;
     }
 
     /**

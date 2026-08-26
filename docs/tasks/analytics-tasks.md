@@ -398,7 +398,22 @@
 - **Testing:** `tests/Unit/Services/DeliveryStatisticsLatencyTest.php` (new) — the exact-percentile
   fixture at each boundary `n`, the shared-population assertion, the `n = 0` all-null case, the
   destination-grain `p95Ms === null` case.
-- **Completion notes:** _pending_
+- **Completion notes:** Extended `attemptAggregates()` (T4/T5's existing `GROUP BY status` query)
+  with `SUM(duration_ms)`/`COUNT(duration_ms)` — SQL aggregate functions skip `NULL` rows by
+  ordinary semantics, so this is the same population an explicit `whereNotNull('duration_ms')`
+  filter would select, without a second clause to keep in sync with the percentile query's
+  explicit one. `latencyFigure()` sums `duration_sum`/`duration_count` across both status groups
+  for the overall average (`round()`, cast to `?int`), then calls `percentileDurationMs()` — the
+  nearest-rank `ORDER BY duration_ms ASC LIMIT 1 OFFSET CEIL(0.95 × n) − 1` read — only when
+  `includePercentile` is true and `sampleCount > 0`. Exposed as `latencyForTeam()`/
+  `latencyForProxy()` (percentile included) and `latencyForDestination()` (percentile always
+  `null`, per Amendment A(ii); no percentile query issued there). `tests/Unit/Services/
+  DeliveryStatisticsLatencyTest.php` covers the three boundary fixtures (`n = 1, 2, 20`), the
+  shared-population assertion (a dispatched attempt with no `duration_ms` excluded from both
+  average and percentile), the `n = 0` all-null/zero case, and `p95Ms` present at team/proxy grain
+  vs. `null` at destination grain (with `averageMs` still populated there). `composer lint`,
+  `composer types:check` (PHPStan level 7), and `./vendor/bin/sail test --parallel` all green
+  (787/787).
 
 ## T7 — `DeliveryStatistics`: daily series, densified (AC16; plan § Windowing/Architecture C)
 - **Description:** Two `GROUP BY DATE(updated_at), status` queries (delivery and attempt) at team
