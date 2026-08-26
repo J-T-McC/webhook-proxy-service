@@ -425,6 +425,7 @@ interface Geometry {
     width: number;
     height: number;
     scale: number;
+    compact: boolean;
     ingest: [Point, Point];
     junction: [Point, Point];
     dest: [Point, Point, Point];
@@ -440,33 +441,41 @@ interface Geometry {
 // scaling, since a fraction is already continuous.
 function computeGeometry(width: number, height: number): Geometry {
     const scale = Math.min(1, Math.max(0.55, width / 560));
-    const nodeW = width * 0.13;
-    const nodeH = height * 0.14;
+
+    // Below this the diagram cannot keep its desktop proportions: node labels
+    // are a fixed number of characters, so a node sized as a fraction of a phone
+    // viewport is narrower than the word it has to hold. Compact mode widens the
+    // nodes, flattens them, and pulls the columns inward rather than just
+    // scaling everything down.
+    const compact = width < 520;
+    const nodeW = width * (compact ? 0.34 : 0.13);
+    const nodeH = height * (compact ? 0.1 : 0.14);
 
     return {
         width,
         height,
         scale,
+        compact,
         ingest: [
-            { x: width * 0.1, y: height * 0.28 },
-            { x: width * 0.1, y: height * 0.72 },
+            { x: width * (compact ? 0.19 : 0.1), y: height * 0.28 },
+            { x: width * (compact ? 0.19 : 0.1), y: height * 0.72 },
         ],
         // One shared junction, not one per event. Two junctions each fanning to
         // the same three destinations produced six crossing lines — a tangle
         // that read as noise. A single fan point is also the truthful shape:
         // a proxy's destination set is one set, whichever event is passing.
         junction: [
-            { x: width * 0.45, y: height * 0.5 },
-            { x: width * 0.45, y: height * 0.5 },
+            { x: width * 0.5, y: height * 0.5 },
+            { x: width * 0.5, y: height * 0.5 },
         ],
         dest: [
-            { x: width * 0.87, y: height * 0.18 },
-            { x: width * 0.87, y: height * 0.5 },
-            { x: width * 0.87, y: height * 0.82 },
+            { x: width * (compact ? 0.81 : 0.87), y: height * 0.18 },
+            { x: width * (compact ? 0.81 : 0.87), y: height * 0.5 },
+            { x: width * (compact ? 0.81 : 0.87), y: height * 0.82 },
         ],
         nodeW,
         nodeH,
-        junctionR: height * 0.018,
+        junctionR: height * (compact ? 0.014 : 0.018),
         cornerR: Math.min(nodeW, nodeH) * 0.2,
     };
 }
@@ -806,13 +815,16 @@ function drawNodeLabel(
     text: string,
     color: string,
     fontPx: number,
+    compact: boolean,
 ) {
     ctx.save();
     ctx.font = `500 ${fontPx}px ${DIAGRAM_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = color;
-    applyTracking(ctx, fontPx * 0.12);
+    // Tracking is a luxury of having room; on compact it eats the width the
+    // label needs.
+    applyTracking(ctx, fontPx * (compact ? 0.04 : 0.12));
     ctx.fillText(text.toUpperCase(), center.x, center.y);
     ctx.restore();
 }
@@ -831,14 +843,16 @@ function applyTracking(ctx: CanvasRenderingContext2D, px: number): void {
 // still see both modes exist.
 function drawModeLegend(state: RenderState, activeId: Schema['id']): void {
     const { ctx, geo, tokens } = state;
-    const fontPx = Math.round(13 * geo.scale);
-    const x = geo.width * 0.035;
-    const y = geo.height * 0.08;
-    const lineHeight = fontPx * 1.9;
+    // On compact the legend sat directly on the first Event node; centre it
+    // above the diagram instead, where the taller aspect leaves room.
+    const fontPx = Math.round((geo.compact ? 11 : 13) * geo.scale);
+    const x = geo.compact ? geo.width * 0.5 : geo.width * 0.035;
+    const y = geo.compact ? geo.height * 0.015 : geo.height * 0.08;
+    const lineHeight = fontPx * (geo.compact ? 1.6 : 1.9);
 
     ctx.save();
     ctx.font = `600 ${fontPx}px ${DIAGRAM_FONT}`;
-    ctx.textAlign = 'left';
+    ctx.textAlign = geo.compact ? 'center' : 'left';
     ctx.textBaseline = 'top';
     applyTracking(ctx, fontPx * 0.18);
 
@@ -973,7 +987,12 @@ function drawBaseScene(state: RenderState, timeMs: number) {
     const nodeStrokeWidth = NODE_STROKE_WIDTH * geo.scale;
 
     const labelColor = withAlpha(tokens.mutedForeground, visuals.labelAlpha);
-    const fontPx = Math.round(11 * geo.scale);
+    // Longest label is DESTINATION (11 chars). In tracked uppercase monospace a
+    // glyph advances at roughly 0.72em, so cap the size at what the node can
+    // actually hold and let it be smaller than the nominal 11px if it must.
+    const nominal = 11 * geo.scale;
+    const maxByWidth = (geo.nodeW * 0.82) / (11 * 0.72);
+    const fontPx = Math.max(7, Math.round(Math.min(nominal, maxByWidth)));
 
     geo.ingest.forEach((ingest, i) => {
         drawRoundedRect(
@@ -986,7 +1005,14 @@ function drawBaseScene(state: RenderState, timeMs: number) {
             nodeStroke,
             nodeStrokeWidth,
         );
-        drawNodeLabel(ctx, ingest, INGEST_LABELS[i], labelColor, fontPx);
+        drawNodeLabel(
+            ctx,
+            ingest,
+            INGEST_LABELS[i],
+            labelColor,
+            fontPx,
+            geo.compact,
+        );
     });
 
     geo.dest.forEach((dest, i) => {
@@ -1000,7 +1026,14 @@ function drawBaseScene(state: RenderState, timeMs: number) {
             nodeStroke,
             nodeStrokeWidth,
         );
-        drawNodeLabel(ctx, dest, DEST_LABELS[i], labelColor, fontPx);
+        drawNodeLabel(
+            ctx,
+            dest,
+            DEST_LABELS[i],
+            labelColor,
+            fontPx,
+            geo.compact,
+        );
     });
 }
 
@@ -1499,7 +1532,10 @@ onUnmounted(() => {
             time per proxy, in the order received.
         </p>
 
-        <div ref="container" class="mx-auto aspect-[2/1] w-full max-w-6xl">
+        <div
+            ref="container"
+            class="mx-auto aspect-[3/4] w-full max-w-6xl sm:aspect-[2/1]"
+        >
             <canvas
                 ref="canvas"
                 aria-hidden="true"
