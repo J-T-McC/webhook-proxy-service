@@ -29,6 +29,15 @@ recipe:
    the throwaway user/team via another `sail tinker --execute` call, so the shared local dev database
    isn't left polluted for the next agent/session. `Team` has no `users()` relation — detach via
    `DB::table('team_members')->where('team_id', $team->id)->delete()`, not `$team->users()->detach()`.
+   `Destination::$http_method` (`App\Enums\HttpMethod`) only has `Post`/`Put` cases — seeding a
+   `GET` destination throws a `ValueError` mid-script; since a tinker script has no wrapping
+   transaction, everything created *before* the failing line stays committed, so re-running the
+   fixed script after a mid-script error can leave a stray half-seeded row behind — check for and
+   clean up leftovers from the failed attempt too, not just the successful re-run's own rows.
+   Toggling dark mode for a screenshot via `page.evaluate(() => document.documentElement.classList
+   .add('dark'))` needs a short `page.waitForTimeout(300-500)` before the screenshot — capturing
+   immediately can catch a CSS transition mid-fade, rendering badges/table rows as washed-out gray
+   instead of their real dark-theme colours (a false-looking contrast defect that isn't real).
 5. **To prove a client-side submit-normalisation actually changes the wire payload** (not just
    in-memory form state), attach a Playwright `page.on('request', ...)` listener before the click and
    read `req.postDataJSON()` for the real `POST`/`PUT` — this is the only way to see what left the
