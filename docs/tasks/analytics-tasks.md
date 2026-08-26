@@ -1953,7 +1953,28 @@
 - **Testing:** non-behavioral in isolation — no frontend test harness (backlog T31). Verified via
   T27/T28's manual verification step, which specifically checks a production build in both themes
   and a live theme toggle.
-- **Completion notes:** _pending_
+- **Completion notes:** Implemented `resources/js/lib/chartTokens.ts` as a local copy of the round-trip
+  technique rather than importing across from `canvasKit.ts` (the task's own stated latitude) — the
+  welcome illustrations and this chart are unrelated features, and this module's normaliser needs no
+  per-frame caching (`canvasKit.ts`'s `rgbCache` exists because `withAlpha()` runs many times per
+  animation frame; a chart re-resolves only on mount and on theme change), so extracting a shared
+  `lib/` module would add indirection without removing meaningful duplication. `resolveColorToken()`
+  is the same `fillStyle = '#000000'; fillStyle = token; read fillStyle back` round-trip as
+  `withAlpha()`'s normaliser — never a `hsl(...)` pattern-match. `readColorToken()` wraps
+  `getComputedStyle(document.documentElement).getPropertyValue(name).trim()`. The single exported
+  function, `resolveChartSeriesColours()`, returns `{ delivery, attempt }` resolved from `--chart-1`/
+  `--chart-2` respectively — named by figure rather than by index, matching `SeriesPoint`'s own
+  `delivery`/`attempt` fields (T3) so T27 needs no separate mapping table. Both `document`/`window`
+  guards return the raw token unresolved when `document` is undefined, satisfying binding constraint
+  3/Implementation Note 15's SSR-safety requirement even though this module has no reactive or
+  lifecycle state of its own — it is a pure function T27 calls from `onMounted` and from a theme-change
+  watcher, never at module scope. `composer` n/a; `pnpm lint:check` and `pnpm types:check` both green.
+  The substance of this module's correctness — the round-trip resolving `--chart-1`/`--chart-2`
+  correctly against a real production build, in both themes, non-text contrast passing — was already
+  verified directly in T25's check 4 before this file existed (same technique, confirmed via a headless
+  Playwright session against `/build/assets/*.js`); T27's manual verification step re-confirms it
+  end-to-end once the chart actually renders with this module wired in, including the live theme-toggle
+  case this module's doc-comment names.
 
 ## T27 — `TrendChart.vue`: two-series line chart, `onMounted`-only construction, accessible canvas (AC16, § Accessibility; binding constraint 3; plan Implementation Notes 14–15)
 - **Description:** New component wrapping `@j-t-mcc/vue3-chartjs` (or a local wrapper, if T25
