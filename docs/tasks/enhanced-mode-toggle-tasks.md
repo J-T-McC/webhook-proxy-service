@@ -657,7 +657,43 @@
   configured) and Simple (holding a dormant policy) render identical copy and identical card values;
   Enhanced unconfigured/configured render the Enhanced copy and correct values. Document outcomes in
   the completion notes.
-- **Completion notes:** _pending_
+- **Completion notes:** `Show.vue` gained a new `modeSummary` computed (present-tense Simple/Enhanced
+  copy verbatim from design-07 Screen 2(a)) and a single muted `<p class="text-sm text-muted-foreground">`
+  directly below the existing header row (name + Mode badge + Processing badge). No new `Card` —
+  the header row and this caption were wrapped in one `flex flex-col gap-1` container so the caption
+  sits immediately under the row it describes without touching the row's own layout or the action
+  buttons; nothing else in the header changed (Amendment B). The copy references — never restates —
+  the Retry policy card ("See Retry policy below for what governs this proxy's retries" / "...lets you
+  configure its retry attempts and backoff below").
+
+  The stale rationale comment on `retryAttemptsDisplay`/`retryBackoffDisplay` (previously: "A
+  simple-mode proxy's columns are always NULL (per-proxy configurability is enhanced-only, T30)") was
+  rewritten to cite the actual mechanism: `ProxyResource`'s T5 suppression, gated server-side by T1's
+  `RetryPolicy::configuredAttemptLimitFor()`/`configuredStrategyFor()` mode gate (ADR-018 Decision 4)
+  — retiring the retired T30-era framing (T30 was reversed by ADR-018 Decision 3; the columns are no
+  longer nulled on a Simple save, they're suppressed at the read surface instead). The two computeds
+  themselves are byte-for-byte unchanged in code, as required.
+
+  **Manual verification (Flow E):** seeded four proxies in the T7–T9 throwaway team via `sail tinker`
+  — Simple/never-configured (id 11), Simple/holding-a-dormant-policy (id 10, reused from T9, 4/fixed),
+  Enhanced/unconfigured (id 12), Enhanced/configured (id 13, 8/fixed) — then re-ran `pnpm run build`.
+  Via the `playwright` skill, visited each Show page and read the mode-summary caption and the Retry
+  policy card's Attempts/Backoff values directly from the rendered DOM:
+  - Simple, never configured → Simple copy; `5 (default)` / `Exponential (default)`.
+  - Simple, holding a dormant policy → **identical** Simple copy; **identical** `5 (default)` /
+    `Exponential (default)` — confirming no leak of the dormant 4/fixed.
+  - Enhanced, unconfigured → Enhanced copy; `5 (default)` / `Exponential (default)`.
+  - Enhanced, configured → Enhanced copy; `8` / `Fixed interval`.
+
+  All four match design-07's States table exactly. Cleaned up afterward: all seeded proxies
+  (`forceDelete()`, destinations first), the `team_members` pivot row, the throwaway team, and the
+  throwaway user, via a final `sail tinker --execute` call — the shared local dev database is left as
+  it was found.
+
+  Verified: `pnpm lint:check` (clean, repo-wide); `pnpm types:check` (clean); `pnpm format:check`
+  (clean, no reformat needed); `pnpm run build` (succeeds); `composer lint` (Pint, clean);
+  `composer types:check` (PHPStan level 7, 0 errors); full backend suite
+  `./vendor/bin/sail test --parallel` (759 passed, 2820 assertions, unchanged — frontend-only task).
 
 ---
 

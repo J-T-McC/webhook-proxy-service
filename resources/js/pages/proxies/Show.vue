@@ -99,15 +99,30 @@ const hasResponseBody = computed(
 );
 
 // Retry policy card — read-only view of the effective retry policy (design-06
-// Screen 1 / Flow G). A simple-mode proxy's columns are always NULL (per-proxy
-// configurability is enhanced-only, T30), so it always renders the same
-// "(default)" values as an unconfigured enhanced proxy — the display helpers
-// don't need to branch on mode for the value itself, only for the extra note.
+// Screen 1 / Flow G). A simple-mode proxy's `retry_attempt_limit`/
+// `retry_backoff_strategy` are suppressed to null on this payload by
+// `ProxyResource` (T5), gated server-side on `mode === Enhanced`
+// (`RetryPolicy::configuredAttemptLimitFor()`/`configuredStrategyFor()`, T1,
+// ADR-018 Decision 4) — never a raw-column read here, and never leaking a
+// dormant value even if one is persisted (AC14(b)). So this card always
+// renders the same "(default)" values as an unconfigured enhanced proxy — the
+// display helpers don't need to branch on mode for the value itself, only for
+// the extra note.
 const retryAttemptsDisplay = computed(() =>
     proxyRetryAttemptLimitDisplay(props.proxy.retry_attempt_limit),
 );
 const retryBackoffDisplay = computed(() =>
     proxyRetryBackoffStrategyDisplay(props.proxy.retry_backoff_strategy),
+);
+
+// Mode-summary caption (design-07 Screen 2(a), AC16) — a present-tense
+// one-line statement of what the proxy's current mode means today, sized for
+// a detail row (Amendment B — no dedicated card). References, rather than
+// restates, the Retry policy card's actual values below.
+const modeSummary = computed(() =>
+    props.proxy.mode === 'enhanced'
+        ? `Enhanced mode — stores this proxy's dispatched payload separately from what it received, and lets you configure its retry attempts and backoff below.`
+        : `Simple mode — no dispatched-output storage or per-proxy retry configuration; automatic retry, payload capture, retention, and replay still apply. See Retry policy below for what governs this proxy's retries.`,
 );
 
 const proxyDeleteOpen = ref(false);
@@ -135,52 +150,65 @@ function confirmDeleteProxy(): void {
     <Head :title="props.proxy.name" />
 
     <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <h1 class="text-xl font-semibold">{{ props.proxy.name }}</h1>
-                <Badge variant="secondary">
-                    {{
-                        props.proxy.mode === 'enhanced' ? 'Enhanced' : 'Simple'
-                    }}
-                </Badge>
-                <Badge variant="secondary">
-                    {{ proxyProcessingModeLabel(props.proxy.processing_mode) }}
-                </Badge>
-            </div>
-            <div class="flex items-center gap-2">
-                <Button variant="outline" as-child>
-                    <Link
-                        :href="
-                            proxyEventRoutes.index({
-                                current_team: teamSlug,
-                                proxy: props.proxy.id,
-                            })
-                        "
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <h1 class="text-xl font-semibold">
+                        {{ props.proxy.name }}
+                    </h1>
+                    <Badge variant="secondary">
+                        {{
+                            props.proxy.mode === 'enhanced'
+                                ? 'Enhanced'
+                                : 'Simple'
+                        }}
+                    </Badge>
+                    <Badge variant="secondary">
+                        {{
+                            proxyProcessingModeLabel(
+                                props.proxy.processing_mode,
+                            )
+                        }}
+                    </Badge>
+                </div>
+                <div class="flex items-center gap-2">
+                    <Button variant="outline" as-child>
+                        <Link
+                            :href="
+                                proxyEventRoutes.index({
+                                    current_team: teamSlug,
+                                    proxy: props.proxy.id,
+                                })
+                            "
+                        >
+                            Events
+                        </Link>
+                    </Button>
+                    <Button v-if="canUpdate" variant="outline" as-child>
+                        <Link
+                            :href="
+                                proxyRoutes.edit({
+                                    current_team: teamSlug,
+                                    proxy: props.proxy.id,
+                                })
+                            "
+                        >
+                            Edit
+                        </Link>
+                    </Button>
+                    <Button
+                        v-if="canDelete"
+                        variant="destructive"
+                        :aria-label="`Delete proxy ${props.proxy.name}`"
+                        @click="proxyDeleteOpen = true"
                     >
-                        Events
-                    </Link>
-                </Button>
-                <Button v-if="canUpdate" variant="outline" as-child>
-                    <Link
-                        :href="
-                            proxyRoutes.edit({
-                                current_team: teamSlug,
-                                proxy: props.proxy.id,
-                            })
-                        "
-                    >
-                        Edit
-                    </Link>
-                </Button>
-                <Button
-                    v-if="canDelete"
-                    variant="destructive"
-                    :aria-label="`Delete proxy ${props.proxy.name}`"
-                    @click="proxyDeleteOpen = true"
-                >
-                    Delete
-                </Button>
+                        Delete
+                    </Button>
+                </div>
             </div>
+            <p class="text-sm text-muted-foreground">
+                {{ modeSummary }}
+            </p>
         </div>
 
         <!-- Ingest URL card -->
