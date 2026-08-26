@@ -26,6 +26,14 @@ Also house convention: plans that rule on something the PRD/design left silent g
 named ruling section (plan-04's "Mid-flight mode change — technical ruling") stating why it stays
 inside the upstream artifact's assumptions and therefore does **not** route back upstream.
 
+**When a plan carries no outstanding flag**, still write the `Owner-approval flags (✋)` section —
+list the gate struck through with its Accepted date (plan-07), never omit the heading, and add a
+short *Why no new ADR* paragraph walking each candidate against the ADR bar. The Status line then
+reads "Approved (Principal-Engineer self-certified) — **in full**", and the Certification paragraph
+says explicitly that there is no carve-out. Where a design spec is approved *with required
+corrections held by the Designer*, the plan is written against the **approval note** (which governs
+over the spec body) and says so in its header and certification.
+
 **When an Owner amendment lands mid-design** (the PRD "Amendment A" pattern), the house response is
 a `## Revision A — what the ruling changed here` table (*prior position → now*) at the top of every
 artifact it touches, the plan included. Rules observed: revise a **Proposed** ADR in place (nothing
