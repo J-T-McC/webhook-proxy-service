@@ -46,3 +46,43 @@ CSS-only animated inline-SVG work:
   context options) rather than guessing — `context.emulateMedia` /
   `browser.newContext({ reducedMotion, colorScheme })` covers all four axes
   without touching OS settings.
+
+**Staggering N identical-shaped events in one CSS loop** (used for the
+landing page's Illustration 1 correction, event-axis Async/FIFO): give every
+instance the SAME `@keyframes` + same `animation-duration` (the full loop
+length), and vary only `animation-delay` per instance (`0s`, `20%-of-loop`,
+`40%-of-loop`, ...) via a small set of fixed delay classes — a positive
+delay on an `infinite` animation just shifts that instance's phase forever,
+which is exactly "N staggered, identical, overlapping journeys." Give the
+element a plain (non-keyframe) resting `opacity: 0` so it's invisible during
+its own initial pre-delay window instead of popping in at a wrong resting
+style.
+
+**One element flashing multiple times per loop at different moments**
+(e.g. a destination lighting up once per arriving event): comma-separate the
+*same* `@keyframes` name multiple times in one `animation` shorthand and
+give `animation-delay` a matching comma-separated list — CSS applies each
+listed animation/delay pair independently to the same element/properties,
+so `animation: pulse 3.6s linear infinite, pulse 3.6s linear infinite; animation-delay: 0s, 1.2s;`
+produces two flashes per loop from one keyframes definition, no JS.
+
+**Vue 3 `<style scoped>` renames `@keyframes` (appends a `-<hash>` suffix)
+and rewrites matching `animation:`/`animation-name:` declarations _within
+that same `<style>` block_ — but does NOT touch an inline `style="..."`
+attribute written in the `<template>`.** Verified by grepping the compiled
+`public/build/assets/*.css` for a keyframes name after a first build.
+Consequence: never reference a scoped keyframes name from a template inline
+`style` binding (it won't resolve to the hashed name) — apply animations via
+a CSS class defined in the same `<style scoped>` block instead, and reserve
+inline `style` on template elements for CSS custom-property values only
+(`--dx-d: ...`), which templates can set freely since custom properties
+aren't renamed.
+
+**Process note:** a Designer-corrected spec landing mid-task (factual error
+caught by the Project Owner) is a normal "resume and patch" flow, not a
+redesign — re-read only the spec's changed sections (header Correction
+note + the rewritten illustration/copy sections + the audit section) rather
+than the whole document, patch just the named files, and re-run the full
+verification pass (`pnpm run build` before any live check, all four
+light/dark × desktop/360px × motion axes, full gate suite) before
+re-committing with a `fix(landing):`-style header.
