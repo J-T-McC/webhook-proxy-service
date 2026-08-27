@@ -12,6 +12,8 @@ use App\Models\WebhookEvent;
 use App\Pipeline\PipelineContext;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
+use Lorisleiva\Actions\Decorators\JobDecorator;
 use Tests\TestCase;
 
 class DeliverStepTest extends TestCase
@@ -114,6 +116,53 @@ class DeliverStepTest extends TestCase
 
         sort($pushedDeliveryIds);
         $this->assertSame($expectedDeliveryIds, $pushedDeliveryIds);
+    }
+
+    /**
+     * The direct expression of ADR-020 Decision 7: no queued job carries
+     * payload bytes or header values in its arguments, in either mode.
+     * Asserted against the *serialized* job — what a real queue driver would
+     * actually store — not the in-memory object, since a future regression
+     * (e.g. reintroducing a `DeliveryUnit` constructor argument) could pass an
+     * in-memory-only check while still failing this one.
+     */
+    public function test_no_queued_delivery_jobs_serialized_form_contains_payload_bytes_or_header_values(): void
+    {
+        Queue::fake();
+
+        $distinctiveBody = 'PAYLOAD-MARKER-'.Str::random(24);
+        $distinctiveHeaderValue = 'HEADER-MARKER-'.Str::random(24);
+
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Async]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'body' => $distinctiveBody,
+            'byte_size' => strlen($distinctiveBody),
+            'headers' => ['x-distinctive-marker' => [$distinctiveHeaderValue]],
+        ]);
+        Delivery::factory()->create([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'webhook_event_id' => $event->id,
+            'destination_id' => $destination->id,
+            'dispatch_uuid' => 'ingest-'.$proxy->id,
+        ]);
+
+        DeliverStep::make()->handle($this->contextFor($proxy), fn (PipelineContext $c) => $c);
+
+        DeliverToDestination::assertPushed(function ($action, array $params, JobDecorator $job) use (
+            $distinctiveBody,
+            $distinctiveHeaderValue,
+        ): bool {
+            $serialized = serialize($job);
+
+            $this->assertStringNotContainsString($distinctiveBody, $serialized);
+            $this->assertStringNotContainsString($distinctiveHeaderValue, $serialized);
+
+            return true;
+        });
     }
 
     public function test_async_one_destination_failing_does_not_prevent_the_others_dispatching(): void

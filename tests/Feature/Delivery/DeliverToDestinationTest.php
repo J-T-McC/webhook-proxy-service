@@ -16,12 +16,14 @@ use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\Proxy;
+use App\Models\WebhookEvent;
 use App\Pipeline\DeliveryUnit;
 use App\Services\RetryPolicy;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 use Lorisleiva\Actions\Decorators\JobDecorator;
@@ -430,5 +432,81 @@ class DeliverToDestinationTest extends TestCase
         $this->assertNull($fresh->next_attempt_at);
         RetryDelivery::assertNotPushed();
         Event::assertDispatchedTimes(DeliveryExhausted::class, 1);
+    }
+
+    // --- ADR-020 Decision 7: the by-reference `asJob()` entry point ---------
+
+    public function test_as_job_resolves_by_reference_and_delivers_exactly_like_run(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->createQuietly(['http_method' => HttpMethod::Post]);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $destination->proxy_id,
+            'team_id' => $destination->team_id,
+            'body' => '{"a":1}',
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $destination->team_id,
+            'proxy_id' => $destination->proxy_id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+
+        app(DeliverToDestination::class)->asJob($delivery->id, 1);
+
+        $this->assertSame(1, DeliveryAttempt::count());
+        $attempt = DeliveryAttempt::firstOrFail();
+        $this->assertSame(AttemptStatus::Succeeded, $attempt->status);
+        Http::assertSent(fn ($r) => $r->body() === '{"a":1}');
+        Event::assertDispatched(DeliverySucceeded::class);
+    }
+
+    /**
+     * The cleaned-parent branch, newly reachable on attempt 1 (ADR-020 Decision
+     * 7) — terminalizes per `RetryDelivery::terminalizeCleaned()`'s semantics:
+     * compare-and-set the delivery to `failed` (keyed on `pending`, correct for
+     * attempt 1), emit `DeliveryExhausted` iff the CAS affected a row, log
+     * `payload.expired` with identifiers only, and make no attempt at all —
+     * zero HTTP sends, zero `delivery_attempts` rows (PRD-06 AC17's posture).
+     */
+    public function test_as_job_on_a_cleaned_parent_terminalizes_without_sending_or_writing_an_attempt(): void
+    {
+        Event::fake();
+        Http::fake();
+        Log::spy();
+
+        $destination = Destination::factory()->createQuietly();
+        $event = WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $destination->proxy_id,
+            'team_id' => $destination->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $destination->team_id,
+            'proxy_id' => $destination->proxy_id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+
+        app(DeliverToDestination::class)->asJob($delivery->id, 1);
+
+        Http::assertNothingSent();
+        $this->assertSame(0, DeliveryAttempt::count());
+
+        $fresh = $delivery->fresh();
+        $this->assertSame(DeliveryStatus::Failed, $fresh->status);
+        $this->assertNull($fresh->next_attempt_at);
+
+        Event::assertDispatchedTimes(DeliveryExhausted::class, 1);
+        Event::assertDispatched(
+            DeliveryExhausted::class,
+            fn (DeliveryExhausted $e) => $e->delivery->id === $delivery->id,
+        );
+
+        Log::shouldHaveReceived('info')->once()->withArgs(
+            fn (string $message, array $context) => $message === 'payload.expired'
+                && $context === ['ingest_id' => $event->ingest_id],
+        );
     }
 }
