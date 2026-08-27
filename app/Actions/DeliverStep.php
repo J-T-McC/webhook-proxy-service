@@ -2,31 +2,33 @@
 
 namespace App\Actions;
 
-use App\Enums\ProcessingMode;
 use App\Models\Delivery;
-use App\Pipeline\DeliveryUnit;
 use App\Pipeline\PipelineContext;
 use App\Pipeline\PipelineStep;
 use Closure;
 use Lorisleiva\Actions\Concerns\AsObject;
 
 /**
- * The terminal fan-out step (ADR-001/011/015). Iterates the dispatch's `deliveries`
- * rows (`dispatch_uuid = $ctx->dispatchUuid`, one per destination — created ahead of
- * the pipeline run, T8) instead of `$proxy->destinations` directly, and builds one
- * {@see DeliveryUnit} per row, carrying that row's id. The destination relation is
- * loaded `withTrashed()`: a destination soft-deleted after its delivery row was
- * created still receives its attempt (ruling 2) — trashed-exclusion now happens at
- * *delivery-row creation* (T8), not here. Each unit is then dispatched per the
- * proxy's processing mode (ADR-011):
- *  - **Async** — `DeliverToDestination::dispatch(...)` onto the dedicated webhooks
- *    queue, `afterCommit()`, so destinations fan out in parallel.
- *  - **FIFO** — `DeliverToDestination::run(...)` inline, so the advancing job settles
- *    the whole event before advancing the proxy's line.
+ * The terminal fan-out step (ADR-001/011/015/020). Iterates the dispatch's
+ * `deliveries` rows (`dispatch_uuid = $ctx->dispatchUuid`, one per destination —
+ * created ahead of the pipeline run, T8) instead of `$proxy->destinations`
+ * directly.
  *
- * One destination failing/erroring never aborts the loop in either mode (AC10) —
- * DeliverToDestination catches its own transport errors, and a dispatch is fire-and-
- * forget. This step only READS `$ctx->payload`.
+ * Every delivery, in both Async and FIFO modes, is dispatched **by reference**
+ * onto the dedicated webhooks queue (ADR-020 Decision 1/7): only the delivery's
+ * `id` and attempt number 1 travel in the job's arguments — no payload bytes, no
+ * headers, no destination model. `DeliverToDestination` resolves everything else
+ * on the worker via the shared `DeliveryUnitResolver` (ADR-013's divergence-gated
+ * dispatched-output store makes that resolution total). This is what makes an
+ * `AdvanceProxyFifoQueue` job bounded by local database/CPU work rather than by
+ * N remote HTTP sends (ADR-020 §Question) — FIFO ordering is unaffected because
+ * it is enforced between events, never between destinations within one event
+ * (ADR-020's guarantee, points 1–2).
+ *
+ * One destination failing/erroring never aborts the loop (AC10) — a dispatch is
+ * fire-and-forget, and `DeliverToDestination` catches its own transport errors.
+ * This step only READS `$ctx->payload` indirectly, via `$ctx->dispatchUuid`; it
+ * builds no `DeliveryUnit`s itself.
  */
 class DeliverStep implements PipelineStep
 {
@@ -37,39 +39,14 @@ class DeliverStep implements PipelineStep
      */
     public function handle(PipelineContext $ctx, Closure $next): PipelineContext
     {
-        $proxy = $ctx->proxy;
-        $async = $proxy->processing_mode === ProcessingMode::Async;
-
-        $deliveries = Delivery::query()
+        Delivery::query()
             ->where('dispatch_uuid', $ctx->dispatchUuid)
-            ->with(['destination' => fn ($query) => $query->withTrashed()])
-            ->get();
-
-        $deliveries->each(function (Delivery $delivery) use ($ctx, $proxy, $async): void {
-            $unit = new DeliveryUnit(
-                ingestId: $ctx->ingestId,
-                teamId: $proxy->team_id,
-                proxyId: $proxy->id,
-                destination: $delivery->destination,
-                method: $delivery->destination->http_method->value,
-                headers: $ctx->headers,
-                payload: $ctx->payload,
-                deliveryId: $delivery->id,
-                attemptNumber: 1,
-            );
-
-            if ($async) {
-                // Parallel, queued fan-out on the dedicated webhooks queue (ADR-011).
-                DeliverToDestination::dispatch($unit)
+            ->pluck('id')
+            ->each(function (int $deliveryId): void {
+                DeliverToDestination::dispatch($deliveryId, 1)
                     ->onQueue(config('ingest.webhooks_queue'))
                     ->afterCommit();
-
-                return;
-            }
-
-            // FIFO: inline, so the advancer settles the whole event before advancing.
-            DeliverToDestination::run($unit);
-        });
+            });
 
         return $next($ctx);
     }

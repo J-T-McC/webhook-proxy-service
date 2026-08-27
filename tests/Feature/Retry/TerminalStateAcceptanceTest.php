@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -28,6 +29,8 @@ use Tests\TestCase;
  */
 class TerminalStateAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -69,7 +72,8 @@ class TerminalStateAcceptanceTest extends TestCase
         Destination::factory()->for($proxy)->createQuietly();
         $event = $this->eventFor($proxy);
 
-        ProcessIngestedWebhook::run($event->ingest_id); // attempt 1 — inline, real, retrying
+        ProcessIngestedWebhook::run($event->ingest_id); // attempt 1 — dispatched by reference
+        $this->drainQueuedDeliveries(); // drained in place -> retrying
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
 

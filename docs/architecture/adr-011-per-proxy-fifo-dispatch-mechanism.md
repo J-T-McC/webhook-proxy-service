@@ -1,6 +1,6 @@
 # ADR-011: Per-proxy FIFO dispatch mechanism (claim-based single-advancer) and the `processing_mode` attribute
 
-- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. Everything else stands, Accepted and operative.**
+- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. Two further positions (P4, P5) carry a partial supersession by ADR-020 (**Accepted, Project Owner 2026-08-26**) — see the inline notes at Decisions 2 and 3. Everything else stands, Accepted and operative.**
 - **Author:** Principal Engineer
 - **Date:** 2026-08-04
 - **Feature:** prd-04-queued-processing (realizes ADR-005 at build time; serves #6)
@@ -52,6 +52,18 @@ pending rows and no live claim, and resets orphaned (expired-lease) claims back 
 `pending`. `WithoutOverlapping("proxy:{id}")` on the advancer is a thundering-herd
 reducer, **not** the guard.
 
+> **[P4 — SUPERSEDED by ADR-020 (Accepted, Project Owner 2026-08-26).]** "Processes that one
+> event **to settlement**, marks it `settled`, then self-dispatches to advance" becomes: the
+> advancer *initiates* the event's delivery — fanning out to every destination in parallel on
+> the webhooks queue, in FIFO mode as well as Async — and the settle-and-advance decision is
+> made by whichever actor completes the dispatch's last delivery, via the
+> `awaiting_retry → settled` compare-and-set ADR-016 Decision 1 already built. The guarantee
+> this position served is unchanged: event 2 is still not claimed until every one of event 1's
+> deliveries has reached a terminal state. Only the actor changes. Everything else in this
+> Decision — the sidecar table, the atomic `FOR UPDATE` claim as the correctness primitive, the
+> lease plus scheduled sweeper as the liveness net, and `WithoutOverlapping` as a
+> thundering-herd reducer rather than the guard — is untouched and relied on by ADR-020.
+
 > **[P1, P2 — SUPERSEDED by ADR-016 (Accepted, Project Owner 2026-08-12).]** P1: the order key
 > becomes the `fifo_dispatches` row's own `id` (order-identical for capture-created rows;
 > admits #6 replay rows at the back of the line). P2: `UNIQUE(webhook_event_id)` is replaced by
@@ -68,6 +80,19 @@ every job, and is loss-free because the pipeline's input **is** the raw captured
 event. Per-destination `DeliverToDestination` continues to carry its `DeliveryUnit`
 (including the pipeline's *output* payload) so a later mapped payload (#8) flows to
 delivery unchanged.
+
+> **[P5 — SUPERSEDED by ADR-020 (Accepted, Project Owner 2026-08-26).]** "Per-destination
+> `DeliverToDestination` continues to carry its `DeliveryUnit` (including the pipeline's
+> *output* payload) so a later mapped payload (#8) flows to delivery unchanged" becomes: the
+> per-destination delivery job carries `(deliveryId, attemptNumber)` only, and the pipeline's
+> output payload is **resolved on the worker** from `dispatched_payloads.body`, falling back to
+> `webhook_events.body` under ADR-013 Decision 2's divergence gate — the same resolution
+> `RetryDelivery` has used for attempts 2..N since #6, and the rule ADR-015 Decision 5 already
+> states. The **guarantee is preserved**: a mapped payload still reaches the destination
+> unchanged, now by reading the store that records what was dispatched rather than by a second
+> copy travelling in the queue message. The **first half of this Decision — pipeline-entry
+> dispatch by reference, rebuilding the `PipelineContext` from the durable capture — is not
+> superseded** and is relied on by ADR-020.
 
 **(4) Exactly-once settlement (guardrail (c)/(d)).** A **`UNIQUE(ingest_id,
 destination_id, attempt_number)`** index on `delivery_attempts` plus a

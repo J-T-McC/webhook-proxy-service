@@ -68,7 +68,23 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            // Must stay above the longest Horizon supervisor `timeout` in
+            // `config/horizon.php` — 60s on both supervisors at the time of
+            // writing (ADR-020 §Decision 4, link L1, enforced by
+            // tests/Unit/Config/QueueTimingTest.php). `retry_after` is Redis
+            // making a reserved job visible again; the worker `timeout` is
+            // Horizon killing a job it is still holding. If the first fires
+            // before the second, a second worker picks up a job that is still
+            // running, and here that means re-sending webhooks the first
+            // worker already delivered.
+            //
+            // This is a separate mechanism from the application's own retry
+            // policy (ADR-015), which does not use `release()` at all: a
+            // failed attempt dispatches a fresh `RetryDelivery` with its own
+            // `->delay()` from the proxy's backoff strategy. Changing this
+            // value does not shift a single retry schedule, and it should not
+            // be derived from a backoff setting.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 180),
             'block_for' => null,
             'after_commit' => false,
         ],

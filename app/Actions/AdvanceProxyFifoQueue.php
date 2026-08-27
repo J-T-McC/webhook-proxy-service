@@ -9,6 +9,7 @@ use App\Models\FifoDispatch;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
+use RuntimeException;
 
 /**
  * The FIFO single-advancer for one proxy (ADR-011 Decision 2, ADR-005 (a);
@@ -45,9 +46,12 @@ class AdvanceProxyFifoQueue
         }
 
         // OUTSIDE the claim transaction (ADR-005 (a)): never hold the row lock across
-        // the outbound HTTP send. The proxy is FIFO, so DeliverStep runs delivery
-        // inline and this returns only once the whole event has been delivered
-        // (attempt 1 of every destination's delivery).
+        // the outbound HTTP send. This runs the pipeline in-process, but DeliverStep's
+        // terminal step only DISPATCHES each destination's delivery by reference onto
+        // the webhooks queue (ADR-020 Decision 1) — it does not deliver inline. So this
+        // call returns once the event's deliveries have been created and enqueued, not
+        // once they have settled. Settlement is decided below by `settleOrHold()`,
+        // which is what actually determines whether the line is free to advance.
         ProcessIngestedWebhook::run($claimed->webhookEvent->ingest_id, $claimed->dispatch_uuid);
 
         $this->settleOrHold($claimed, $proxyId);
@@ -95,7 +99,7 @@ class AdvanceProxyFifoQueue
             $next->update([
                 'status' => FifoDispatchStatus::Claimed,
                 'claimed_at' => now(),
-                'lease_expires_at' => now()->addSeconds((int) config('ingest.fifo_lease_seconds')),
+                'lease_expires_at' => now()->addSeconds($this->leaseSeconds()),
             ]);
 
             return $next;
@@ -103,38 +107,87 @@ class AdvanceProxyFifoQueue
     }
 
     /**
-     * The post-run completion decision (ADR-016 Decision 1): settle the row and
-     * advance the line when the dispatch has no non-terminal deliveries left;
-     * otherwise hold the line (`claimed → awaiting_retry`, no lease, no
-     * self-dispatch) for the dispatch's in-progress retry schedule.
+     * The post-run completion decision (ADR-016 Decision 1, ADR-020 Decision 3):
+     * settle the row and advance the line when the dispatch has no non-terminal
+     * deliveries left; otherwise hold the line for the dispatch's in-progress
+     * retry schedule.
+     *
+     * Race-safe under parallel fan-out (ADR-020 Decision 3): the hold is
+     * published BEFORE the re-check. `settleFifoLineIfComplete()`
+     * (`DeliverToDestination`) only ever settles a row it finds in
+     * `awaiting_retry`, so a delivery that settles while this row is still
+     * `claimed` cannot advance the line — the re-check below is what covers that
+     * instant. Publishing the hold first is what makes the window airtight
+     * rather than merely narrower; the two steps are not interchangeable in the
+     * other order. The settle path itself is a compare-and-set keyed on the
+     * expected prior status (never a blind update by primary key), and the
+     * advance is dispatched only if the compare-and-set affected a row — so a
+     * stale advancer can neither settle a row another advancer holds nor
+     * double-advance the line.
      */
     private function settleOrHold(FifoDispatch $claimed, int $proxyId): void
     {
-        $hasNonTerminalDeliveries = Delivery::query()
-            ->where('dispatch_uuid', $claimed->dispatch_uuid)
-            ->whereNotIn('status', $this->terminalStatuses())
-            ->exists();
-
-        if (! $hasNonTerminalDeliveries) {
-            $claimed->update([
-                'status' => FifoDispatchStatus::Settled,
-                'settled_at' => now(),
-            ]);
-
-            // Advance to the next pending row for this proxy.
-            static::dispatch($proxyId);
+        if (! $this->hasNonTerminalDeliveries($claimed->dispatch_uuid)) {
+            $this->settleAndAdvance($claimed->id, FifoDispatchStatus::Claimed, $proxyId);
 
             return;
         }
 
-        FifoDispatch::query()
+        // Publish the hold BEFORE re-checking. `settleFifoLineIfComplete` settles
+        // only a row it finds in `awaiting_retry`, so a delivery that settles while
+        // this row is still `claimed` cannot advance the line — the re-check below
+        // is what covers that instant. Ordering the two the other way round leaves
+        // the same gap it is meant to close.
+        $held = FifoDispatch::query()
             ->whereKey($claimed->id)
             ->where('status', FifoDispatchStatus::Claimed)
             ->update([
                 'status' => FifoDispatchStatus::AwaitingRetry,
                 'claimed_at' => null,
                 'lease_expires_at' => null,
-            ]);
+            ]) > 0;
+
+        if (! $held) {
+            return;
+        }
+
+        if (! $this->hasNonTerminalDeliveries($claimed->dispatch_uuid)) {
+            $this->settleAndAdvance($claimed->id, FifoDispatchStatus::AwaitingRetry, $proxyId);
+        }
+    }
+
+    /**
+     * Whether the dispatch identified by `$dispatchUuid` still has a non-terminal
+     * delivery. Queried fresh on each call — deliberately impure: the whole point
+     * of `settleOrHold()`'s re-check (ADR-020 Decision 3) is that this can change
+     * between the two calls, as another delivery settles concurrently.
+     *
+     * @phpstan-impure
+     */
+    private function hasNonTerminalDeliveries(string $dispatchUuid): bool
+    {
+        return Delivery::query()
+            ->where('dispatch_uuid', $dispatchUuid)
+            ->whereNotIn('status', $this->terminalStatuses())
+            ->exists();
+    }
+
+    /**
+     * Settle `$id` by compare-and-set keyed on `$from`, and dispatch the next
+     * advance only if the compare-and-set affected a row — so a stale advancer
+     * (one whose row has already moved on under it) can neither settle nor
+     * double-advance the line.
+     */
+    private function settleAndAdvance(int $id, FifoDispatchStatus $from, int $proxyId): void
+    {
+        $affected = FifoDispatch::query()
+            ->whereKey($id)
+            ->where('status', $from)
+            ->update(['status' => FifoDispatchStatus::Settled, 'settled_at' => now()]);
+
+        if ($affected > 0) {
+            static::dispatch($proxyId);
+        }
     }
 
     /**
@@ -169,13 +222,52 @@ class AdvanceProxyFifoQueue
      * window; equal to the lease is the correct upper bound (ADR-011 liveness
      * guardrail (b), plan-04 §Services).
      *
+     * `->dontRelease()` (ADR-020 Decision 6): without it, `$releaseAfter` defaults
+     * to `0`, so a redundant advancer that loses the lock is released back onto
+     * the queue immediately and then fails `MaxAttemptsExceeded` under the
+     * supervisor's `tries => 1`, landing in `failed_jobs`. No payload is exposed
+     * either way (this job carries only an integer proxy id) and liveness is
+     * unaffected — the self-dispatch chain and the sweeper keep the line live
+     * regardless — but this is what makes "a redundant advancer that loses the
+     * lock is simply dropped" (this docblock, and `config/horizon.php`'s
+     * production comment) actually true rather than aspirational.
+     *
      * @return array<int, object>
      */
     public function getJobMiddleware(int $proxyId): array
     {
         return [
             (new WithoutOverlapping("proxy:{$proxyId}"))
-                ->expireAfter((int) config('ingest.fifo_lease_seconds')),
+                ->expireAfter($this->leaseSeconds())
+                ->dontRelease(),
         ];
+    }
+
+    /**
+     * The fail-loud reader for `ingest.fifo_lease_seconds` (ADR-020 Decision 5,
+     * following `RetryPolicy::positiveConfigInt()`) — the ONLY place this key is
+     * read. A blank, zero, negative or non-numeric value is uniquely destructive
+     * here: it would make `lease_expires_at` resolve to `now()` (every claim
+     * instantly reapable) AND `WithoutOverlapping::expireAfter(0)` mean no lock
+     * expiry at all (`Illuminate\Cache\RedisLock`), leaking the per-proxy lock
+     * permanently on an ungraceful worker crash — exactly the deadlock this
+     * class's own docblock warns about. Refuses to silently substitute a
+     * default.
+     *
+     * @throws RuntimeException
+     */
+    private function leaseSeconds(): int
+    {
+        $value = (int) config('ingest.fifo_lease_seconds');
+
+        if ($value < 1) {
+            throw new RuntimeException(sprintf(
+                "config('ingest.fifo_lease_seconds') must resolve to a positive integer; got %d. Refusing to ".
+                'silently substitute a default.',
+                $value,
+            ));
+        }
+
+        return $value;
     }
 }

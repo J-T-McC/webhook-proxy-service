@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -32,6 +33,8 @@ use Tests\TestCase;
  */
 class ReplayAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     private function actingUser(): User
     {
         $user = User::factory()->createQuietly();
@@ -283,6 +286,7 @@ class ReplayAcceptanceTest extends TestCase
         // Run the replay's (captured) FIFO advance once, for real — the
         // single inline attempt 1.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status, 'Precondition: the replay delivery has an outstanding retry.');

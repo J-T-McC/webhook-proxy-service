@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -35,6 +36,8 @@ use Tests\TestCase;
  */
 class ModeSwitchSafetyAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -172,8 +175,9 @@ class ModeSwitchSafetyAcceptanceTest extends TestCase
             'dispatch_uuid' => $tailEvent->ingest_id,
         ]);
 
-        // Head's first attempt fails inline -> the line holds.
+        // Head's first attempt is dispatched by reference and drained -> fails -> the line holds.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::AwaitingRetry, $head->fresh()->status);
         $this->assertSame(FifoDispatchStatus::Pending, $tail->fresh()->status);
         $delivery = Delivery::query()->where('dispatch_uuid', $head->dispatch_uuid)->firstOrFail();
@@ -191,6 +195,7 @@ class ModeSwitchSafetyAcceptanceTest extends TestCase
         // delivered in turn, nothing stranded.
         $this->assertSame(FifoDispatchStatus::Pending, $tail->fresh()->status);
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::Settled, $tail->fresh()->status);
         $this->assertSame(
             DeliveryStatus::Succeeded,

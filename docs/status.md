@@ -38,6 +38,7 @@ that made it, never here. Narrative history of items already **Done** is archive
 | ADR-017 replay dispatch & payload read surface (fetch-on-reveal) | Accepted | Project Owner, 2026-08-12 |
 | ADR-018 one mode selector, two evaluation points (partially supersedes ADR-015 Decision 3) | Accepted | Project Owner, 2026-08-25 |
 | ADR-019 payload mapping — composition-time step & resolution-time configuration | **Proposed** (not Accepted; parked with #8) | — |
+| ADR-020 FIFO advancer job duration & claim-lease safety (partially supersedes ADR-011 Decisions 2 and 3; amends ADR-016 Decision 1) | Accepted | Project Owner, 2026-08-26 |
 
 ## Feature status
 
@@ -57,7 +58,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
 | 10 | Sensitive data handling | Backlog | — (Product Manager on start) | Not started; depends on #5. Open: **V2**. **#5's deferred concern D2 gates this PRD**; #3 left headers plaintext until this item | — |
-| 11 | Analytics / stats | **Implementation** | **Senior Developer** | **IN PROGRESS.** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` **fully Approved again** (PM, 2026-08-26) — Amendment B delta approved with no corrections, design gate closed. **All 29 tasks complete — T29 verification pass clean, no defects.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
+| 11 | Analytics / stats | **Merged — Review gate not run** | — | **MERGED to `main` (PR #17, `d9fed9c`).** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` **fully Approved again** (PM, 2026-08-26) — Amendment B delta approved with no corrections, design gate closed. **All 29 tasks complete; T29 verification pass clean. PR #17 squash-merged to `main` (`d9fed9c`, 2026-08-26) — the Owner merged on T29's self-verification, so the independent Review gate was NOT run and no `docs/reviews/review-11-*.md` exists. #6 and #7 each surfaced Majors at that gate, so this is a recorded gap, not a completed phase.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
@@ -504,8 +505,106 @@ plus both Owner flags ruled, 2026-08-26);
   `proxy_map_conditions.value` hold member-typed plaintext literals.
 - Roadmap **M1/M2** and **Q-08-03** are RESOLVED; the deferral does not reopen them.
 
+## Operations work in flight (not a roadmap line)
+
+**Branch `feat/horizon`, PR #18, open.** Owner-directed operational work, deliberately outside the
+dev-team pipeline, plus one architectural ruling it uncovered.
+
+- **Laravel Horizon `^5.48` added** for visibility into the Redis queue, at `/horizon`. Access is
+  HTTP Basic against `HORIZON_USERNAME`/`HORIZON_PASSWORD` rather than a user allow-list, because
+  this project has no superadmin role — operational access is deployment configuration, not a
+  property of an application account. Both the route middleware and Horizon's own `viewHorizon`
+  gate consult the same check, so removing the middleware from `config/horizon.php` cannot open
+  the dashboard. Unset credentials fail closed. `.env.example` moves to `QUEUE_CONNECTION=redis`,
+  since Horizon supervises Redis queues only and shows an empty dashboard on the `database` driver.
+- **Two supervisors configured** — `supervisor-webhooks` on the `webhooks` queue and
+  `supervisor-default` on `default` — replacing the single published one. Concurrency is safe on
+  both because FIFO ordering is held by `AdvanceProxyFifoQueue`'s atomic `FOR UPDATE` claim, not
+  by there being a single worker. `tries` stays 1 on both: `DeliverToDestination` declares
+  `$tries = 1` because retry is ADR-015's application-level policy, and a queue-level retry would
+  re-send a webhook outside it.
+- **`ADR-020` came out of this work and is Accepted** (Project Owner, 2026-08-26). Configuring the
+  supervisors surfaced that the `default` supervisor's `timeout` sits under two constraints at
+  once — above the longest legitimate job (`N × 15` seconds of inline sends) and below
+  `ingest.fifo_lease_seconds` (90) — **jointly unsatisfiable for a FIFO proxy with five or more
+  destinations**. Today such a proxy has its advancer killed mid-delivery every time. The fix is
+  parallel queued fan-out inside a FIFO event, which removes the reason the job is long rather
+  than negotiating around it. **The Owner confirmed the FIFO guarantee is settlement-ordered
+  between events, with no requirement that destinations within one event be sequential**, so the
+  inline loop had no requirement behind it. Event ordering does not change.
+- **The Owner rejected encrypting the payload in the queue and required it removed instead.**
+  Revision A's by-reference delivery job carries `(deliveryId, attemptNumber)` and resolves on the
+  worker through ADR-013's divergence gate — the shape `RetryDelivery` has used since #6, and
+  which ADR-015 Decision 5 already required. Two Owner requirements were in tension:
+  `ShouldBeEncrypted` would have satisfied the security one while worsening the message-size one,
+  and would in any case have been a **silent no-op**, because the object serialized is
+  `lorisleiva`'s `JobDecorator` rather than the action. Revision B additionally rules **plain
+  identifiers over `SerializesModels`** — the trait does work here, but it removes nothing, splits
+  one act of resolution across two mechanisms, and forecloses the resolver seam a future cache
+  would need.
+- **Long-term storage now turns on duration** (Owner, 2026-08-26): encryption at rest is required
+  for long-term storage, and a cache living minutes to an hour is short-term and does not need it.
+  The threshold is deliberately unset and is the Owner's to fix against a real store when one is
+  proposed.
+- **Implemented and reviewed.** `70d667a` carries the production change — `DeliverStep` loses
+  its mode branch and dispatches by reference, `App\Services\DeliveryUnitResolver` becomes the
+  single resolver, `DeliverToDestination::asJob(int $deliveryId, int $attemptNumber)` is the
+  scalar queue entry point, and `settleOrHold()` is rewritten as compare-and-set on both
+  branches. `bbc7762` adds the regression coverage and `docs/fixes/fifo-advancer-duration-and-settle-race.md`.
+  **Reviewed: Approve, one Nit, no Majors and no Minors** —
+  `docs/reviews/review-adr-020-fifo-and-horizon.md` (`de36558`). The Nit, a test whose name
+  promised a failure scenario it no longer contained, is fixed in `8e22649`. Suite at
+  **880/880**, `composer lint` and `composer types:check` clean.
+  **Two limits the review recorded rather than papered over:** no test on the branch
+  demonstrates real concurrency, since PHPUnit on a single connection cannot interleave two
+  live claim transactions — the conclusion rests on every write to `fifo_dispatches.status`
+  being keyed on an expected prior value, which is a property of the code rather than of a
+  reproduction; and because `QUEUE_CONNECTION=sync` runs jobs inline under test, **a green
+  suite is weak evidence for this change specifically.** The two reflection-driven tests in
+  `AdvanceProxyFifoQueueTest` exist for that reason and are the only ones whose passing is
+  meaningful evidence about the race.
+- **The acceptance-suite blast radius was audited directly rather than taken on trust.**
+  `Queue::fake()` cannot be scoped to exclude one action, because Laravel matches
+  `$job instanceof $class` against the pushed `JobDecorator` wrapper, so twelve acceptance
+  classes gained `tests/Concerns/DrainsQueuedDeliveries.php`. Every test method across them was
+  classified by whether it fakes the queue **in its own body**, drives the now-queued path, and
+  asserts delivery state. Three apparent gaps proved to be false positives — two tests carry no
+  `Queue::fake()` at all and the third matched only a comment reading "No Queue::fake()".
+  **No test asserts delivery state it can no longer reach.**
+- **Superseded, not weakened.** Of the three replaced tests, two are stronger — one now pins the
+  queue name, the other pins the attempt number and reads its parameters positionally as
+  scalars, which incidentally guards Decision 9. The third no longer exercises the failure its
+  name promised, because `DeliverStep` has no in-loop transport error left to survive; that
+  behaviour is covered end to end by `RetryEngineAcceptanceTest`.
+- **Implementation was in flight** with the Senior Developer on the same branch. Two hazards are
+  recorded on it rather than left to be discovered: the delivery job's argument list **must stay
+  scalar**, because `JobDecorator` auto-applies `SerializesModels` to top-level parameters and a
+  model would silently opt back in; and `QUEUE_CONNECTION=sync` makes `dispatch()` run inline, so
+  **the existing FIFO acceptance suite passing is not evidence** that parallel fan-out is correct.
+
 ## Backlog follow-ups (deferred, not gating any current item)
 
+- **`league/commonmark` 2.8.3 carries six security advisories, all denial-of-service.** Reported
+  by `composer audit`, all fixed in 2.9.0. They arrive through `laravel/framework`, not through
+  anything added recently, and predate the current branches. `laravel/framework` allows `^2.8.1`,
+  so the upgrade is available without a framework change. Held out of the Horizon branch to keep
+  unrelated work in separate pull requests; it wants its own.
+- **`docs/stack/stack.md` records "Local/default: SQLite", but the full migration set cannot run
+  against SQLite.** `database/migrations/2026_08_04_000002_create_webhook_events_table.php`
+  issues a raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`, which is
+  MySQL-only DDL that SQLite's parser rejects outright. In practice `./vendor/bin/sail test` is
+  the only way this suite runs, and the stack document is the half that is wrong. Found while
+  verifying item #11's bucket expression across both engines; that verification had to be done at
+  the query-builder level as a result.
+- **Async fan-out has been exposed to queue-driver message-size limits since #4.** Recorded by
+  ADR-020 Decision 8 as a pre-existing limitation rather than something that change introduces.
+  `INGEST_MAX_BODY_BYTES` defaults to 50 MiB while SQS caps a message at 256 KiB — roughly two
+  hundred times smaller. Redis (512 MB strings) and the `database` driver (`longText`) both
+  tolerate it, which is precisely why it stays invisible until a driver migration turns it into a
+  hard failure rather than a degradation. ADR-020's by-reference delivery job removes the exposure
+  once implemented, since the job then carries two integers. **The 50 MiB cap itself is flagged in
+  `config/ingest.php` as a placeholder to revisit before MVP, and choosing that number is the
+  Product Manager's or the Owner's, not the Principal Engineer's.**
 - **`design-11`'s § Components row still describes the charting dependency as ungated.** A
   pre-Amendment-B line the 2026-08-26 design gate deliberately did not reopen, since it falls
   outside that gate's scope. The Owner ruled the dependency on 2026-08-26 (both packages

@@ -1,6 +1,6 @@
 ---
 name: laravel-actions-gotchas
-description: lorisleiva/laravel-actions gotchas — AsCommand registration, Carbon import paths used across the app
+description: lorisleiva/laravel-actions gotchas — AsCommand registration, Carbon import paths, asJob() vs handle() dual entry points, Queue::fake() scoping limits, afterCommit-under-sync test behavior, PHPStan impure-check annotation
 metadata:
   type: project
 ---
@@ -33,3 +33,32 @@ metadata:
   in a test, bypassing the queue entirely), container-resolve and call `handle()` yourself:
   `app(RetryDelivery::class)->handle($id, $n)` — the same container-resolution parity `::run()`
   would give, just without the `AsObject` convenience wrapper. Used for T14's `RetryDeliveryTest`.
+- **`JobDecorator::handle()` prefers a method named `asJob()` over `handle()` when both exist**
+  (`hasMethod('asJob')` checked first). This is the sanctioned way to give one action TWO distinct
+  entry-point shapes: `::run(DeliveryUnit $unit)` for an in-process/already-resolved call (goes
+  straight to `handle()` via `AsObject::run()`), and `::dispatch(int $id, int $n)` for a queued,
+  by-reference call (goes through `JobDecorator::handle()`, which picks `asJob()`). Used by
+  `DeliverToDestination` (ADR-020) to keep `handle(DeliveryUnit $unit)`'s signature/behaviour
+  untouched while adding a scalar-args queue entry point alongside it.
+- **`Queue::fake([SomeAction::class])` / `Queue::fake()->except([SomeAction::class])` do NOT scope
+  to a lorisleiva action** — confirmed empirically (a probe test). Laravel's `QueueFake` matches via
+  `$job instanceof $class`, but the object actually pushed is the `JobDecorator` wrapper, which is
+  never `instanceof` the wrapped action. Both calls silently degrade to "fake nothing" (list is
+  non-empty but nothing ever matches) or "fake everything" depending on which method — there is no
+  partial fake for lorisleiva jobs via the native API. To let one action's queued job run for real
+  while freezing another's, don't try to scope the fake: blanket-fake, then manually drain the one
+  you want executed via `Queue::pushed(ActionManager::$jobDecorator, fn (JobDecorator $j) => ...)`
+  and call the job's real entry point yourself (see `tests/Concerns/DrainsQueuedDeliveries.php`).
+- **A dispatched-with-`->afterCommit()` job on the `sync` queue connection fires synchronously
+  within a `RefreshDatabase`-wrapped test**, even though the test's own wrapping transaction never
+  truly commits (confirmed empirically, contrary to the naive reading of
+  `DatabaseTransactionsManager`'s level-based commit gating) — do not add `Queue::fake()` "just in
+  case" to a test that wants to observe a real `afterCommit()` dispatch's side effects; it isn't
+  needed and, if added, faking recording semantics differ from a real dispatch (see the entries
+  above and below).
+- **PHPStan level 7's "remembering/forgetting returned values" flags a private method that queries
+  the DB and is deliberately called twice expecting a possibly-different answer** (a check, a
+  mutation, a re-check) as `booleanNot.alwaysFalse` on the second call — it assumes the method is
+  pure. Annotate it `@phpstan-impure` rather than restructuring the check-then-recheck shape (this
+  is exactly the point of a race-safety re-check, e.g. `AdvanceProxyFifoQueue::settleOrHold()`,
+  ADR-020 Decision 3).

@@ -16,6 +16,7 @@ use App\Services\StoredPayloadLookup;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -28,6 +29,8 @@ use Tests\TestCase;
  */
 class CleanedStateReaderGuardAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     public function test_stored_payload_lookup_signals_the_correct_state_for_each_case(): void
     {
         $proxy = Proxy::factory()->createQuietly();
@@ -129,6 +132,7 @@ class CleanedStateReaderGuardAcceptanceTest extends TestCase
         // The line advances to the next pending row exactly as it would for a normal
         // delivery (self-dispatch is captured by Queue::fake; advance explicitly).
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(FifoDispatchStatus::Settled, $secondDispatch->fresh()->status);
         $this->assertSame(1, DeliveryAttempt::count());

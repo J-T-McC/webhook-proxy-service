@@ -2,6 +2,9 @@
 
 namespace Tests\Unit\Config;
 
+use App\Actions\AdvanceProxyFifoQueue;
+use Illuminate\Support\Facades\Config;
+use RuntimeException;
 use Tests\TestCase;
 
 class IngestConfigTest extends TestCase
@@ -80,5 +83,62 @@ class IngestConfigTest extends TestCase
         }
 
         $this->assertSame('deliveries', $resolved['webhooks_queue']);
+    }
+
+    // --- ADR-020 Decision 5: fifo_lease_seconds config sanity guard, mirroring
+    // RetryPolicy's positiveConfigInt idiom (review-07 Minor 9) -----------------
+
+    public function test_fifo_lease_seconds_throws_when_zero(): void
+    {
+        Config::set('ingest.fifo_lease_seconds', 0);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("config('ingest.fifo_lease_seconds')");
+
+        (new AdvanceProxyFifoQueue)->getJobMiddleware(1);
+    }
+
+    public function test_fifo_lease_seconds_throws_when_negative(): void
+    {
+        Config::set('ingest.fifo_lease_seconds', -1);
+
+        $this->expectException(RuntimeException::class);
+
+        (new AdvanceProxyFifoQueue)->getJobMiddleware(1);
+    }
+
+    public function test_fifo_lease_seconds_throws_when_env_value_is_blank(): void
+    {
+        // Reproduces review-05 finding 1(a)'s pattern: a blank env value casts to 0.
+        putenv('INGEST_FIFO_LEASE_SECONDS=');
+
+        try {
+            $resolved = require base_path('config/ingest.php');
+        } finally {
+            putenv('INGEST_FIFO_LEASE_SECONDS');
+        }
+
+        Config::set('ingest.fifo_lease_seconds', $resolved['fifo_lease_seconds']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new AdvanceProxyFifoQueue)->getJobMiddleware(1);
+    }
+
+    public function test_fifo_lease_seconds_throws_when_env_value_is_non_numeric(): void
+    {
+        putenv('INGEST_FIFO_LEASE_SECONDS=not-a-number');
+
+        try {
+            $resolved = require base_path('config/ingest.php');
+        } finally {
+            putenv('INGEST_FIFO_LEASE_SECONDS');
+        }
+
+        Config::set('ingest.fifo_lease_seconds', $resolved['fifo_lease_seconds']);
+
+        $this->expectException(RuntimeException::class);
+
+        (new AdvanceProxyFifoQueue)->getJobMiddleware(1);
     }
 }

@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -26,6 +27,8 @@ use Tests\TestCase;
  */
 class RetentionInFlightHoldsAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     private function expiredEventFor(Proxy $proxy): WebhookEvent
     {
         return WebhookEvent::factory()->createQuietly([
@@ -208,7 +211,9 @@ class RetentionInFlightHoldsAcceptanceTest extends TestCase
         // advance normally: the GC pass in between must not have disturbed order.
         $dispatches[0]->update(['status' => FifoDispatchStatus::Settled, 'settled_at' => now()]);
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[1]->fresh()->status);
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[2]->fresh()->status);

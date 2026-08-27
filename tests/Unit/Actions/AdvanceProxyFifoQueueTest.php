@@ -17,10 +17,27 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use ReflectionMethod;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 class AdvanceProxyFifoQueueTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
+    /**
+     * Invokes the private `settleOrHold()` directly — driving the state
+     * machine rather than through a dispatch, because `QUEUE_CONNECTION=sync`
+     * makes `dispatch()` run inline and therefore makes parallel fan-out
+     * indistinguishable from the inline path under test (ADR-020 §Tests).
+     */
+    private function invokeSettleOrHold(AdvanceProxyFifoQueue $advancer, FifoDispatch $claimed, int $proxyId): void
+    {
+        $method = new ReflectionMethod(AdvanceProxyFifoQueue::class, 'settleOrHold');
+        $method->setAccessible(true);
+        $method->invoke($advancer, $claimed, $proxyId);
+    }
+
     /**
      * A FIFO proxy with one destination and `$count` pending fifo_dispatches rows,
      * whose webhook_event_ids ascend in receive order (evt-1, evt-2, ...).
@@ -58,6 +75,10 @@ class AdvanceProxyFifoQueueTest extends TestCase
 
         foreach (['evt-1', 'evt-2', 'evt-3'] as $position => $expectedIngestId) {
             AdvanceProxyFifoQueue::run($proxy->id);
+            // Delivery is queued by reference (ADR-020 Decision 1) — drain it in
+            // place, standing in for the real worker, so the row's completion
+            // check has something to settle against.
+            $this->drainQueuedDeliveries();
 
             // The expected row is settled and delivered before the next is touched.
             $settled = $dispatches[$position]->fresh();
@@ -128,17 +149,23 @@ class AdvanceProxyFifoQueueTest extends TestCase
         $ambientTransactionLevel = DB::transactionLevel();
 
         // At the moment of the outbound send, the claim transaction must be closed
-        // (back to the ambient level) and the row already committed as 'claimed' —
-        // the row lock is never held across the network call (ADR-005 (a)).
+        // (back to the ambient level) and the row already held — never `claimed`
+        // with the row lock still implicated — the row lock is never held across
+        // the network call (ADR-005 (a)). Since ADR-020 Decision 1 the send itself
+        // happens in a separately-queued `DeliverToDestination`, drained below, by
+        // which point the advancer has already moved the row to `awaiting_retry`
+        // (Decision 2/3): the row is never reaped as `claimed` while a delivery for
+        // it is in flight.
         Http::fake(function () use ($dispatchId, $ambientTransactionLevel) {
             $this->assertSame($ambientTransactionLevel, DB::transactionLevel());
             $fresh = FifoDispatch::query()->findOrFail($dispatchId);
-            $this->assertSame(FifoDispatchStatus::Claimed, $fresh->status);
+            $this->assertSame(FifoDispatchStatus::AwaitingRetry, $fresh->status);
 
             return Http::response('ok', 200);
         });
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
     }
@@ -184,6 +211,7 @@ class AdvanceProxyFifoQueueTest extends TestCase
         $this->assertLessThan($genuinelyOlderPending->webhook_event_id, $replay->webhook_event_id);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         // The lowest-id row is claimed first — NOT the lowest-webhook_event_id row
         // (the replay does not jump the queue, ADR-016 Decision 3 / AC11).
@@ -213,6 +241,7 @@ class AdvanceProxyFifoQueueTest extends TestCase
         ]);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         // Every destination succeeded on attempt 1 — no non-terminal deliveries
         // remain, so the row settles and the line advances exactly as before #6.
@@ -244,6 +273,7 @@ class AdvanceProxyFifoQueueTest extends TestCase
         ]);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         // Attempt 1 failed but is below the retry limit — the delivery is left
         // `retrying` (non-terminal), so the row holds: claimed -> awaiting_retry,
@@ -276,6 +306,118 @@ class AdvanceProxyFifoQueueTest extends TestCase
         // lease is live to trip the pre-#6 busy check.
         $this->assertSame(FifoDispatchStatus::Pending, $dispatches[1]->fresh()->status);
         Http::assertNothingSent();
+        AdvanceProxyFifoQueue::assertNotPushed();
+    }
+
+    // --- ADR-020 Decision 3: settle-or-hold's race safety, driven directly ---
+
+    /**
+     * The shape that matters (ADR-020 §Tests): a claimed row whose deliveries
+     * all reach terminal state BETWEEN the existence check and the hold being
+     * published must still end `settled`, with exactly one advance dispatched
+     * — never parked in `awaiting_retry`. Injected via `DB::listen()` at the
+     * exact moment the hold-publish UPDATE fires, so the delivery settles in
+     * the precise window the re-check exists to cover.
+     */
+    public function test_settle_or_hold_re_check_catches_a_delivery_that_settles_in_the_hold_publish_window(): void
+    {
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Fifo]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $event = WebhookEvent::factory()->createQuietly(['proxy_id' => $proxy->id, 'team_id' => $proxy->team_id]);
+        $dispatch = FifoDispatch::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'webhook_event_id' => $event->id,
+            'status' => FifoDispatchStatus::Claimed,
+            'claimed_at' => now(),
+            'lease_expires_at' => now()->addSeconds(90),
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+            'dispatch_uuid' => $dispatch->dispatch_uuid,
+            'status' => DeliveryStatus::Pending,
+        ]);
+
+        $flipped = false;
+        DB::listen(function ($query) use ($delivery, &$flipped): void {
+            if ($flipped
+                || ! str_contains($query->sql, 'update `fifo_dispatches`')
+                || ! in_array('awaiting_retry', $query->bindings, true)
+            ) {
+                return;
+            }
+
+            $flipped = true;
+
+            // The delivery settles in the exact window between the existence
+            // check (which just saw it `pending`) and the hold being published.
+            Delivery::query()->whereKey($delivery->id)->update([
+                'status' => DeliveryStatus::Succeeded->value,
+                'next_attempt_at' => null,
+            ]);
+        });
+
+        $this->invokeSettleOrHold(new AdvanceProxyFifoQueue, $dispatch, $proxy->id);
+
+        $this->assertTrue($flipped, 'Precondition: the hold-publish query fired and the race was injected.');
+        $this->assertSame(FifoDispatchStatus::Settled, $dispatch->fresh()->status);
+        AdvanceProxyFifoQueue::assertPushed(1, fn ($job, array $params) => $params[0] === $proxy->id);
+    }
+
+    /**
+     * A stale advancer — one whose in-memory `$claimed` row no longer matches
+     * the row's real, current status (reaped and/or re-claimed by another
+     * advancer since) — must not settle it. The settle path is a
+     * compare-and-set keyed on the expected prior status, never a blind
+     * update by primary key (today's bug, ADR-020 §Question).
+     */
+    public function test_settle_or_hold_a_stale_advancer_cannot_settle_a_row_it_no_longer_holds(): void
+    {
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Fifo]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $event = WebhookEvent::factory()->createQuietly(['proxy_id' => $proxy->id, 'team_id' => $proxy->team_id]);
+        $dispatch = FifoDispatch::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'webhook_event_id' => $event->id,
+            'status' => FifoDispatchStatus::Claimed,
+            'claimed_at' => now(),
+            'lease_expires_at' => now()->addSeconds(90),
+        ]);
+        // Every delivery of the dispatch is already terminal — the direct
+        // settle branch (not the hold branch) is the one under test.
+        Delivery::factory()->createQuietly([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+            'dispatch_uuid' => $dispatch->dispatch_uuid,
+            'status' => DeliveryStatus::Succeeded,
+        ]);
+
+        // Simulate the row having ALREADY been reaped and re-claimed by another
+        // advancer while this advancer was still working — its in-memory
+        // `$dispatch` object still reads `claimed`, but the real row has moved on.
+        FifoDispatch::query()->whereKey($dispatch->id)->update([
+            'status' => FifoDispatchStatus::Pending,
+            'claimed_at' => null,
+            'lease_expires_at' => null,
+        ]);
+
+        $this->invokeSettleOrHold(new AdvanceProxyFifoQueue, $dispatch, $proxy->id);
+
+        $this->assertSame(
+            FifoDispatchStatus::Pending,
+            $dispatch->fresh()->status,
+            'A stale advancer must not flip a row it no longer holds.',
+        );
         AdvanceProxyFifoQueue::assertNotPushed();
     }
 }

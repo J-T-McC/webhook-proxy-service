@@ -5,8 +5,7 @@ namespace App\Actions;
 use App\Enums\DeliveryStatus;
 use App\Events\DeliveryExhausted;
 use App\Models\Delivery;
-use App\Pipeline\DeliveryUnit;
-use App\Services\StoredPayloadLookup;
+use App\Services\DeliveryUnitResolver;
 use Illuminate\Support\Facades\Log;
 use Lorisleiva\Actions\Concerns\AsJob;
 
@@ -28,11 +27,10 @@ use Lorisleiva\Actions\Concerns\AsJob;
  * as T13's `settleDelivery`), log `payload.expired` (identifiers only —
  * never payload content), and send nothing.
  *
- * Otherwise resolves the bytes to (re)send as the recorded dispatched output
- * — `StoredPayloadLookup::dispatchedBytesFor()` (T12; ADR-013 Decision 3) —
- * rebuilds the {@see DeliveryUnit} (headers from the captured event row,
- * method from the destination loaded `withTrashed()` per plan-06 ruling 2,
- * this delivery's id, the given attempt number), and runs
+ * Otherwise resolves the `DeliveryUnit` via the shared
+ * `DeliveryUnitResolver` (ADR-020 Decision 7/Impact) — the same resolver
+ * `DeliverToDestination`'s by-reference entry point uses for attempt 1, so the
+ * two are provably identical rather than merely similar — and runs
  * `DeliverToDestination::run()`, which performs T13's settle/schedule logic
  * identically to attempt 1. No payload bytes are ever carried in this job's
  * own arguments (ADR-015 Decision 5) — only `$deliveryId`/`$attemptNumber`.
@@ -43,7 +41,7 @@ class RetryDelivery
 
     public int $tries = 1;
 
-    public function __construct(private readonly StoredPayloadLookup $payloads) {}
+    public function __construct(private readonly DeliveryUnitResolver $resolver) {}
 
     public function handle(int $deliveryId, int $attemptNumber): void
     {
@@ -53,27 +51,13 @@ class RetryDelivery
             return;
         }
 
-        $event = $delivery->webhookEvent;
+        $unit = $this->resolver->resolve($delivery, $attemptNumber);
 
-        if ($event->payload_cleaned_at !== null) {
-            $this->terminalizeCleaned($delivery, $event->ingest_id);
+        if ($unit === null) {
+            $this->terminalizeCleaned($delivery, $delivery->webhookEvent->ingest_id);
 
             return;
         }
-
-        $destination = $delivery->destination()->withTrashed()->firstOrFail();
-
-        $unit = new DeliveryUnit(
-            ingestId: $event->ingest_id,
-            teamId: $delivery->team_id,
-            proxyId: $delivery->proxy_id,
-            destination: $destination,
-            method: $destination->http_method->value,
-            headers: $event->headers,
-            payload: $this->payloads->dispatchedBytesFor($event),
-            deliveryId: $delivery->id,
-            attemptNumber: $attemptNumber,
-        );
 
         DeliverToDestination::run($unit);
     }
