@@ -34,9 +34,14 @@ An item runs only if you set `eligible: true` on it. That flag is the entire
 blast radius, and the driver is told never to set it itself. Adding work means
 editing `queue.json` by hand, which is the intended amount of friction.
 
-The queue currently opts in four small chores and one review. It deliberately
-excludes item #10 (security, Owner-gated by nature), anything needing an approval
-gate, and anything that adds a dependency.
+The queue currently opts in four small chores. Item #10 is present but blocked:
+its PRD is drafted and awaiting the Owner's approval on three points, and it
+becomes eligible only once that approval lands. Everything else — anything that
+adds a dependency, and anything needing an approval gate — stays out.
+
+The driver may edit an item's `state`, the failure counter and the halt flag, and
+append to the run log. It may not change an `eligible` flag or anything in the
+`policy` block; those are yours.
 
 ## Stopping it
 
