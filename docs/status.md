@@ -555,7 +555,10 @@ has been deleted; the record below stands because ADR-020 is load-bearing for FI
   **Reviewed: Approve, one Nit, no Majors and no Minors** —
   `docs/reviews/review-adr-020-fifo-and-horizon.md` (`de36558`). The Nit, a test whose name
   promised a failure scenario it no longer contained, is fixed in `8e22649`. Suite at
-  **880/880**, `composer lint` and `composer types:check` clean.
+  **880/880**, `composer lint` and `composer types:check` clean. **CI failed once on this branch for an unrelated reason and passed on
+a rerun of the same commit**: `vite.config.ts` resolves `bunny('Instrument Sans')` over the network
+at build time, so every build depends on `fonts.bunny.net` being reachable and a CI fresh-install
+keeps no cache — recorded as a backlog follow-up below.
   **Two limits the review recorded rather than papered over:** no test on the branch
   demonstrates real concurrency, since PHPUnit on a single connection cannot interleave two
   live claim transactions — the conclusion rests on every write to `fifo_dispatches.status`
@@ -587,7 +590,8 @@ has been deleted; the record below stands because ADR-020 is load-bearing for FI
 **Dependabot PR #19, merged 2026-08-27 (`ea35499`).** `pnpm/action-setup` 6.0.9 → 6.0.10 in the
 `github-actions` group. Routine, no review gate.
 
-**Branch `chore/mailgun-mailer`, open.** Owner-directed operational work, outside the pipeline.
+**Branch `chore/mailgun-mailer`, PR #20, merged 2026-08-27 (`cb0fdf4`).** Owner-directed
+operational work, outside the pipeline.
 Mailgun becomes a selectable mail transport: `symfony/mailgun-mailer` and `symfony/http-client`
 added (neither was present — the project had `symfony/mailer` but no HTTP client), a `mailgun`
 entry added to `config/mail.php`, and a credentials block added to `config/services.php` reading
@@ -606,6 +610,16 @@ conventional names.** Verified by resolving `MailgunHttpTransport` from the cont
   anything added recently, and predate the current branches. `laravel/framework` allows `^2.8.1`,
   so the upgrade is available without a framework change. Held out of the Horizon branch to keep
   unrelated work in separate pull requests; it wants its own.
+- **The production asset build depends on a third-party font CDN at build time.**
+  `vite.config.ts` passes `bunny('Instrument Sans')` to `laravel-vite-plugin`, which fetches the
+  font over the network during `pnpm run build`. CI reinstalls dependencies from scratch, so the
+  plugin's cache never survives a run and every build makes the request again. This already
+  produced one false CI failure on PR #20 — `TypeError: fetch failed` / `AggregateError
+  [ETIMEDOUT]` in `[plugin laravel:fonts]` — on a branch that touched no frontend code; a rerun
+  of the same commit passed. The fix is to stop fetching at build time by vendoring the woff2
+  files into `resources/` and dropping the `fonts:` option, not to add a CI retry, which would
+  only hide the dependency. Not urgent, but it will keep failing unrelated pull requests.
+
 - **`docs/stack/stack.md` records "Local/default: SQLite", but the full migration set cannot run
   against SQLite.** `database/migrations/2026_08_04_000002_create_webhook_events_table.php`
   issues a raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`, which is
