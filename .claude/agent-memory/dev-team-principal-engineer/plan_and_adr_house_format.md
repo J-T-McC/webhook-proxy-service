@@ -136,6 +136,31 @@ show the chosen option satisfies both, rather than defending each separately. Fi
 Owner's phrasing turns on a qualifier, **enumerate what falls inside and outside it in a table**
 (which stores are "long-term") rather than asserting compliance.
 
+**An ADR takes `## Revision B` too, and acceptance and a new ruling can land in the same edit**
+(ADR-020: the Owner approved the gate *and* asked a mechanism question in one message). Shape:
+newest revision section **above** the earlier one with a line saying the earlier is unchanged; the
+Status bullet becomes `Accepted — Project Owner, <date>` with the revisions listed as sub-bullets
+under it; the `## Owner-approval flags (✋)` heading is **kept, never deleted**, with the item
+struck through and its approval date — a vanished flag list reads like an oversight; and every
+inline `[Pn — PROPOSED supersession …]` annotation on the ADRs it touches is rewritten to
+`[Pn — SUPERSEDED by ADR-NNN (Accepted, Project Owner <date>)]`, an amendment to
+`[Decision n — AMENDED by …]`. Grep the ADR afterwards for `pending Owner approval` / `until this
+ADR is Accepted` — those phrases hide in the Positions-superseded prose.
+
+**When an Owner suggests a mechanism and it turns out to work but still lose, say so in those
+words.** ADR-020 Decision 9: "the trait is not broken here, and the ruling does not rest on
+pretending it is." Enumerate what it *does* satisfy first (verified in vendor, item by item),
+correct any premise in the question that is factually wrong rather than answering around it, and
+only then give the reasons it loses — preferring reasons that will still read as reasons in a year
+(it removes nothing, it re-opens an inconsistency, it moves failure handling outside code we own,
+it forecloses a seam) over vendor quirks. An alternative that loses on architecture reads very
+differently later from one that loses on a library detail.
+
+**When the Owner defers the detail of a principle ("we can define rules later"), record the
+principle and say what is missing.** Do not pick the threshold; state plainly that the boundary
+needs a number to be usable as a test, and that the number is the Owner's at the point a concrete
+case exists. Then show the refinement changes no existing entry, so the deferral costs nothing now.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
