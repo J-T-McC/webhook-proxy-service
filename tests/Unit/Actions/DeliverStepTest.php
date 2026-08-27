@@ -185,7 +185,7 @@ class DeliverStepTest extends TestCase
      * transport error to survive — the loop is now a plain dispatch loop, and
      * this is the FIFO mirror of the Async case above (AC10).
      */
-    public function test_fifo_one_destination_failing_does_not_prevent_the_others_dispatching(): void
+    public function test_fifo_dispatches_every_destination_independently(): void
     {
         Queue::fake();
 

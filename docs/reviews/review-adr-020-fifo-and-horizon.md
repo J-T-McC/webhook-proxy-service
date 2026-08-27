@@ -313,7 +313,7 @@ bytes.
 
 | # | Severity | Finding |
 |---|---|---|
-| 1 | Nit | `test_fifo_one_destination_failing_does_not_prevent_the_others_dispatching` (`tests/Unit/Actions/DeliverStepTest.php`) names a failure scenario it no longer contains. The property is structurally unreachable at this layer and is covered at acceptance level; only the name misleads. Rename to describe what it asserts. |
+| 1 | Nit | **Fixed.** `test_fifo_one_destination_failing_does_not_prevent_the_others_dispatching` (`tests/Unit/Actions/DeliverStepTest.php`) named a failure scenario it no longer contains. The property is structurally unreachable at this layer and is covered at acceptance level; only the name misled. Renamed to `test_fifo_dispatches_every_destination_independently`, which describes what it asserts. Its docblock already recorded the supersession and is unchanged. |
 
 No Majors. No Minors.
 
