@@ -223,33 +223,100 @@ return [
     */
 
     'defaults' => [
-        'supervisor-1' => [
+        /*
+         * Outbound delivery attempts (the `webhooks` queue, named by
+         * `config('ingest.webhooks_queue')`). These are async-mode fan-out
+         * jobs: one HTTP send each, capped at 15 seconds by
+         * `DeliverToDestination::TIMEOUT_SECONDS`. Short, numerous, and
+         * independent of one another, so this is the supervisor that scales.
+         */
+        'supervisor-webhooks' => [
+            'connection' => 'redis',
+            'queue' => ['webhooks'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'balanceMaxShift' => 1,
+            'balanceCooldown' => 3,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            // Must stay 1. `DeliverToDestination` declares `$tries = 1`
+            // because retry is the application's own concern (ADR-015's
+            // policy, schedule and terminal state). A queue-level retry would
+            // re-send a webhook outside that policy — a duplicate delivery
+            // the retry ledger has no record of.
+            'tries' => 1,
+            // Comfortably above the 15-second HTTP timeout, leaving room for
+            // connection setup and payload work, and well under the
+            // connection's `retry_after`.
+            'timeout' => 60,
+            'nice' => 0,
+        ],
+
+        /*
+         * Everything else: the FIFO advancer (`AdvanceProxyFifoQueue`), the
+         * per-minute sweepers, retention and mail.
+         *
+         * The long timeout is not padding. In FIFO mode `DeliverStep` runs
+         * each destination *inline* rather than fanning out, so one advancer
+         * job is N sequential HTTP sends of up to 15 seconds each, plus the
+         * settle. A proxy with a dozen destinations is a legitimately
+         * multi-minute job, and if it outlives the connection's `retry_after`
+         * Redis makes it visible again and a second worker re-runs it —
+         * duplicating every send it had already made. `retry_after` is set
+         * well above this in `config/queue.php`; see the note there.
+         */
+        'supervisor-default' => [
             'connection' => 'redis',
             'queue' => ['default'],
             'balance' => 'auto',
             'autoScalingStrategy' => 'time',
+            'minProcesses' => 1,
             'maxProcesses' => 1,
+            'balanceMaxShift' => 1,
+            'balanceCooldown' => 3,
             'maxTime' => 0,
             'maxJobs' => 0,
-            'memory' => 128,
+            'memory' => 192,
             'tries' => 1,
-            'timeout' => 60,
+            'timeout' => 300,
             'nice' => 0,
         ],
     ],
 
     'environments' => [
         'production' => [
-            'supervisor-1' => [
-                'maxProcesses' => 10,
+            'supervisor-webhooks' => [
+                'minProcesses' => 2,
+                'maxProcesses' => 20,
+                'balanceMaxShift' => 3,
+                'balanceCooldown' => 3,
+            ],
+
+            // Concurrency here is safe: FIFO ordering is held by an atomic
+            // `FOR UPDATE` claim in `AdvanceProxyFifoQueue::claimNext()`, not
+            // by there being a single worker. Its `WithoutOverlapping` job
+            // middleware is documented as a thundering-herd reducer, not the
+            // ordering guard — a redundant advancer that loses the claim is
+            // simply dropped. Several workers therefore serve different
+            // proxies in parallel while each proxy's own line stays ordered.
+            'supervisor-default' => [
+                'minProcesses' => 1,
+                'maxProcesses' => 8,
                 'balanceMaxShift' => 1,
                 'balanceCooldown' => 3,
             ],
         ],
 
         'local' => [
-            'supervisor-1' => [
+            'supervisor-webhooks' => [
                 'maxProcesses' => 3,
+            ],
+
+            'supervisor-default' => [
+                'maxProcesses' => 2,
             ],
         ],
     ],
