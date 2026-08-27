@@ -1,0 +1,124 @@
+{
+  "version": 1,
+  "note": "Work queue for the autopilot driver. See .claude/automation/README.md. This file is NOT a mirror of docs/status.md — status.md remains the single source of truth for every roadmap item and every ruling. This file lists only work the Project Owner has explicitly opted into automation, which is why entries are added by hand rather than generated. Nothing is eligible by default.",
+  "halted": false,
+  "halt_reason": null,
+  "consecutive_failures": 0,
+  "policy": {
+    "max_consecutive_failures": 2,
+    "stop_before_merge": true,
+    "forbidden_paths": [
+      ".env",
+      ".env.example",
+      ".github/workflows/**",
+      ".claude/automation/**",
+      ".claude/settings.json",
+      ".claude/settings.local.json",
+      "docs/product/roadmap.md"
+    ],
+    "forbidden_actions": [
+      "merging any pull request",
+      "pushing to main",
+      "changing branch protection or any repository setting",
+      "approving anything on the Project Owner's behalf",
+      "editing an approved PRD, design, plan or ADR to make a task pass",
+      "adding a production dependency without an Owner approval entry in this file",
+      "rerunning CI more than twice for the same commit"
+    ],
+    "gates": [
+      "composer lint",
+      "composer types:check",
+      "./vendor/bin/sail test --parallel",
+      "pnpm run format:check",
+      "pnpm run lint:check",
+      "pnpm run build"
+    ]
+  },
+  "items": [
+    {
+      "id": "fu-fonts",
+      "title": "Vendor Instrument Sans instead of fetching it at build time",
+      "kind": "chore",
+      "role": "senior-developer",
+      "state": "done",
+      "eligible": false,
+      "source": "docs/status.md § Backlog follow-ups",
+      "note": "Done by hand on 2026-08-27 (85a496f) as the worked example this queue is modelled on, and because it is the prerequisite that stops the driver mistaking a CDN timeout for a code defect."
+    },
+    {
+      "id": "fu-commonmark",
+      "title": "Upgrade league/commonmark to 2.9.0 to clear six denial-of-service advisories",
+      "kind": "chore",
+      "role": "senior-developer",
+      "state": "ready",
+      "eligible": true,
+      "source": "docs/status.md § Backlog follow-ups",
+      "acceptance": "composer audit reports no advisories against league/commonmark; full suite green; no other package's constraint changed.",
+      "note": "Arrives through laravel/framework, which already allows ^2.8.1, so no framework change is needed. This is a transitive upgrade within an existing constraint, not a new dependency, so it does not need the Owner's new-dependency gate. If the upgrade turns out to require a framework bump, that IS a stack change: stop and escalate."
+    },
+    {
+      "id": "fu-stack-sqlite",
+      "title": "Correct docs/stack/stack.md's claim that SQLite is the local default",
+      "kind": "doc-correction",
+      "role": "principal-engineer",
+      "state": "ready",
+      "eligible": true,
+      "source": "docs/status.md § Backlog follow-ups",
+      "acceptance": "stack.md no longer claims the full migration set runs on SQLite, and names the MySQL-only DDL in create_webhook_events_table as the reason.",
+      "note": "The document is the half that is wrong, not the migration. Do not change the migration."
+    },
+    {
+      "id": "fu-design-11-charting",
+      "title": "Update design-11's Components row, which still describes the charting dependency as ungated",
+      "kind": "doc-correction",
+      "role": "designer",
+      "state": "ready",
+      "eligible": true,
+      "source": "docs/status.md § Backlog follow-ups",
+      "acceptance": "The row reflects the Owner's 2026-08-26 ruling that both packages were adopted.",
+      "note": "Stale rather than wrong in a way that misleads implementation. Touch this row only; the 2026-08-26 design gate deliberately did not reopen the rest."
+    },
+    {
+      "id": "fu-review-07-nits",
+      "title": "Close review-07 Nits 5-7",
+      "kind": "chore",
+      "role": "senior-developer",
+      "state": "ready",
+      "eligible": true,
+      "source": "docs/reviews/review-07-enhanced-mode-toggle.md",
+      "acceptance": "Each nit is either fixed with a test where one is meaningful, or recorded in the review document as deliberately not fixed, with the reason.",
+      "note": "Read the nits before assuming they are all code. If any turns out to be larger than a nit, stop and report rather than growing the change."
+    },
+    {
+      "id": "gate-11-review",
+      "title": "Run the independent Review gate on item #11, which merged without one",
+      "kind": "review",
+      "role": "reviewer",
+      "state": "ready",
+      "eligible": true,
+      "source": "docs/status.md item #11",
+      "acceptance": "docs/reviews/review-11-analytics.md exists, assesses the merged implementation against PRD-11's 37 acceptance criteria, plan-11 Revision B and design-11, and carries a recommendation.",
+      "note": "Writes no production code. #11 is already in main, so any finding becomes follow-up work rather than a merge blocker; record findings, do not fix them in the same run. This is the highest-value item in the queue and the cheapest to get wrong safely."
+    },
+    {
+      "id": "fu-review-07-finding-8",
+      "title": "review-07 Finding 8: public/hot and a live Vite dev server invalidate fresh-build claims",
+      "kind": "investigation",
+      "role": "senior-developer",
+      "state": "blocked",
+      "eligible": false,
+      "source": "docs/reviews/review-07-enhanced-mode-toggle.md",
+      "note": "Not eligible: needs a judgement about what the verification standard should be, which is a decision rather than a task."
+    },
+    {
+      "id": "fu-t31-frontend-harness",
+      "title": "Frontend test harness (Vitest, @vue/test-utils, DOM env, test:js script)",
+      "kind": "feature",
+      "role": "senior-developer",
+      "state": "blocked",
+      "eligible": false,
+      "source": "docs/tasks/walking-skeleton-tasks.md T31",
+      "note": "Not eligible: adds dependencies and CI wiring, both of which need the Owner. Deferred per Owner Option B, 2026-07-31."
+    }
+  ]
+}
