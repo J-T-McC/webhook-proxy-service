@@ -119,6 +119,23 @@ Accepted ADR's meaning rather than reversing a position, annotate it inline as a
 amendment, explicitly "not a supersession"**, and keep it out of the *Positions superseded* table's
 supersession column.
 
+**`## Revision A` on a still-*Proposed* ADR, driven by an Owner requirement that arrived in
+response to a gate** (ADR-020: the Owner refused to accept a flagged exposure and asked whether it
+could be removed instead). House says revise a Proposed ADR *in place* — do that **and** add the
+Revision table anyway, because the Owner has already read the first version and needs to see what
+moved. Distinctive moves this shape needs: **quote the Owner's requirement verbatim** as a
+blockquote (it is the bar being ruled against, and paraphrase loses the qualifier — "long **term**
+store" was the whole hinge); **append** new decisions by number rather than renumbering, and amend
+the decisions they interact with in place with a *(Amended … — Revision A)* pointer; where a prior
+§ Alternatives bullet is now adopted, **mark it `[ADOPTED — this bullet's original "rejected"
+position is superseded …]` and keep the wrong reasoning visible with the correction** (the ADR-010
+Amendment B precedent) rather than deleting it; and when the new decision **withdraws** an Owner
+gate, say "withdrawn, nothing replaces it" explicitly — a silently shorter flag list reads like an
+oversight. Where two Owner requirements pull against each other, say so in one line up front and
+show the chosen option satisfies both, rather than defending each separately. Finally: if the
+Owner's phrasing turns on a qualifier, **enumerate what falls inside and outside it in a table**
+(which stores are "long-term") rather than asserting compliance.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
