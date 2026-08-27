@@ -546,7 +546,37 @@ dev-team pipeline, plus one architectural ruling it uncovered.
   for long-term storage, and a cache living minutes to an hour is short-term and does not need it.
   The threshold is deliberately unset and is the Owner's to fix against a real store when one is
   proposed.
-- **Implementation is in flight** with the Senior Developer on the same branch. Two hazards are
+- **Implemented and reviewed.** `70d667a` carries the production change — `DeliverStep` loses
+  its mode branch and dispatches by reference, `App\Services\DeliveryUnitResolver` becomes the
+  single resolver, `DeliverToDestination::asJob(int $deliveryId, int $attemptNumber)` is the
+  scalar queue entry point, and `settleOrHold()` is rewritten as compare-and-set on both
+  branches. `bbc7762` adds the regression coverage and `docs/fixes/fifo-advancer-duration-and-settle-race.md`.
+  **Reviewed: Approve, one Nit, no Majors and no Minors** —
+  `docs/reviews/review-adr-020-fifo-and-horizon.md` (`de36558`). The Nit, a test whose name
+  promised a failure scenario it no longer contained, is fixed in `8e22649`. Suite at
+  **880/880**, `composer lint` and `composer types:check` clean.
+  **Two limits the review recorded rather than papered over:** no test on the branch
+  demonstrates real concurrency, since PHPUnit on a single connection cannot interleave two
+  live claim transactions — the conclusion rests on every write to `fifo_dispatches.status`
+  being keyed on an expected prior value, which is a property of the code rather than of a
+  reproduction; and because `QUEUE_CONNECTION=sync` runs jobs inline under test, **a green
+  suite is weak evidence for this change specifically.** The two reflection-driven tests in
+  `AdvanceProxyFifoQueueTest` exist for that reason and are the only ones whose passing is
+  meaningful evidence about the race.
+- **The acceptance-suite blast radius was audited directly rather than taken on trust.**
+  `Queue::fake()` cannot be scoped to exclude one action, because Laravel matches
+  `$job instanceof $class` against the pushed `JobDecorator` wrapper, so twelve acceptance
+  classes gained `tests/Concerns/DrainsQueuedDeliveries.php`. Every test method across them was
+  classified by whether it fakes the queue **in its own body**, drives the now-queued path, and
+  asserts delivery state. Three apparent gaps proved to be false positives — two tests carry no
+  `Queue::fake()` at all and the third matched only a comment reading "No Queue::fake()".
+  **No test asserts delivery state it can no longer reach.**
+- **Superseded, not weakened.** Of the three replaced tests, two are stronger — one now pins the
+  queue name, the other pins the attempt number and reads its parameters positionally as
+  scalars, which incidentally guards Decision 9. The third no longer exercises the failure its
+  name promised, because `DeliverStep` has no in-loop transport error left to survive; that
+  behaviour is covered end to end by `RetryEngineAcceptanceTest`.
+- **Implementation was in flight** with the Senior Developer on the same branch. Two hazards are
   recorded on it rather than left to be discovered: the delivery job's argument list **must stay
   scalar**, because `JobDecorator` auto-applies `SerializesModels` to top-level parameters and a
   model would silently opt back in; and `QUEUE_CONNECTION=sync` makes `dispatch()` run inline, so
