@@ -1,6 +1,6 @@
 # ADR-011: Per-proxy FIFO dispatch mechanism (claim-based single-advancer) and the `processing_mode` attribute
 
-- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. Everything else stands, Accepted and operative.**
+- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. A fourth position (P4) carries a *proposed* partial supersession by ADR-020 (Proposed, pending Owner approval) — see the inline note at Decision 2. Everything else stands, Accepted and operative.**
 - **Author:** Principal Engineer
 - **Date:** 2026-08-04
 - **Feature:** prd-04-queued-processing (realizes ADR-005 at build time; serves #6)
@@ -51,6 +51,18 @@ Liveness (guardrail **(b)**) is a **claim lease + a scheduled sweeper**
 pending rows and no live claim, and resets orphaned (expired-lease) claims back to
 `pending`. `WithoutOverlapping("proxy:{id}")` on the advancer is a thundering-herd
 reducer, **not** the guard.
+
+> **[P4 — PROPOSED supersession by ADR-020 (pending Owner approval).]** "Processes that one
+> event **to settlement**, marks it `settled`, then self-dispatches to advance" becomes: the
+> advancer *initiates* the event's delivery — fanning out to every destination in parallel on
+> the webhooks queue, in FIFO mode as well as Async — and the settle-and-advance decision is
+> made by whichever actor completes the dispatch's last delivery, via the
+> `awaiting_retry → settled` compare-and-set ADR-016 Decision 1 already built. The guarantee
+> this position served is unchanged: event 2 is still not claimed until every one of event 1's
+> deliveries has reached a terminal state. Only the actor changes. Everything else in this
+> Decision — the sidecar table, the atomic `FOR UPDATE` claim as the correctness primitive, the
+> lease plus scheduled sweeper as the liveness net, and `WithoutOverlapping` as a
+> thundering-herd reducer rather than the guard — is untouched and relied on by ADR-020.
 
 > **[P1, P2 — SUPERSEDED by ADR-016 (Accepted, Project Owner 2026-08-12).]** P1: the order key
 > becomes the `fifo_dispatches` row's own `id` (order-identical for capture-created rows;
