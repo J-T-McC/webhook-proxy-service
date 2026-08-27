@@ -1,12 +1,19 @@
 # ADR-020: FIFO advancer job duration and claim-lease safety — parallel fan-out inside an event, by-reference delivery jobs, a race-safe settle-or-hold, and an ordered lease/timeout/`retry_after` rule (partially supersedes ADR-011 Decisions 2 and 3, amends ADR-016 Decision 1)
 
-- **Status:** **Proposed** — Project Owner approval required. **Revised 2026-08-26 (Revision A)
-  in response to two Project Owner requirements; see § Revision A.** **One gate** remains, at
-  § Owner-approval flags: the partial supersession of two named positions of ADR-011 (Accepted,
-  Owner 2026-08-04) together with the amendment to ADR-016 Decision 1. **The original gate (a),
-  which asked the Owner to accept an outbound payload on the Redis queue, is withdrawn — the
-  exposure it described no longer occurs.** No code may be written against this ADR until it is
-  Accepted.
+- **Status:** **Accepted — Project Owner, 2026-08-26.** The single remaining gate is approved:
+  the partial supersession of ADR-011 positions **P4** (Decision 2) and **P5** (Decision 3),
+  both Accepted, Owner 2026-08-04, together with the **amendment to ADR-016 Decision 1**
+  (Accepted, Owner 2026-08-12). The Owner separately confirmed the FIFO parallel fan-out half,
+  and Decisions 7 and 8 stand as ruled. **Nothing on this ADR remains outstanding with the
+  Project Owner.** Implementation may proceed.
+  - **Revised 2026-08-26 (Revision A)** in response to two Project Owner requirements — the
+    payload must never be plaintext in a long-term store, and the job must not be exposed to a
+    queue driver's message-size limit. The original gate (a), which asked the Owner to *accept*
+    an outbound payload on the Redis queue, was **withdrawn** rather than re-put: Decision 7
+    removes the exposure instead of trading it. See § Revision A.
+  - **Revised 2026-08-26 (Revision B)** to rule the Project Owner's `SerializesModels` question,
+    added as **Decision 9**. No gate; the Owner explicitly left the choice of mechanism to the
+    Principal Engineer with the Decision 7 shape as the stated fallback. See § Revision B.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-26
 - **Feature:** none — this is a latent correctness defect in shipped behaviour, found while
@@ -26,6 +33,29 @@
   that makes a by-reference delivery job resolve totally) · ADR-014 and ADR-010 Amendment B
   (at-rest encryption of the three payload columns, and the binding `APP_PREVIOUS_KEYS` rule) ·
   ADR-003 (payload-free attempt records)
+
+## Revision B — the `SerializesModels` question, ruled (2026-08-26)
+
+Revision A is unchanged by this section; it is recorded below, after this one.
+
+On approving the gate, the Project Owner raised one design question and one argument bearing
+on it:
+
+> "we could potnetially use serlize models on the job which should auto hydrate it, otherwise do
+> what you were planning"
+
+> "we could also potentially add a caching layer later if we hydrate our own way rather than
+> using serlize"
+
+**Ruled: plain identifiers. Decision 7's `(int $deliveryId, int $attemptNumber)` shape stands
+unchanged, and Decision 9 below records why — including, deliberately, the parts where
+`SerializesModels` turns out to work.** The honest finding is not that the trait is broken. It
+is that it does work, and still buys nothing here while costing a seam.
+
+| Prior position | Now |
+|---|---|
+| Decision 7 specifies `(deliveryId, attemptNumber)`; no position on `SerializesModels` | Unchanged, and now **held against the alternative** by **Decision 9**, which evaluates the trait on its merits and records the outcome so the question is not reopened |
+| § Alternatives has no entry for model serialization | Gains one, losing on **grounds that will still read as reasons in a year** — it cannot carry the whole resolution, it splits one resolution across two mechanisms, it moves a class of failure outside code the application owns, and it forecloses the seam the Owner named |
 
 ## Revision A — what the Owner's two requirements changed here (2026-08-26)
 
@@ -450,6 +480,88 @@ today, on every Async proxy.** That is a live latent limitation in shipped code.
 closes it as a side effect; it is named separately so that a later reader does not attribute it
 to the FIFO change, and so that it is not silently folded into an unrelated approval.
 
+**(9) The delivery job carries plain identifiers, not a `SerializesModels`-hydrated model.**
+*(Added 2026-08-26 — Revision B, ruling the Project Owner's question.)*
+
+**The trait is not broken here, and the ruling does not rest on pretending it is.** Verified in
+vendor rather than assumed, because `ShouldBeEncrypted` had already proved that a Laravel queue
+feature can be a silent no-op under `lorisleiva/laravel-actions`:
+
+- **It survives the decorator.** `Lorisleiva\Actions\Decorators\JobDecorator` *does*
+  `use SerializesModels` (aliasing `__serialize`/`__unserialize`), and its own
+  `serializeProperties()` runs `array_walk($this->parameters, fn (&$v) => $this->getSerializedPropertyValue($v))`.
+  So a **top-level** model argument is replaced by a `ModelIdentifier` and rehydrated on the
+  worker. Unlike `ShouldBeEncrypted`, this one works.
+- **It would not defeat the security or size property.** `ModelIdentifier` holds the class name,
+  the key, the queueable relations and the connection — **no attributes**. A `Delivery`
+  parameter would put an id in the message, not a row.
+- **It would not break on soft deletes.** `Model::newQueryForRestoration()` is
+  `newQueryWithoutScopes()->whereKey($ids)`, so restoration bypasses **every** global scope,
+  soft-delete and team scope alike. The concern that a trashed parent would resolve to nothing
+  is unfounded — and in any case `Delivery` has neither `SoftDeletes` nor a registered
+  `TeamScope` (`ApplyTeamScope` covers `Proxy`, `Destination` and `DeliveryAttempt` only).
+- **It would not swallow the cleaned-parent branch.** That branch is not a missing model.
+  Erase-in-place keeps the `webhook_events` row (ADR-014 P1 as narrowed), `deliveries` rows are
+  never deleted anywhere, and the branch is entered by *reading* `payload_cleaned_at` inside the
+  handler. The re-fetch succeeds; the guard then fires exactly as Decision 7 specifies.
+
+**One thing to note about the trait's failure mode anyway, because it is worse than it looks and
+is easy to mis-state.** `CallQueuedHandler::call()` catches `ModelNotFoundException` from
+unserialization and delegates to `handleModelNotFound()`, which reads
+**`$job->payload()['deleteWhenMissingModels'] ?? false`** — the JSON envelope field, populated
+from the action's `jobDeleteWhenMissingModels` property, absent by default. So the default is
+**not** a silent delete: the job **fails** into `failed_jobs`. Either way the handler never runs
+— no compare-and-set, no `DeliveryExhausted`, no `payload.expired` log — and the `deliveries` row
+is left `pending` forever, which is the known "nothing terminalizes a stranded Async `pending`
+delivery" gap reached by a new route. It is not reachable today. It is the shape of the risk that
+matters: **a class of resolution failure handled by the framework, before and outside any code
+this application owns.**
+
+**Why plain identifiers win — four reasons, none of them a vendor quirk.**
+
+1. **The trait cannot carry the whole resolution, so it removes nothing.** Even with a hydrated
+   `Delivery`, the worker must still resolve the payload bytes from `dispatched_payloads` /
+   `webhook_events`, the headers from the captured event, and the destination `withTrashed()`.
+   The shared resolver Decision 7 requires is needed either way. The trait would replace exactly
+   one line of it — `Delivery::query()->find($deliveryId)` — and would do so *outside* the
+   resolver, splitting one act of resolution across two mechanisms with different failure
+   handling. That is strictly more moving parts for strictly less.
+2. **It would re-open the very inconsistency Decision 7 closes.** `RetryDelivery` carries
+   `(int $deliveryId, int $attemptNumber)` under ADR-015 Decision 5 and has since #6. Hydrating
+   attempt 1 differently would leave attempt 1 and attempts 2..N in different shapes again, and
+   would give one resolver two call shapes.
+3. **Every resolution outcome should be handled where the application can see it.** With plain
+   identifiers, a missing row, a cleaned parent and a trashed destination are all decided inside
+   code this project owns, with the compare-and-set, the event and the log that each case is
+   specified to produce — which is exactly what `RetryDelivery` already demonstrates. With the
+   trait, one of those outcomes is decided by the framework before the handler is entered.
+4. **Extensibility — the Owner's own argument, and the one that will read best in a year.**
+   `SerializesModels` hard-codes `newQueryWithoutScopes()->whereKey()->useWritePdo()->firstOrFail()`
+   with no interception seam short of overriding `newQueryForRestoration()` on the model or
+   `restoreModel()` on the job. An explicit resolver is a **single place every payload read
+   passes through**, which is where any future strategy — a cache, a read-replica route, a
+   different store — would be introduced without touching either call site. Note in passing that
+   `useWritePdo()` means the trait's re-fetch always reads the write connection, which would
+   silently defeat replica routing on this path.
+
+**A boundary to record now rather than discover later, since the Owner raised caching as a
+"potentially, later".** Nothing about a cache is designed, specified or scheduled here, and
+Decision 9 exists to keep that door open rather than to walk through it. What is worth recording
+is which side of the at-rest-encryption line a future cache would fall on, because that is the
+question that would otherwise be answered under time pressure. The Project Owner has stated the
+principle:
+
+> "a cache can be a short term store. we want encryption on long term storage. We can define
+> rules later, but if a cache is living for minutes or an hour, we should be ok without worrying
+> about at rest encryption"
+
+So **lifetime is the discriminator**, and a short-lived cache of resolved payload bytes sits on
+the *short-term* side and would not require at-rest encryption. The refinement this makes to
+Revision A's definition is folded in there rather than restated here. **The Owner has explicitly
+deferred the detailed rules**, so no threshold is chosen and none is implied: a future cache is
+its own decision, and the one input it will need from the Owner is where the line sits in
+duration — see the note under § Impact, *Which stores are "long-term"*.
+
 ## Positions superseded and amended
 
 | Prior position (verbatim) | Superseded / amended to |
@@ -560,6 +672,23 @@ Each of the shapes considered, and why it loses.
   not only when it diverged — which is exactly why `RetryDelivery` has resolved attempts
   2..N this way in production since #6 without ever re-applying a transform. The
   guarantee ADR-011 Decision 3 protects survives; only its mechanism is superseded (P5).
+- **`SerializesModels` on the delivery job — pass the `Delivery` model and let the trait
+  rehydrate it.** *(Added 2026-08-26 — Revision B; the Project Owner's suggestion, ruled at
+  Decision 9.)* **Rejected, but not because it fails.** Verified in vendor: unlike
+  `ShouldBeEncrypted`, this trait *does* survive `JobDecorator`, it puts only a `ModelIdentifier`
+  — class, key, relations, connection, no attributes — into the message, its restoration bypasses
+  every global scope so soft deletes are a non-issue, and it would **not** swallow the
+  cleaned-parent branch, which is a present row with a timestamp set rather than a missing model.
+  It loses on four other grounds, set out at Decision 9: it cannot carry the payload, headers or
+  destination, so the shared resolver is needed regardless and the trait would only relocate one
+  line of it outside that resolver; it would put attempt 1 back out of step with the
+  `(deliveryId, attemptNumber)` shape ADR-015 Decision 5 fixes for attempts 2..N; it moves one
+  class of resolution failure into `CallQueuedHandler::handleModelNotFound()`, before any code
+  this application owns, where the outcome is a failed job rather than the specified
+  terminalize-and-emit; and it hard-codes Eloquent's own re-fetch with no seam, foreclosing the
+  extension point the Owner named. The Owner offered it as "use the more idiomatic mechanism if
+  it genuinely works" with the plain-identifier shape as the stated fallback; the fallback is
+  taken.
 - **`ShouldBeEncrypted` on the delivery job, keeping the payload in the job arguments.** The
   Owner's own first suggestion, and it fails on three counts, any one of which is sufficient.
   **(a) It is not a one-line adoption in this codebase.** `Illuminate\Queue\Queue::jobShouldBeEncrypted()`
@@ -707,13 +836,31 @@ Each of the shapes considered, and why it loses.
   process that wrote it **and** retains content under a policy rather than for the duration of
   one unit of work.
 
+  *(Refined 2026-08-26 — Revision B, on the Project Owner's ruling that "a cache can be a short
+  term store … if a cache is living for minutes or an hour, we should be ok without worrying
+  about at rest encryption".)* **Duration is part of the definition, not merely a consequence of
+  it.** A store is long-term when it survives the writing process **and** retains content for
+  materially longer than the work that produced it — so a retention window measured in days is
+  long-term, and a store whose entries expire in minutes to an hour is short-term and does not
+  carry the at-rest-encryption requirement. Both criteria matter: surviving the process is what
+  distinguishes a store from memory, and duration is what distinguishes a durable record from a
+  transient one. Every row of the table below is decided the same way under either reading, which
+  is why the refinement changes no entry.
+
+  **The Owner has deferred the detailed rules, and this ADR does not invent one.** No threshold
+  is chosen here. Stated plainly so it is not mistaken for an oversight: **the boundary needs a
+  number to be usable as a test**, and that number is the Project Owner's to set at the point a
+  concrete short-lived store is actually proposed — at which point it would be decided against
+  that store's real retention rather than in the abstract. Until then the principle governs and
+  the two ends of the range are unambiguous.
+
   | Store | Long-term? | Payload after Decision 7 |
   |---|---|---|
   | `webhook_events.body` / `.headers` | Yes — 30-day retention window | Present, **encrypted at rest** (ADR-010 Amendment B, ADR-014 Decision 2), erased in place by GC |
   | `dispatched_payloads.body` | Yes — same lifecycle | Present when the output diverged, **encrypted at rest**, erased by the same pass |
   | `failed_jobs.payload` (database) | Yes — pruned at 7 days by the daily `queue:prune-failed --hours 168` | **Absent.** Two integers |
   | Horizon's Redis job records (`recent`/`completed` 60 min; `failed`/`monitored` 7 days, `horizon.trim`) | Yes — a **second** independent 7-day retention of the same job payload, which `queue:prune-failed` does not touch and Horizon trims itself | **Absent.** Two integers |
-  | Redis queue list / reserved entry for a job about to run | Borderline — transient by intent, but durable on disk wherever Redis persistence (RDB/AOF) is enabled | **Absent.** Two integers |
+  | Redis queue list / reserved entry for a job about to run | **No** — it survives the writing process but is held only for the life of that unit of work, even where Redis persistence (RDB/AOF) puts it on disk meanwhile | **Absent.** Two integers |
   | Worker process memory; the outbound HTTPS request | No | Present, necessarily. Out of scope of the requirement |
 
   **So the requirement is met.** The only long-term stores that hold the payload are the two the
@@ -781,6 +928,11 @@ Each of the shapes considered, and why it loses.
     would widen this change well past the defect it fixes.
   - `app/Pipeline/DeliveryUnit.php` — unchanged. It remains the in-process input to a send; it
     simply stops being serialized into a queue message.
+  - **No `SerializesModels` on any of it** *(added 2026-08-26 — Revision B, Decision 9)*: the
+    delivery job's arguments are two integers, and every model is loaded inside the shared
+    resolver. `JobDecorator` applies the trait to top-level parameters automatically, so passing
+    a model would silently opt in — which is exactly why the argument list must stay scalar.
+    This is a constraint on the implementation, not a preference.
   - `app/Actions/AdvanceProxyFifoQueue.php` — `settleOrHold()` per decision 3, including the
     `settleAndAdvance()` helper and the compare-and-set on the settle path; the two
     `(int) config('ingest.fifo_lease_seconds')` reads route through the decision 5 guard;
@@ -877,14 +1029,17 @@ Each of the shapes considered, and why it loses.
 to accept a payload-on-the-queue exposure, and Decision 7 removes the exposure instead of
 trading it. Nothing replaces it — there is no residual queue-payload exposure to approve.)*
 
-**One item.** It must be ruled before any code is written; the rest of this ADR is not
-separately actionable, since it is one change.
+**One item — ~~outstanding~~ APPROVED (Project Owner, 2026-08-26).** Nothing on this ADR remains
+outstanding with the Owner. The heading is kept rather than deleted, per house convention: a
+struck-through gate with its approval date is the record.
 
-1. **Partial supersession of an Accepted ADR.** Positions **P4** (Decision 2) and **P5**
+1. **~~Partial supersession of an Accepted ADR.~~ APPROVED — Project Owner, 2026-08-26.**
+   Positions **P4** (Decision 2) and **P5**
    (Decision 3) of ADR-011 (Accepted, Project Owner, 2026-08-04), together with the amendment
    to ADR-016 Decision 1 (Accepted, Project Owner, 2026-08-12), per § Positions superseded.
    ADR-011 and ADR-016 keep their files, their status and their full text; each gains an inline
-   annotation pointing here, phrased as a pending supersession until this ADR is Accepted.
+   annotation pointing here, now recording the approval and its date rather than a pending
+   supersession.
 
    Two things the Owner should weigh with it, neither of which is a separate gate.
    **First, P5 changes shipped Async behaviour**, not only the FIFO path this ADR was opened

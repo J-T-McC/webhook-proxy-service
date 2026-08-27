@@ -3,9 +3,9 @@
 - **Status:** **Accepted (Project Owner, 2026-08-12).** Gates carried and approved with this
   acceptance: a schema change to the existing `fifo_dispatches` table (new column + unique-key
   replacement + enum value, with a small in-place backfill) and the **partial supersession of
-  three named positions of ADR-011** (Accepted, Owner 2026-08-04). **Decision 1 carries a
-  *proposed* amendment by ADR-020 (Proposed, pending Owner approval) — see the inline note at
-  Decision 1. Nothing here is superseded; Decisions 2, 3, 4 and 5 are untouched.**
+  three named positions of ADR-011** (Accepted, Owner 2026-08-04). **Decision 1 carries an
+  amendment by ADR-020 (Accepted, Project Owner 2026-08-26) — see the inline note at Decision 1.
+  Nothing here is superseded; Decisions 2, 3, 4 and 5 are untouched.**
 - **Author:** Principal Engineer
 - **Date:** 2026-08-12
 - **Feature:** prd-06-retry-replay (AC6, AC11's FIFO half, AC18's FIFO interplay; closes the
@@ -55,7 +55,7 @@ delivery (success or terminal failure — ADR-015), it compare-and-sets
 line advances. All transitions are conditional updates keyed on the prior status; racing
 settlers are idempotent.
 
-> **[Decision 1 — PROPOSED amendment by ADR-020 (pending Owner approval). Not a supersession:
+> **[Decision 1 — AMENDED by ADR-020 (Accepted, Project Owner 2026-08-26). Not a supersession:
 > the lifecycle, the transitions, the widened busy gate and the settle-and-advance path are all
 > unchanged and are relied on by ADR-020.]** Two changes of meaning, no change of mechanism.
 > **(i)** `awaiting_retry` represents "this head is **not yet settled**", not specifically
