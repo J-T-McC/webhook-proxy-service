@@ -68,18 +68,21 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            // Must stay comfortably above the longest Horizon supervisor
-            // `timeout` in `config/horizon.php` — 300s on `supervisor-default`
-            // at the time of writing. `retry_after` is Redis making a reserved
-            // job visible again; Horizon's `timeout` is a worker killing a job
-            // it is still holding. If the first fires before the second, a
-            // second worker picks up a job that is still running, and for this
-            // application that means re-sending webhooks the first worker has
-            // already delivered. In FIFO mode `DeliverStep` sends to every
-            // destination inline, so an advancer job is legitimately minutes
-            // long. Recovery from a genuinely stuck job comes from the worker
-            // timeout, not from this value, so erring high costs nothing.
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 900),
+            // Must stay above the longest Horizon supervisor `timeout` in
+            // `config/horizon.php` — 60s on both supervisors at the time of
+            // writing. `retry_after` is Redis making a reserved job visible
+            // again; the worker `timeout` is Horizon killing a job it is
+            // still holding. If the first fires before the second, a second
+            // worker picks up a job that is still running, and here that
+            // means re-sending webhooks the first worker already delivered.
+            //
+            // This is a separate mechanism from the application's own retry
+            // policy (ADR-015), which does not use `release()` at all: a
+            // failed attempt dispatches a fresh `RetryDelivery` with its own
+            // `->delay()` from the proxy's backoff strategy. Changing this
+            // value does not shift a single retry schedule, and it should not
+            // be derived from a backoff setting.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 180),
             'block_for' => null,
             'after_commit' => false,
         ],

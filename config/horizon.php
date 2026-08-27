@@ -259,14 +259,23 @@ return [
          * Everything else: the FIFO advancer (`AdvanceProxyFifoQueue`), the
          * per-minute sweepers, retention and mail.
          *
-         * The long timeout is not padding. In FIFO mode `DeliverStep` runs
-         * each destination *inline* rather than fanning out, so one advancer
-         * job is N sequential HTTP sends of up to 15 seconds each, plus the
-         * settle. A proxy with a dozen destinations is a legitimately
-         * multi-minute job, and if it outlives the connection's `retry_after`
-         * Redis makes it visible again and a second worker re-runs it —
-         * duplicating every send it had already made. `retry_after` is set
-         * well above this in `config/queue.php`; see the note there.
+         * `timeout` must stay BELOW `ingest.fifo_lease_seconds` (90 by
+         * default), and that ordering is a correctness constraint, not a
+         * preference. `AdvanceProxyFifoQueue` stamps `lease_expires_at` once
+         * when it claims a row and never renews it, while
+         * `SweepStalledFifoDispatches` reaps any claimed row past its lease
+         * every minute. A worker allowed to outlive the lease is therefore a
+         * worker whose claim can be reaped and re-claimed by a second
+         * advancer while the first is still sending — the same event
+         * delivered twice.
+         *
+         * That matters here because in FIFO mode `DeliverStep` sends to each
+         * destination *inline* rather than fanning out, so an advancer job is
+         * N sequential HTTP sends of up to 15 seconds each. A proxy with
+         * enough destinations can genuinely exceed 90 seconds, in which case
+         * it is killed by this timeout rather than being allowed to outrun
+         * its own claim. Raising the ceiling means raising
+         * `INGEST_FIFO_LEASE_SECONDS` first, and by more.
          */
         'supervisor-default' => [
             'connection' => 'redis',
@@ -281,7 +290,7 @@ return [
             'maxJobs' => 0,
             'memory' => 192,
             'tries' => 1,
-            'timeout' => 300,
+            'timeout' => 60,
             'nice' => 0,
         ],
     ],
