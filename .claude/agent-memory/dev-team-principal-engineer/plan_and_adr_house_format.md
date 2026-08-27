@@ -103,6 +103,22 @@ amendment states turns out to be **already false in the certified plan**, say so
 divergence pre-dates the amendment") and fix it in a numbered ruling — that is the walk being checkable
 rather than trusted.
 
+**A defect-driven ADR with no PRD behind it is a legitimate shape** (ADR-020 — a latent FIFO
+correctness defect found while configuring Horizon, no feature, no plan). Differences from the
+feature case: the `Feature:` header bullet says "none" and names how it surfaced; there is **no
+plan** (inventing `plan-NN` for a bug would be wrong — CLAUDE.md routes bugs flat to the Senior
+Developer, whose `docs/fixes/` record is written on implementation, not by the PE); the whole
+implementation change set goes in § *Impact* under a "Code — the complete change set" heading
+precise enough for the Senior Developer, plus a tests subsection naming which existing tests are
+**superseded rather than weakened**. Two additions worth reusing: lead with a numbered,
+plain-language **restatement of the guarantee the system is meant to provide**, written so the
+Owner can confirm or correct it rather than infer it from mechanism; and where a candidate fix
+would change that guarantee, say so and **stop** — a requirements change is not the PE's to make
+even when the Owner's own sentence appears to invite it. Also: when the ADR only *amends* a prior
+Accepted ADR's meaning rather than reversing a position, annotate it inline as a **PROPOSED
+amendment, explicitly "not a supersession"**, and keep it out of the *Positions superseded* table's
+supersession column.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
