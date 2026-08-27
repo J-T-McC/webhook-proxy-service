@@ -507,8 +507,9 @@ plus both Owner flags ruled, 2026-08-26);
 
 ## Operations work in flight (not a roadmap line)
 
-**Branch `feat/horizon`, PR #18, open.** Owner-directed operational work, deliberately outside the
-dev-team pipeline, plus one architectural ruling it uncovered.
+**Branch `feat/horizon`, PR #18, merged 2026-08-27 (`bd0e67d`).** Owner-directed operational work,
+deliberately outside the dev-team pipeline, plus one architectural ruling it uncovered. The branch
+has been deleted; the record below stands because ADR-020 is load-bearing for FIFO.
 
 - **Laravel Horizon `^5.48` added** for visibility into the Redis queue, at `/horizon`. Access is
   HTTP Basic against `HORIZON_USERNAME`/`HORIZON_PASSWORD` rather than a user allow-list, because
@@ -576,11 +577,27 @@ dev-team pipeline, plus one architectural ruling it uncovered.
   scalars, which incidentally guards Decision 9. The third no longer exercises the failure its
   name promised, because `DeliverStep` has no in-loop transport error left to survive; that
   behaviour is covered end to end by `RetryEngineAcceptanceTest`.
-- **Implementation was in flight** with the Senior Developer on the same branch. Two hazards are
-  recorded on it rather than left to be discovered: the delivery job's argument list **must stay
-  scalar**, because `JobDecorator` auto-applies `SerializesModels` to top-level parameters and a
-  model would silently opt back in; and `QUEUE_CONNECTION=sync` makes `dispatch()` run inline, so
-  **the existing FIFO acceptance suite passing is not evidence** that parallel fan-out is correct.
+- **Two hazards are recorded against this code rather than left to be discovered:** the delivery
+  job's argument list **must stay scalar**, because `JobDecorator` auto-applies `SerializesModels`
+  to top-level parameters and a model would silently opt back in; and `QUEUE_CONNECTION=sync`
+  makes `dispatch()` run inline, so **the existing FIFO acceptance suite passing is not evidence**
+  that parallel fan-out is correct. Both apply to any future change in this area, not only to the
+  original implementation.
+
+**Dependabot PR #19, merged 2026-08-27 (`ea35499`).** `pnpm/action-setup` 6.0.9 → 6.0.10 in the
+`github-actions` group. Routine, no review gate.
+
+**Branch `chore/mailgun-mailer`, open.** Owner-directed operational work, outside the pipeline.
+Mailgun becomes a selectable mail transport: `symfony/mailgun-mailer` and `symfony/http-client`
+added (neither was present — the project had `symfony/mailer` but no HTTP client), a `mailgun`
+entry added to `config/mail.php`, and a credentials block added to `config/services.php` reading
+`MAILGUN_DOMAIN`, `MAILGUN_SECRET` and `MAILGUN_ENDPOINT`. Nothing switches by default:
+`MAIL_MAILER` stays `log` in `.env.example` and Mailgun is selected by deployment configuration
+only. **The production environment was already configured by the Owner before the packages landed,
+so the variable names above are assumed to match what production sets; they are Laravel's
+conventional names.** Verified by resolving `MailgunHttpTransport` from the container under
+`MAIL_MAILER=mailgun` rather than by sending mail. Suite 880/880, `composer lint` and
+`composer types:check` clean.
 
 ## Backlog follow-ups (deferred, not gating any current item)
 
