@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -39,6 +40,8 @@ use Tests\TestCase;
  */
 class RetryReplayRetentionInterplayAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -163,6 +166,7 @@ class RetryReplayRetentionInterplayAcceptanceTest extends TestCase
         // Run the replay's (captured) FIFO advance once, for real — the
         // single inline attempt 1.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status, 'Precondition: the replay left an outstanding retry.');
@@ -200,6 +204,7 @@ class RetryReplayRetentionInterplayAcceptanceTest extends TestCase
         // AFTER the first failure, to genuinely observe the `retrying` hold.
         $proxy->update(['retry_attempt_limit' => 2]);
         ProcessIngestedWebhook::run($event->ingest_id);
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status, 'Precondition: an outstanding retry exists.');
 
@@ -308,6 +313,7 @@ class RetryReplayRetentionInterplayAcceptanceTest extends TestCase
         // Attempt 1 (inline, real): fails, schedules attempt 2 for real — a
         // genuine `retrying` delivery, not a synthetic factory row.
         ProcessIngestedWebhook::run($event->ingest_id);
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
 

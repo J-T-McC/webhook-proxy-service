@@ -22,6 +22,7 @@ use App\Services\RetryPolicy;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -34,6 +35,8 @@ use Tests\TestCase;
  */
 class ModeGatedRetryInheritanceAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     /**
      * A proxy with a fast, deterministic exponential curve so tests can
      * `travel()` seconds rather than hours between attempts. Exponential is
@@ -92,6 +95,7 @@ class ModeGatedRetryInheritanceAcceptanceTest extends TestCase
         // attempt 2 (>= 2) would already be at the limit; under the gate the
         // system default (5) governs instead, so this schedules attempt 2.
         ProcessIngestedWebhook::run($event->ingest_id);
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
         $this->assertNotNull($delivery->next_attempt_at);
@@ -154,6 +158,7 @@ class ModeGatedRetryInheritanceAcceptanceTest extends TestCase
         // Attempt 1 (via the advancer, inline, real): fails, well under limit
         // 8 — the line holds (awaiting_retry).
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('dispatch_uuid', $dispatch->dispatch_uuid)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
         $this->assertSame(FifoDispatchStatus::AwaitingRetry, $dispatch->fresh()->status);
@@ -212,6 +217,7 @@ class ModeGatedRetryInheritanceAcceptanceTest extends TestCase
         // Attempt 1 (inline, real): fails, under the (lowered) system
         // default of 2.
         ProcessIngestedWebhook::run($event->ingest_id);
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
 

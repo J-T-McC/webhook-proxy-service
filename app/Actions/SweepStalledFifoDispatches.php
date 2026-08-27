@@ -19,8 +19,9 @@ use Lorisleiva\Actions\Concerns\AsAction;
  *      {@see AdvanceProxyFifoQueue} to restart its line (covers a self-dispatch that
  *      was dropped by the WithoutOverlapping reducer).
  *  (c) Stuck-hold release — an `awaiting_retry` row whose dispatch has zero
- *      non-terminal `deliveries` left (the crash window between a `RetryDelivery`
- *      execution settling the last open delivery and the fifo-row transition it
+ *      non-terminal `deliveries` left (the crash window between a
+ *      `DeliverToDestination` execution — attempt 1 or a retry, ADR-020 Decision
+ *      1/2 — settling the last open delivery and the fifo-row transition it
  *      would normally trigger, T17) is compare-and-set to `settled` and the
  *      advancer nudged, closing that window.
  *

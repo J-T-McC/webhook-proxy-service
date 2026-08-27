@@ -13,8 +13,7 @@ use App\Models\Proxy;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
-use Lorisleiva\Actions\ActionManager;
-use Lorisleiva\Actions\Decorators\JobDecorator;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -26,6 +25,8 @@ use Tests\TestCase;
  */
 class ProcessingModeSwitchAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     private function ingestRaw(Proxy $proxy, string $rawBody): TestResponse
     {
         return $this->call(
@@ -35,22 +36,6 @@ class ProcessingModeSwitchAcceptanceTest extends TestCase
             ['CONTENT_TYPE' => 'application/json'],
             $rawBody,
         );
-    }
-
-    /**
-     * Runs every currently-faked, queued `DeliverToDestination` job in place —
-     * standing in for a real queue worker (T16/T17, ADR-016 Decision 1). Idempotent
-     * against re-invocation: an already-settled attempt is a resume no-op.
-     */
-    private function runPushedDeliveries(): void
-    {
-        Queue::pushed(ActionManager::$jobDecorator, function (JobDecorator $job) {
-            if ($job->decorates(DeliverToDestination::class)) {
-                DeliverToDestination::run(...$job->getParameters());
-            }
-
-            return true;
-        });
     }
 
     public function test_switching_processing_mode_persists_in_both_directions(): void
@@ -88,10 +73,10 @@ class ProcessingModeSwitchAcceptanceTest extends TestCase
         // the next row from being claimed until that happens (ADR-016 Decision 1's
         // widened busy check), exactly as it would under a real queue worker.
         AdvanceProxyFifoQueue::run($proxy->id);
-        $this->runPushedDeliveries();
+        $this->drainQueuedDeliveries();
 
         AdvanceProxyFifoQueue::run($proxy->id);
-        $this->runPushedDeliveries();
+        $this->drainQueuedDeliveries();
 
         $rows = FifoDispatch::where('proxy_id', $proxy->id)->orderBy('webhook_event_id')->get();
         $this->assertTrue($rows->every(fn (FifoDispatch $r) => $r->status === FifoDispatchStatus::Settled));

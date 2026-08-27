@@ -22,6 +22,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -36,6 +37,8 @@ use Tests\TestCase;
  */
 class FifoRetryCompositionAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     /**
      * A FIFO proxy with `$destinations` live destinations and `$pendingCount`
      * pending `fifo_dispatches` rows, ordered evt-1..N (mirroring
@@ -81,11 +84,16 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
         ]);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $head = $dispatches[0]->fresh();
         $this->assertSame(FifoDispatchStatus::AwaitingRetry, $head->status);
         $this->assertNull($head->claimed_at);
         $this->assertNull($head->lease_expires_at);
+        $this->assertSame(
+            DeliveryStatus::Retrying,
+            Delivery::query()->where('dispatch_uuid', $head->dispatch_uuid)->firstOrFail()->status,
+        );
 
         // The next pending event is not claimed — the line is held, and no
         // delivery work has ever been created for it.
@@ -115,11 +123,13 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
 
         [$proxy, , $dispatches] = $this->fifoProxyWithPending(2);
 
-        AdvanceProxyFifoQueue::run($proxy->id); // head fails inline -> awaiting_retry
+        AdvanceProxyFifoQueue::run($proxy->id); // head claimed, delivery dispatched by reference
+        $this->drainQueuedDeliveries(); // attempt 1 drained -> fails -> awaiting_retry
 
         $head = $dispatches[0]->fresh();
         $this->assertSame(FifoDispatchStatus::AwaitingRetry, $head->status);
         $delivery = Delivery::query()->where('dispatch_uuid', $head->dispatch_uuid)->firstOrFail();
+        $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
 
         // The retry succeeds this time.
         app(RetryDelivery::class)->handle($delivery->id, 2);
@@ -133,6 +143,7 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
         // event only now — never before the head settled.
         $this->assertSame(FifoDispatchStatus::Pending, $dispatches[1]->fresh()->status);
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[1]->fresh()->status);
         $secondDelivery = Delivery::query()->where('dispatch_uuid', $dispatches[1]->fresh()->dispatch_uuid)->firstOrFail();
@@ -150,7 +161,8 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
             'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
         ]);
 
-        AdvanceProxyFifoQueue::run($proxy->id); // head's only permitted attempt fails -> terminal
+        AdvanceProxyFifoQueue::run($proxy->id); // head claimed, delivery dispatched by reference
+        $this->drainQueuedDeliveries(); // its only permitted attempt fails -> terminal
 
         $head = $dispatches[0]->fresh();
         $delivery = Delivery::query()->where('dispatch_uuid', $head->dispatch_uuid)->firstOrFail();
@@ -167,6 +179,7 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
 
         // The line advances past the poison head to the next pending event.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[1]->fresh()->status);
     }
 
@@ -184,7 +197,8 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
             'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
         ]);
 
-        AdvanceProxyFifoQueue::run($proxy->id); // both destinations' attempt 1 fail -> both retrying
+        AdvanceProxyFifoQueue::run($proxy->id); // head claimed, both deliveries dispatched by reference
+        $this->drainQueuedDeliveries(); // both destinations' attempt 1 fail -> both retrying
 
         $head = $dispatches[0]->fresh();
         $this->assertSame(FifoDispatchStatus::AwaitingRetry, $head->status);
@@ -221,7 +235,8 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
             'retry_backoff_strategy' => RetryBackoffStrategy::Fixed,
         ]);
 
-        AdvanceProxyFifoQueue::run($proxy->id); // both destinations' attempt 1 fail -> both retrying
+        AdvanceProxyFifoQueue::run($proxy->id); // head claimed, both deliveries dispatched by reference
+        $this->drainQueuedDeliveries(); // both destinations' attempt 1 fail -> both retrying
 
         $head = $dispatches[0]->fresh();
         $deliveryA = Delivery::query()->where('dispatch_uuid', $head->dispatch_uuid)
@@ -282,6 +297,7 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
 
         // The nudge advances the line to the next pending event.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[1]->fresh()->status);
     }
 
@@ -362,15 +378,18 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
         // settle: capture-created rows process in received order (evt-1, then
         // evt-2), and the replay row processes only after both.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
         $this->assertSame(FifoDispatchStatus::Pending, $dispatches[1]->fresh()->status);
         $this->assertSame(FifoDispatchStatus::Pending, $replayRow->fresh()->status);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[1]->fresh()->status);
         $this->assertSame(FifoDispatchStatus::Pending, $replayRow->fresh()->status, 'The replay row has not been claimed while captures remain.');
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::Settled, $replayRow->fresh()->status);
     }
 }

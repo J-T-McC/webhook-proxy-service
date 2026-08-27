@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -30,17 +31,21 @@ use Tests\TestCase;
  * `DeliverToDestination` → `RetryDelivery`/`SweepDueRetries`. Complements the
  * unit-level cases already embedded in T11–T15.
  *
- * Proxies here use `ProcessingMode::Fifo` purely to get an INLINE first
- * attempt (`DeliverStep`'s Fifo branch calls `DeliverToDestination::run()`
- * directly, unaffected by `Queue::fake()`), so `Queue::fake()` can freeze the
- * scheduled next attempt for inspection without also swallowing attempt 1 —
- * mirroring `RetryDeliveryTest`'s direct-invocation pattern one layer up.
  * `processing_mode` (ADR-011) and `mode` (ADR-002, simple/enhanced retry
- * gating) are orthogonal axes; using Fifo here says nothing about #4 FIFO
- * ordering, which is T40's concern.
+ * gating) are orthogonal axes; using Fifo here (a holdover from before
+ * ADR-020) says nothing about #4 FIFO ordering, which is T40's concern. Since
+ * ADR-020, every delivery — Async and FIFO alike — is dispatched by reference
+ * onto the webhooks queue (ADR-020 Decision 1), so `Queue::fake()` also
+ * captures attempt 1 rather than letting it run inline; `drainQueuedDeliveries()`
+ * (`Tests\Concerns\DrainsQueuedDeliveries`) runs it in place immediately after
+ * the triggering call, before freezing the *next* scheduled attempt for
+ * inspection — mirroring `RetryDeliveryTest`'s direct-invocation pattern one
+ * layer up.
  */
 class RetryEngineAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     private function fifoProxy(array $attributes = []): Proxy
     {
         return Proxy::factory()->createQuietly([
@@ -67,6 +72,7 @@ class RetryEngineAcceptanceTest extends TestCase
         $event = $this->eventFor($proxy);
 
         ProcessIngestedWebhook::run($event->ingest_id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(1, DeliveryAttempt::count());
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
@@ -103,6 +109,7 @@ class RetryEngineAcceptanceTest extends TestCase
 
         // Attempt 1 (inline, real): fails, schedules attempt 2 with the fixed delay.
         ProcessIngestedWebhook::run($event->ingest_id);
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
 
@@ -132,6 +139,7 @@ class RetryEngineAcceptanceTest extends TestCase
         $event = $this->eventFor($proxy);
 
         ProcessIngestedWebhook::run($event->ingest_id);
+        $this->drainQueuedDeliveries();
 
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->assertSame(DeliveryStatus::Retrying, $delivery->status);
@@ -191,6 +199,7 @@ class RetryEngineAcceptanceTest extends TestCase
         $event = $this->eventFor($proxy);
 
         ProcessIngestedWebhook::run($event->ingest_id); // attempt 1 — inline, real
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
 
         $fixedInterval = (int) config('retry.fixed_interval_seconds');
@@ -307,6 +316,7 @@ class RetryEngineAcceptanceTest extends TestCase
         $fixedInterval = (int) config('retry.fixed_interval_seconds');
 
         ProcessIngestedWebhook::run($event->ingest_id); // attempt 1 — retrying
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $this->travel($fixedInterval + 5)->seconds();
         app(RetryDelivery::class)->handle($delivery->id, 2); // attempt 2 — still under limit 5, retrying
@@ -336,6 +346,7 @@ class RetryEngineAcceptanceTest extends TestCase
         $event = $this->eventFor($proxy);
 
         ProcessIngestedWebhook::run($event->ingest_id); // attempt 1 — retrying (1 < 2)
+        $this->drainQueuedDeliveries();
         $delivery = Delivery::query()->where('webhook_event_id', $event->id)->firstOrFail();
         $originalNextAttemptAt = $delivery->fresh()->next_attempt_at;
 

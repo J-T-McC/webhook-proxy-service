@@ -70,6 +70,13 @@ return [
     | as an orphaned claim (crashed worker) and resets it to `pending`. Should
     | comfortably exceed the worst-case single-event settlement time.
     |
+    | Must stay ABOVE the `default` Horizon supervisor's `timeout` (ADR-020
+    | §Decision 4, link L2, enforced by tests/Unit/Config/QueueTimingTest.php)
+    | — a live advancer's claim must never become reapable while it is still
+    | running. Read only through `AdvanceProxyFifoQueue::leaseSeconds()`
+    | (ADR-020 Decision 5): a blank, zero, negative or non-numeric value throws
+    | rather than silently coercing to a lease of zero.
+    |
     */
 
     'fifo_lease_seconds' => (int) env('INGEST_FIFO_LEASE_SECONDS', 90),
@@ -79,10 +86,12 @@ return [
     | Webhooks Delivery Queue
     |--------------------------------------------------------------------------
     |
-    | The dedicated queue name Async per-destination delivery jobs
+    | The dedicated queue name per-destination delivery jobs
     | (`DeliverToDestination`) are pushed onto, so fan-out delivery has its own
-    | worker pool separate from advancing/sweeping work. FIFO delivery runs
-    | inline within the advancer and does not touch this queue.
+    | worker pool separate from advancing/sweeping work. Since ADR-020, every
+    | delivery — Async and FIFO alike — is dispatched by reference onto this
+    | queue; FIFO ordering is unaffected because it is enforced between
+    | events, never between destinations within one event.
     |
     */
 

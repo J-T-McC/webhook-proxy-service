@@ -261,21 +261,22 @@ return [
          *
          * `timeout` must stay BELOW `ingest.fifo_lease_seconds` (90 by
          * default), and that ordering is a correctness constraint, not a
-         * preference. `AdvanceProxyFifoQueue` stamps `lease_expires_at` once
-         * when it claims a row and never renews it, while
-         * `SweepStalledFifoDispatches` reaps any claimed row past its lease
-         * every minute. A worker allowed to outlive the lease is therefore a
-         * worker whose claim can be reaped and re-claimed by a second
-         * advancer while the first is still sending — the same event
+         * preference (ADR-020 §Decision 4, link L2). `AdvanceProxyFifoQueue`
+         * stamps `lease_expires_at` once when it claims a row and never
+         * renews it, while `SweepStalledFifoDispatches` reaps any claimed row
+         * past its lease every minute. A worker allowed to outlive the lease
+         * is therefore a worker whose claim can be reaped and re-claimed by a
+         * second advancer while the first is still sending — the same event
          * delivered twice.
          *
-         * That matters here because in FIFO mode `DeliverStep` sends to each
-         * destination *inline* rather than fanning out, so an advancer job is
-         * N sequential HTTP sends of up to 15 seconds each. A proxy with
-         * enough destinations can genuinely exceed 90 seconds, in which case
-         * it is killed by this timeout rather than being allowed to outrun
-         * its own claim. Raising the ceiling means raising
-         * `INGEST_FIFO_LEASE_SECONDS` first, and by more.
+         * Since ADR-020, destination fan-out is queued in both FIFO and Async
+         * modes (`DeliverStep` dispatches each delivery by reference onto the
+         * `webhooks` supervisor instead), so an advancer job's own work is
+         * bounded by local database/CPU time rather than by N remote HTTP
+         * sends. This `timeout` remains the backstop for the unexpected long
+         * job — a stalled database, a slow Redis — that ADR-020 does not rule
+         * out; raising the ceiling means raising `INGEST_FIFO_LEASE_SECONDS`
+         * first, and by more.
          */
         'supervisor-default' => [
             'connection' => 'redis',
@@ -309,8 +310,9 @@ return [
             // by there being a single worker. Its `WithoutOverlapping` job
             // middleware is documented as a thundering-herd reducer, not the
             // ordering guard — a redundant advancer that loses the claim is
-            // simply dropped. Several workers therefore serve different
-            // proxies in parallel while each proxy's own line stays ordered.
+            // simply dropped (`->dontRelease()`, ADR-020 Decision 6). Several
+            // workers therefore serve different proxies in parallel while
+            // each proxy's own line stays ordered.
             'supervisor-default' => [
                 'minProcesses' => 1,
                 'maxProcesses' => 8,

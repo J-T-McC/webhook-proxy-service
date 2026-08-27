@@ -16,6 +16,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 /**
@@ -31,6 +32,8 @@ use Tests\TestCase;
  */
 class FifoLivenessAcceptanceTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     /**
      * A FIFO proxy with one destination and `$count` pending rows ordered evt-1..N.
      *
@@ -83,32 +86,29 @@ class FifoLivenessAcceptanceTest extends TestCase
     public function test_no_two_rows_are_ever_claimed_simultaneously_under_contention(): void
     {
         Queue::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
 
         [$proxy, $dispatches] = $this->fifoProxyWithPending(2);
 
-        // At the moment advancer #1 is delivering the first event (its row is claimed
-        // and in flight, OUTSIDE the claim transaction), a concurrent advancer #2
-        // fires for the same proxy. The atomic claim must stop #2 claiming row 2.
-        Http::fake(function () use ($proxy, $dispatches) {
-            $claimedNow = FifoDispatch::where('proxy_id', $proxy->id)
-                ->where('status', FifoDispatchStatus::Claimed)->count();
-            $this->assertSame(1, $claimedNow, 'Exactly one row may be claimed while an event is in flight.');
-
-            // Concurrent advancer #2 — must early-return on the live claim.
-            AdvanceProxyFifoQueue::run($proxy->id);
-
-            $this->assertSame(
-                FifoDispatchStatus::Pending,
-                $dispatches[1]->fresh()->status,
-                'A concurrent advancer must not claim the next row while one is in flight.',
-            );
-
-            return Http::response('ok', 200);
-        });
-
+        // Advancer #1 claims row 1 and dispatches its delivery by reference
+        // (ADR-020 Decision 1) — the row holds (`awaiting_retry`) rather than
+        // settling immediately, since delivery has not run yet.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->assertSame(FifoDispatchStatus::AwaitingRetry, $dispatches[0]->fresh()->status);
 
-        // Advancer #1 settled the first event; the second remains pending for the next run.
+        // While row 1's delivery is still in flight (not yet drained), a
+        // concurrent advancer #2 fires for the same proxy. The held row keeps
+        // the busy gate shut — #2 must not claim row 2.
+        AdvanceProxyFifoQueue::run($proxy->id);
+        $this->assertSame(
+            FifoDispatchStatus::Pending,
+            $dispatches[1]->fresh()->status,
+            'A concurrent advancer must not claim the next row while one is in flight.',
+        );
+
+        // Row 1's delivery settles (drained in place, standing in for the real
+        // worker); the line advances and row 2 remains untouched until its turn.
+        $this->drainQueuedDeliveries();
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
         $this->assertSame(FifoDispatchStatus::Pending, $dispatches[1]->fresh()->status);
         $this->assertSame(1, DeliveryAttempt::count());
@@ -122,7 +122,9 @@ class FifoLivenessAcceptanceTest extends TestCase
         [$proxy, $dispatches] = $this->fifoProxyWithPending(1);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        // A redundant concurrent advancer finds the row already held and no-ops.
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
         $this->assertSame(1, DeliveryAttempt::count());
@@ -151,6 +153,7 @@ class FifoLivenessAcceptanceTest extends TestCase
 
         // The nudged advancer settles the reaped row (line advances again).
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
         $this->assertSame(1, DeliveryAttempt::count());

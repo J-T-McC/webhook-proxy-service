@@ -17,10 +17,13 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Tests\Concerns\DrainsQueuedDeliveries;
 use Tests\TestCase;
 
 class AdvanceProxyFifoQueueTest extends TestCase
 {
+    use DrainsQueuedDeliveries;
+
     /**
      * A FIFO proxy with one destination and `$count` pending fifo_dispatches rows,
      * whose webhook_event_ids ascend in receive order (evt-1, evt-2, ...).
@@ -58,6 +61,10 @@ class AdvanceProxyFifoQueueTest extends TestCase
 
         foreach (['evt-1', 'evt-2', 'evt-3'] as $position => $expectedIngestId) {
             AdvanceProxyFifoQueue::run($proxy->id);
+            // Delivery is queued by reference (ADR-020 Decision 1) — drain it in
+            // place, standing in for the real worker, so the row's completion
+            // check has something to settle against.
+            $this->drainQueuedDeliveries();
 
             // The expected row is settled and delivered before the next is touched.
             $settled = $dispatches[$position]->fresh();
@@ -128,17 +135,23 @@ class AdvanceProxyFifoQueueTest extends TestCase
         $ambientTransactionLevel = DB::transactionLevel();
 
         // At the moment of the outbound send, the claim transaction must be closed
-        // (back to the ambient level) and the row already committed as 'claimed' —
-        // the row lock is never held across the network call (ADR-005 (a)).
+        // (back to the ambient level) and the row already held — never `claimed`
+        // with the row lock still implicated — the row lock is never held across
+        // the network call (ADR-005 (a)). Since ADR-020 Decision 1 the send itself
+        // happens in a separately-queued `DeliverToDestination`, drained below, by
+        // which point the advancer has already moved the row to `awaiting_retry`
+        // (Decision 2/3): the row is never reaped as `claimed` while a delivery for
+        // it is in flight.
         Http::fake(function () use ($dispatchId, $ambientTransactionLevel) {
             $this->assertSame($ambientTransactionLevel, DB::transactionLevel());
             $fresh = FifoDispatch::query()->findOrFail($dispatchId);
-            $this->assertSame(FifoDispatchStatus::Claimed, $fresh->status);
+            $this->assertSame(FifoDispatchStatus::AwaitingRetry, $fresh->status);
 
             return Http::response('ok', 200);
         });
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         $this->assertSame(FifoDispatchStatus::Settled, $dispatches[0]->fresh()->status);
     }
@@ -184,6 +197,7 @@ class AdvanceProxyFifoQueueTest extends TestCase
         $this->assertLessThan($genuinelyOlderPending->webhook_event_id, $replay->webhook_event_id);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         // The lowest-id row is claimed first — NOT the lowest-webhook_event_id row
         // (the replay does not jump the queue, ADR-016 Decision 3 / AC11).
@@ -213,6 +227,7 @@ class AdvanceProxyFifoQueueTest extends TestCase
         ]);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         // Every destination succeeded on attempt 1 — no non-terminal deliveries
         // remain, so the row settles and the line advances exactly as before #6.
@@ -244,6 +259,7 @@ class AdvanceProxyFifoQueueTest extends TestCase
         ]);
 
         AdvanceProxyFifoQueue::run($proxy->id);
+        $this->drainQueuedDeliveries();
 
         // Attempt 1 failed but is below the retry limit — the delivery is left
         // `retrying` (non-terminal), so the row holds: claimed -> awaiting_retry,

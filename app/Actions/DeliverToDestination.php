@@ -13,18 +13,26 @@ use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\FifoDispatch;
 use App\Pipeline\DeliveryUnit;
+use App\Services\DeliveryUnitResolver;
 use App\Services\RetryPolicy;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
 use Throwable;
 
 /**
- * The delivery-level run-sync-or-queue action (ADR-003/005/011/015/016). Delivers
+ * The delivery-level run-sync-or-queue action (ADR-003/005/011/015/016/020). Delivers
  * ONE unit to ONE destination, recording only outcome metadata — never the payload
- * (ADR-003). Invoked with `::run` inline (FIFO) or `::dispatch` onto the webhooks
- * queue (Async).
+ * (ADR-003). Invoked with `::run(DeliveryUnit $unit)` for an in-process/resolved
+ * call (attempts 2..N arrive this way via `RetryDelivery`), or `::dispatch(int
+ * $deliveryId, int $attemptNumber)` **by reference** onto the webhooks queue — the
+ * job's own entry point, `asJob()` (ADR-020 Decision 7), taken in both Async and
+ * FIFO modes alike. No payload bytes, header values, or destination model ever
+ * travel in the queued job's arguments; `asJob()` resolves everything via the
+ * shared `DeliveryUnitResolver` and then runs the same `handle(DeliveryUnit
+ * $unit)` logic below, unchanged.
  *
  * Idempotent against the queue's inherent at-least-once redelivery (ADR-011 Decision
  * 4, AC9), guarded by the `UNIQUE(delivery_id, attempt_number)` index (ADR-015
@@ -61,7 +69,62 @@ class DeliverToDestination
 
     public int $tries = 1;
 
-    public function __construct(private readonly RetryPolicy $retryPolicy) {}
+    public function __construct(
+        private readonly RetryPolicy $retryPolicy,
+        private readonly DeliveryUnitResolver $resolver,
+    ) {}
+
+    /**
+     * The by-reference queue entry point (ADR-020 Decision 7) — what
+     * `JobDecorator::handle()` calls in preference to `handle()` when this action
+     * is dispatched as a job (`AsJob`'s `hasMethod('asJob')` check). Resolves the
+     * `DeliveryUnit` via the shared `DeliveryUnitResolver`; a `null` result means
+     * the parent event was cleaned before this attempt could run, terminalized
+     * per `RetryDelivery::terminalizeCleaned()`'s semantics — compare-and-set
+     * keyed on `pending` **and** `retrying` (correct for attempt 1 as well as any
+     * later attempt reaching this entry point), no attempt row written, no send
+     * made. Otherwise runs the existing `handle(DeliveryUnit $unit)` logic
+     * unchanged.
+     */
+    public function asJob(int $deliveryId, int $attemptNumber): void
+    {
+        $delivery = Delivery::query()->findOrFail($deliveryId);
+
+        $unit = $this->resolver->resolve($delivery, $attemptNumber);
+
+        if ($unit === null) {
+            $this->terminalizeCleaned($delivery);
+
+            return;
+        }
+
+        $this->handle($unit);
+    }
+
+    /**
+     * Terminalize a delivery whose parent event's payload has been erased before
+     * this attempt could run (ADR-014 Decision 7; ADR-020 Decision 7's cleaned
+     * branch) — no send is ever attempted, so no attempt row is ever written.
+     * Reuses {@see self::transition()}'s compare-and-set, keyed on `pending` AND
+     * `retrying` so it is correct whichever status the delivery holds when this
+     * by-reference entry point runs; a zero-row CAS means another settler already
+     * won and this is a no-op.
+     */
+    private function terminalizeCleaned(Delivery $delivery): void
+    {
+        $affected = $this->transition($delivery, DeliveryStatus::Failed, ['next_attempt_at' => null]);
+
+        if (! $affected) {
+            return;
+        }
+
+        $delivery->status = DeliveryStatus::Failed;
+        $delivery->next_attempt_at = null;
+
+        event(new DeliveryExhausted($delivery));
+
+        Log::info('payload.expired', ['ingest_id' => $delivery->webhookEvent->ingest_id]);
+    }
 
     public function handle(DeliveryUnit $unit): void
     {
