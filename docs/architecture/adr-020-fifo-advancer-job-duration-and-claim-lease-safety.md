@@ -1,17 +1,19 @@
-# ADR-020: FIFO advancer job duration and claim-lease safety — parallel fan-out inside an event, a race-safe settle-or-hold, and an ordered lease/timeout/`retry_after` rule (partially supersedes ADR-011 Decision 2, amends ADR-016 Decision 1)
+# ADR-020: FIFO advancer job duration and claim-lease safety — parallel fan-out inside an event, by-reference delivery jobs, a race-safe settle-or-hold, and an ordered lease/timeout/`retry_after` rule (partially supersedes ADR-011 Decisions 2 and 3, amends ADR-016 Decision 1)
 
-- **Status:** **Proposed** — Project Owner approval required. Two gates, both at
-  § Owner-approval flags: (a) the security consequence of putting a FIFO proxy's outbound
-  payload onto the Redis queue, and (b) the partial supersession of a named position of
-  ADR-011 (Accepted, Owner 2026-08-04). **No code may be written against this ADR until it
-  is Accepted.**
+- **Status:** **Proposed** — Project Owner approval required. **Revised 2026-08-26 (Revision A)
+  in response to two Project Owner requirements; see § Revision A.** **One gate** remains, at
+  § Owner-approval flags: the partial supersession of two named positions of ADR-011 (Accepted,
+  Owner 2026-08-04) together with the amendment to ADR-016 Decision 1. **The original gate (a),
+  which asked the Owner to accept an outbound payload on the Redis queue, is withdrawn — the
+  exposure it described no longer occurs.** No code may be written against this ADR until it is
+  Accepted.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-26
 - **Feature:** none — this is a latent correctness defect in shipped behaviour, found while
   configuring Laravel Horizon on branch `feat/horizon` (PR #18, unmerged). Horizon does not
   cause it; Horizon made an existing mismatch visible.
-- **Relationship to prior ADRs:** **partially supersedes ADR-011** (one named position, P4 —
-  see § Positions superseded) and **amends ADR-016 Decision 1** (the meaning of the
+- **Relationship to prior ADRs:** **partially supersedes ADR-011** (two named positions, P4 and
+  P5 — see § Positions superseded) and **amends ADR-016 Decision 1** (the meaning of the
   `awaiting_retry` hold, and the concurrency safety of the settle-or-hold decision). Every
   other position of both ADRs stands, Accepted and operative, and is relied on here: the
   claim-based single advancer, the atomic `FOR UPDATE` claim, the lease plus sweeper liveness
@@ -19,7 +21,40 @@
   the pipeline entry, the sidecar-table placement, the `awaiting_retry` line hold, the
   row-`id` order key, and the three sweeper passes.
 - **Companions:** ADR-005 (the dispatch-timing seam and its four guardrails) · ADR-015 (the
-  retry machinery whose waits the hold represents) · ADR-003 (payload-free attempt records)
+  retry machinery whose waits the hold represents, and whose Decision 5 already forbids payload
+  bytes in a delivery job's arguments) · ADR-013 (the divergence-gated dispatched-output store
+  that makes a by-reference delivery job resolve totally) · ADR-014 and ADR-010 Amendment B
+  (at-rest encryption of the three payload columns, and the binding `APP_PREVIOUS_KEYS` rule) ·
+  ADR-003 (payload-free attempt records)
+
+## Revision A — what the Owner's two requirements changed here (2026-08-26)
+
+The first version of this ADR asked the Project Owner to **accept** a security consequence:
+that making FIFO fan-out queued would put the outbound payload onto the Redis queue, as Async
+has done since #4. The Owner did not trade it away. Two requirements came back instead, and
+together they change the shape of the answer rather than merely its cost.
+
+> "unless we can encrypt the payload in the queue itself. We want to ensure that the payload
+> is never available in plaintext in a long term store."
+
+> "some queue drivers have size limits. holding the payload in the job params can cause issues
+> if the driver is changed to ses or something else"
+
+The two pull against each other if the payload stays in the job — `ShouldBeEncrypted` inflates
+the serialized payload by roughly a third before the envelope, so satisfying the first makes the
+second worse. A fix that trades one Owner requirement for the other is not a fix. Both are
+satisfied at once by removing the payload from the job entirely, which is what Revision A does.
+
+| Prior position | Now |
+|---|---|
+| Decision 1 makes FIFO fan-out queued, and the delivery job carries the payload in its arguments, as Async already does | Decision 1 is unchanged in what it does to FIFO ordering and job duration, but is now paired with **Decision 7**: **no queued job carries payload bytes in its arguments, in either mode.** The delivery job carries `(deliveryId, attemptNumber)` and resolves the bytes on the worker |
+| § Alternatives: "Dispatch `DeliverToDestination` by reference for FIFO, to keep payloads off the queue" — **rejected** for breaking ADR-011 Decision 3 | **ADOPTED**, and extended to Async. The rejection was wrong: ADR-013's divergence-gated dispatched-output store already resolves the pipeline's *output* payload durably and totally, and `RetryDelivery` has resolved attempts 2..N that way in production since #6. ADR-011 Decision 3's **guarantee** is preserved; only its **mechanism** is superseded |
+| Owner gate (a): accept a payload-on-the-queue exposure for FIFO proxies | **Withdrawn.** There is no queue-payload exposure left to accept, on either mode. Decision 7 *removes* an exposure Async has carried since #4 rather than extending it |
+| Owner gate (b): partial supersession of ADR-011 P4 plus the ADR-016 Decision 1 amendment | **Unchanged in kind, widened by one position** — ADR-011 Decision 3 becomes **P5**. Still the only gate |
+| No position on inbound body size versus queue-driver message limits | **Decision 8** states the ceiling as an operational limit and records that Async has been exposed to it since #4 |
+
+Everything not listed above is unchanged, including the six-point FIFO guarantee below, which
+Revision A does not touch.
 
 ## The FIFO guarantee this ADR is written against
 
@@ -181,8 +216,10 @@ configuration is not merely undocumented; it is over-constrained.
 ## Decision
 
 **(1) In FIFO mode, destination fan-out becomes parallel and queued, exactly as Async already
-does.** `DeliverStep` loses its `processing_mode` branch entirely: every delivery, in both
-modes, is `DeliverToDestination::dispatch($unit)->onQueue(config('ingest.webhooks_queue'))->afterCommit()`.
+does.** *(Amended 2026-08-26 — Revision A: what is dispatched is now a reference, not a payload.
+Read this decision together with Decision 7, which governs what the job carries.)*
+`DeliverStep` loses its `processing_mode` branch entirely: every delivery, in both
+modes, is `DeliverToDestination::dispatch($delivery->id, 1)->onQueue(config('ingest.webhooks_queue'))->afterCommit()`.
 The advancer job's work becomes bounded by database and CPU time — load the captured event,
 load the proxy, create or find the dispatch's `deliveries` rows, run the pipeline, enqueue N
 jobs — rather than by N remote endpoints. It no longer contains a single outbound HTTP call.
@@ -331,11 +368,94 @@ correctness — but it makes two comments true, and it stops routine operation f
 failed-jobs table and Horizon's failed list. Decision 1 makes redundant advancers somewhat
 more common, which is why it is settled here rather than left.
 
+**(7) No queued job carries payload bytes in its arguments, in either processing mode. The
+delivery job carries `(deliveryId, attemptNumber)` and resolves the bytes on the worker.**
+*(Added 2026-08-26 — Revision A.)*
+
+This is not new machinery. It is the shape **`RetryDelivery` has used in production since #6**,
+applied to attempt 1, and it is what **ADR-015 Decision 5** already requires of every attempt
+from the second onwards: "No payload bytes are ever carried in this job's own arguments — only
+`$deliveryId`/`$attemptNumber`." Attempt 1 is the anomaly, not the target.
+
+**What the worker resolves, and why the resolution is total.** `StoredPayloadLookup::dispatchedBytesFor($event)`
+returns `dispatched_payloads.body` when it is non-NULL, and `webhook_events.body` otherwise. The
+fallback is not a guess: ADR-013 Decision 2 makes `body IS NULL` a **positive assertion that the
+dispatched output was byte-identical to the raw capture**, and the same holds for the no-row case,
+because `CaptureDispatchedStep` is enhanced-mode-only while every payload-mutating step
+(`NormalizeStep` #9, `MapStep` #8) is *also* enhanced-mode-only and is composed **before** it. So
+the pair `(webhook_events.body, dispatched_payloads.body)` durably determines the dispatched
+output in every case that can arise, and the reference always resolves. The rest of the
+`DeliveryUnit` is equally derivable: `headers` from the captured event row, `destination` loaded
+`withTrashed()` from the delivery row, `method` from that destination, `teamId`/`proxyId`/`ingestId`
+from the delivery and its event. `RetryDelivery::handle()` already builds exactly this.
+
+**Two binding constraints follow, and a future item that breaks either breaks delivery silently.**
+
+- **`CaptureDispatchedStep` must remain the last pipeline step before `DeliverStep`.** It is what
+  makes `dispatched_payloads` hold the *final* output rather than an intermediate one.
+- **No payload-mutating step may exist outside enhanced mode.** A simple-mode transform step would
+  produce output that no store records, and the reference would resolve to the raw capture —
+  delivering the untransformed body with no error anywhere. `PipelineFactory`'s commented
+  insertion contract already places every future transform inside the enhanced branch; this makes
+  that placement load-bearing rather than incidental.
+
+**The cleaned-parent guard is mandatory and its behaviour is already ruled.** Because resolution
+now happens on the worker rather than at dispatch, the delivery job must check
+`payload_cleaned_at !== null` before reading `body` — ADR-014 Decision 7, binding, and the reason
+`StoredPayloadLookup::dispatchedBytesFor()` documents that its caller must guard. On a cleaned
+parent the job takes the `RetryDelivery::terminalizeCleaned()` path: compare-and-set the delivery
+to `failed` (keyed on `pending`/`retrying`, so it is correct for attempt 1 as well), emit
+`DeliveryExhausted` iff the compare-and-set affected a row, log `payload.expired` with identifiers
+only, and **make no attempt and write no attempt row** — PRD-06 AC17's posture, applied to
+attempt 1 for the first time. Guarding on `body === null` remains forbidden.
+
+**How reachable is that branch, honestly.** For an **original** dispatch it is unreachable in
+practice: hold H1 forbids erasing an event until it is past its 30-day retention window, and no
+attempt-1 job survives 30 days in a queue. For a **replay** of an event already close to its
+cutoff it is reachable in a narrow case — an Async replay delivery still `pending` (queued, never
+started, so no `delivery_attempts` row exists for H3 to hold on) and older than
+`retention.dispatch_horizon_minutes`, at which point H5's `pending` clause and H3 both release.
+The branch exists for that case. **Note that today, with the bytes travelling in the job, that
+same case delivers a payload the retention policy has already erased** — which is a worse outcome
+than refusing, so Decision 7 improves retention fidelity here rather than degrading it.
+
+**Costs, stated rather than glossed.** The payload is read from the database once per destination
+instead of once per event, and decrypted once per read, where today the pipeline reads and
+decrypts it once and passes it in memory. That is the price. It is paid against MySQL rather than
+Redis, and it replaces N *writes* of the same bytes into Redis that Async performs today, so the
+total I/O is not obviously worse and the Redis memory pressure is strictly better.
+
+**(8) The inbound body cap versus queue-driver message limits is stated as an operational limit,
+and the pre-existing Async exposure is recorded as pre-existing.** *(Added 2026-08-26 —
+Revision A.)*
+
+`config('ingest.max_body_bytes')` defaults to **52,428,800 bytes (50 MiB)** — itself flagged in
+that file as a deliberately high placeholder, not a risk-tuned value. Amazon SQS caps a single
+message at **256 KiB**, roughly **200× smaller**. Redis's 512 MB string limit and the database
+driver's `longText` payload column both tolerate 50 MiB, which is exactly why the mismatch is
+invisible today and would surface as a hard failure — not a degradation — on the first oversized
+message after a driver migration.
+
+The position: **after Decision 7 the queue message is two integers, so no queue driver's message
+limit constrains this application's payload size at all.** The inbound cap becomes a property of
+the capture store (`LONGBLOB`, 4 GiB ceiling) and of the outbound HTTP send, both of which are
+driver-independent. That is the durable answer, and it is a reason to prefer Decision 7 over
+encryption independently of security: encryption would have made the size problem worse, since
+the `encrypted` cast's base64-and-envelope overhead inflates the serialized job by roughly a
+third before the payload is JSON-encoded into the queue message.
+
+**Recorded as pre-existing, not introduced here:** Async fan-out has carried the payload in the
+job since #4, so **this application is already exposed to any queue driver's message-size limit
+today, on every Async proxy.** That is a live latent limitation in shipped code. Decision 7
+closes it as a side effect; it is named separately so that a later reader does not attribute it
+to the FIFO change, and so that it is not silently folded into an unrelated approval.
+
 ## Positions superseded and amended
 
 | Prior position (verbatim) | Superseded / amended to |
 |---|---|
 | **P4 — ADR-011 Decision 2:** the advancer "processes that one event **to settlement**, marks it `settled`, then self-dispatches to advance" | The advancer *initiates* the event's delivery and hands the settle-and-advance decision to whichever actor completes the dispatch's last delivery. The **guarantee** the position served — event 2 is not claimed until event 1 has fully settled — is unchanged and is what decisions 2 and 3 preserve. Only the actor changes. ADR-016 Decision 1 had already made this position conditionally untrue for the retry case; decision 1 here makes the held branch the ordinary path. |
+| **P5 — ADR-011 Decision 3** *(added 2026-08-26 — Revision A)*: "Per-destination `DeliverToDestination` continues to carry its `DeliveryUnit` (including the pipeline's *output* payload) so a later mapped payload (#8) flows to delivery unchanged" | The delivery job carries `(deliveryId, attemptNumber)`; the pipeline's **output** payload is resolved on the worker from `dispatched_payloads.body`, falling back to `webhook_events.body` under ADR-013 Decision 2's divergence gate. The **guarantee** is preserved and strengthened: a mapped payload still reaches the destination unchanged, and it now does so by reading the very store that records what was dispatched, rather than by a second copy that has to be kept in agreement with it. The sentence's other half — "the pipeline entry is dispatched by reference" — is untouched. This also brings attempt 1 into line with **ADR-015 Decision 5**, which already forbids payload bytes in a retry job's arguments; no ADR-015 position changes. |
 | **ADR-016 Decision 1 (amended, not superseded):** the advancer transitions to `awaiting_retry` "for the dispatch's in-progress retry schedule", and the status is described throughout as representing "head is between attempts" | `awaiting_retry` represents "head is not yet settled" — which includes a first attempt still in flight or still queued, as well as a backoff wait. The lifecycle, the transitions, the busy gate, the three sweeper passes and the GC hold H2 interaction are all unchanged and all remain correct under the wider reading. No enum value, column value, or migration changes. Additionally, the settle-or-hold decision becomes concurrency-safe per decision 3; ADR-016's description of it is otherwise unchanged. |
 
 Explicitly **not** superseded or amended, verified one at a time so a later reader can check
@@ -347,10 +467,20 @@ rather than trust:
 - **ADR-011 Decision 2's remaining content** — the sidecar table, the atomic `FOR UPDATE`
   claim as the correctness primitive, the lease plus sweeper as the liveness net, and
   `WithoutOverlapping` as a thundering-herd reducer rather than the guard. All relied on here.
-- **ADR-011 Decision 3** (pipeline entry dispatched by reference; per-destination delivery
-  carries its `DeliveryUnit` including the pipeline's *output* payload, so a later mapped
-  payload from #8 flows to delivery unchanged) — untouched, and load-bearing: it is why
-  decision 1 cannot be made cheaper by dispatching delivery by reference. See § Alternatives.
+- **ADR-011 Decision 3's first half** (the pipeline entry is dispatched by reference and rebuilds
+  its `PipelineContext` from the durable capture) — untouched and relied on. Its second half is
+  **P5 above**; the first version of this ADR wrongly listed the whole decision as untouched and
+  used it to reject by-reference delivery. *(Corrected 2026-08-26 — Revision A.)*
+- **ADR-013 Decisions 2 and 3** (the divergence gate — `dispatched_payloads.body IS NULL` means
+  the output was identical to the raw capture — and `StoredPayloadLookup` as the only interpreter
+  of that NULL) — untouched, and now load-bearing for Decision 7: the gate is precisely what makes
+  a reference resolve in the common case rather than only when the payload diverged.
+- **ADR-015 Decision 5** (retry jobs carry no payload bytes) — untouched and extended, not
+  superseded. Decision 7 applies the same rule to attempt 1.
+- **ADR-014 Decision 7** (guard on `payload_cleaned_at`, never on `body === null`) — untouched,
+  and now applies to one additional caller.
+- **ADR-010 Amendment B's binding `APP_PREVIOUS_KEYS` rule** and the three encrypted columns it
+  spans — untouched. Decision 7 adds no fourth encrypted store and no new key-lifecycle surface.
 - **ADR-011 Decision 4 / ADR-016 P3** — the idempotency mechanism and its
   `UNIQUE(delivery_id, attempt_number)` key. Unchanged. Its scope is unchanged too: it guards
   the queue's sequential at-least-once redelivery, and it is not a concurrency guard. Decision
@@ -417,13 +547,51 @@ Each of the shapes considered, and why it loses.
   H2 — treats "held" identically however the head got there. That is precisely the
   no-consumer bookkeeping ADR-016 Decision 2 rejected when it declined `dead_lettered`.
   Rejected, consistently.
-- **Dispatch `DeliverToDestination` by reference for FIFO, to keep payloads off the queue.**
-  Would sidestep the security consequence at § Owner-approval flags (a), but ADR-011 Decision
-  3 requires per-destination delivery to carry the pipeline's *output* payload precisely so a
-  later mapped payload (#8) reaches the destination; a by-reference delivery job would have to
-  re-read the raw capture and would deliver the unmapped body. It would also make FIFO and
-  Async's attempt-1 paths diverge again, which is the divergence this ADR is removing.
-  Rejected — the exposure is named and put to the Owner instead.
+- **Dispatch `DeliverToDestination` by reference, to keep payloads off the queue.**
+  **[ADOPTED as Decision 7 — this bullet's original "rejected" position is superseded,
+  Revision A, 2026-08-26. Recorded rather than deleted, because the error is instructive.]**
+  The original analysis rejected this on the ground that ADR-011 Decision 3 requires the
+  delivery job to carry the pipeline's *output* payload so a mapped payload (#8) reaches the
+  destination, and that a by-reference job "would have to re-read the raw capture and would
+  deliver the unmapped body". **That last clause is false**, and it is false because of
+  ADR-013, which the original analysis did not walk. The dispatched-output store is
+  divergence-gated: a NULL `body` is a positive assertion that the output *was* the raw
+  capture, not an absence of information. So a reference resolves the output in every case,
+  not only when it diverged — which is exactly why `RetryDelivery` has resolved attempts
+  2..N this way in production since #6 without ever re-applying a transform. The
+  guarantee ADR-011 Decision 3 protects survives; only its mechanism is superseded (P5).
+- **`ShouldBeEncrypted` on the delivery job, keeping the payload in the job arguments.** The
+  Owner's own first suggestion, and it fails on three counts, any one of which is sufficient.
+  **(a) It is not a one-line adoption in this codebase.** `Illuminate\Queue\Queue::jobShouldBeEncrypted()`
+  tests the object *being serialized*, which for a `lorisleiva/laravel-actions` action is
+  `Lorisleiva\Actions\Decorators\JobDecorator` — a vendor class that does not implement
+  `ShouldBeEncrypted`, declares a fixed set of public properties (`$tries`, `$maxExceptions`,
+  `$timeout`, `$deleteWhenMissingModels`) that does not include `shouldBeEncrypted`, and
+  forwards only an explicit allow-list of action properties. Putting the interface on
+  `DeliverToDestination` would have **no effect whatsoever**, silently. Reaching it means
+  either overriding `makeJob()` per action to return a project-owned decorator subclass, or
+  replacing `ActionManager::$jobDecorator` globally — which would encrypt every action job in
+  the application, with no per-job granularity. Bespoke machinery wrapped around a vendor
+  internal, to protect something that does not need to be there at all.
+  **(b) It makes the Owner's second requirement worse.** The `encrypted` cast's base64 and
+  envelope overhead inflates the serialized command by roughly a third before it is
+  JSON-encoded into the queue message, so it moves the payload further above any driver's
+  message ceiling rather than below it.
+  **(c) It creates a new key-lifecycle failure class.** An `APP_KEY` rotation would leave every
+  queued job and every `failed_jobs` row undecryptable — a live job that cannot be run and a
+  failed job that cannot be retried. ADR-010 Amendment B's binding `APP_PREVIOUS_KEYS` rule
+  covers *stored rows* and is discharged by a future re-encryption pass over them; a queue
+  message has no such pass and no row to re-encrypt. That would need a **new** operational
+  rule, which Decision 7 avoids needing at all. Rejected on all three.
+- **Encrypt the payload into the job by hand** (encrypt in `DeliverStep`, decrypt in
+  `DeliverToDestination`, bypassing `ShouldBeEncrypted`). Removes objection (a) and keeps (b)
+  and (c) intact, while hand-rolling a second encryption seam alongside the Eloquent casts that
+  already exist for the same bytes. Rejected.
+- **Keep the payload in the job but cap FIFO/Async payload size to the smallest supported
+  driver's message limit.** Would make the size problem tractable by making the product
+  smaller: 256 KiB against a configured inbound cap of 50 MiB is a 200× reduction in what the
+  application accepts, which is a requirements change and not the Principal Engineer's to make.
+  It also leaves the plaintext-in-queue exposure entirely unaddressed. Rejected.
 - **Do nothing, and rely on `timeout < lease`.** The invariant does hold today. But it is
   undocumented outside one configuration comment, enforced by nothing, and it is only safe
   because it deterministically kills legitimate work on any FIFO proxy with five or more
@@ -481,6 +649,28 @@ Each of the shapes considered, and why it loses.
   supervisor's longest legitimate unit of work from N remote calls to local work. Recording
   them as one undifferentiated "ordering convention" would invite someone to satisfy the
   arithmetic while breaking the meaning.
+- **Decision 7 satisfies both Owner requirements with one change, and satisfies each of them
+  better than a change aimed at it alone would.** *(Added 2026-08-26 — Revision A.)* Encryption
+  would have addressed the security requirement while worsening the size one, and would have
+  added a fourth ciphertext location with no re-encryption path. A size-only fix — capping the
+  payload, or choosing drivers that tolerate 50 MiB — would have addressed neither the security
+  requirement nor the portability one durably. Removing the payload from the job addresses both
+  by deletion, and it is the only candidate that leaves the application's supported payload size
+  independent of the queue driver entirely.
+- **The strongest evidence that Decision 7 is right is that the codebase already agrees with
+  it.** ADR-015 Decision 5 forbids payload bytes in a retry job's arguments and `RetryDelivery`
+  has honoured that in production since #6, resolving every attempt from the second onwards
+  through `StoredPayloadLookup`. Attempt 1 is the only delivery job in the system that does
+  otherwise, and it does so because #1 built it before either the dispatched-output store or the
+  retry path existed. Decision 7 is the removal of an inconsistency, not the introduction of a
+  pattern — which is also why the change is small: the resolver being extracted already exists,
+  inline, in a class that has been exercised by the suite since #6.
+- **The one thing Decision 7 makes newly load-bearing should be watched.** The reference resolves
+  totally only because every payload-mutating step is enhanced-mode-only and
+  `CaptureDispatchedStep` is composed after all of them. That was previously a tidy property of
+  `PipelineFactory`; it is now a correctness invariant, and violating it would deliver the wrong
+  bytes with no error raised anywhere. It is stated as a binding constraint in Decision 7 and
+  restated under § Constrained, and #8 and #9 are the items that will meet it.
 - **Decisions 5 and 6 are settled here rather than deferred** because both live in the two
   files this ADR already changes, both concern the same lease and the same lock, and decision
   5 in particular protects the invariant decision 4 is enforcing — a guarded lease is worth
@@ -493,21 +683,104 @@ Each of the shapes considered, and why it loses.
   explicitly because it is what makes the whole change revertible by reverting a commit.
 - **No new dependency.** Nothing added to `composer.json` or `package.json`. Within
   `docs/stack/stack.md` as it stands.
-- **Security (Owner-gated ✋ — see flag (a)).** Decision 1 puts a FIFO proxy's outbound payload
-  onto the Redis queue, inside the serialized `DeliveryUnit`, and therefore into `failed_jobs`
-  if such a job fails. **FIFO proxies today do not have this exposure**: their advancer job
-  carries only an integer proxy id, the pipeline entry is dispatched by reference, and the
-  payload never leaves the worker process. Async proxies have carried it since #4. The
-  exposure class is the one the Owner accepted at Q-05-06 D2 / ruling E1 on 2026-08-25,
-  mitigated by the daily `queue:prune-failed --hours 168`, with the real fix owned by #10. This
-  ADR does not create a new class of exposure; it extends an accepted one to a mode that was
-  incidentally free of it, and that is the Owner's call rather than the Principal Engineer's.
+- **Security — strictly reduced, and no longer an Owner gate.** *(Rewritten 2026-08-26 —
+  Revision A; the original text asked the Owner to accept an exposure that Decision 7 removes.)*
+  After Decision 7 **no payload byte enters any queue, in either processing mode**. The change
+  therefore *closes* an exposure Async has carried since #4 rather than extending one to FIFO.
+  A change that strictly reduces plaintext exposure and adds no new store is an ordinary
+  technical decision, not a security approval — so the original flag (a) is withdrawn rather
+  than re-put in a different form. Three consequences worth naming because they are wins that
+  fall out rather than things that had to be designed:
+  - The captured **headers** stop travelling in the job too. They are encrypted at rest in
+    `webhook_events.headers` (ADR-014 Decision 2) but are plaintext inside the serialized
+    `DeliveryUnit` today. Decision 7 removes that copy. This is not a substitute for #10's
+    header policy and does not descope it.
+  - **`failed_jobs` and Horizon's own job records stop containing payloads.** The job payload
+    becomes two integers, so an exception trace cannot carry payload content regardless of
+    `zend.exception_ignore_args`.
+  - The **destination URL** stops travelling in the job as a serialized `Destination` model.
+
+- **Which stores are "long-term" for the purpose of the Owner's requirement, and where the
+  payload lives after this change.** *(Added 2026-08-26 — Revision A. The Owner's phrasing —
+  "never available in plaintext in a **long term** store" — turns on this distinction, so it is
+  enumerated rather than assumed.)* A store is treated as long-term here if it survives the
+  process that wrote it **and** retains content under a policy rather than for the duration of
+  one unit of work.
+
+  | Store | Long-term? | Payload after Decision 7 |
+  |---|---|---|
+  | `webhook_events.body` / `.headers` | Yes — 30-day retention window | Present, **encrypted at rest** (ADR-010 Amendment B, ADR-014 Decision 2), erased in place by GC |
+  | `dispatched_payloads.body` | Yes — same lifecycle | Present when the output diverged, **encrypted at rest**, erased by the same pass |
+  | `failed_jobs.payload` (database) | Yes — pruned at 7 days by the daily `queue:prune-failed --hours 168` | **Absent.** Two integers |
+  | Horizon's Redis job records (`recent`/`completed` 60 min; `failed`/`monitored` 7 days, `horizon.trim`) | Yes — a **second** independent 7-day retention of the same job payload, which `queue:prune-failed` does not touch and Horizon trims itself | **Absent.** Two integers |
+  | Redis queue list / reserved entry for a job about to run | Borderline — transient by intent, but durable on disk wherever Redis persistence (RDB/AOF) is enabled | **Absent.** Two integers |
+  | Worker process memory; the outbound HTTPS request | No | Present, necessarily. Out of scope of the requirement |
+
+  **So the requirement is met.** The only long-term stores that hold the payload are the two the
+  application deliberately owns, both already encrypted at rest under an Accepted position, and
+  both reachable by ADR-012's erase-in-place. Nothing else holds it. Verified rather than
+  assumed on the Horizon side: `Laravel\Horizon\JobPayload` stores the raw payload string
+  unchanged and `RedisJobRepository` writes `$payload->value` verbatim — Horizon never decrypts,
+  never unserializes the command, and derives its tags from the in-memory job object before
+  serialization, so it neither stores nor displays anything the queue does not already hold.
+
+- **Key rotation needs no new rule.** *(Added 2026-08-26 — Revision A, answering the Owner's
+  question directly.)* Because no queue message holds ciphertext, an `APP_KEY` rotation cannot
+  strand an in-flight job or make a `failed_jobs` row unretriable. The key-lifecycle surface is
+  unchanged at the three encrypted columns across two tables that ADR-014 already enumerates,
+  under ADR-010 Amendment B's binding rule — a prior key is never dropped from
+  `APP_PREVIOUS_KEYS` until a re-encryption pass has rehashed every row. `config/app.php`
+  already wires `previous_keys` from `APP_PREVIOUS_KEYS`. **This ADR adds nothing to that
+  surface and imposes no new operational constraint.** Had the encryption alternative been
+  taken, it would have added a fourth ciphertext location with no row to re-encrypt and would
+  have needed a new rule.
+
+- **Retention interaction — no bypass, and one ordering worth writing down.** *(Added
+  2026-08-26 — Revision A.)* After Decision 7 the question mostly dissolves: neither
+  `failed_jobs` nor Horizon's records contain a payload, so ADR-012's erase-in-place is not
+  bypassed by them and needs no new position. The ordering that made it safe even before this
+  change should still be stated, because it is a fourth undocumented dependency between
+  independently-tunable values: `queue:prune-failed`'s hard-coded 168 hours in
+  `routes/console.php` must stay **below** the resolved retention window
+  (`retention.days`, default 30), or a failed job's copy of a payload would outlive the erase
+  that was supposed to destroy it. It does today, by 23 days. `RETENTION_DAYS` is
+  env-overridable and documented as dev/test convenience only, so the inversion is reachable
+  locally and not in a deployed configuration. Named here rather than tested, because after
+  Decision 7 there is no payload in `failed_jobs` for the inversion to expose.
 - **Code — the complete change set.** Named precisely enough to implement, and nothing outside
   this list:
   - `app/Actions/DeliverStep.php` — remove the `processing_mode` branch and the inline
-    `DeliverToDestination::run($unit)` call; always dispatch onto
-    `config('ingest.webhooks_queue')` with `afterCommit()`. The `ProcessingMode` import and the
-    `$async` local go with it. The docblock's description of the two modes is rewritten.
+    `DeliverToDestination::run($unit)` call; always dispatch **by reference** onto
+    `config('ingest.webhooks_queue')` with `afterCommit()`. *(Amended 2026-08-26 — Revision A:
+    by reference, not with a `DeliveryUnit`.)* The step no longer builds `DeliveryUnit`s at all,
+    so the `DeliveryUnit` and `ProcessingMode` imports and the `$async` local all go. It still
+    iterates the dispatch's `deliveries` rows with `->with(['destination' => …withTrashed()])`
+    only if it still needs the relation; after this change it needs nothing but each row's `id`,
+    so the eager load can go too. The docblock's description of the two modes is rewritten.
+  - **A single shared resolver that builds a `DeliveryUnit` from `(Delivery, int $attemptNumber)`**
+    — the block that exists today inline in `RetryDelivery::handle()`: guard the parent event's
+    `payload_cleaned_at`, load the destination `withTrashed()`, take headers from the captured
+    event, and take the bytes from `StoredPayloadLookup::dispatchedBytesFor()`. Extracting it is
+    what keeps attempt 1 and attempts 2..N provably identical rather than similar. Exact
+    placement is the implementer's call — a small service alongside `StoredPayloadLookup`, which
+    must itself stay single-purpose and must remain the only interpreter of
+    `dispatched_payloads.body IS NULL` (ADR-013 Decision 3). What is **required**: one resolver,
+    used by both entry points, that signals "parent cleaned" distinguishably from "resolved" and
+    never returns an empty payload to mean either.
+  - `app/Actions/DeliverToDestination.php` — gains a by-reference entry point taking
+    `(int $deliveryId, int $attemptNumber)`, which resolves the unit through that resolver and
+    then runs the existing logic unchanged. The cleaned branch terminalizes per
+    `RetryDelivery::terminalizeCleaned()`, with the compare-and-set keyed on `pending` **and**
+    `retrying` so it is correct for attempt 1; no attempt row is written and no send is made.
+    The existing `handle(DeliveryUnit $unit)` behaviour — attempt-row create-or-resume, send,
+    settle, FIFO completion check — is **not** otherwise changed by this ADR.
+  - `app/Actions/RetryDelivery.php` — its inline unit-building block is replaced by a call to
+    the shared resolver. Its `retrying` status guard, its stale-fire early return and its
+    `terminalizeCleaned()` semantics are unchanged. **`RetryDelivery` is not merged into
+    `DeliverToDestination`**: its guard is specific to attempts 2..N and collapsing the two
+    would widen this change well past the defect it fixes.
+  - `app/Pipeline/DeliveryUnit.php` — unchanged. It remains the in-process input to a send; it
+    simply stops being serialized into a queue message.
   - `app/Actions/AdvanceProxyFifoQueue.php` — `settleOrHold()` per decision 3, including the
     `settleAndAdvance()` helper and the compare-and-set on the settle path; the two
     `(int) config('ingest.fifo_lease_seconds')` reads route through the decision 5 guard;
@@ -534,6 +807,26 @@ Each of the shapes considered, and why it loses.
     delivery onto the webhooks queue, mirroring the existing Async case. Note there is a second
     file, `tests/Unit/Pipeline/DeliverStepTest.php`, of the same class name in a different
     namespace; check both.
+  - `test_builds_exactly_n_units_each_carrying_the_matching_delivery_rows_id` asserts against
+    `$params[0]` being a `DeliveryUnit`. It is **superseded, not weakened**: the assertion
+    becomes that the pushed arguments are the delivery id and attempt number. *(Added
+    2026-08-26 — Revision A.)*
+  - **A test that no queued job's arguments contain payload bytes** — the direct expression of
+    Decision 7 and of the Owner's requirement, and the one that will still be there in a year.
+    Assert against the *serialized* job payload rather than the in-memory object, since that is
+    what reaches the store: capture what is pushed and assert the distinctive body string does
+    not appear anywhere in it. Worth asserting for the captured **header** values too.
+    *(Added 2026-08-26 — Revision A.)*
+  - **A test that attempt 1 and a retry resolve identical bytes**, covering both sides of the
+    divergence gate: an enhanced-mode proxy whose dispatched output diverged (resolves
+    `dispatched_payloads.body`) and a simple-mode proxy with no `dispatched_payloads` row at all
+    (resolves `webhook_events.body`). This is the property that makes the reference total, and
+    it is the one a future simple-mode transform step would break. *(Added 2026-08-26 —
+    Revision A.)*
+  - **A test for the cleaned-parent branch at attempt 1**: a delivery whose parent event is
+    already cleaned must end `failed` with `DeliveryExhausted` emitted once, **zero
+    `delivery_attempts` rows written and zero HTTP sends** — the AC17 posture, now reachable on
+    attempt 1 for the first time. *(Added 2026-08-26 — Revision A.)*
   - A new test for decision 3's re-check: drive the state machine directly rather than through
     a dispatch, because `QUEUE_CONNECTION=sync` in `phpunit.xml` makes `dispatch()` run inline
     and therefore makes parallel fan-out indistinguishable from the inline path under test.
@@ -568,34 +861,49 @@ Each of the shapes considered, and why it loses.
   adds `ChangeDetectStep` as the enhanced-mode tail stage, it must not assume that deliveries
   have completed when it runs — which was already true for Async proxies and is now true for
   every proxy, so decision 1 removes a mode-dependent trap rather than creating one.
+  *(Added 2026-08-26 — Revision A, and binding on #8, #9 and #10.)* Two further constraints,
+  restated here because breaking either produces a wrong delivery with no error raised:
+  **`CaptureDispatchedStep` must remain the last pipeline step before `DeliverStep`**, and **no
+  payload-mutating step may be composed outside the enhanced-mode branch**. `PipelineFactory`'s
+  commented insertion contract already satisfies both; after Decision 7 that placement is a
+  correctness requirement rather than a convention. A future requirement for a simple-mode
+  transform is a requirements conversation with the Product Manager *and* a change to this ADR,
+  not a composition tweak. Also: **no queued job may be given payload bytes as an argument** —
+  the rule ADR-015 Decision 5 states for retries, now general.
 
 ## Owner-approval flags (✋)
 
-Two items. Both must be ruled before any code is written; the rest of this ADR is not
+*(Rewritten 2026-08-26 — Revision A. The original flag (a) is **withdrawn**: it asked the Owner
+to accept a payload-on-the-queue exposure, and Decision 7 removes the exposure instead of
+trading it. Nothing replaces it — there is no residual queue-payload exposure to approve.)*
+
+**One item.** It must be ruled before any code is written; the rest of this ADR is not
 separately actionable, since it is one change.
 
-1. **Extending an accepted security exposure to FIFO proxies.** Decision 1 causes a FIFO
-   proxy's outbound payload to be serialized into the Redis queue in every
-   `DeliverToDestination` job, and into `failed_jobs` if such a job fails outside
-   `DeliverToDestination`'s own `try`. FIFO proxies currently have no such exposure; Async
-   proxies have had it since #4. The exposure class was accepted by the Project Owner on
-   2026-08-25 (Q-05-06 D2, ruling E1) with the daily seven-day `queue:prune-failed` as the
-   stated mitigation and #10 named as the owner of the real fix. **What is being approved is
-   the extension of that accepted exposure to FIFO proxies, not a new class of exposure.** The
-   alternative that would avoid it — dispatching delivery by reference — is rejected at
-   § Alternatives for breaking ADR-011 Decision 3.
-2. **Partial supersession of an Accepted ADR.** Position P4 of ADR-011 Decision 2 (Accepted,
-   Project Owner, 2026-08-04), together with the amendment to ADR-016 Decision 1 (Accepted,
-   Project Owner, 2026-08-12), per § Positions superseded. ADR-011 and ADR-016 keep their
-   files, their status and their full text; each gains an inline annotation pointing here,
-   phrased as a pending supersession until this ADR is Accepted.
+1. **Partial supersession of an Accepted ADR.** Positions **P4** (Decision 2) and **P5**
+   (Decision 3) of ADR-011 (Accepted, Project Owner, 2026-08-04), together with the amendment
+   to ADR-016 Decision 1 (Accepted, Project Owner, 2026-08-12), per § Positions superseded.
+   ADR-011 and ADR-016 keep their files, their status and their full text; each gains an inline
+   annotation pointing here, phrased as a pending supersession until this ADR is Accepted.
 
-Explicitly **not** in either gate, verified item by item: no new table, column, index or enum
+   Two things the Owner should weigh with it, neither of which is a separate gate.
+   **First, P5 changes shipped Async behaviour**, not only the FIFO path this ADR was opened
+   for. Async has dispatched attempt 1 with the payload in the job since #4; after this it
+   dispatches by reference like every other attempt. That is a behaviour change to working code,
+   and it is in the gate because it supersedes a ratified position — not because it carries risk
+   the ADR has not addressed. **Second, the direction of travel on security is downward**: the
+   change removes plaintext payload and plaintext captured headers from the queue, from
+   `failed_jobs` and from Horizon's records, and adds no store and no key-lifecycle surface.
+
+Explicitly **not** in the gate, verified item by item: no new table, column, index or enum
 value; no change to any existing column's type or meaning; no backfill; no migration at all;
 no new dependency; no change to `docs/stack/stack.md`; no change to any configuration
 **value** (only comments); no change to the retry policy, its curves, or any scheduled cadence;
-no change to PRD-06 AC6 or to any acceptance criterion of any feature. The FIFO guarantee
-stated at the head of this document is unchanged in all six of its points.
+no change to PRD-06 AC6 or to any acceptance criterion of any feature. Added at Revision A, and
+equally verified: **no new at-rest copy of payload or header content anywhere**; no new
+encrypted store and so no fourth position on the ADR-010 Amendment B key surface; no new
+operational rule; no change to ADR-012's holds H0–H5 or to any retention value. The FIFO
+guarantee stated at the head of this document is unchanged in all six of its points.
 
 ## What is not decided here, and whose call it is
 
@@ -609,5 +917,21 @@ stated at the head of this document is unchanged in all six of its points.
 - **No user-visible copy changes**, so nothing goes to the Designer. FIFO and Async remain the
   same two selectable modes with the same meanings; nothing in the proxy form, the proxy show
   page or the events list describes how fan-out is executed.
+- **The encryption question was ruled, not escalated.** *(Added 2026-08-26 — Revision A.)* The
+  Owner asked whether the payload can be encrypted in the queue. The answer is that it can be
+  removed from the queue instead, which satisfies the stated requirement more completely and
+  costs less, so no encryption decision is put back to the Owner. Should the Owner nonetheless
+  want queue-payload encryption as defence in depth on some *other* job, the findings at
+  § Alternatives apply: it is not a one-line interface adoption under `lorisleiva/laravel-actions`,
+  and it would need a new key-rotation rule.
+- **The 50 MiB inbound body cap is not this ADR's to set.** *(Added 2026-08-26 — Revision A.)*
+  `config/ingest.php` already flags it as a deliberately high placeholder to be revisited before
+  MVP. Decision 8 removes the *queue driver* from the list of things that constrain it, which is
+  the technical half; choosing the number is a product decision for the Product Manager and the
+  Project Owner, and is unchanged by this ADR.
+- **The pre-existing Async queue-size exposure is recorded, not fixed by fiat.** Decision 8
+  states it as a live latent limitation in shipped code since #4. Decision 7 closes it, but the
+  finding stands on its own and should be visible in `docs/status.md` independently of whether
+  this ADR is Accepted — that file is the Orchestrator's.
 - **The `docs/fixes/` record is the Senior Developer's**, per this project's convention, and is
   written on implementation rather than here.

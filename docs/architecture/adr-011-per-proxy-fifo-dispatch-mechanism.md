@@ -1,6 +1,6 @@
 # ADR-011: Per-proxy FIFO dispatch mechanism (claim-based single-advancer) and the `processing_mode` attribute
 
-- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. A fourth position (P4) carries a *proposed* partial supersession by ADR-020 (Proposed, pending Owner approval) — see the inline note at Decision 2. Everything else stands, Accepted and operative.**
+- **Status:** Accepted — Project Owner, 2026-08-04 (data-model gate approved: `proxies.processing_mode` column, `fifo_dispatches` table, `delivery_attempts` UNIQUE constraint). **Three positions (P1-P3) carry a partial supersession by ADR-016 (Accepted, Project Owner 2026-08-12) — see the inline notes at Decisions 2 and 4. Two further positions (P4, P5) carry a *proposed* partial supersession by ADR-020 (Proposed, pending Owner approval) — see the inline notes at Decisions 2 and 3. Everything else stands, Accepted and operative.**
 - **Author:** Principal Engineer
 - **Date:** 2026-08-04
 - **Feature:** prd-04-queued-processing (realizes ADR-005 at build time; serves #6)
@@ -80,6 +80,19 @@ every job, and is loss-free because the pipeline's input **is** the raw captured
 event. Per-destination `DeliverToDestination` continues to carry its `DeliveryUnit`
 (including the pipeline's *output* payload) so a later mapped payload (#8) flows to
 delivery unchanged.
+
+> **[P5 — PROPOSED supersession by ADR-020 (pending Owner approval).]** "Per-destination
+> `DeliverToDestination` continues to carry its `DeliveryUnit` (including the pipeline's
+> *output* payload) so a later mapped payload (#8) flows to delivery unchanged" becomes: the
+> per-destination delivery job carries `(deliveryId, attemptNumber)` only, and the pipeline's
+> output payload is **resolved on the worker** from `dispatched_payloads.body`, falling back to
+> `webhook_events.body` under ADR-013 Decision 2's divergence gate — the same resolution
+> `RetryDelivery` has used for attempts 2..N since #6, and the rule ADR-015 Decision 5 already
+> states. The **guarantee is preserved**: a mapped payload still reaches the destination
+> unchanged, now by reading the store that records what was dispatched rather than by a second
+> copy travelling in the queue message. The **first half of this Decision — pipeline-entry
+> dispatch by reference, rebuilding the `PipelineContext` from the durable capture — is not
+> superseded** and is relied on by ADR-020.
 
 **(4) Exactly-once settlement (guardrail (c)/(d)).** A **`UNIQUE(ingest_id,
 destination_id, attempt_number)`** index on `delivery_attempts` plus a
