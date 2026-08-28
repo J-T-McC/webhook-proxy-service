@@ -7,7 +7,8 @@ gate is required to keep it current.
 Phases: `Requirements → UX Design (UI only) → Technical Design → Task Planning → Implementation → Review → Done`
 
 Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-30;
-14-item backlog). Nothing here invents or reorders roadmap items.
+**15-item backlog** since item #15 was added by the Owner on 2026-08-27). Nothing
+here invents or reorders roadmap items.
 
 **This file carries only what routing needs**: phase, owner, blockers, approvals,
 and a pointer to the artifact that holds the detail. The artifacts are the record —
@@ -57,11 +58,12 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 7 | Enhanced-mode toggle | Done | — | None | PRD-07 Approved (Owner, 2026-08-21) + Amendments A/B (PM, 2026-08-25); design-07 PM-approved; plan-07 PE-certified + **Revision A**; ADR-018 Accepted; tasks-07 T1–T13 + M7; review-07 **Approve** after re-review (2026-08-26) — one Major (persisted retry policy destroyed by an abandoned in-session downgrade) fixed on Owner ruling *keep preservation, fix the re-seed*; PR #14 merged (`13f0da7`, 2026-08-26). **Follow-ups: review-07 Finding 8 (`public/hot` + a live Vite dev server invalidate "verified against a fresh build" claims) and Nits 5–7** |
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
-| 10 | Sensitive data handling | **Requirements** | Product Manager → **Project Owner (approval)** | **PRD-10 drafted, awaiting Owner approval** — three things need the Owner specifically and each is written to be approved or struck on its own: the severable outbound block (AC30–AC39), the V2 ruling, and two narrowings of already-approved documents. **Q-10-01 Answered and ESCALATED, not RESOLVED** (PM, 2026-08-27) — the PM ruled that merging outbound destination authentication *changes* the roadmap rather than interpreting it, recommends the merge, and resolves it at PRD-10's approval gate. **Q-10-02 open to the Principal Engineer** — the authoritative at-rest payload inventory (D2 item 3, never produced); non-blocking for requirement approval. **D2's factual premise is obsolete**: ADR-020 made the queue message two integers, so four of its five items are discharged and the remainder is pinned by AC1–AC8 as a property to hold rather than a defect to fix. **PRD-10 carries a `## UX Direction` section, so the Designer is a required phase before Technical Design** | `docs/product/prd-10-sensitive-data-handling.md` (Draft, 48 ACs); `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md`; `docs/questions/prd-10-q-10-02-at-rest-payload-copy-inventory.md` |
+| 10 | Sensitive data handling | **Requirements** | Product Manager → **Project Owner (approval)** | **PRD-10 + Amendment A drafted, awaiting Owner approval.** **Q-10-01 RESOLVED** (Owner approved 2026-08-27) — outbound destination authentication merged into #10; severability removed from AC30–AC39, no criterion in that block changed, only the condition on it. **V2 overturned** by the Owner: a closed two-scheme selector rather than a deferral, and the PM's ground 4 is corrected in place — inbound signature verification runs over the raw request body at ingest, which ADR-010's raw capture already provides, so #8/#9 are irrelevant to it. **Outbound signing added as AC54–AC64** — the reverse direction, where a destination verifies a dispatch came from us; a further widening of #10 that takes effect only on this PRD's approval, and **not yet ratified**. **AC count is 50 → 64** — the 48 previously recorded in this row was already stale before Amendment A. **Two PM rulings the Owner may want to overturn:** AC29's rotation overlap is a **fixed 24 hours, not member-configurable, with an explicit end-it-now action** (member-set rejected as unrequested surface; until-first-use rejected on correctness), and its scope **excludes the destination credential (AC33)**, which is presented rather than verified or computed. **Q-10-02 open to the Principal Engineer** — the authoritative at-rest payload inventory (D2 item 3, never produced); non-blocking for requirement approval. **D2's factual premise is obsolete**: ADR-020 made the queue message two integers, so four of its five items are discharged and the remainder is pinned by AC1–AC8 as a property to hold rather than a defect to fix. **PRD-10 carries a `## UX Direction` section, so the Designer is a required phase before Technical Design** | `docs/product/prd-10-sensitive-data-handling.md` (Draft, `## Amendment A`, 64 ACs); `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md` (**RESOLVED**); `docs/questions/prd-10-q-10-02-at-rest-payload-copy-inventory.md` |
 | 11 | Analytics / stats | **Merged — Review gate not run** | — | **MERGED to `main` (PR #17, `d9fed9c`).** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` **fully Approved again** (PM, 2026-08-26) — Amendment B delta approved with no corrections, design gate closed. **All 29 tasks complete; T29 verification pass clean. PR #17 squash-merged to `main` (`d9fed9c`, 2026-08-26) — the Owner merged on T29's self-verification, so the independent Review gate was NOT run and no `docs/reviews/review-11-*.md` exists. #6 and #7 each surfaced Majors at that gate, so this is a recorded gap, not a completed phase.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
+| 15 | Pause and resume dispatch | **Requirements** | Product Manager → **Project Owner (approval)** | **New item, added 2026-08-27 per Owner ruling** that it is its own roadmap line rather than #10 scope, because its value is independent of secret rotation (destination outages, maintenance windows). PRD-15 drafted, 22 ACs, awaiting Owner approval. Depends on #4 (Done) and #6 (Done); interacts with #5's retention window. **Ingest never pauses** — the zero-data-loss policy holds; a member who wants ingestion stopped pauses the third party at source. **PRD-15 narrows two already-approved documents and that needs the Owner specifically**: PRD-05 AC8 and PRD-06 AC18 today hold payload erasure open for any event queued, pending, or claimed under #4's FIFO ordering — exactly the state a paused proxy's events sit in. Unnarrowed, pause becomes a supported way to hold payload content indefinitely, against PRD-06 AC18's own closing sentence that *a retry policy can never make a payload immortal*. **Two calls are the PM's, not the Owner's, and are flagged as such in the document**: replay is *unavailable* while paused rather than queued, and per-destination pause is out of scope (AC15). **Q-15-01 open to the Principal Engineer** — pause is a dispatch-side state that must be visible to the FIFO advancer, the sweeper's idle-proxy nudge and the due-retry sweeper, not enforced at one call site the schedulers bypass; **ordering on resume is already free and must not be re-engineered** (it derives from the atomic claim, not from timing). Its fourth item is the PM's own: an event whose payload expired while paused can never dispatch (PRD-06 AC17) but still holds a FIFO ordering row, which would park the queue — ADR-019's finding in another form. **PRD-15 carries a `## UX Direction` section, so the Designer is a required phase before Technical Design** | `docs/product/prd-15-pause-and-resume-dispatch.md` (Draft, 22 ACs); `docs/questions/prd-15-q-15-01-pause-dispatch-scheduler-interactions.md` (open) |
 
 ## Item #11 — live detail
 
@@ -391,10 +393,12 @@ plus both Owner flags ruled, 2026-08-26);
   set cannot run against SQLite.** `database/migrations/2026_08_04_000002_create_webhook_events_table.php`
   issues a raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`, which is MySQL-only
   DDL — SQLite's parser rejects it outright (`near "AFTER": syntax error`). So `./vendor/bin/sail
-  test` is in practice the **only** way this suite runs, while `docs/stack/stack.md` still records
-  "Local/default: SQLite · CI + test suite: MySQL". The two disagree, and the stack document is
-  the one that is wrong. This predates item #11 entirely and was confirmed independently before
-  being recorded here. **Whoever owns `stack.md` and that migration should reconcile them** — the
+  test` is in practice the **only** way this suite runs. `docs/stack/stack.md` recorded
+  "Local/default: SQLite · CI + test suite: MySQL"; **that half has since been corrected** by the
+  Principal Engineer (PR #22, 2026-08-27), which also names three further MySQL-only migrations, so
+  the constraint belongs to the migration set rather than to one file. This predates item #11
+  entirely and was confirmed independently before being recorded here. The migration is not the
+  half to change (ADR-010 Amendment B). The
   practical cost today is that the T30 dual-engine bucket verification had to be done at the
   query-builder level rather than by running the suite on both engines.
 - **T32 complete — M8 closed, and the defect the Owner reported is fixed** (Senior Developer,
@@ -610,23 +614,33 @@ conventional names.** Verified by resolving `MailgunHttpTransport` from the cont
   anything added recently, and predate the current branches. `laravel/framework` allows `^2.8.1`,
   so the upgrade is available without a framework change. Held out of the Horizon branch to keep
   unrelated work in separate pull requests; it wants its own.
-- **The production asset build depends on a third-party font CDN at build time.**
-  `vite.config.ts` passes `bunny('Instrument Sans')` to `laravel-vite-plugin`, which fetches the
-  font over the network during `pnpm run build`. CI reinstalls dependencies from scratch, so the
-  plugin's cache never survives a run and every build makes the request again. This already
-  produced one false CI failure on PR #20 — `TypeError: fetch failed` / `AggregateError
-  [ETIMEDOUT]` in `[plugin laravel:fonts]` — on a branch that touched no frontend code; a rerun
-  of the same commit passed. The fix is to stop fetching at build time by vendoring the woff2
-  files into `resources/` and dropping the `fonts:` option, not to add a CI retry, which would
-  only hide the dependency. Not urgent, but it will keep failing unrelated pull requests.
+- ~~**The production asset build depends on a third-party font CDN at build time.**~~
+  **CLOSED 2026-08-27 — PR #21 merged (`5d9f75e`).** `vite.config.ts` passed
+  `bunny('Instrument Sans')` to `laravel-vite-plugin`, which fetched the font over the network
+  during `pnpm run build`; CI reinstalls dependencies from scratch, so the cache never survived a
+  run. It produced one false CI failure on PR #20 — `TypeError: fetch failed` / `AggregateError
+  [ETIMEDOUT]` in `[plugin laravel:fonts]` — on a branch that touched no frontend code. Fixed as
+  recorded: the six woff2 files are vendored at `resources/fonts/`, `resources/css/fonts.css`
+  carries the `@font-face` blocks with `unicode-range` preserved, and both the `fonts:` option and
+  the `@fonts` Blade directive are gone. No CI retry was added.
 
-- **`docs/stack/stack.md` records "Local/default: SQLite", but the full migration set cannot run
-  against SQLite.** `database/migrations/2026_08_04_000002_create_webhook_events_table.php`
-  issues a raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`, which is
-  MySQL-only DDL that SQLite's parser rejects outright. In practice `./vendor/bin/sail test` is
-  the only way this suite runs, and the stack document is the half that is wrong. Found while
-  verifying item #11's bucket expression across both engines; that verification had to be done at
-  the query-builder level as a result.
+- ~~**`docs/stack/stack.md` records "Local/default: SQLite", but the full migration set cannot run
+  against SQLite.**~~ **Corrected 2026-08-27 — PR #22 open** (Principal Engineer). `stack.md` now
+  records MySQL only, names the raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`
+  in `2026_08_04_000002_create_webhook_events_table.php` as the reason, and states that the raw DDL
+  is deliberate per ADR-010 Amendment B and is not the half to change. Two adjacent rows were
+  corrected in the same pass: Testing now leads with `./vendor/bin/sail test`, and Infrastructure
+  no longer claims no compose file is committed (`compose.yaml` is at the repo root).
+- **`.env.example` makes a fresh `composer setup` fail, and no one owns the fix yet.** It ships
+  `DB_CONNECTION=sqlite` with every MySQL variable commented out, so anyone following it literally
+  hits the MySQL-only migration above at `artisan migrate`. `compose.yaml` also interpolates
+  `${DB_DATABASE}`/`${DB_USERNAME}`/`${DB_PASSWORD}`, which are empty under that file. Raised by the
+  Principal Engineer while correcting `stack.md`; it is a code change rather than a doc change, and
+  `.env.example` is on the autopilot's forbidden-paths list, so it needs a Project Owner decision.
+- ~~**`design-11`'s Components row still describes the charting dependency as ungated.**~~
+  **Corrected 2026-08-27 — PR #22 open** (Designer). The Components row and two Handoff bullets now
+  record the Owner's 2026-08-26 ruling adopting `chart.js` `^4` and `@j-t-mcc/vue3-chartjs`. The
+  frozen gate records were deliberately left alone.
 - **Async fan-out has been exposed to queue-driver message-size limits since #4.** Recorded by
   ADR-020 Decision 8 as a pre-existing limitation rather than something that change introduces.
   `INGEST_MAX_BODY_BYTES` defaults to 50 MiB while SQS caps a message at 256 KiB — roughly two
