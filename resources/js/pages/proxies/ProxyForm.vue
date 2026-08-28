@@ -105,7 +105,17 @@ const form = useForm({
     // storage; there is nothing to pre-fill it with in the first place.
     verification_secret: '',
     sensitive_fields: [...props.initial.sensitiveFields],
-    destinations: props.initial.destinations.map((row) => ({ ...row })),
+    // Screen 3 (T30): the header name defaults to 'Authorization' for a row
+    // with no credential of its own (design-10: "New row, this session" /
+    // "Existing, no credential" both read Header name (Authorization)); the
+    // secret is always write-only (never pre-filled — there is nothing to
+    // pre-fill it with, AC33) regardless of whether this row already has a
+    // credential.
+    destinations: props.initial.destinations.map((row) => ({
+        ...row,
+        credential_header_name: row.credential_header_name ?? 'Authorization',
+        credential_secret: '',
+    })),
 });
 
 // Backoff strategy is the closed set from PROXY_RETRY_BACKOFF_STRATEGIES plus a

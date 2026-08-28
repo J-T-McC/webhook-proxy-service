@@ -81,11 +81,27 @@ export interface ProxyDestination {
     http_method: HttpMethod;
 }
 
-/** A destination row as edited in the create/edit form (id absent for new rows). */
+/**
+ * A destination row as edited in the create/edit form (id absent for new
+ * rows). `credential_header_name`/`credential_secret` are the two writable
+ * credential fields (T29, T30); `has_credential`/`credential_changed_at` are
+ * mount-seeded, read-only display flags (T30, mirrors `DestinationResource`)
+ * — never mutated in-session and never meaningfully read server-side (no
+ * validation rule matches either key, so `FormRequest::validated()` drops
+ * them even if submitted). `credential_replacing` is local UI-only state
+ * (T30's per-row Replace click, distinct from `credential_secret` itself,
+ * since a proxy can have many destination rows unlike Screen 1's single
+ * verification secret) — also never read server-side.
+ */
 export interface DestinationRow {
     id?: number | null;
     url: string;
     http_method: string;
+    credential_header_name?: string;
+    credential_secret?: string;
+    has_credential?: boolean;
+    credential_changed_at?: string | null;
+    credential_replacing?: boolean;
 }
 
 export interface ProxyDetail {

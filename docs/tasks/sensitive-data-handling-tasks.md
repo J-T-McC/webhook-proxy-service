@@ -1570,7 +1570,70 @@
   - Removing the destination row removes its credential with it, no separate prompt.
 - **Testing:** no frontend test harness — **manual verification**, `design-10` Flow F, against a
   production build: default-expand rule; Replace flow; save-time semantics; row removal.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `DestinationRows.vue` gains a `Collapsible` block per row (the same
+  primitive `events/Show.vue`'s attempt-history section already uses — no new dependency), trigger
+  label `Credential: set` / `Add credential`, `:default-open="row.has_credential === true"` (reka-ui's
+  uncontrolled initial-state prop — read once at mount, exactly the "default" the AC asks for, and the
+  member can still toggle it afterward). Content: an always-visible/editable Header name input, and
+  Screen 1's write-only shared shape reused per row — a collapsed "Credential set — changed {date}" +
+  Replace when `credentialIsSet(row)`, else a blank `Input type="password" autocomplete="off"`. No
+  rotation language anywhere in the block, and the help copy states the immediate-replace semantics
+  verbatim from `design-10`. Removing a row removes its whole `DestinationRow` object, so its Credential
+  block goes with it structurally — no separate code path exists for it to diverge from.
+
+  **Necessary supporting plumbing, not scope creep (T12's own precedent followed):** the "already set"
+  status this section needs cannot come from the `security` prop — that carries `destinations` only
+  from **T32**, a later task, and `plan-10`'s own binding note states no task depends on a later one, so
+  `security.destinations` cannot be the transport for a task ordered before it. It also cannot be the
+  right transport in substance: `security.destinations` (T32/ruling 4) exists specifically so the Show
+  page's analytics-sourced Destinations table can cover a **soft-deleted** destination with historical
+  traffic, which the Edit form's live-only relation structurally excludes — the two surfaces have
+  different row sets by design. So `DestinationResource` (used by both `ProxyResource` and, through it,
+  `ProxyFormResource` — the Edit form's sole data source) gains `credential_header_name` (already
+  visible, non-secret), `has_credential` (derived from `credential_set_at !== null`, never reading — and
+  so never decrypting — `credential_secret` itself, the same not-touching-the-value discipline
+  `SecretStore::statusFor()` already establishes), and `credential_changed_at`. `DestinationRow`
+  (`types/proxies.ts`) gains the two writable fields (`credential_header_name`, `credential_secret`) and
+  two mount-seeded read-only display fields, plus a local-only `credential_replacing` UI flag (kept on
+  the row object itself, not a parallel index-keyed structure, so it always travels correctly with its
+  row through add/remove — unlike an index-keyed `Set`, which would silently misattribute state after a
+  mid-list removal). None of the three added keys (`has_credential`, `credential_changed_at`,
+  `credential_replacing`) has a matching server-side validation rule, so `FormRequest::validated()`
+  silently drops them even if submitted — verified directly by the new backend test below, not just
+  argued from Laravel's documented behaviour. `ProxyForm.vue`'s `form.destinations` initialisation and
+  `DestinationRows.vue`'s `addRow()` both default `credential_header_name` to `'Authorization'` and
+  `credential_secret` to `''` for every row (existing or brand-new) — matching Screen 3's states table
+  exactly, and letting `Create.vue`'s minimal initial shape (`[{ url: '', http_method: 'POST' }]`) stay
+  untouched, since `ProxyForm.vue`'s own mapping supplies the defaults uniformly for both Create and Edit.
+
+  New backend test (`tests/Feature/Proxies/ProxyUpdateTest.php`,
+  `test_edit_prefill_carries_credential_status_but_never_the_secret_value`): asserts the Edit page's
+  `proxy.destinations` correctly carries `has_credential`/`credential_header_name`/`credential_changed_at`
+  for both a credentialed and an uncredentialed row, and — the more important half — that the raw secret
+  value never appears anywhere in the response body and the string `credential_secret` never appears as
+  a JSON key at all. This directly answers the standing instruction that a credential must never be
+  returned in a response.
+
+  **Manual verification performed against a live Vite dev server, not a production build** — `public/hot`
+  was present (`http://[::1]:5174`) and, checked directly, a real dev-server process was listening there
+  (not a stale leftover file — review-07 Finding 8's trap, checked rather than assumed), so this is
+  honestly a live-dev-server verification, not the production-build claim this task's own Testing line
+  asks for; `pnpm run build` was still run and is green, but nothing was checked against its output in
+  the browser. Seeded a fresh Sail-DB user/team/proxy (own local dev DB, deleted again immediately after)
+  with two destinations, one credentialed (`X-Api-Key`) and one not, logged in via Playwright, opened the
+  Edit form, and confirmed via DOM assertions (not just visual inspection): the credentialed row's trigger
+  read "Credential: set" with `data-state="open"` (Radix/reka-ui's own expanded-state attribute) and its
+  status line/header value were visible without clicking; the uncredentialed row's trigger read
+  "Add credential" with `data-state="closed"` and no content visible until clicked; clicking Replace on
+  the credentialed row swapped the status line for a blank password input; expanding the uncredentialed
+  row showed the header pre-filled `Authorization` and a blank secret. Screenshot taken confirming layout
+  or overflow issues at the section. Dark-mode was not screenshotted for this task (not named in this
+  task's own Acceptance Criteria, unlike T9/T12's rendering tasks) — noted rather than silently skipped.
+
+  `pnpm run format:check`, `pnpm run lint:check` and `pnpm run types:check` all green; `pnpm run build`
+  green (with the live-dev-server caveat above). `composer lint`, `composer types:check` and
+  `./vendor/bin/sail test --filter ProxyUpdateTest` (10 tests, 75 assertions) green; full-suite run
+  deferred to the end of this batch (T26-T33).
 
 ## T31 — Screen 3: Remove credential control (Q-10-03 item 1; correction B3; `plan-10` § Revision A, technical ruling 15)
 - **Description:** **Unblocked** — `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`
