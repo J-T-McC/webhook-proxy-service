@@ -1332,7 +1332,56 @@
   - **ADR-022 Decision 6:** a replay of a verified proxy's event dispatches without re-verifying.
 - **Testing:** `tests/Feature/Ingest/InboundVerificationIntegrationTest.php` (new) — one test method
   per bullet above.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New test-only file, 19 test methods, real HTTP requests throughout
+  (`$this->post()`/`postJson()` against the ingest route, `$this->delete()`/`post()` against the
+  proxy-management routes) — no production code touched, per this task's own description.
+
+  **AC24:** one test, a proxy with `verification_scheme` NULL and no secret rows returns its
+  configured 200/body, captures the event, dispatches `ProcessIngestedWebhook`, and issues **zero**
+  queries touching `proxy_secrets` (the same `DB::listen` substring-count technique T18's own unit
+  test already established, now proven at the HTTP layer).
+
+  **shared-secret** (4 methods): correct value verifies and captures; wrong value, a missing header,
+  and a wrong header name are each rejected with nothing captured.
+
+  **standard-webhooks** (9 methods): a specification-computed signature verifies; a multi-entry
+  `webhook-signature` list verifies when only the second (real) entry matches; a non-`v1` first entry
+  is skipped and a later real entry still verifies; a missing header and a malformed one (non-numeric
+  timestamp) both fail; hex instead of base64 fails; a `whsec_`-prefixed secret and the bare form of
+  the same key material both verify (two proxies, one per encoding); the tolerance boundary
+  (`TOLERANCE_SECONDS + 1` outside `now()` rejected, one second inside accepted). Requests are built
+  with `postJson()` and an independently-reconstructed `json_encode()` of the same array as the raw
+  body signed via `StandardWebhooks::sign()` — `postJson()`'s own implementation is `json_encode($data,
+  0)`, confirmed by reading its source, so the two bodies are guaranteed byte-identical rather than
+  merely likely to match.
+
+  **AC29, end to end over HTTP** (4 methods): during an overlap, both the demoted and the current
+  secret verify inbound; after the demoted row's `expires_at` is pushed into the past directly (no
+  sweeper, no job, ever run), only the current one verifies; a third rotation discards the oldest
+  secret immediately (asserted by attempting to verify with it and getting 401, while the middle and
+  newest both still succeed); `DELETE .../verification/overlap` (T21) discards the previously-demoted
+  secret immediately (verifies before the call, fails with 401 immediately after).
+
+  **AC28** (1 method): a Member without update rights on a teammate's proxy (attached via
+  `TeamRole::Member`, not the proxy's creator) is 403 on `DELETE .../verification/overlap` — the only
+  genuinely new mutating endpoint this milestone (M6, T13–T25) added; `ProxyController::store()`/
+  `update()` are pre-existing routes with extended validation, not new endpoints, so they are outside
+  this bullet's "every new mutating endpoint" scope (T20's own `VerificationValidationTest` already
+  covers their behaviour). Followed by an assertion that nothing changed — both secrets still verify.
+
+  **ADR-022 Decision 6** (1 method): captures a genuinely verified event, then corrupts the stored
+  secret's ciphertext so any live re-verification attempt would throw `SecretUnavailableException`
+  (T14's fail-loud contract) — a 500 the test would catch immediately if replay were ever wired to
+  re-verify — then calls the replay endpoint and asserts it redirects normally and creates exactly one
+  `Delivery` row. This is a stronger proof than reading the replay controller's source (which already
+  never references `InboundVerifier` at all): it fails loudly the moment someone adds a re-verification
+  call to that path, rather than relying on the absence of a code reference staying true by inspection.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  InboundVerificationIntegrationTest` green (19 tests, 53 assertions). **Full suite run at the close of
+  this batch (T20-T25): `./vendor/bin/sail test --parallel` green at 1010/1010** (up from 973 at the
+  T13-T19 batch boundary — 37 new tests across T20-T25: 9 + 4 + 5 + 0 + 0 + 19, T23/T24 being
+  frontend-only with no automated test harness).
 
 ---
 
