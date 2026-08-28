@@ -163,3 +163,17 @@ rules live in `docs/standards/testing.md`, not repeated here.
   the guarantee: resolve the controller from the container and call `__invoke()` directly against a
   small `Illuminate\Http\Request` subclass that increments a counter inside an overridden
   `getContent()`, bypassing route/middleware entirely.
+- **This app's global `ConvertEmptyStringsToNull` middleware (Laravel framework default, active
+  here) converts a submitted `""` to `null` before validation runs, for every field, everywhere** —
+  a write-only "leave unchanged" contract keyed on `nullable` + `min:N` (e.g. a secret field) rejects
+  a too-short *string* but silently treats an empty string exactly like an absent key, both taking the
+  "unchanged" branch with no 422. Don't assume a task's own prose ("an absent field, not an empty
+  string, is what 'leave unchanged' reads as") implies the two are validated differently — write the
+  test against actual behaviour first, then adjust the assumption in completion notes if the
+  framework already collapses the distinction (confirmed for item #10 T20's `verification_secret`).
+- **`$this->postJson($uri, $data, $headers)`'s raw body is exactly `json_encode($data, 0)`**
+  (`Illuminate\Foundation\Testing\Concerns\MakesHttpRequests::json()`, confirmed by reading the
+  vendor source, not assumed) — for an HTTP-level test that must sign/HMAC the exact bytes a
+  controller will read via `$request->getContent()`, reconstruct the same `json_encode($data)` call
+  independently rather than trying to capture the request's own serialization; the two are
+  guaranteed byte-identical by construction, not merely likely to match.

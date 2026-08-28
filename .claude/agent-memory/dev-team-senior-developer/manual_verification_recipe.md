@@ -171,3 +171,20 @@ reliable way to get seeded ids out of a tinker run.
 T9/T12). Removing the stale `public/hot` file is safe and does not kill the orphaned node process;
 it just stops Laravel's `@vite()` helper from routing asset requests to that dev server. Do this
 before any `pnpm run build` + browser-verification pass on the primary checkout, not just worktrees.
+
+**When a long-forgotten `pnpm run dev` process (with its `public/hot`) belongs to another
+agent/session you must not disrupt, verifying against that live dev server directly (rather than
+deleting `public/hot` first) is a legitimate fallback** — Vite's dev server serves the current
+source on every request (transformed on the fly, HMR-updated on save), so it is not "stale" the way
+review-07 Finding 8's trap was (a truly stale *build*, silently preferred over a fresh one). Confirm
+it's actually live first (`lsof -p <pid> -a -d cwd` to check it's this project; a `curl` on the
+`public/hot` URL's asset paths, not just `/`, since Vite dev servers often 404 a bare root). State
+plainly in completion notes that verification ran against the live dev server, not a "production
+build" — the two are different claims and only one was actually checked (item #10 T23).
+
+**Playwright login flow in this app: don't `await page.waitForLoadState('networkidle')` right after
+clicking submit** — it can resolve while still mid-redirect and leave the script reading the `/login`
+page's own DOM (stale selectors, confusing "element not visible" failures downstream). Race the click
+against the URL actually leaving `/login`: `await Promise.all([page.waitForURL(url =>
+!url.pathname.includes('/login'), { timeout: 15000 }), page.click('button[type="submit"]')]);` — then
+follow with `waitForLoadState('networkidle')` for the destination page itself.
