@@ -257,7 +257,16 @@
   - `DB::listen` captures no plaintext secret value in any SQL binding logged during a `ProxySecret`
     or `Destination` credential write.
 - **Testing:** `tests/Unit/Models/EncryptedColumnSurfaceTest.php` (new).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Reflection test constructs each of the five models, reads
+  `getCasts()`, filters to casts whose string starts with `encrypted` (so `encrypted:array` on
+  `WebhookEvent::headers` counts alongside plain `encrypted`), and asserts the resulting
+  `table.column` set is exactly the six ADR-021 § Impact names (order-independent via
+  `assertEqualsCanonicalizing`, since PHP array key order from five merged model calls carries no
+  meaning). Two `DB::listen` tests (one `ProxySecret` write, one `Destination` credential write)
+  assert the plaintext value never appears in any logged binding for a query touching that table —
+  true by construction, since the `encrypted` cast runs at attribute-set time before the query is
+  built. `composer lint` (which reordered this file's imports/PHPDoc alignment — no behaviour
+  change), `composer types:check` and `./vendor/bin/sail test --parallel` all green.
 
 ---
 
