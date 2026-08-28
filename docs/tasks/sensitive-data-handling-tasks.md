@@ -693,7 +693,14 @@
   runtime.
 - **Testing:** trivial — a one-assertion test is sufficient, or fold into T14's suite if this class has
   no independent behaviour to test.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Support\RotationOverlap::HOURS` is a `final public const int` = 24,
+  matching `App\Support\StandardWebhooks::TOLERANCE_SECONDS`'s existing not-config precedent. Kept as
+  its own small test file (`tests/Unit/Support/RotationOverlapTest.php`) rather than folded into T14's
+  suite, for traceability to this task number. Two tests: the value, and a reflection assertion
+  (`ReflectionClassConstant::isFinal()`) that it cannot be overridden at runtime.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter RotationOverlapTest`
+  green (2 tests, 2 assertions); full-suite run deferred to the end of this batch (T13-T19).
 
 ## T14 — `App\Services\SecretStore` (AC10, AC11, AC26, AC29, AC33-exclusion, AC57, AC58; plan Technical rulings 5, 14; ADR-021 Decisions 3, 5, 6.1)
 - **Description:** **The single reader and writer of `proxy_secrets`.** `liveFor(Proxy $proxy,
