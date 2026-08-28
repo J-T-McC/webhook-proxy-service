@@ -90,7 +90,7 @@
       "title": "Close review-07 Nits 5-7",
       "kind": "chore",
       "role": "senior-developer",
-      "state": "ready",
+      "state": "in_progress",
       "eligible": true,
       "source": "docs/reviews/review-07-enhanced-mode-toggle.md",
       "acceptance": "Each nit is either fixed with a test where one is meaningful, or recorded in the review document as deliberately not fixed, with the reason.",
