@@ -54,6 +54,170 @@
   whether AC29's two-secret cap still holds (blocks **M8b only**). **`Q-10-03`** to the **Designer**
   — a missing credential-removal affordance and a factual correction to note N3 (blocks nothing).
 - **Approved by / date:** Principal Engineer, 2026-08-27 — **partial**, see Status.
+- **Revised:** 2026-08-27 — **`## Revision A`** adds technical ruling 15, the transport for Screen 3's
+  **Remove credential** signal, answering `Q-10-05`. Purely additive: no existing ruling, gate,
+  milestone, ADR or approval is altered or reopened.
+
+## Revision A — the destination credential removal signal (2026-08-27)
+
+**What this settles.** `design-10`'s amendment gate (correction **B3**, 2026-08-27) requires that
+Screen 3's new **Remove credential** control reach the server as a signal distinguishable, end to
+end, from an ordinary blank Replace field, and it assigns the wire shape to the Principal Engineer
+rather than specifying one. The Task Planner raised that gap as
+`docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`, where it blocks
+task **T31** and nothing else. This revision answers it.
+
+**Why it was not in the original plan.** The control did not exist when this plan was certified.
+§ *Explicitly out of scope for this plan* recorded that `design-10` designed no removal affordance,
+raised it as `Q-10-03` to the Designer, and said that whatever `Q-10-03` answered would be additive.
+The Designer answered `Q-10-03` in the same amendment pass that produced correction B3 — after all
+four Owner-approval flags on this plan had already been ruled. This section is the additive change
+that bullet anticipated, landing under the delegated plan gate.
+
+| | Prior position | Now |
+|---|---|---|
+| **Removing a destination credential** | Out of scope for this plan; `design-10` designed no affordance and shipping an undesigned control would be worse than the gap (§ *Explicitly out of scope*, annotated inline) | Designed by `design-10` Screen 3 as amended, and its transport ruled at **technical ruling 15** below |
+| **The wire shape of the removal signal** | Not addressed anywhere — the control postdated certification | A sibling boolean `destinations.*.remove_credential` per destination row, ruling 15 |
+| **`destinations.*.credential_secret`'s meaning** | "A new value, or absent; absent means leave unchanged" (§ *Validation*) | **Unchanged**, and deliberately so — ruling 15 exists to keep it single-meaning |
+| **`Q-10-05`** | OPEN, blocking T31 | **RESOLVED** (Principal Engineer, 2026-08-27) |
+
+**Nothing else moves.** No existing technical ruling is amended, no Owner-approval flag reopens, no
+milestone is added or renumbered, no ADR is written, amended or superseded, and § *Data Model* is
+untouched — ruling 15 adds no column, index, migration, cast or default. Ruling 15 lands inside
+**M7**, which already carries Screen 3.
+
+### 15. The Remove credential signal is a sibling boolean per destination row, never a sentinel on the secret field. *(Added 2026-08-27 — Revision A; `Q-10-05`, design-10 correction B3)*
+
+**The shape.** `destinations.*.remove_credential`, a real JSON boolean, submitted on the existing
+proxy create and update routes alongside the row's `id`, `url`, `http_method`,
+`credential_header_name` and `credential_secret`. Absent or `false` means no removal; `true` means
+"clear this destination's credential on save". **`credential_secret` keeps exactly one meaning and
+gains no second one** — a new value, or absent, where absent means "leave unchanged". That is the
+write-only contract § *Validation* already states and `design-10` § *Interactions* requires, and
+keeping it single-meaning is the whole purpose of this ruling.
+
+**Additions to § *Validation*, in both `StoreProxyRequest` and `UpdateProxyRequest`** (the section
+above is unchanged; these are additional rules, not replacements):
+
+- `destinations.*.remove_credential` — `sometimes`, `boolean`.
+- `destinations.*.credential_secret` — gains `prohibited_if:destinations.*.remove_credential,true`.
+
+The wildcard-sibling reference is the same mechanism the already-certified
+`required_with:destinations.*.credential_secret` rule on `credential_header_name` uses, so no new
+validation capability is introduced. The guard is there so a malformed client receives a
+deterministic 422 rather than an outcome decided by a precedence rule — under either precedence one
+of the member's two explicit acts would disappear with no feedback, which is the class of silence B3
+exists to prevent.
+
+**Persistence, in `ProxyController`'s existing reconciliation step.** Where a submitted row carries
+`remove_credential: true` and reconciles to an existing destination by `id`, the update writes NULL to
+**all three** credential columns — `credential_header_name`, `credential_secret`, `credential_set_at`
+— and ignores any submitted `credential_header_name` for that row. The three move together so a row
+can never come to rest holding a header name with no secret. The result is byte-identical to a
+destination that never had a credential, which is exactly the post-save state B3 added to Screen 3's
+states table. A row with no `id` has nothing to remove, so the flag is a no-op on the create path and
+for newly-created rows on the update path; the rule is nevertheless declared on **both** requests,
+because `ProxyForm.vue` is one component serving Create and Edit and submits one row shape, and a rule
+present on one request and absent from the other is discovered by a 422 in production rather than by
+reading.
+
+**`ProxyController::destinationRows()` must read the flag positively.** The existing normaliser keys
+every field off `isset()`, which is `false` for an explicit `null`; the new key is read as a boolean
+(`($row['remove_credential'] ?? false) === true`) so nothing about presence-versus-absence is
+load-bearing anywhere in this path.
+
+**One client-side normalisation, which is the approved states table read forwards.** After the member
+clicks Remove credential, `design-10` puts the row into the unconfigured presentation with a blank
+Secret input. A member may then type a new secret into it, and typing a value into an unconfigured row
+has always meant "set this secret" — so the row's later act supersedes the staged removal:
+`form.transform()` sends `remove_credential: false` whenever that row's `credential_secret` is
+non-empty, following the same `transform()` normalisation discipline Implementation Note 14 and the
+response/retry sentinels already establish. This authors no copy, adds no control and invents no
+state. Its effect is that the 422 above is unreachable from this application's own UI and stands
+purely as a guard against a malformed request.
+
+**Why not a reserved sentinel on `credential_secret` — the alternative `Q-10-05` offered.** Rejected
+on **failure direction**, not on ergonomics. A sentinel encodes a deliberate member action in the
+*absence* of data, and absence is the default state of every layer a request crosses: a middleware, a
+serializer, a normaliser, a `??` coalesce, a `$request->only()`. Each can turn "present and null" into
+"absent" or the reverse, and none of them errors when it does. **One of those layers already conflates
+the two in code this milestone touches** — `ProxyController::destinationRows()`'s `isset()`
+normalisation, above. And the distinction *does* survive validation, which is what makes it a trap
+rather than an obvious mistake: read in vendor, `Validator::validated()` skips any key whose
+`data_get($this->getData(), $key, $missingValue)` returns the sentinel object, and
+`ValidationData::initializeAndGatherData()` expands the wildcard into concrete per-row keys against
+the submitted rows, so an explicitly-null `credential_secret` reaches `validated()` and an absent one
+does not. A property that holds at three layers out of four is worse than one that holds nowhere,
+because it tests green in isolation. **Decisively, the two shapes fail in opposite directions.** A lost
+boolean keeps the credential and costs the member a second click. A collapsed absent-versus-empty
+distinction produces the outcome `design-10` names in the sentence B3 quotes — every abandoned Replace
+becomes an unintended removal, silently, on a value we never hold in the clear outside the request
+that set it. Full reasoning, including why the serialization argument is stated as a reason not to
+depend on the distinction rather than as a verified vendor claim, is in `Q-10-05` § *Answer*.
+
+**Why this needs no ADR and no Owner gate**, walked against `CLAUDE.md`'s major-decision list item by
+item: **no new dependency**; **no stack change** (`docs/stack/stack.md` untouched); **no data-model
+change** — no column, index, migration, cast or default, and `remove_credential` is never persisted
+and never read back; **not irreversible** — changing the field later costs one form, two requests and
+one controller branch, with no stored data in its shape; **security-sensitive only in the protective
+direction** — it adds no store, no egress, no reveal, no permission and no plaintext surface, and the
+security-relevant property it establishes is precisely that a blank field can never destroy a secret.
+What remains is a request-interface choice of the same kind as the `required_with` and `prohibited_if`
+rules § *Validation* already carries without a gate. The precedent is `plan-11` § *Revision A*: a
+post-certification Principal Engineer ruling on a downstream question document, landed as a plan
+revision under the delegated plan gate, with no Owner ruling sought and none required.
+
+**Additions to § *Test strategy*** (grouped with the existing destination-credential items; the
+section above is unchanged):
+
+**Destination credential removal (AC30, AC33; design-10 correction B3)**
+- **The distinguishability pair, asserted in one test so the two cases can never be collapsed
+  independently:** an update carrying a present-but-empty `credential_secret` and no
+  `remove_credential` leaves the stored credential byte-identical, while an update carrying
+  `remove_credential: true` for the same row nulls it — same route, same row, different outcome.
+- A saved removal leaves `credential_header_name`, `credential_secret` and `credential_set_at` all
+  NULL, asserted with a raw query, so the row is indistinguishable from one that never had a
+  credential.
+- An update carrying both `remove_credential: true` and a non-empty `credential_secret` is a 422 and
+  changes nothing on the row.
+- `remove_credential: true` on a row with no `id` is a no-op: the row is created with NULL credential
+  columns and no error.
+- After a saved removal, the `security` prop's `destinations[id].has_credential` is `false` and
+  `credential_changed_at` is null — the round-trip B3's added states-table row describes.
+
+**Addition to § *Implementation Notes*:** **24. Removal is a positive boolean, and the normaliser must
+read it as one.** Never infer removal from an absent or empty `credential_secret`, in the form, in the
+request or in the controller — ruling 15. Note 14's rule ("a present-but-empty secret field must not
+submit as 'clear the secret'") is what ruling 15 protects, not something it qualifies.
+
+### Re-certification at Revision A (Principal Engineer, 2026-08-27)
+
+I certify ruling 15 and the § *Validation*, § *Test strategy* and § *Implementation Notes* additions
+above under the **delegated plan gate** in `CLAUDE.md`. **No Project Owner ruling authorises this
+revision and none was sought**, because none is required: the walk immediately above tests it against
+every item on the major-decision list and it clears each. **No already-ruled Owner flag reopens** —
+flags 1 through 4 were approved on 2026-08-27 and this revision changes nothing any of them covers, in
+particular nothing in § *Data Model*. ADR-021, ADR-022, ADR-023 and ADR-024 are each unaffected: the
+destination credential is not in `proxy_secrets` and does not rotate, so ADR-021's rotation model is
+untouched; a destination with no credential contributes no credential header, which is the contract
+ADR-023 already describes for AC30's optional case; ADR-022 and ADR-024 are on different paths
+entirely. Considered one by one, not overlooked.
+
+I have not changed a requirement and have not redesigned a surface. Every user-visible property of the
+Remove credential control — that it exists, where it sits, its label, its accessible name, that it is
+save-time rather than immediate, that it takes no confirmation, and what the row shows before and
+after the save — is the Designer's, taken from `design-10` Screen 3 as amended. What this revision
+decides is only how the signal crosses the wire, which is the call correction B3 explicitly assigns to
+me. **No approved copy needs changing**, and if that turns out to be wrong it is the Product Manager's
+call and routes to them rather than being rewritten here.
+
+**Task material.** `Q-10-05` blocked **T31 only**, and T31 is now unblocked. The task's own
+description already anticipates wiring "the answered transport" through
+`StoreProxyRequest`/`UpdateProxyRequest` and `ProxyController`, so the shape above drops into it
+without a new task; the Task Planner may wish to name `resources/js/pages/proxies/ProxyForm.vue` and
+`resources/js/types/proxies.ts` in its **Files** list, since the row model and the submit
+`transform()` both carry the flag, and to fold the five test items above into its **Testing** line.
+No milestone changes and no other task is affected.
 
 ## Overview
 
@@ -938,6 +1102,11 @@ surface they describe is not built (Technical ruling 13).
 - **An affordance to remove (rather than replace) a destination credential.** `design-10` designs
   none, and shipping an undesigned control is worse than the gap. Raised as `Q-10-03`; whatever it
   answers is additive.
+  *(No longer out of scope — superseded by § Revision A, technical ruling 15, 2026-08-27. `Q-10-03`
+  was answered by the Designer, `design-10` Screen 3 now designs the control, and correction B3's
+  transport is ruled. This bullet's own words are left as written because they still describe why the
+  plan withheld the control at certification, and the addition they anticipated is the one that
+  landed.)*
 - **The outbound-signing surface** — Technical ruling 13. The backend ships; the screens wait on the
   PRD amendment (`Q-10-04`) and the Designer's revision.
 - **Raising AC29's cap above two live secrets.** The schema permits it; the write path does not, and
