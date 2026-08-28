@@ -1,10 +1,10 @@
 # PRD: Sensitive data handling
 
-- **Status:** **APPROVED by the Project Owner on 2026-08-27**, as amended. The Owner read the
-  document and approved it whole, which ratifies `## Amendment A` and everything enumerated
-  below; the three items are retained as a record of what the approval covered, not as open
-  questions. The three Project Owner rulings that Amendment A carries were each ratified by that
-  approval:
+- **Status:** **APPROVED by the Project Owner on 2026-08-27**, as amended — **`## Amendment A` and
+  `## Amendment B` both approved**, Amendment B separately and later the same day. The Owner read the
+  document and approved it whole, which ratifies Amendment A and everything enumerated below; the
+  three items are retained as a record of what the approval covered, not as open questions. The
+  three Project Owner rulings that Amendment A carries were each ratified by that approval:
   1. **§ Roadmap Open Question V2 — settled here.** The earlier shared-secret-only ruling was
      **overturned by the Project Owner on 2026-08-27** and replaced with a closed, named
      two-scheme list. Approving this PRD ratifies the replacement.
@@ -1139,10 +1139,12 @@ non-blocking for requirement approval.
 
 ## Amendment B — the signing grain, 2026-08-27
 
-**Status: AWAITING PROJECT OWNER APPROVAL.** This PRD was approved whole on 2026-08-27. Amendment B
-changes approved criteria and therefore needs the Owner's approval in its own right, exactly as
-Amendment A did at the original gate. Until it is approved, the pre-amendment text of AC54 and AC63
-is quoted in place beside the new text and nothing is lost either way.
+**Status: APPROVED by the Project Owner on 2026-08-27.** This PRD was approved whole earlier the
+same day; Amendment B changes approved criteria and so needed the Owner's approval in its own right,
+exactly as Amendment A did at the original gate. **All four rulings below are approved as written**,
+including the three that are the Product Manager's rather than the Owner's — the Owner read the
+distinction in the table and approved them knowing which was whose. The pre-amendment text of AC54
+and AC63 stays quoted in place as the record of what was superseded.
 
 **Two rulings, and they have different authors. The distinction matters and is stated once here so
 the Owner knows what they are approving:**
