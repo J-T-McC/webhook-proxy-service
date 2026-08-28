@@ -14,7 +14,10 @@ class DeliveryUnitTest extends TestCase
         $destination = Destination::factory()->create();
 
         // Every stripped header rendered in a mixed-case variant to prove
-        // case-insensitive matching, alongside forwardable headers.
+        // case-insensitive matching, alongside forwardable headers. ADR-026
+        // Decision A: `cookie`, `authorization` and the five provider
+        // signature names are no longer stripped — they forward like any
+        // other benign header.
         $headers = [
             'Content-Type' => ['application/json'],
             'X-Custom-Event' => ['invoice.paid'],
@@ -51,22 +54,30 @@ class DeliveryUnitTest extends TestCase
 
         $forwarded = array_map('strtolower', array_keys($unit->forwardHeaders()));
 
-        // Forwarded: Content-Type + custom header.
-        $this->assertContains('content-type', $forwarded);
-        $this->assertContains('x-custom-event', $forwarded);
+        // Forwarded: Content-Type + custom header, plus the seven names
+        // ADR-026 Decision A moves off the strip list.
+        $forwardable = [
+            'content-type', 'x-custom-event', 'cookie', 'authorization',
+            'stripe-signature', 'x-hub-signature', 'x-hub-signature-256',
+            'x-signature', 'x-webhook-signature',
+        ];
 
-        // Stripped: everything in the deny-list, regardless of casing.
+        foreach ($forwardable as $name) {
+            $this->assertContains($name, $forwarded, "{$name} must be forwarded");
+        }
+
+        // Stripped: the ten-entry transport-scoped deny-list only,
+        // regardless of casing.
         foreach ([
             'host', 'connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization',
-            'te', 'trailer', 'transfer-encoding', 'upgrade', 'content-length', 'cookie',
-            'authorization', 'stripe-signature', 'x-hub-signature', 'x-hub-signature-256',
-            'x-signature', 'x-webhook-signature',
+            'te', 'trailer', 'transfer-encoding', 'upgrade', 'content-length',
         ] as $stripped) {
             $this->assertNotContains($stripped, $forwarded, "{$stripped} must be stripped");
         }
 
-        // Exactly the two forwardable headers remain.
-        $this->assertCount(2, $forwarded);
+        // Exactly the forwardable headers remain — nothing more, nothing
+        // fewer than the count of $forwardable.
+        $this->assertCount(count($forwardable), $forwarded);
     }
 
     public function test_no_header_is_added(): void

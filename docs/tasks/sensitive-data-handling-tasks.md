@@ -3633,7 +3633,65 @@ documents rather than trust a summary, this one included.
   is no "must land with or after item #10" concern distinct from that, because by this point in the
   branch's own history item #10's inbound-verification capability has already been withdrawn on this
   same branch.
-- **Completion notes:** _pending_
+- **Completion notes:** Reduced `DeliveryUnit::STRIPPED_HEADERS` from seventeen entries to the ten
+  named — `host`, `content-length`, and the RFC 7230 §6.1 hop-by-hop set. Removed exactly the seven
+  named: `cookie`, `authorization`, `stripe-signature`, `x-hub-signature`, `x-hub-signature-256`,
+  `x-signature`, `x-webhook-signature`. Every surviving entry keeps its existing order. Rewrote the
+  constant's docblock to state it is a transport-scoped deny-list only, and added an inline comment
+  directly above `proxy-authorization` recording that it stays on hop-by-hop grounds alone, not
+  credential grounds, so a later reader does not "correct" it out for looking inconsistent with
+  `authorization`'s absence — both points ADR-026 asked to be reflected in the code, not only in this
+  note.
+
+  `tests/Unit/Pipeline/DeliveryUnitTest.php`'s single fixture test moved the seven names from the
+  "stripped" assertion to a `$forwardable` list asserted forwarded, and the closing `assertCount` uses
+  `count($forwardable)` rather than a hardcoded number, per the task's own instruction.
+
+  Added the one new test ADR-026 § Impact names, in `DeliverToDestinationTest.php`:
+  `test_the_destinations_own_credential_wins_over_a_same_named_forwarded_header_while_cookie_and_provider_signature_forward_unchanged`
+  — a destination with its own credential under the default `Authorization` header name, dispatched a
+  request carrying inbound `Authorization`, `Cookie` and `Stripe-Signature`. Asserts the destination's
+  credential wins (exactly one `Authorization` header, its value the destination's, not the sender's)
+  and that `Cookie` and `Stripe-Signature` forward unchanged — proving ADR-023 Decision 2's existing
+  precedence rule resolves the now-ordinary collision correctly, unmodified by this task.
+
+  **One test outside this task's own Files list needed a matching update, found by the AC's own
+  repository-wide-search instruction rather than missed by it:**
+  `tests/Feature/Ingest/IngestFanOutTest.php::test_header_forwarding_end_to_end` asserted, end-to-end
+  through the real ingest path, that `Cookie`/`Authorization`/`Stripe-Signature` were stripped — the
+  exact `! $r->hasHeader(...)` shape a plain-string grep for the removed literals as "stripped"
+  assertions does not catch, but the task's own required search ("no test anywhere still asserts one
+  of them as stripped on the outbound path") does. Updated to assert the three now forward unchanged,
+  keeping `Connection` (hop-by-hop) as the still-stripped case in the same test. Not listed in T55's
+  own Files, but this is the direct-caller check the implementation ethos requires ("check every
+  caller of anything you change") and the AC's search explicitly anticipates a test like this
+  surfacing — fixed rather than escalated, since the task itself supplies the correction criterion.
+
+  `OutboundHeadersTest.php`'s (T26) AC37 byte-identical baseline and
+  `OutboundHeadersSigningRegressionTest.php`'s (T35) AC63 byte-identical baseline both still pass
+  unmodified — both fixtures already carried an `Authorization` header and neither call configures a
+  credential, so the assertion (`forwardHeaders()` output equals `OutboundHeaders::build()`'s) holds
+  symmetrically regardless of whether `authorization` is stripped. `OutboundHeadersTest.php`'s AC38
+  collision test (`assertArrayNotHasKey('authorization', $result)`) also needed no change — it asserts
+  the credential-collision displacement mechanism (ADR-023 Decision 2, case-insensitive match against
+  an *added* header), not `STRIPPED_HEADERS`, and that mechanism is untouched by this task.
+
+  Repository-wide search for each of the seven removed literal strings, plus a separate search for
+  `hasHeader('Cookie')`/`hasHeader('Authorization')`/provider-signature-name `hasHeader` assertions,
+  confirmed no other test anywhere still asserts one of them as stripped on the outbound path once
+  `IngestFanOutTest.php` was corrected.
+
+  Gates: `composer lint`, `composer types:check` both green. Filtered run
+  (`DeliveryUnitTest|DeliverToDestinationTest|OutboundHeadersTest|OutboundHeadersSigningRegressionTest`)
+  — 30/30 passing, 125 assertions; `IngestFanOutTest` alone — 7/7 passing, 36 assertions. Full suite,
+  `./vendor/bin/sail test --parallel` — **1004/1004 passing, 4753 assertions**: +1 test
+  (`DeliverToDestinationTest`'s new collision test) and +4 assertions net over the T50 baseline
+  (1003/4749), accounting for the new test's own five assertions against the `IngestFanOutTest`
+  rewrite's identical assertion count as before (5 forwarded/stripped checks either way — content
+  changed, count did not). `pnpm types:check`, `pnpm format:check`, `pnpm build` all green.
+  `pnpm lint:check` reproduces the same ~730 pre-existing `import/order`/parsing errors T52's
+  completion notes attributed to nested `.claude/worktrees/*` checkouts from other concurrent agent
+  sessions — none in a file this task touched (this task edits no frontend file).
 
 ---
 

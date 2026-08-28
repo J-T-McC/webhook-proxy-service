@@ -12,10 +12,20 @@ use App\Models\Destination;
 final class DeliveryUnit
 {
     /**
-     * Inbound header names that are NEVER forwarded to a destination (ADR-008).
+     * Inbound header names that are NEVER forwarded to a destination (ADR-008,
+     * ADR-026 Decision A).
      *
-     * A maintained deny-list (lowercased for case-insensitive matching), extensible
-     * by later items (#10) without touching the fan-out logic. `Content-Type` and
+     * A **transport-scoped deny-list only** — every entry is here because
+     * forwarding it would produce a malformed or misrouted request under a
+     * specification that can be cited, never because of what its value might
+     * contain. `authorization`, `cookie` and every provider signature header
+     * (`stripe-signature`, `x-hub-signature`, `x-hub-signature-256`,
+     * `x-signature`, `x-webhook-signature`) are deliberately absent: no member
+     * can configure an inbound verification header any more (ADR-026 Decision
+     * B), so there is no header whose value this service put there for a
+     * sender to leak, and a destination that expects the original sender's
+     * credential or signature can only check it if it arrives. A maintained
+     * deny-list (lowercased for case-insensitive matching); `Content-Type` and
      * every other benign descriptive header are forwarded.
      *
      * @var list<string>
@@ -24,6 +34,11 @@ final class DeliveryUnit
         // Host — destination's own host must be used (ADR-006 guard).
         'host',
         // Hop-by-hop (RFC 7230 §6.1) + Content-Length (recomputed by the client).
+        // `proxy-authorization` stays on hop-by-hop grounds alone, not credential
+        // grounds — it is retained while `authorization` is released. RFC 7230
+        // §6.1 scopes it to a single transport connection; forwarding it across a
+        // hop is a protocol violation independent of its value. Do not "correct"
+        // this entry out for looking inconsistent with `authorization`'s absence.
         'connection',
         'keep-alive',
         'proxy-authenticate',
@@ -33,17 +48,6 @@ final class DeliveryUnit
         'transfer-encoding',
         'upgrade',
         'content-length',
-        // Inbound session/cookie state.
-        'cookie',
-        // Sender's credential to us — not the destination's.
-        'authorization',
-        // Inbound webhook signature / verification headers (computed for us, not the
-        // destination). Outbound signing is #10.
-        'stripe-signature',
-        'x-hub-signature',
-        'x-hub-signature-256',
-        'x-signature',
-        'x-webhook-signature',
     ];
 
     /**

@@ -577,4 +577,51 @@ class DeliverToDestinationTest extends TestCase
 
         Http::assertSent(fn ($request): bool => $request->body() === '{"exact":"bytes"}');
     }
+
+    /**
+     * T55 (ADR-026 Decision A) — the credential collision is now the
+     * ordinary case. A destination carrying its own credential under the
+     * default `Authorization` header name still receives that credential,
+     * never the sender's — ADR-023 Decision 2's existing precedence rule
+     * (added headers always win, matched case-insensitively) resolves it
+     * unmodified. `Cookie` and the provider-signature header are no longer
+     * in `DeliveryUnit::STRIPPED_HEADERS` and forward unchanged alongside it.
+     */
+    public function test_the_destinations_own_credential_wins_over_a_same_named_forwarded_header_while_cookie_and_provider_signature_forward_unchanged(): void
+    {
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->createQuietly();
+        $destination->credential_header_name = 'Authorization';
+        $destination->credential_secret = 'destination-secret';
+        $destination->credential_set_at = now();
+        $destination->save();
+
+        $delivery = $this->deliveryFor($destination);
+        $unit = new DeliveryUnit(
+            ingestId: (string) Str::uuid(),
+            teamId: $destination->team_id,
+            proxyId: $destination->proxy_id,
+            destination: $destination,
+            method: $destination->http_method->value,
+            headers: [
+                'Content-Type' => ['application/json'],
+                'Authorization' => ['Bearer sender-token'],
+                'Cookie' => ['session=abc'],
+                'Stripe-Signature' => ['t=1,v1=abc'],
+            ],
+            payload: '{"a":1}',
+            deliveryId: $delivery->id,
+            attemptNumber: 1,
+        );
+
+        DeliverToDestination::run($unit);
+
+        [$request] = Http::recorded()[0];
+
+        $this->assertTrue($request->hasHeader('Authorization', 'destination-secret'));
+        $this->assertCount(1, $request->header('Authorization'));
+        $this->assertTrue($request->hasHeader('Cookie', 'session=abc'));
+        $this->assertTrue($request->hasHeader('Stripe-Signature', 't=1,v1=abc'));
+    }
 }
