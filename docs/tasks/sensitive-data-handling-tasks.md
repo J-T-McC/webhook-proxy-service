@@ -1942,7 +1942,19 @@
   method inside T34's test class clearly separated and named for this AC — either is acceptable as
   long as it is independently identifiable as *the* AC63 regression guard, not folded into a broader
   assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New, independently-identifiable test file (not folded into T34's own
+  suite) — `tests/Unit/Support/OutboundHeadersSigningRegressionTest.php`. Two tests, mirroring T26's own
+  AC37 fixture exactly (same header set, same `assertSame($unit->forwardHeaders(), $result)` assertion)
+  rather than a fresh fixture: a proxy with no signing secret configured produces no `webhook-*` header
+  and a byte-identical result; a proxy that had signing enabled and then disabled produces the same
+  result, since `SecretStore::disable()` (ADR-021 Decision 5) leaves `liveFor()` returning an empty set —
+  mechanically identical, at the `OutboundHeaders` layer, to a proxy that never enabled signing at all
+  (noted here so a later reader does not read the two tests' identical inputs as redundant — they pin
+  two distinct product states that happen to collapse to the same header-building input).
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  OutboundHeadersSigningRegressionTest` (2 tests, 8 assertions) green; full-suite run deferred to the end
+  of this batch (T34-T40).
 
 ## T36 — `DeliveryUnitResolver`/`DeliveryUnit`: the proxy's live signing set (AC54, AC60; plan § Services & Actions) — **delivery path**
 - **Description:** `DeliveryUnitResolver` asks `SecretStore::liveFor($proxy, SecretPurpose::Signing)`
