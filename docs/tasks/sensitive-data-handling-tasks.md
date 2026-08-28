@@ -608,7 +608,15 @@
   - `index()`'s response gains no new key.
 - **Testing:** `tests/Feature/Proxies/ProxyControllerPagePropsTest.php` (new or extended) — asserts the
   prop's presence and exact content on `create`/`edit`, and its absence on `index`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyController::create()` and `::edit()` both now emit
+  `'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS` as a page prop, sourced directly from
+  the T4 constant — no hand-typed copy. `index()` is untouched. New test file (none existed before
+  this task) asserts the prop's exact content on both routes via `assertInertia`/`where`, and its
+  absence on `index()` via `missing()`.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  ProxyControllerPagePropsTest` green (3 tests, 29 assertions); full-suite run deferred to the end of
+  this batch.
 
 ## T12 — Screen 2: `ProxyForm.vue` Sensitive fields section (AC12, AC13, AC19, C4, N4; plan Implementation Note 16)
 - **Description:** New section, placed after **Response** and before **Destinations** (Screen 2

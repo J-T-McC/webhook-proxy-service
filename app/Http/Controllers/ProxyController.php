@@ -59,7 +59,13 @@ class ProxyController extends Controller
     {
         $this->authorize('create', Proxy::class);
 
-        return Inertia::render('proxies/Create');
+        // Single-sourced from SensitiveFields::DEFAULTS (T4), never a hand-typed
+        // copy — create() renders no ProxyResource at all, so this and the
+        // Standard Webhooks tolerance are page props on both create() and
+        // edit() rather than resource keys (plan-10 Technical ruling 3).
+        return Inertia::render('proxies/Create', [
+            'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
+        ]);
     }
 
     /**
@@ -168,6 +174,7 @@ class ProxyController extends Controller
         // a dormant policy. No other caller may use it (AC14(b)).
         return Inertia::render('proxies/Edit', [
             'proxy' => ProxyFormResource::make($proxy->loadMissing('destinations')),
+            'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
         ]);
     }
 
