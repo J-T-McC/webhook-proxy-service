@@ -393,7 +393,32 @@
 - **Testing:** `tests/Unit/Support/StandardWebhooksTest.php` (new) — specification-derived fixtures
   (hand-computed HMAC-SHA256/base64 vectors), the multi-entry-list case, the non-`v1`-skip case, the
   tolerance boundary cases, the `whsec_`/bare-secret equivalence, and the hex-rejection case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Support\StandardWebhooks`: `sign()` (`hash_hmac('sha256', "<id>.
+  <timestamp>.<body>", $secret, true)`, base64-encoded), `verify()` (space-delimited `v1,<sig>` entry
+  parsing via `preg_split('/\s+/', ...)`, skips any non-`v1` entry, `hash_equals` against every
+  secret in the live set), `TOLERANCE_SECONDS = 300`, and a `whsec_`-or-bare-base64 secret decoder
+  (strict-mode `base64_decode`, empty string on a decode failure so a malformed secret simply never
+  matches rather than throwing — no exception type is named anywhere in this task's own Acceptance
+  Criteria).
+
+  **Tolerance check placed inside `verify()` itself**, not deferred to the T17 scheme wrapper: this
+  task's own Testing section requires `tests/Unit/Support/StandardWebhooksTest.php` to cover the
+  tolerance boundary directly, which only makes sense against code this class owns.
+
+  One consequence, noted rather than worked around: the Standard Webhooks specification's own
+  published fixed-timestamp reference vector (2021, from the specification's `svix-webhooks`
+  verification test suite) cannot be run through `verify()` today, since `verify()` now rejects
+  anything outside `TOLERANCE_SECONDS` of the real wall clock — that vector is over four years stale
+  relative to this sail run. Used it instead to pin `sign()`'s HMAC/base64 construction directly
+  (independently re-derived via a standalone `php -r` one-liner before writing the test, confirming
+  the published vector rather than trusting memory of it), which is the part of the specification
+  that fixture exists to prove; the `verify()` round-trip tests use a current timestamp with a
+  signature computed by the already-pinned `sign()`. AC53 is unaffected — the tolerance is still
+  single-sourced from `TOLERANCE_SECONDS` and enforced unconditionally.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter StandardWebhooksTest`
+  green (10 tests, 10 assertions); full-suite run deferred to the end of this batch per the task
+  list's own working rules.
 
 ---
 
