@@ -13,6 +13,7 @@ use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\DeliveryStatistics;
 use App\Services\IngestTokenService;
+use App\Support\SensitiveFields;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -93,6 +94,9 @@ class ProxyController extends Controller
             // than relying on mass-assignment omission.
             $proxy = Proxy::make(array_merge(
                 $data,
+                [
+                    'sensitive_fields' => $this->sensitiveFieldAdditions($data),
+                ],
                 $data['mode'] === ProxyMode::Enhanced->value ? [
                     'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
                     'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
@@ -199,6 +203,7 @@ class ProxyController extends Controller
                 'processing_mode' => $data['processing_mode'],
                 'response_status' => $data['response_status'] ?? null,
                 'response_body' => $data['response_body'] ?? null,
+                'sensitive_fields' => $this->sensitiveFieldAdditions($data),
                 ...($data['mode'] === ProxyMode::Enhanced->value ? [
                     'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
                     'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
@@ -286,6 +291,46 @@ class ProxyController extends Controller
         }
 
         return $user->toProxyPermissions($team);
+    }
+
+    /**
+     * Trim each submitted AC13 addition and de-duplicate by normalised form
+     * (T4's `SensitiveFields::normalise()`) before persistence — the first
+     * occurrence's original spelling is kept. The default list is never
+     * stored per-proxy at all (it's code, not data), so this only ever
+     * touches this proxy's own additions (AC13's per-proxy grain).
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<string>
+     */
+    private function sensitiveFieldAdditions(array $data): array
+    {
+        $submitted = $data['sensitive_fields'] ?? [];
+        $seenNormalised = [];
+        $additions = [];
+
+        foreach (is_array($submitted) ? $submitted : [] as $name) {
+            if (! is_string($name)) {
+                continue;
+            }
+
+            $trimmed = trim($name);
+
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $normalised = SensitiveFields::normalise($trimmed);
+
+            if (isset($seenNormalised[$normalised])) {
+                continue;
+            }
+
+            $seenNormalised[$normalised] = true;
+            $additions[] = $trimmed;
+        }
+
+        return $additions;
     }
 
     /**

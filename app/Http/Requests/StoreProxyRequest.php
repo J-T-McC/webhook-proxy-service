@@ -56,6 +56,13 @@ class StoreProxyRequest extends FormRequest
             // regardless of mode (system default).
             'retry_attempt_limit' => ['nullable', 'integer', 'min:1', 'max:10', 'prohibited_if:mode,simple'],
             'retry_backoff_strategy' => ['nullable', Rule::enum(RetryBackoffStrategy::class), 'prohibited_if:mode,simple'],
+            // Per-proxy AC13 additions to the fixed AC12 default list (T4/T5's
+            // SensitiveFields/SensitiveFieldMatcher). 'regex:/\S/' rejects a
+            // blank/whitespace-only entry; trimming and de-duplication by
+            // normalised form happen server-side in the controller, not here
+            // (ProxyController::sensitiveFieldAdditions()).
+            'sensitive_fields' => ['nullable', 'array', 'max:100'],
+            'sensitive_fields.*' => ['string', 'max:128', 'regex:/\S/'],
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.url' => ['required', 'string', 'url:https'],
             'destinations.*.http_method' => ['required', Rule::enum(HttpMethod::class)],

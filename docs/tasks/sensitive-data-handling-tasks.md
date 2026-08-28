@@ -575,7 +575,25 @@
     it is code, not data).
 - **Testing:** `tests/Feature/Proxies/SensitiveFieldsPersistenceTest.php` (new) — the dedup case, the
   blank-entry rejection, the per-proxy isolation case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `sensitive_fields`/`sensitive_fields.*` rules added to both
+  `StoreProxyRequest` and `UpdateProxyRequest` (`nullable, array, max:100` / `string, max:128,
+  regex:/\S/` — the regex rejects a blank/whitespace-only entry without a closure rule, matching this
+  app's existing rule-array style). `ProxyController::sensitiveFieldAdditions()` (new private helper)
+  trims each submitted name, drops blanks, and de-duplicates by `SensitiveFields::normalise()`,
+  keeping the first occurrence's original spelling; wired into both `store()`'s `Proxy::make()` array
+  and `update()`'s `$proxy->update()` array, alongside the existing response/retry fields.
+
+  **Absent `sensitive_fields` on update clears previously saved additions** — this field follows the
+  same full-replace-on-submission convention as `destinations`/`response_body`/etc. (whatever the form
+  sends is what's persisted), not the write-only "absent means leave unchanged" contract this feature
+  uses elsewhere for actual secret fields (verification secret, credential). This task's own binding
+  constraint 8 lists T20/T23/T29/T30 as the write-only fields that rule applies to; `sensitive_fields`
+  is not among them, and `ProxyForm.vue` (T12) always submits the full in-session list, exactly like
+  `destinations`. Pinned by a dedicated test so a future change to this doesn't drift silently.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "SensitiveFieldsPersistenceTest|ProxyStoreTest|ProxyUpdateTest|ProxyRequestValidationTest"` all
+  green (74 tests, 239 assertions); full-suite run deferred to the end of this batch.
 
 ## T11 — `defaultSensitiveFieldNames` page prop on `create()` and `edit()` (AC12; plan Technical ruling 3, Implementation Note 11)
 - **Description:** `ProxyController::create()` and `::edit()` emit `defaultSensitiveFieldNames`,
