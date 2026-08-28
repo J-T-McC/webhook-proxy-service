@@ -113,7 +113,12 @@ metadata:
   Screens section before ruling a Flow/plan clash a genuine spec conflict. design-06's Flow D
   said "no navigation away" while its own Screen 4 delegated the mechanism to the implementer;
   the real defect was the redirect *destination*, not the redirect. Resolve inside the spec's
-  own text where possible rather than escalating an amendment.
+  own text where possible rather than escalating an amendment. Sharper form of the same trap:
+  when a task AC says a flow "branches exactly as <other flow> does", check the SCREENS
+  section actually supplies member-facing copy for BOTH branches. A Flow's ordinary branch is
+  routinely behavioural prose ("the previous secret is demoted, not discarded") while only the
+  amended branch got quoted copy — so an implementer can satisfy the Screen and still fail the
+  task AC, and nobody can close it without the Designer writing wording.
 - **A Post/Redirect/Get target must be the page that owns the affordance** (`back()` or the
   originating route), never a parent page — `to_route('proxies.show')` from an events-page
   action strands the user away from the state they just changed.
@@ -162,3 +167,16 @@ metadata:
   `hashed` cast hashes it once — never `Hash::make()`), drive the real `/login` form, and
   `forceDelete()` the user, its team, its `team_members` row and any seeded proxies/destinations
   afterwards. Leaves user 1 untouched, so a concurrent agent's session is not disturbed.
+- **`router.reload()` FORCES `preserveState: true`/`preserveScroll: true`** — `doReload()` spreads
+  the caller's options *first* and then overrides both (`@inertiajs/core/dist/index.js`), so a
+  background `router.reload({ only: ['x'] })` can never remount the component and in-session-only
+  state (a one-time revealed secret, a dialog sub-state) always survives it. The flip side: `reload`
+  is fire-and-forget with `async: true` and callers routinely pass no `onError`, so a failed refresh
+  leaves the prop **stale for the life of the page** with nothing said. Whenever a disclosure or a
+  branch condition reads a prop refreshed only this way, walk the failed-refresh path — a full
+  Inertia POST/redirect surface self-heals, a partial-reload surface does not.
+- **`SecretStore::statusFor()` already filters the previous secret on `expires_at > now()`**, so
+  `security.*.overlap_expires_at` is null-or-live by construction. A client-side truthiness branch
+  on it is sound and needs no expiry comparison — do not raise "compares a timestamp by truthiness"
+  against these surfaces. What it *is* is a mount-time snapshot: a second tab, or a failed partial
+  reload, can leave an overlap-running proxy rendering its no-overlap state.
