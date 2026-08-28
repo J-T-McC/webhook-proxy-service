@@ -2,7 +2,7 @@
 
 Status: Approved by Project Owner on 2026-07-30
 Owner-facing author: Product Manager
-Last updated: 2026-08-03
+Last updated: 2026-08-27
 Revised 2026-07-30: item #1 broadened to include fan-out per Project Owner
 decision — old item #2 (fan-out) merged into #1; backlog renumbered from 15 to
 14 items. Approval status retained; this is a post-approval scope change.
@@ -30,6 +30,25 @@ with the existing roles as permission bundles. See
 roadmap as a whole is retained; this is a post-approval scope refinement of a
 single item, matching how #1's fan-out and #8's map-selection revisions were
 handled.
+Revised 2026-08-27: **item #10 widened to cover outbound authentication** per
+Project Owner ruling on
+`docs/questions/prd-10-q-10-01-outbound-destination-authentication.md` (RESOLVED,
+approved 2026-08-27). #10's approved line covers webhooks coming **in**; the Owner
+ruled that a destination credential this service presents when it dispatches
+belongs in the same item rather than becoming its own line. Approval status
+retained; this is a post-approval scope change of a single item, made by the Owner,
+matching how #1 and #2 were handled. **Also pending at #10, and not yet ratified:**
+`docs/product/prd-10-sensitive-data-handling.md` `## Amendment A` adds **outbound
+request signing** — the reverse direction, where a destination verifies that a
+dispatch came from this service — as AC54–AC64. That is a further widening of #10
+and it takes effect only if the Owner approves that PRD; it is named here so a
+reader of this line knows it is in flight, not so it is treated as settled.
+Revised 2026-08-27: **item #15 added — pause and resume dispatch**, per Project
+Owner ruling that it is its own roadmap item rather than #10 scope, on the ground
+that it has value well beyond secret rotation (destination outages, maintenance
+windows). Backlog grows from 14 items to 15. Approval status retained; the item was
+added by the Owner, and `docs/product/prd-15-pause-and-resume-dispatch.md` is Draft
+and awaits the Owner's approval separately.
 
 > This is a **prioritized feature backlog**, not a set of PRDs. Each line names a
 > feature and states the single outcome a user or the system gains once it is
@@ -241,6 +260,28 @@ handled.
     **Build-ahead note:** A test payload must run through the same ingest→pipeline
     path as a real webhook — exercising mapping (#8), storage (#5), and delivery —
     rather than a separate mock path, reusing the #1 spine.
+
+15. **Pause and resume dispatch** — A user can pause dispatch for a proxy and
+    resume it later, so that work stops going out to destinations while a
+    destination is down, under maintenance, or being reconfigured, and then drains
+    in order when it is resumed. **Ingest never pauses**: incoming webhooks are
+    still accepted, still answered under #3, and still captured, because the
+    product's zero-data-loss policy holds and a member who wants ingestion stopped
+    pauses the third party at source instead. *(Added 2026-08-27 per Project Owner
+    ruling — its own item, not #10 scope, because its value is independent of secret
+    rotation. Depends on #4 for the dispatch mechanism and #6 for retry; interacts
+    with #5's retention window. See
+    `docs/product/prd-15-pause-and-resume-dispatch.md`.)*
+    **Build-ahead note:** Pause is a **dispatch-side** state, so it must be visible
+    to every mechanism that can start work on a proxy — the FIFO advancer, the FIFO
+    sweeper's idle-proxy nudge, and the due-retry sweeper — rather than being
+    enforced at a single call site that the schedulers bypass (Principal Engineer to
+    fix the approach; named as an Open Question at this item's PRD). **Ordering on
+    resume is already free and must not be re-engineered**: FIFO order derives from
+    the atomic claim in the advancer, not from timing, so a paused proxy drains in
+    order however long it was paused. Paused events keep aging under #5's retention
+    window like any other, which is a consequence the member is told about before
+    they pause, not one they discover on resume.
 
 ## Notes on Scope Boundaries
 
