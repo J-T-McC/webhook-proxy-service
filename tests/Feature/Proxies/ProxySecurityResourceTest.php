@@ -189,4 +189,62 @@ class ProxySecurityResourceTest extends TestCase
 
         $this->assertStringNotContainsString('super-secret-value-do-not-leak', $editResponse->getContent());
     }
+
+    // --- T38: the `signing` sub-object -------------------------------------
+
+    public function test_signing_reflects_not_enabled_no_overlap_and_overlap_running_states(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('security.signing.enabled', false)
+                ->where('security.signing.generated_at', null)
+                ->where('security.signing.overlap_expires_at', null)
+            );
+
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'whsec_current');
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('security.signing.enabled', true)
+                ->has('security.signing.generated_at')
+                ->where('security.signing.overlap_expires_at', null)
+            );
+
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'whsec_new');
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('security.signing.enabled', true)
+                ->has('security.signing.generated_at')
+                ->has('security.signing.overlap_expires_at')
+            );
+    }
+
+    public function test_the_signing_secrets_value_is_never_present_anywhere_in_this_resources_output(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'do-not-leak-this-signing-secret');
+
+        $response = $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk();
+
+        $this->assertStringNotContainsString('do-not-leak-this-signing-secret', $response->getContent());
+
+        $editResponse = $this->actingAs($user)
+            ->get(route('proxies.edit', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk();
+
+        $this->assertStringNotContainsString('do-not-leak-this-signing-secret', $editResponse->getContent());
+    }
 }

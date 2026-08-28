@@ -2064,7 +2064,35 @@
   - The secret's value is never present anywhere in this resource's output.
 - **Testing:** extends `tests/Feature/Proxies/ProxySecurityResourceTest.php` — the three-state
   assertion, the no-value assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxySecurityResource` gains a `signing` key, sourced from
+  `SecretStore::statusFor($proxy, SecretPurpose::Signing)` — the same T22-established non-value,
+  non-length status metadata call, never a direct `proxy_secrets` query (Technical ruling 14). Shaped
+  as an always-present object (`enabled`, `generated_at`, `overlap_expires_at`), mirroring
+  `verification`'s own established convention of never being `null` itself, with `enabled` playing
+  `verification.secret_set`'s presence-only role — this reads the task description's own `| null`
+  notation the same way T22's identically-worded `verification: {...} | null` was actually built (a
+  status object whose fields go null/false, not a nullable wrapper), for consistency with the sibling
+  sub-object the same resource already carries. One object on the shared prop, never a per-destination
+  field — there is no per-destination signing state to carry under Amendment B. A proxy that was
+  enabled and then disabled reads identically to one that was never enabled, since
+  `SecretStore::disable()` (ADR-021 Decision 5) deletes every row and `statusFor()` returns `null` for
+  either case — noted inline so a later reader does not read this as a missing "was previously enabled"
+  memory.
+
+  **Incidental doc-comment correction, not a deviation:** T32's own class docblock said "`signing` is
+  added in a later, out-of-scope-for-this-batch task (T41)" — T41 is actually the Show.vue Signing
+  *card* (M8b, a later milestone); this resource's `signing` key is this task, T38, per the plan's own
+  M8a/M8b split. Corrected the comment while adding the key it was describing.
+
+  Two new tests, alongside the existing suite (all still green): the three states (not enabled — all
+  three fields false/null; enabled, no overlap — `enabled: true`, a real `generated_at`, null overlap;
+  enabled with an overlap running — all three populated) driven through real `SecretStore::replace()`
+  calls exactly as T37's own endpoints would produce them; and a response-body substring check (both
+  `show()` and `edit()`) proving a live signing secret's value never appears in either response.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter ProxySecurityResourceTest`
+  (9 tests, 122 assertions) green; also re-ran the full `Proxies` feature suite (198 tests, 1079
+  assertions) as a regression check, green. Full-suite run deferred to the end of this batch (T34-T40).
 
 ## T39 — AC11 signing all-or-none, dedicated (AC11; plan § Architecture H, PRD-10 `## Amendment B` ruling 1) — **delivery path**
 - **Description:** **Pins the partial-fan-out prohibition by name, as its own task**, per this feature's
