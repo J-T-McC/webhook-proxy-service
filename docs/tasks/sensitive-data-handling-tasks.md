@@ -1698,7 +1698,63 @@
   destination-credential tests). Manual verification of the UI control per `design-10` Screen 3's
   states table, including the added post-save row and the Remove-then-retype supersession case, against
   a production build.
-- **Completion notes:** _pending_
+- **Completion notes:** Done, built to ruling 15 exactly as written. Backend: `destinations.*.remove_credential`
+  (`sometimes`, `boolean`) added to both `StoreProxyRequest` and `UpdateProxyRequest`;
+  `destinations.*.credential_secret` gains `prohibited_if:destinations.*.remove_credential,true` on both.
+  `ProxyController::destinationRows()` reads the flag positively (`($row['remove_credential'] ?? false)
+  === true`) — never `isset()`, which is the exact hazard ruling 15 names (`isset()` is `false` for an
+  explicit `null`, which would have silently killed the rejected sentinel-on-`credential_secret`
+  alternative). `destinationCredentialAttributes()` checks `remove_credential` first — validation's
+  `prohibited_if` already guarantees `credential_secret` is empty whenever it's true, so there is no
+  ordering ambiguity with the "leave unchanged" branch below it — and nulls all three credential columns
+  together when true, so a row can never come to rest holding a header name with no secret.
+
+  Frontend: `DestinationRows.vue` gains a ghost **Remove credential** button beside **Replace**
+  (`aria-label="Remove credential for {url}"`), visible only in the same `credentialIsSet(row)` branch
+  Replace already renders in (design-10's states table lists Remove only there, not mid-Replace).
+  Clicking it sets a new local-only `credential_removed` flag (kept on the row object itself, the same
+  pattern `credential_replacing` already established at T30, so it always travels correctly with its row
+  through add/remove rather than needing an index-keyed parallel structure that a mid-list removal could
+  misattribute) and resets the row's in-session presentation — header back to `Authorization`, secret
+  back to blank — exactly like an unconfigured row. `ProxyForm.vue`'s `submit()` `transform()` is the
+  single place the real `remove_credential` signal is computed, per row, at submit time:
+  `row.credential_removed === true && row.credential_secret === ''` — so typing a new secret into the
+  now-unconfigured row after clicking Remove supersedes the staged removal and persists the new secret
+  instead, exactly as the task's `transform()` rule specifies. `remove_credential` itself is never part
+  of `DestinationRow`'s in-session shape (only added by `transform()` at submit), matching the task's own
+  framing that it is a transport concern, not a UI state one.
+
+  Five backend tests, one per Acceptance Criteria bullet: **the distinguishability pair in one test**
+  (a present-but-empty Replace, no `remove_credential`, leaves the credential byte-identical; the same
+  row on the same route with `remove_credential: true` nulls it — both assertions in one test method, so
+  the two cases cannot be split apart independently later, exactly as the task requires); the raw-query
+  all-three-columns-null assertion; the `remove_credential: true` + non-empty `credential_secret` 422
+  case (`prohibited_if`, changing nothing); the no-`id`-row no-op case; and the `transform()` supersession
+  case, asserted at the transport boundary this test suite actually exercises (submitting exactly what
+  the superseding `transform()` output would be — `remove_credential: false` alongside a non-empty
+  `credential_secret` — since the supersession decision itself is a frontend-only computation with no
+  server-observable trace of "Remove was clicked and then undone").
+
+  **No confirmation dialog was added** (AC6) — verified directly (`[role="dialog"]` count is `0` both
+  before and after clicking Remove credential), not just asserted by omission.
+
+  **Manual verification performed against a live Vite dev server, not a production build** — same
+  `public/hot` caveat as T30 (a real dev-server process confirmed listening at `http://[::1]:5174`, not a
+  stale file); `pnpm run build` is green but nothing was checked against its output in the browser.
+  Seeded a fresh Sail-DB user/team/proxy (own local dev DB, deleted again immediately after) with one
+  credentialed destination, logged in via Playwright, opened the Edit form, and confirmed via DOM
+  assertions: the Remove credential button is present with the correct interpolated `aria-label`; no
+  `[role="dialog"]` element exists on the page before or after clicking it; clicking it changes the
+  trigger to "Add credential", resets the header input to "Authorization", and shows a blank password
+  input; typing into that now-blank input succeeds (the supersession outcome itself — that this persists
+  as the new secret rather than a removal — is the backend test's job, already covered above, since
+  nothing in the DOM alone can distinguish "typed after Remove" from "typed on a row that was never
+  configured"). Screenshot taken confirming layout.
+
+  `pnpm run format:check`, `pnpm run lint:check` and `pnpm run types:check` all green; `pnpm run build`
+  green (with the live-dev-server caveat above). `composer lint`, `composer types:check` and
+  `./vendor/bin/sail test --filter "CredentialValidationTest|CredentialRemovalTest|ProxyStoreTest|ProxyUpdateTest|ProxyRequestValidationTest"`
+  (79 tests, 286 assertions) green; full-suite run deferred to the end of this batch (T26-T33).
 
 ## T32 — `security` prop: the `destinations` map (AC30, AC33; plan Technical ruling 4)
 - **Description:** Extends `ProxySecurityResource` (T22) with `destinations: { [id]: { has_credential,

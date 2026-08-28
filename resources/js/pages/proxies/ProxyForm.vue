@@ -338,6 +338,21 @@ function submit(): void {
             data.mode === 'simple' || data.retry_backoff_strategy === ''
                 ? null
                 : data.retry_backoff_strategy,
+        // T31 (correction B3; plan-10 § Revision A, technical ruling 15) —
+        // the Remove credential signal is derived here, at submit time, not
+        // stored as a submitted field on the row itself: `true` whenever
+        // this row's Remove credential was clicked this session AND the
+        // member has not since typed a new secret into the now-blank field
+        // (a later, deliberate act that supersedes the staged removal —
+        // "typing into an unconfigured row has always meant 'set this
+        // secret'"). `credential_secret` keeps exactly one meaning
+        // regardless (a new value, or absent means leave unchanged); this
+        // never rewrites it.
+        destinations: data.destinations.map((row) => ({
+            ...row,
+            remove_credential:
+                row.credential_removed === true && row.credential_secret === '',
+        })),
     })).submit(props.method, props.action, {
         preserveScroll: true,
         onError: () => {

@@ -391,7 +391,7 @@ class ProxyController extends Controller
      * Normalise the validated destinations payload into typed rows.
      *
      * @param  array<string, mixed>  $data
-     * @return list<array{id: int|null, url: string, http_method: string, credential_header_name: string, credential_secret: string}>
+     * @return list<array{id: int|null, url: string, http_method: string, credential_header_name: string, credential_secret: string, remove_credential: bool}>
      */
     private function destinationRows(array $data): array
     {
@@ -412,6 +412,13 @@ class ProxyController extends Controller
                 // submitted explicit null also normalises to ''.
                 'credential_header_name' => isset($row['credential_header_name']) && is_string($row['credential_header_name']) ? $row['credential_header_name'] : '',
                 'credential_secret' => isset($row['credential_secret']) && is_string($row['credential_secret']) ? $row['credential_secret'] : '',
+                // The Remove credential signal (T31; ruling 15) — read
+                // positively, so presence-versus-absence of the key is never
+                // load-bearing (isset() would be false for an explicit null,
+                // which is exactly the hazard ruling 15 exists to avoid on
+                // this key's own design; reading positively against `?? false`
+                // sidesteps it entirely).
+                'remove_credential' => ($row['remove_credential'] ?? false) === true,
             ];
         }
 
@@ -429,11 +436,25 @@ class ProxyController extends Controller
      * form itself always supplies a header name once a secret is present
      * (T29's own `required_with` validation rule).
      *
-     * @param  array{credential_header_name: string, credential_secret: string}  $row
-     * @return array{credential_header_name?: string, credential_secret?: string, credential_set_at?: CarbonImmutable}
+     * @param  array{credential_header_name: string, credential_secret: string, remove_credential: bool}  $row
+     * @return array{credential_header_name?: string|null, credential_secret?: string|null, credential_set_at?: CarbonImmutable|null}
      */
     private function destinationCredentialAttributes(array $row): array
     {
+        // T31 (ruling 15) — checked first: validation's `prohibited_if`
+        // already guarantees `credential_secret` is empty whenever this flag
+        // is true, so there is no ordering ambiguity between the two
+        // branches below. All three columns are nulled together, so a row
+        // can never come to rest holding a header name with no secret — the
+        // result is byte-identical to a destination that never had one.
+        if ($row['remove_credential']) {
+            return [
+                'credential_header_name' => null,
+                'credential_secret' => null,
+                'credential_set_at' => null,
+            ];
+        }
+
         if ($row['credential_secret'] === '') {
             return [];
         }

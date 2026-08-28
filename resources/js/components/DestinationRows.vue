@@ -82,16 +82,36 @@ async function removeRow(index: number): Promise<void> {
 // Screen 3's Credential subsection (T30; AC30, AC33). The write-only shape
 // is identical to Screen 1's verification secret but per-row rather than
 // per-proxy: `credentialIsSet()` governs whether the collapsed "Credential
-// set" status line renders or the blank input does, and `credential_replacing`
-// (kept on the row object itself, not a parallel index-keyed structure, so
-// it always travels with its row through add/remove) tracks whether this
-// row's Replace has been clicked this session.
+// set" status line renders or the blank input does, and `credential_replacing`/
+// `credential_removed` (kept on the row object itself, not a parallel
+// index-keyed structure, so they always travel with their row through
+// add/remove) track whether this row's Replace/Remove credential has been
+// clicked this session.
 function credentialIsSet(row: DestinationRow): boolean {
-    return (row.has_credential ?? false) && !row.credential_replacing;
+    return (
+        (row.has_credential ?? false) &&
+        !row.credential_replacing &&
+        !row.credential_removed
+    );
 }
 
 function startReplacingCredential(row: DestinationRow): void {
     row.credential_replacing = true;
+    row.credential_secret = '';
+}
+
+// Remove credential (T31; correction B3; plan-10 § Revision A, technical
+// ruling 15). Resets this row to the unconfigured in-session presentation —
+// header name back to the default, secret status back to unset — exactly
+// like an unconfigured row (design-10 Screen 3's states table). Nothing is
+// sent to the server until the form saves; `ProxyForm.vue`'s `transform()`
+// reads `credential_removed` at submit time to decide the `remove_credential`
+// signal, superseding it if the member has since typed a new secret into the
+// now-blank field.
+function removeCredential(row: DestinationRow): void {
+    row.credential_removed = true;
+    row.credential_replacing = false;
+    row.credential_header_name = 'Authorization';
     row.credential_secret = '';
 }
 
@@ -190,7 +210,7 @@ const inputClass =
                         :disabled="disabled"
                     >
                         {{
-                            row.has_credential
+                            row.has_credential && !row.credential_removed
                                 ? 'Credential: set'
                                 : 'Add credential'
                         }}
@@ -248,17 +268,30 @@ const inputClass =
                                     )
                                 }}
                             </p>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                class="w-fit"
-                                :aria-label="`Replace credential for ${row.url}`"
-                                :disabled="disabled"
-                                @click="startReplacingCredential(row)"
-                            >
-                                Replace
-                            </Button>
+                            <div class="flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    class="w-fit"
+                                    :aria-label="`Replace credential for ${row.url}`"
+                                    :disabled="disabled"
+                                    @click="startReplacingCredential(row)"
+                                >
+                                    Replace
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    class="w-fit"
+                                    :aria-label="`Remove credential for ${row.url}`"
+                                    :disabled="disabled"
+                                    @click="removeCredential(row)"
+                                >
+                                    Remove credential
+                                </Button>
+                            </div>
                         </template>
                         <template v-else>
                             <input

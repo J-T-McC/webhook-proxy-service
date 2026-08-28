@@ -103,7 +103,21 @@ class StoreProxyRequest extends FormRequest
             ],
             // Write-only (AC33): nullable/absent means "no credential configured"
             // on a create — there is nothing yet to leave unchanged.
-            'destinations.*.credential_secret' => ['nullable', 'string', 'max:1024'],
+            // `prohibited_if` makes sending both this and `remove_credential: true`
+            // a deterministic 422 (T31, plan-10 Revision A, ruling 15) — this
+            // application's own UI can never produce that combination (see
+            // `ProxyForm.vue`'s `transform()`), but a malformed request must
+            // still be rejected rather than silently resolved one way or the
+            // other.
+            'destinations.*.credential_secret' => ['nullable', 'string', 'max:1024', 'prohibited_if:destinations.*.remove_credential,true'],
+            // The Remove credential signal (T31; ruling 15) — a sibling
+            // boolean, never a sentinel folded into `credential_secret`.
+            // Declared on both requests even though a create has no existing
+            // row to remove a credential from: `ProxyForm.vue` is one
+            // component serving Create and Edit, and this rule costs nothing
+            // when the row has no `id` (a controller-side no-op, T31's own
+            // Acceptance Criteria).
+            'destinations.*.remove_credential' => ['sometimes', 'boolean'],
         ];
     }
 }

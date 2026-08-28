@@ -114,7 +114,19 @@ class UpdateProxyRequest extends FormRequest
             // matching in the controller. No `min` length constraint (unlike
             // `verification_secret`'s `min:8`), so an empty string can reach
             // the controller and must be treated the same as absent there.
-            'destinations.*.credential_secret' => ['nullable', 'string', 'max:1024'],
+            // `prohibited_if` makes sending both this and `remove_credential: true`
+            // a deterministic 422 (T31, plan-10 Revision A, ruling 15) — this
+            // application's own UI can never produce that combination (see
+            // `ProxyForm.vue`'s `transform()`), but a malformed request must
+            // still be rejected rather than silently resolved one way or the
+            // other.
+            'destinations.*.credential_secret' => ['nullable', 'string', 'max:1024', 'prohibited_if:destinations.*.remove_credential,true'],
+            // The Remove credential signal (T31; ruling 15) — a sibling
+            // boolean, never a sentinel folded into `credential_secret`.
+            // Read positively in the controller (`($row['remove_credential']
+            // ?? false) === true`), so presence-versus-absence is never
+            // load-bearing on this key.
+            'destinations.*.remove_credential' => ['sometimes', 'boolean'],
         ];
     }
 

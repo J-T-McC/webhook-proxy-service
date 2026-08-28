@@ -88,10 +88,15 @@ export interface ProxyDestination {
  * mount-seeded, read-only display flags (T30, mirrors `DestinationResource`)
  * — never mutated in-session and never meaningfully read server-side (no
  * validation rule matches either key, so `FormRequest::validated()` drops
- * them even if submitted). `credential_replacing` is local UI-only state
- * (T30's per-row Replace click, distinct from `credential_secret` itself,
- * since a proxy can have many destination rows unlike Screen 1's single
- * verification secret) — also never read server-side.
+ * them even if submitted). `credential_replacing`/`credential_removed` are
+ * local UI-only state (T30's per-row Replace click, T31's Remove credential
+ * click — distinct from `credential_secret` itself, since a proxy can have
+ * many destination rows unlike Screen 1's single verification secret) —
+ * neither is read server-side; `remove_credential` (the real, submitted
+ * signal T31 derives from `credential_removed` at submit time, plan-10
+ * § Revision A technical ruling 15) is added by `ProxyForm.vue`'s
+ * `transform()`, not carried on this type, since it is never part of the
+ * in-session row shape itself.
  */
 export interface DestinationRow {
     id?: number | null;
@@ -102,6 +107,7 @@ export interface DestinationRow {
     has_credential?: boolean;
     credential_changed_at?: string | null;
     credential_replacing?: boolean;
+    credential_removed?: boolean;
 }
 
 export interface ProxyDetail {
