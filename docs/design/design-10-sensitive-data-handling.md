@@ -69,12 +69,27 @@ honours every one of them without exception:
 ## Scope boundaries (confirmed, not designed here)
 Restated so this spec reads as complete against every AC, not only the UI-bearing
 ones:
-- **AC1–AC11 — the at-rest guarantee and D2's discharge.** Encryption at rest, the
+- **AC1–AC10 — the at-rest guarantee and D2's discharge.** Encryption at rest, the
   closed set of payload stores, the by-reference queue argument, failed-job
   diagnosability, and the key-lifecycle rule are all system properties with no
   surface. Nothing in this spec renders a store name, an encryption state, or a
   "your secret is encrypted" indicator anywhere — the guarantee is structural, not
   displayed (mirroring how PRD-05's own at-rest floor has never had a UI element).
+- **AC11 has a surface (C7) — it is not grouped with AC1–AC10 above.** An
+  undecryptable verification secret, destination credential, or destination
+  signing secret makes the affected operation fail **visibly**, and that failure
+  surfaces through the delivery-attempt error treatment `design-06` already
+  ships (for a credential or signing-secret failure) or the verification-rejection
+  path (AC25, for a verification-secret failure). **#10 adds no new surface for
+  it** — no dedicated error card, no "secret undecryptable" banner anywhere in
+  this spec; the existing attempt-history and rejection treatments are where it
+  appears. The one binding rule: **the rendered failure must never name the
+  secret itself** (AC35, AC61 — a destination credential or signing secret
+  "appears nowhere but the outbound request" / "its one-time display and the
+  signature computation"). This does not conflict with **AC49**'s bar on
+  obfuscating delivery-attempt error summaries — the summary itself stays
+  unobfuscated exactly as design-06 renders it; the secret is kept out of the
+  message text at the source, never masked after the fact.
 - **AC14 — obfuscation matches by field name only, never by value.** No
   card-number-shaped heuristic, no entropy warning, no "this looks like a secret"
   suggestion is offered anywhere this spec touches the Sensitive fields editor
@@ -184,12 +199,23 @@ other side, because the old one keeps working for a stated period.")*
    (Screen 1's write-only pattern, identical in shape to Screen 3's destination
    credential).
 2. Member clicks **Replace** → a blank secret field appears (never pre-filled;
-   AC26 forbids redisplaying the current value).
+   AC26 forbids redisplaying the current value), together with a help line
+   stated **before save** (C5): *"Your current secret keeps working for 24
+   hours after you save this, so you can update your sender without a
+   coordinated cutover. To stop it early — for example if it's been
+   leaked — use End overlap now on this proxy's page after saving."* This is
+   the one point in the form where the member decides to rotate, so it is the
+   one point that has to carry the consequence, not the Show page after the
+   fact (UX Direction point 8).
 3. Member types the new secret and saves.
 4. On save, the new secret becomes current and the previous one is demoted, not
-   discarded — both are honoured inbound for a fixed 24 hours (AC29). Nothing in
-   this form states that; the period becomes visible on **Show** (Flow C), because
-   rotation is a status a member checks, not a thing they configure a duration for.
+   discarded — both are honoured inbound for the fixed 24 hours the step-2 help
+   text already named (AC29); the period and an **End overlap now** action
+   become visible on **Show** (Flow C), because ending it early is a status a
+   member checks and acts on there, not a thing they configure a duration for
+   here. **A compromised current secret is two steps, now connected by this
+   copy:** Replace it here, then End overlap now on Show — without step 2's
+   line, a member had no way to know the second step existed.
 5. **Cancels before saving:** clicking Replace and then navigating away, or
    toggling back without submitting, changes nothing server-side — identical to any
    other unsaved form field.
@@ -202,9 +228,10 @@ a leaked secret before 24 hours is a second rotation.")*
    (Screen 4): the scheme in force, the header name (`shared-secret` only,
    AC26 — it stays visible because the sender has to be configured to match it),
    and the secret's status — **Set — changed {date}**.
-2. **While a rotation overlap is running** (Flow B just happened, or a signing
-   rotation elsewhere on this same proxy is irrelevant—this card is inbound-only),
-   an additional line reads: **"A rotation is in progress — your previous secret
+2. **While a rotation overlap is running** (because Flow B just happened — a
+   signing rotation elsewhere on this same proxy is irrelevant here; this card
+   is inbound-only) (N5), an additional line reads: **"A rotation is in
+   progress — your previous secret
    is still honoured until {timestamp}."** An **End overlap now** button sits
    beside it.
 3. Member clicks **End overlap now** → confirms nothing further (this is a
@@ -222,9 +249,10 @@ a leaked secret before 24 hours is a second rotation.")*
 "add my own field names... because the product cannot know that my vendor calls
 it `ssn_last4`.")*
 1. On **Create** or **Edit**, the member sees the **Sensitive fields** section
-   (Screen 2): the fixed default list — **Password**, **Token**, **Credit card**
-   — rendered as plain, non-removable badges, with a line noting common spellings
-   and separators are matched automatically (AC12).
+   (Screen 2): the fixed default list — every literal name the product matches,
+   not a three-word summary — rendered as plain, non-removable badges, so a
+   member can tell at a glance whether a name like `cvv` or `api_key` is already
+   covered (AC12, C4).
 2. Below it, the proxy's own additions render as removable badges. An **Add field
    name** input plus button (or Enter) appends a new one; a badge's **×** removes
    it. Removing an addition never touches the default list (AC13).
@@ -383,7 +411,12 @@ Label "Verification" (legend)
 p (help) "Require an incoming request to prove it's really from your sender
    before anything is captured. Off by default — existing proxies are unaffected."
 Select v-model="form.verification_scheme"
-  SelectItem value=""                    → Not required (default)
+  SelectItem value="none"                 → Not required (default)   (N2 — the
+    underlying Select primitive rejects an empty-string item value, so
+    "none" is the sentinel; `form.verification_scheme` normalises it to/from
+    whatever the backend's "not required" representation is on submit/mount,
+    the same kind of sentinel translation the Retry-policy fieldset already
+    does for its own off-state)
   SelectItem value="standard-webhooks"    → My sender already implements Standard Webhooks
   SelectItem value="shared-secret"        → My sender sends a shared secret in a header
 
@@ -402,7 +435,7 @@ v-if scheme === 'standard-webhooks':
   Label "Secret value" for="verification_secret"
   [write-only field — see States below]
   p (help) "The signing secret your sender issued you for this integration.
-     #10 does not generate this — paste the value they gave you."
+     This product never generates it for you — paste the value they gave you."
   div (static, always visible under this scheme)
     p "Your sender must send these three headers on every request:"
     ul
@@ -424,18 +457,32 @@ established for its default-attempt-limit copy (`ProxyForm.vue`'s
 **Write-only secret field — shared shape (AC26, and reused verbatim for Screen 3's
 credential and Screen 6's signing secret display).** Two states:
 - **Unset** (nothing saved yet, or `scheme` freshly changed to one that has never
-  held a secret): a plain `Input type="password"` — chosen because there is no
-  existing password-input precedent in this app to follow and this is the
-  standard semantic for a masked-entry field; nothing about it needs styling
-  beyond the input treatment every other text field already has.
+  held a secret): a plain `Input type="password" autocomplete="off"` (N3) —
+  chosen because there is no existing password-input precedent in this app to
+  follow and this is the standard semantic for a masked-entry field, and
+  `autocomplete="off"` (the same value `ForgotPassword.vue` already uses for a
+  non-login field) stops a browser's password manager from offering the
+  member's own login password into a verification secret, credential, or
+  signing-secret field that has nothing to do with signing in; nothing else
+  about it needs styling beyond the input treatment every other text field
+  already has.
 - **Set** (editing a proxy with a stored secret for the current scheme): a
   collapsed line, not an input — **"Secret set — changed {date}"** — plus a
   **Replace** button (`variant="ghost"`, small). Clicking it swaps the line for a
-  blank `Input type="password"` (never pre-filled — there is nothing to pre-fill
+  blank `Input type="password" autocomplete="off"` (never pre-filled — there is nothing to pre-fill
   it *with*, since the value was never sent back to the client in the first
   place). A second click on a "cancel replace" affordance (or simply not touching
   the field before submit) leaves the stored secret untouched — the field being
   present-but-empty must **not** submit as "clear the secret"; see *Interactions*.
+
+**Screen 1's instance of this shape carries one addition the shared shape does
+not (C5): once Replace is clicked, a help line under the new blank field
+discloses the 24-hour overlap before the member saves** — see Flow B step 2 for
+the exact copy and reasoning. Screen 3's credential reuses this shape verbatim
+**without** that line, because AC29 excludes the destination credential from any
+overlap; Screen 6's signing-secret display is a different sub-state (generation,
+not replace-in-place) and carries its own overlap disclosure at Screen 6 states
+2 and 4.
 
 **States.**
 | Scheme | Fields shown | Status line (edit, already set) |
@@ -465,11 +512,10 @@ p (help) "Values in these fields are hidden wherever this proxy's stored payload
    payload's Reveal to check."
 
 div "Always hidden"
-  Badge (secondary, no ×) "Password"
-  Badge (secondary, no ×) "Token"
-  Badge (secondary, no ×) "Credit card"
-p (help, smaller) "Common spellings and separators are matched automatically
-   (e.g. card_number, cardNumber) — case doesn't matter."
+  Badge (secondary, no ×) v-for name in defaultSensitiveFieldNames
+    {{ name }}
+p (help, smaller) "Case and separators don't matter — password, Password and
+   pass_word are all this same name."
 
 div "Also hidden for this proxy"
   Badge (outline, ×) v-for addition       — e.g. "ssn_last4 ×"
@@ -480,6 +526,29 @@ Label "Add field name" for="sensitive-field-add" (sr-only if visually redundant)
 Input id="sensitive-field-add" placeholder="e.g. ssn_last4"
 Button "Add" (or Enter key)
 ```
+
+**This renders the actual default list, not three category labels (C4).**
+`defaultSensitiveFieldNames` is a single-sourced value the backend enforces — one
+badge per literal entry, iterated, never three hardcoded words — the same
+discipline Screen 1's `{tolerance}` interpolation already establishes in this
+spec (`defaultAttemptLimit` precedent, `resources/js/data/
+proxyRetryBackoffStrategies.ts`). AC12's stated reason for requiring the list be
+displayed is that "a hidden default list makes AC13 unusable — the member cannot
+know what is already covered"; three category words do not answer whether
+`cvv`, `pwd`, `secret` or `api_key` is already matched, and a literal
+enumeration does. **The content of that list — how many entries, which spelling
+and separator variants of password/token/credit-card ship at MVP — is fixed at
+technical design**, exactly as `{tolerance}`'s numeric value is; this spec fixes
+only that Screen 2 must render it **completely and literally**, never summarized
+back down to the three base words. A long list wraps in the existing
+`flex flex-wrap` badge row (§ Responsive Behavior) rather than truncating or
+collapsing behind a "show more" — a partially-shown default list would recreate
+exactly the problem this correction fixes.
+
+**No enable/disable obfuscation control exists anywhere on this section (N4).**
+Obfuscation is always on for every proxy (AC19); there is no switch, toggle, or
+setting to turn it off, and nothing in this section's copy or layout implies one
+— matching the UX Direction's "no 'enable obfuscation' toggle to forget."
 
 **States.**
 - **No additions yet:** the "Also hidden for this proxy" area shows nothing but
@@ -553,6 +622,20 @@ next dispatch — there's no transition period.").
 **Removing a row** removes its Credential block with it — no separate prompt,
 identical to how removing a row already discards its URL/method silently.
 
+**Permission gating on the Show page.** Every mutating control this spec adds to the
+Show page — Screen 4's **End overlap now**, Screen 5's **Manage signing**, and every
+state-changing action inside Screen 6 (Enable signing, Regenerate signing secret,
+Disable signing, End overlap now) — is gated on the same `canUpdate` computed
+`resources/js/pages/proxies/Show.vue` already uses for its **Edit** button:
+```
+canUpdate = permissions.canUpdateProxy && (proxy.is_creator || permissions.canUpdateAnyProxy)
+```
+This is a reuse of the existing gate, not a new permission (AC28) — a Member viewing a
+teammate's proxy without update rights sees the same read-only status lines and badges
+this spec already renders, with no control that would 403 if clicked. The Create/Edit
+form (Screens 1–3) needs no separate statement: it is only ever reached by a member who
+already holds `canUpdate`, so nothing there is newly exposed.
+
 ### Screen 4 — Proxy Show — Verification card (NEW)
 Placement: alongside the existing Retry policy card, after Destinations (the same
 card-stack order the Show page already uses — pipeline configuration cards, then
@@ -587,8 +670,12 @@ Card
   ```
   p "A rotation is in progress — your previous secret is still honoured until
      Aug 21, 2026, 10:03 AM."
-  Button variant="outline" "End overlap now"
+  Button v-if="canUpdate" variant="outline" "End overlap now"
   ```
+  The rotation line itself always renders — it is status, visible to anyone who can
+  view this proxy. **The button is `canUpdate`-gated** (see the note above Screen 4):
+  a member without update rights sees the same line with no action to take, matching
+  how this app already treats a read-only viewer elsewhere.
   On click: `Spinner` while in flight, button re-disables; on success the line
   and button disappear (the card's next render shows the plain "Set" state); on
   failure, an inline error renders below the button (same treatment as any other
@@ -615,10 +702,13 @@ TableCell   (Actions — existing cell, extended)
   Badge v-if="destination.isDeleted" secondary "Deleted"        (existing)
   Button variant="ghost" size="sm" as-child                     (existing)
     Link "View events"
-  Button v-if="!destination.isDeleted" variant="ghost" size="sm"  (NEW)
+  Button v-if="!destination.isDeleted && canUpdate" variant="ghost" size="sm"  (NEW)
     @click="openSigningDialog(destination)"
     "Manage signing"
 ```
+**`canUpdate`-gated**, same computed as Screen 4's (see the note above Screen 4) —
+a member without update rights never sees this button, only the `Credential`/`Signed`
+status badges, which stay visible to anyone who can view the proxy.
 
 **Why badges, not new columns.** The table already carries four data columns plus
 Actions (design-11); a fifth and sixth column for two booleans would crowd a table
@@ -685,13 +775,17 @@ Dialog
    the screen"). No **Close** (Cancel-style) affordance is offered in *this*
    sub-state — only **Done** — so a member cannot dismiss the one-time reveal by
    habit without it registering as the deliberate acknowledgement it is.
-   *(Flagged design call 4 — whether the dialog's outer `Esc`/overlay-click
-   dismissal should also be suppressed during this sub-state, forcing **Done** as
-   the only way out, is a defensible tightening; left permissive here — `Esc`
-   still closes it — because Reka UI's default behaviour is relied on everywhere
-   else in this app and the secret was already shown in full by the time this
-   sub-state renders, so an accidental `Esc` costs nothing the member didn't
-   already have a chance to copy.)*
+   **`Esc` and overlay-click are also suppressed for the duration of this
+   sub-state only** (design-gate ruling 4, overturning the flagged call this spec
+   originally left permissive): **Done** is the one and only way out of the
+   one-time reveal, keyboard or pointer. Three conditions bound the suppression —
+   (a) it applies to this sub-state alone; states 1, 3, 4 and 5 keep Reka UI's
+   default `Esc`/overlay-click dismissal, unchanged from every other `Dialog` in
+   this app; (b) **Done** stays keyboard-reachable (focus lands on it when the
+   sub-state mounts and Tab/Shift+Tab keep it inside the dialog's existing focus
+   trap), so this is a deliberate exit, not a keyboard trap under WCAG 2.1.2; (c)
+   no confirmation step is added in front of **Done** — the tightening removes
+   the accidental exits, it does not add ceremony to the intended one.
 
 3. **Enabled, no overlap:**
    ```
@@ -730,38 +824,83 @@ No change to the **masked** (default) state or the **Reveal**/**Hide** toggle
 mechanics — design-06's Flow C is untouched. The change is entirely inside the
 **revealed** state, and only for a payload that parses as JSON (AC22).
 
-**Revealed, JSON payload:** the payload renders pretty-printed (indentation and
-line breaks make structure legible, per AC15's "must still be able to see the
-payload's structure"), field names and non-sensitive values exactly as received,
-and every sensitive value replaced by a fixed, distinctly-styled inline token:
+**Revealed, JSON payload:** the payload renders pretty-printed — **a consequence of
+parsing the stored payload in order to walk it and obfuscate sensitive values,
+confined to this path only, not a requirement AC15 itself makes (C9).** AC15's
+structure clause is satisfied by field names and structure staying visible, not by
+reformatting; the reformatting is what parsing-to-obfuscate produces as a
+side-effect, not a separate goal. Field names and non-sensitive values render
+exactly as received, and every sensitive value is replaced by a fixed,
+distinctly-styled inline token:
 
 ```
 […structure, e.g.…]
 {
   "customer": {
     "email": "jane@example.com",
-    "password": [Hidden]        ← styled span, not the literal word rendered plainly
+    "password": [Hidden]        ← scalar sensitive value
+  },
+  "payment": {
+    "token": [Hidden]           ← object value: replaced whole. Its own sub-keys
+                                    (card number, expiry, cvv, whatever it holds)
+                                    never render — the object is not walked into.
   },
   "amount": 4200
 }
 ```
 
-The `[Hidden]` token (exact wording is implementation's within this constraint:
-short, never implies emptiness or an error) renders as an inline, visually
-distinct span — muted background, same treatment family as a `Badge` but inline
-with running text rather than block-level — carrying a native `title`/accessible
-description: **"Hidden — this field's name matches a sensitive-field rule for
-this proxy. Remove the name from Sensitive fields to stop hiding it."** This
-directly satisfies the UX Direction's "must read as deliberately hidden by a rule
-you can inspect" (point 2) rather than a bare placeholder string, and it is
-**inert** — no click handler, no focus stop beyond what the surrounding text
-already has, because AC20 forbids any reveal of it, individually, ever.
+**A sensitive field's entire value is replaced by one token, whatever its type —
+objects and arrays included (C6, ruled by the Product Manager as requirements
+author).** If a sensitive field's value is an object or an array rather than a
+scalar, the whole value becomes a single `[Hidden]` token; the product never walks
+into it to obfuscate its members individually and never renders any part of its
+sub-structure. Grounds: AC16 bars disclosing anything about an obfuscated value,
+and an object's own keys and shape are exactly that kind of disclosure. AC15's
+structure guarantee is satisfied one level up — the member still sees that the
+field exists and where it sits in the *payload's* structure — not by exposing
+what is inside a value already ruled hidden.
+
+**The token's string is `[Hidden]`, fixed (C8) — not left to implementation.**
+AC21 makes this string load-bearing: it must never read as empty, missing,
+corrupt or, above all, cleaned, and `[Hidden]` satisfies that directly by naming
+the state rather than leaving a blank or a generic placeholder. It renders as an
+inline, visually distinct span — muted background, same treatment family as a
+`Badge` but inline with running text rather than block-level — and is **inert**:
+no click handler, no focus stop beyond what the surrounding text already has,
+because AC20 forbids any reveal of it, individually, ever.
+
+**The accessible description distinguishes a default match from this proxy's own
+addition (C3).** AC20's stated remedy — removing the name from Sensitive fields —
+exists only for a member's own AC13 addition; AC12 forbids removing or editing a
+default, so offering that remedy for a `password`/`token`/credit-card match would
+promise an impossible action. The token therefore carries one of two
+descriptions, chosen by **which list matched** for that value — a per-value data
+point the revealed-payload endpoint must return, carried forward to the Principal
+Engineer (§ Approval record, *Carried forward to the Principal Engineer*, item 1):
+- **Default match:** "Hidden — this field's name matches a product default
+  (password, token, or credit card). It can't be removed from Sensitive fields."
+- **This proxy's own addition:** "Hidden — this field's name matches an addition
+  to this proxy's Sensitive fields list. Remove the name from Sensitive fields to
+  stop hiding it."
+
+Both satisfy the UX Direction's "must read as deliberately hidden by a rule you
+can inspect" (point 2); the only difference is whether a remedy exists to name.
+
+**The description is exposed as visually-hidden text paired with a native
+`title`, not `aria-label` alone (N1).** A bare `aria-label` on a `span` carrying
+no interactive or landmark role is not reliably exposed by every assistive
+technology — the same objection this spec already raises against a `title`-only
+attribute applies to an `aria-label`-only one. The token therefore carries
+**both**: the native `title` attribute (for pointer/tooltip users) and an
+`sr-only` text node holding the same string inside the span's own accessible
+content (for assistive technology, independent of `aria-label` support). See
+§ Accessibility for the wiring.
 
 **Fixed-width, not value-shaped (AC16).** The token's rendered width, character
 count, and presence are **constant** regardless of the real value's length, type,
 or emptiness — it is the same token whether the real value was a
-twelve-character password or an empty string, and it renders identically for a
-string, a number, or a boolean sensitive value.
+twelve-character password, an empty string, or an object with a dozen keys, and
+it renders identically for a string, a number, a boolean, an object or an array.
 
 **Revealed, non-JSON payload:** unchanged from design-06 — the existing raw
 `whitespace-pre-wrap` monospace block, no field-level treatment, no `[Hidden]`
@@ -772,18 +911,21 @@ the revealed endpoint (`PayloadViewer.vue`'s `fetch(props.url)`) returns
 pre-rendered, obfuscation-safe markup, or a structured field list the client
 walks to build the `[Hidden]` spans itself, is a technical decision folded into
 the mechanism the Principal Engineer already owns for this endpoint (the
-fetch-on-reveal shape ADR-017 established). This spec specifies the **outcome** —
-a distinctly-styled, accessible, inert token in place of each sensitive value,
-structure and non-sensitive content otherwise untouched, pretty-printed for
-legibility — and leaves the transport to technical design, the same way design-06
-folded its own reveal-mechanism note into Q-06-03 rather than asserting a
-mechanism itself.
+fetch-on-reveal shape ADR-017 established). That data shape now has to carry two
+things fixed by this approval, not just one: **C6's** whole-value replacement for
+an object or array sensitive value, and **C3's** per-value default-vs-addition
+flag. This spec specifies the **outcome** — a distinctly-styled, accessible,
+inert token in place of each sensitive value regardless of its type, carrying the
+correct one of the two descriptions above, structure and non-sensitive content
+otherwise untouched, pretty-printed as a consequence of the parse — and leaves the
+transport to technical design, the same way design-06 folded its own
+reveal-mechanism note into Q-06-03 rather than asserting a mechanism itself.
 
 **States (Payload card, complete):**
 | Payload state | What renders |
 |---|---|
 | Retained, masked (default) | unchanged design-06 masked block |
-| Retained, revealed, JSON | pretty-printed structure; sensitive values `[Hidden]` (this spec) |
+| Retained, revealed, JSON | pretty-printed structure; sensitive values (any type, including objects/arrays) render as a single `[Hidden]` token each (this spec) |
 | Retained, revealed, non-JSON | unchanged design-06 raw block, no field treatment |
 | Cleaned | unchanged design-06 muted "expired" line |
 | Not captured | unchanged design-06 muted line |
@@ -803,7 +945,7 @@ mechanism itself.
 | Manage signing dialog shell | `Dialog`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogClose` | Reused (non-destructive-dialog pattern, `ReplayDialog.vue` precedent) |
 | One-time secret reveal | `CopyField` | **Reused outside its original context** — first use for a value other than the ingest URL; same props shape (`value`, `copy-label`, `announcement`) |
 | One-time reveal notice | `Alert`, `AlertTitle`, `AlertDescription` | Reused (design-07's first `AlertTitle` use precedent, now a second) |
-| Obfuscated value token | new inline `span` (muted background, `title` attribute) | **New small composition**, built entirely from existing tokens — no new `ui/*` primitive, same shape as design-06's `PayloadViewer` masked-block treatment |
+| Obfuscated value token | new inline `span` (muted background, `title` attribute + `sr-only` text node) | **New small composition**, built entirely from existing tokens — no new `ui/*` primitive, same shape as design-06's `PayloadViewer` masked-block treatment |
 | Dialog action feedback | `Spinner`, inline `AlertError`-style region | Reused (`ReplayDialog.vue` precedent) |
 
 **No new npm dependency, icon library, or `ui/*` primitive is introduced.**
@@ -854,12 +996,19 @@ new component.
   replace where ambiguous in isolation (`aria-label="Replace verification
   secret"`, `aria-label="Replace credential for {url}"`) — the icon-only/
   ambiguous-target rule this app already applies to Delete/Remove buttons.
-- **The obfuscated value token** (Screen 7) carries a `title` **and** an
-  `aria-label` with the same text (a `title`-only attribute is not reliably
-  exposed to every assistive technology) — "Hidden — this field's name matches a
-  sensitive-field rule for this proxy." It is not focusable and not
-  interactive, consistent with AC20: nothing here should announce as "button" or
-  "link" to a screen-reader user, because there is nothing to activate.
+- **The obfuscated value token** (Screen 7) carries a `title` **and** an `sr-only`
+  text node inside the span holding the same string, not an `aria-label` (N1) — a
+  bare `aria-label` on a non-interactive, non-landmark `span` is not reliably
+  exposed by every assistive technology, the same objection this spec raises
+  against a `title`-only attribute. The string itself is one of two, per C3: a
+  default-list match names the rule with no removal offered ("Hidden — this
+  field's name matches a product default (password, token, or credit card). It
+  can't be removed from Sensitive fields."); this proxy's own addition offers the
+  removal remedy ("Hidden — this field's name matches an addition to this
+  proxy's Sensitive fields list. Remove the name from Sensitive fields to stop
+  hiding it."). It is not focusable and not interactive, consistent with AC20:
+  nothing here should announce as "button" or "link" to a screen-reader user,
+  because there is nothing to activate.
 - **Sensitive-field badges:** each removable addition's × carries
   `aria-label="Remove {name} from sensitive fields"`; the add `Input` has a
   programmatically associated `Label` (visually present, not placeholder-only).
@@ -896,36 +1045,26 @@ new component.
   override.
 
 ## Open Questions
-None blocking this spec's approval. Four flagged, reversible design-level calls
-for the Product Manager's design-gate attention (each independently reversible,
-matching the `design-06`/`design-07`/`design-08` precedent for flagging
-non-blocking calls), plus one technical note folded for the Principal Engineer
-rather than raised as a separate question document (mirroring how design-06
-folded its own reveal-mechanism note into Q-06-03):
+None blocking. The four flagged design calls raised at first submission are now
+**ruled** — see `## Approval record (design gate)` § *Rulings on the four flagged
+design calls* for the reasoning — and are restated here only as a resolved log,
+not as open items:
 
 1. **Verification section placement — after Processing, before Retry policy**
-   (Screen 1). Read from the pipeline order (verification gates capture, which
-   precedes anything retry policy governs) rather than stated anywhere in the
-   PRD. If the Product Manager reads the UX Direction as calling for a different
-   position, this is a same-shaped, low-risk move.
+   (Screen 1). **Accepted as designed.**
 2. **Destination credential's Collapsible default-expand rule** (Screen 3): open
-   by default only when already set, collapsed otherwise. A density/legibility
-   trade-off, not PRD-stated; reversible without touching anything else in this
-   spec.
-3. **Destinations-table status badges, not new columns** (Screen 5): `Credential`
-   and `Signed` render as inline badges beside the existing Destination cell
-   rather than as two new table columns, to avoid crowding an already-dense
-   table. If the Product Manager judges these deserve first-class column billing
-   (matching how #11 gave delivery/attempt success their own columns), the swap
-   is additive and independently reversible.
+   by default only when already set, collapsed otherwise. **Accepted as designed**,
+   with a binding condition already folded into Screen 3 above: the collapsed
+   trigger label itself must carry *set / not set*.
+3. **Destinations-table status badges, not new columns** (Screen 5). **Accepted as
+   designed**, with two binding conditions already folded into Screen 5 above: each
+   badge carries text, never colour or icon alone, and `Credential` stays a status
+   indicator rather than an action.
 4. **The one-time signing-secret reveal permits `Esc`/overlay-click dismissal**
-   (Screen 6, state 2) rather than forcing **Done** as the only exit. Reka UI's
-   default dismissal is relied on everywhere else in this app; the secret has
-   already been fully shown by the time this sub-state renders, so an accidental
-   dismissal costs the member nothing they hadn't already had a chance to copy.
-   If the Product Manager judges the UX Direction's "optimise for the member
-   actually captures it" priority calls for suppressing default dismissal here
-   specifically, that is a self-contained, low-risk tightening.
+   (Screen 6, state 2). **Overturned — both are now suppressed for that sub-state
+   only**, with **Done** as the sole, keyboard-reachable exit and no confirmation
+   step added; see Screen 6 state 2 above, which is written to the overturned
+   ruling.
 
 **One implementation-level note for the Principal Engineer** (not a UX
 ambiguity — a technical "how," folded rather than raised as a new question
