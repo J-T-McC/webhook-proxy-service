@@ -115,3 +115,20 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   extracting it to a `private function foo(): string`; PHPStan's literal-string flow analysis sees
   through an inline `match`/ternary of string literals but not through an intervening function
   call.
+- **`information_schema.COLUMNS` row order is not guaranteed without `ORDER BY ORDINAL_POSITION`** —
+  a schema test that reads columns via `information_schema` and asserts on `array_keys($columns)`
+  with `assertSame` (relying on implicit row order) can pass under a single-worker run and fail
+  under `./vendor/bin/sail test --parallel` (each worker gets its own schema/session, and MySQL
+  doesn't promise ordinal order without an explicit `ORDER BY`). Always add
+  `ORDER BY ORDINAL_POSITION` to the query, and prefer `assertEqualsCanonicalizing` over `assertSame`
+  when the acceptance criterion is "these columns exist", not "in this row order" (item #10 T1/T6).
+- **`migrate:rollback --step=N` walks the last N migrations by run order (id), never by name or
+  path** — verified in `Migrator::getMigrationsForRollback()`/`rollback()`; passing `--path` only
+  restricts which files are loaded to resolve a migration class, it does NOT filter which rows get
+  selected for rollback. A test that does `migrate:rollback --step=1` assuming "my own migration is
+  always the most recent" breaks the moment ANY later-dated migration is added by another feature —
+  this is a latent trap for every such test, not a defect in the new migration. Fix: compute the
+  step count dynamically, e.g. `DB::table('migrations')->where('migration', '>=', $ownMigrationName)
+  ->count()`, then rollback that many steps and reapply everything with a single `migrate` — the
+  round-trip assertions are unaffected since all rolled-back migrations get reapplied together
+  (`AnalyticsIndexesTest` fixed this way when item #10 T1 added a later-dated migration).

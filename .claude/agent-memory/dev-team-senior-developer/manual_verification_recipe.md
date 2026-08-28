@@ -143,3 +143,31 @@ walking `?page=N` directly (or checking row count hits 0) over trusting a click-
 (same mechanism `AnalyticsDemoSeeder::makeTeam()` uses) — grab `$user->currentTeam`, rename it, log
 in as that user, and the account has zero of everything by construction. `forceDelete()` the team
 and user afterward per the existing cleanup step above.
+
+**Local dev DB can be behind on migrations, and `APP_ENV=production` in `.env` blocks `sail artisan
+migrate` unless forced.** Before seeding: `sail artisan migrate:status` — if this branch's own
+migration shows `Pending`, run `sail artisan migrate --force` (the `production` guard is just this
+repo's local `.env` setting, not evidence of a real deployment; forcing an already-tested, purely
+additive migration onto the shared local dev DB is expected branch-switch hygiene, not a risky
+action).
+
+**`sail tinker --execute '...'` with a multi-line, multi-statement string is unreliable** — it can
+silently swallow all stdout (both echoed output AND thrown-exception messages) while still executing
+every line's side effects (DB writes happen even though nothing printed, so a "no output, exit 1"
+run can leave a half-seeded row behind that collides on the retry). Prefer piping a script file via
+stdin instead: `docker exec -i <container> php artisan tinker < script.php` — but the script must NOT
+start with a `<?php` tag (psysh reads it as anlready-open, tinker's REPL, and a leading tag causes a
+parse error) and must NOT `use` a class tinker already auto-imports at the top level (e.g. `App\
+Models\Proxy` is auto-aliased to `Proxy`; a `use App\Models\Proxy;` in the piped script collides with
+that and fails with "Cannot use ... because the name is already in use"). Reference classes fully
+qualified (`\App\Models\Proxy::factory()...`) instead of importing them. Wrap the body in `try {...}
+catch (\Throwable $e) { echo ...; }` and `file_put_contents()` any ids you need to a `/tmp/*.json` file
+inside the container, then `sail exec laravel.test cat /tmp/that.json` to read it back — this is the
+reliable way to get seeded ids out of a tinker run.
+
+**This project's primary checkout can have a long-forgotten `pnpm run dev` process running for days**
+(observed: started days earlier, on port 5174 while Sail's own Vite port is 5173) with a stale
+`public/hot` file alongside it — the exact review-07 Finding 8 trap, encountered for real (item #10
+T9/T12). Removing the stale `public/hot` file is safe and does not kill the orphaned node process;
+it just stops Laravel's `@vite()` helper from routing asset requests to that dev server. Do this
+before any `pnpm run build` + browser-verification pass on the primary checkout, not just worktrees.
