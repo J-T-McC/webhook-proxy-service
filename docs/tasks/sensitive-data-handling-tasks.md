@@ -22,19 +22,35 @@
   (**RESOLVED**, PRD-10 `## Amendment B`) · `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`
   (**RESOLVED**, Principal Engineer, 2026-08-27 — a sibling boolean, `destinations.*.remove_credential`,
   recorded as `plan-10` § *Revision A*, technical ruling 15; T31 is unblocked)
+- **Authority (ADR-025):** `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`
+  (Status **ACCEPTED** — Project Owner approval of both gated decisions recorded 2026-08-28. Decision
+  1, provider-signature header pass-through, approved as unconditional, not member-opt-in. Decision 2,
+  the outbound signing header rename, approved with the rename landing before item #10 merges to
+  `main`. Decision 3 carried no gate and is out of scope for this document.) Committed on branch
+  `docs/adr-025-outbound-header-policy`, **not yet merged onto `feat/item-10-sensitive-data` or
+  `main`** — merge or cherry-pick that file onto this branch before **T50**/**T51** below are
+  implemented, so the document this task plan cites as their Authority actually exists here.
 - **Approved by:** Task Planner (task-plan gate; no further Owner approval required at this stage —
-  the Reviewer catches drift against the plan/PRD-10/design-10 at review time)
+  the Reviewer catches drift against the plan/PRD-10/design-10 at review time). **M10** (T50, T51)
+  below is added against ADR-025 on the same no-further-Owner-gate basis — the Owner gate is already
+  recorded on the ADR itself, both decisions ruled by name.
 
 > **Scope / conventions.** Every task traces to `plan-10` and PRD-10's ACs (AC1–AC64, both
-> amendments) or a named plan technical ruling. Sequencing follows the plan's own milestones
+> amendments) or a named plan technical ruling, **with one named exception**: **M10** (T50–T51)
+> traces instead to `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`,
+> Accepted by the Project Owner 2026-08-28 — after `plan-10` was certified and after M1–M9 below were
+> already task-planned, so it is not and could not be one of `plan-10`'s own named milestones. It is
+> appended the same way item #11's own M8 was appended to `plan-11` after that plan's own
+> certification: a later Owner-approved decision, broken down into tasks without reopening or
+> renumbering anything already task-planned. Sequencing otherwise follows the plan's own milestones
 > verbatim (**M1–M9**, with M8 split into **M8a** backend and **M8b** surface exactly as the plan
 > names them), each mapped to a contiguous task range below: **M1 data model** (T1–T3) → **M2
 > obfuscation engine, no surface** (T4–T6) → **M3 Standard Webhooks primitive, no surface** (T7) →
 > **M4 revealed-payload envelope** (T8–T9) → **M5 sensitive-fields configuration** (T10–T12) → **M6
 > `SecretStore` and inbound verification** (T13–T25) → **M7 outbound credential** (T26–T33) → **M8a
 > outbound signing, backend** (T34–T40) → **M8b outbound signing, surface** (T41–T44) → **M9
-> cross-cutting hardening and the verification sweep** (T45–T49). No task depends on a later task.
-> **49 tasks, T1–T49.**
+> cross-cutting hardening and the verification sweep** (T45–T49) → **M10 outbound header policy
+> corrections, ADR-025** (T50–T51). No task depends on a later task. **51 tasks, T1–T51.**
 >
 > **All four Owner-approval flags are ruled and `design-10`'s amendment gate has closed with its four
 > corrections landed** (`docs/status.md` item #10), so — unlike `plan-10`'s own sequencing note,
@@ -123,6 +139,15 @@
 >    secret, which is never typed at all) — carried into T20, T23, T29, T30's Acceptance Criteria
 >    individually rather than asserted once, because each is a separate form field and a separate
 >    regression surface.
+> 9. **ADR-025's two corrections are outbound-only; inbound is untouched, and a global `webhook-`
+>    find-and-replace across the codebase is the wrong implementation of either.**
+>    `StandardWebhooksScheme`'s own request-header reads and `DeliveryUnitResolver`'s AC27
+>    verification-header map keep the Standard Webhooks specification names (`webhook-id`,
+>    `webhook-timestamp`, `webhook-signature`) verbatim, because those are the names an inbound
+>    sender actually transmits — pinned by name at **T50**. The AC27 per-proxy verification-header
+>    strip inside `OutboundHeaders::build()` (T26) stays exactly as built; it is the reason removing
+>    five provider-signature names from `DeliveryUnit::STRIPPED_HEADERS` is safe, not a coincidence —
+>    pinned by name at **T51**.
 >
 > **Scope discipline (`plan-10` §§ Explicitly out of scope / Out of Scope) — do NOT build in this
 > feature:** any third verification scheme, IP allow-listing, mutual TLS, or free-form verification
@@ -2680,8 +2705,12 @@
   passed) against a real production build, both themes, at 360px. If a queued/async environment is
   available (`QUEUE_CONNECTION=redis`, Horizon), a spot check of one signed dispatch and one verified
   ingest through the real async path is recommended given this document's delivery-path caveat, though
-  not required by any AC below (AC47 — no numeric or environment target).
-- **Dependencies:** T9, T12, T23, T24, T30, T31, T33, T41, T42, T43, T44, T45, T46, T47, T48
+  not required by any AC below (AC47 — no numeric or environment target). **Sequencing note, the only
+  edit made to this task by the M10/ADR-025 addition:** T50 and T51 now run before this task, not
+  after — both change delivery-path header behaviour (a header-name rename and a
+  `DeliveryUnit::STRIPPED_HEADERS` entry removal), and this task's own byte-identical re-run and Flow
+  walkthrough must certify the header set item #10 actually ships, not a pre-rename one.
+- **Dependencies:** T9, T12, T23, T24, T30, T31, T33, T41, T42, T43, T44, T45, T46, T47, T48, T50, T51
 - **Files:** none; verification-only
 - **Acceptance Criteria:**
   - Every Implementation Note (1–23) holds against the finished code, checked by inspection of the
@@ -2693,7 +2722,177 @@
     tree, re-run one final time.
   - AC29's cap-of-two and both ruling-2a disclosures (T23, T43) are confirmed present together on one
     finished screen pass each, not merely at the unit level.
+  - The finished outbound signing headers are the **renamed** set — `WebhookProxy-Id`,
+    `WebhookProxy-Timestamp`, `WebhookProxy-Signature` (T50) — nowhere a `webhook-id`/`webhook-timestamp`/`webhook-signature`
+    key on an outbound request; the five provider-signature names pass through unconditionally (T51);
+    and inbound verification (header names read, the AC27 map, the AC27 strip) is confirmed unchanged
+    by both.
 - **Testing:** manual, recorded in completion notes with concrete steps and observed outcomes.
+- **Completion notes:** _pending_
+
+---
+
+## M10 — Outbound header policy corrections (ADR-025)
+
+Two Owner-approved decisions from `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`
+(Status ACCEPTED, Project Owner, 2026-08-28), appended after M9 rather than inserted earlier in the
+sequence, so that no already-committed task (T1–T43) or already-numbered pending task (T44–T49) is
+renumbered — matching this document's own precedent for a later Owner-approved addition (see the
+Scope/conventions note above on item #11's M8). Both tasks are outbound-only; neither touches inbound
+verification. **T49 above has been amended, the only edit made to any existing task**, to depend on
+both and to re-certify the final header set as part of its own closing sweep.
+
+**Two consequences the ADR routes to other roles — named here as outstanding, not actioned by either
+task below, so nothing proceeds as though they are already settled:**
+- **PRD-10 AC55** currently reads "the same three headers" in a context describing the Standard
+  Webhooks specification names on the outbound signing path. After T50, the outbound header *names*
+  are `WebhookProxy-Id`/`WebhookProxy-Timestamp`/`WebhookProxy-Signature`; only the *value format*
+  remains Standard-Webhooks-compatible (`v1,<base64>`). This is a **Product Manager** amendment to
+  PRD-10, not a Task Planner or Senior Developer call, and is not made here.
+- **`design-10` carries stale outbound copy that ADR-025 itself mis-cites.** The ADR points at Screen
+  6 lines 534–536; those lines are **inbound** copy on the `standard-webhooks` scheme field (the
+  member-facing text explaining why the field's help copy no longer says "signing secret") and must
+  **not** change — recorded here as a correction to the ADR's own citation, not repeated. The line that
+  actually goes stale after T50 is **Flow G step 5** (design-10 line 415): "carries the Standard
+  Webhooks signature headers" — after the rename the header *names* are `WebhookProxy-*`, and only the
+  underlying value format/algorithm is Standard-Webhooks-shaped. This is a **Designer** correction to
+  `design-10`, not made here.
+
+## T50 — Outbound signing header rename: `webhook-*` → `WebhookProxy-*` (ADR-025 Decision 2)
+- **Description:** `OutboundHeaders::signingHeaders()` (T34) currently emits three header names —
+  `webhook-id`, `webhook-timestamp`, `webhook-signature`. Rename all three, together, to
+  `WebhookProxy-Id`, `WebhookProxy-Timestamp`, `WebhookProxy-Signature`. Nothing else about signing
+  changes: the value format stays `v1,<base64>`, space-delimited, one entry per live signing secret
+  (still capped at two, AC29); the signed content stays the exact dispatched bytes (`$unit->payload`);
+  the `webhook-id` **value**'s own derivation, `msg_{dispatch_uuid}_{destination_id}`, is unchanged —
+  only the outbound header *names* move. Scoped narrowly: `signingHeaders()`'s three return-array keys,
+  its own doc comment and `OutboundHeaders`' class-level doc comment (both currently name the old
+  headers), and the header-name string literals in the tests that assert them.
+  **The trap this task exists to prevent, stated explicitly because ADR-025 names it as the likely
+  failure mode: inbound is untouched.** `App\Verification\StandardWebhooksScheme` reads
+  `webhook-id`/`webhook-timestamp`/`webhook-signature` off the **inbound** request — those are the
+  names the Standard Webhooks specification defines and the names an actual sender transmits, and
+  renaming them would break verification for every `standard-webhooks`-scheme proxy. Likewise
+  `App\Services\DeliveryUnitResolver`'s AC27 verification-header map
+  (`VerificationScheme::StandardWebhooks => ['webhook-id', 'webhook-timestamp', 'webhook-signature']`)
+  stays exactly as it is — it names headers to **strip inbound-forwarded copies of**, not headers this
+  proxy emits outbound. **A global find-and-replace of the string `webhook-` anywhere in this codebase
+  is not this task's implementation** and must not be attempted; the correct change touches exactly one
+  production file.
+- **Dependencies:** T34, T35, T39, T40 (the task rewrites code and test assertions those four tasks
+  already landed)
+- **Files:**
+  - `app/Support/OutboundHeaders.php` (production — `signingHeaders()`'s three return keys, plus the
+    class-level and method-level doc comments naming the old headers)
+  - `tests/Unit/Support/OutboundHeadersSigningTest.php` (T34's own suite — asserts `webhook-id`/`webhook-timestamp`/`webhook-signature`
+    array keys directly against `OutboundHeaders::build()`'s return value)
+  - `tests/Unit/Support/OutboundHeadersSigningRegressionTest.php` (T35 — asserts the absence of the
+    old three keys on an unsigned/disabled proxy; assert the absence of the new three instead)
+  - `tests/Feature/Delivery/SigningAllOrNoneFailureTest.php` (T39 — one `hasHeader('webhook-signature')`
+    assertion)
+  - `tests/Feature/Delivery/OutboundSigningIntegrationTest.php` (T40 — the widest set of literal
+    `webhook-id`/`webhook-timestamp`/`webhook-signature` header-name assertions across AC54, AC55/AC59,
+    AC58, AC60, AC61 and AC64's own test methods)
+  - **Explicitly not touched, named so a later reader can confirm the diff by inspection:**
+    `app/Verification/StandardWebhooksScheme.php`; `app/Services/DeliveryUnitResolver.php`'s AC27
+    verification-header map; `tests/Unit/Services/DeliveryUnitResolverTest.php` (asserts
+    `['webhook-id', 'webhook-timestamp', 'webhook-signature']` against `$unit->verificationHeaderNames` —
+    stays passing, unmodified); `tests/Unit/Verification/StandardWebhooksSchemeTest.php`;
+    `tests/Unit/Services/InboundVerifierTest.php`; `tests/Feature/Ingest/InboundVerificationIntegrationTest.php`;
+    `resources/js/pages/proxies/ProxyForm.vue` (Screen 1's inbound copy); `design-10` lines 543–548
+    (the inbound `standard-webhooks` header-name list a sender must send).
+- **Acceptance Criteria:**
+  - `OutboundHeaders::build()` on a signing-enabled proxy returns exactly `WebhookProxy-Id`,
+    `WebhookProxy-Timestamp`, `WebhookProxy-Signature` as header names; no `webhook-id`/`webhook-timestamp`/`webhook-signature`
+    key appears anywhere in its return value.
+  - Value format and signed content are unchanged from T34/T35/T39/T40's own already-pinned behaviour:
+    one `v1,<base64>` entry per live secret (capped at two, AC29), `WebhookProxy-Id` identical across
+    an attempt and its retry, different on replay, different per destination of one dispatch despite a
+    shared signing key (AC60); the signature still verifies via `StandardWebhooks::verify()` (T7) over
+    the exact dispatched bytes (AC59).
+  - `app/Verification/StandardWebhooksScheme.php` and `DeliveryUnitResolver`'s AC27 map are unchanged
+    by this task's diff — confirmed by inspection, not merely by omission — and
+    `DeliveryUnitResolverTest`'s existing `['webhook-id', 'webhook-timestamp', 'webhook-signature']`
+    assertion against `$unit->verificationHeaderNames` still passes with zero edits.
+  - A `standard-webhooks`-scheme proxy still verifies a real inbound request signed with the
+    specification's own `webhook-id`/`webhook-timestamp`/`webhook-signature` headers, exactly as before
+    this task — run as an explicit regression pass against the inbound suites named above, proving they
+    needed no edits, not merely left alone.
+  - Every header-name literal in the T34, T35, T39 and T40 suites is updated to the new names; no test
+    anywhere in this feature still asserts a `webhook-*` name on the outbound path.
+- **Testing:** no new test file — updates the literal string assertions in the four existing files
+  named above. Run `./vendor/bin/sail test --filter "OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|SigningAllOrNoneFailureTest|OutboundSigningIntegrationTest"`
+  for the outbound side, plus `--filter "StandardWebhooksSchemeTest|InboundVerifierTest|InboundVerificationIntegrationTest|DeliveryUnitResolverTest"`
+  as the explicit inbound-unchanged regression pass.
+- **Sequencing constraint, carried here per ADR-025 § Sequencing, not only in this document's own
+  report:** this task **must land before item #10's branch (`feat/item-10-sensitive-data`) merges to
+  `main`**. Merging the old header names first and renaming afterward turns the rename into a breaking
+  change for any member who has already configured a receiver against `webhook-id`/`webhook-timestamp`/`webhook-signature`,
+  with no notification surface available to warn them (PRD-10 AC55 ships none). Placed in M10, after
+  M9's closing sweep (T49) — see T49's own amended Dependencies and its new AC bullet above, which
+  re-certify the finished, renamed header set as part of the feature's actual close-out.
+- **Completion notes:** _pending_
+
+## T51 — Provider signature headers pass through unconditionally (ADR-025 Decision 1)
+- **Description:** Remove five names from `DeliveryUnit::STRIPPED_HEADERS`: `stripe-signature`,
+  `x-hub-signature`, `x-hub-signature-256`, `x-signature`, `x-webhook-signature`. Every other entry in
+  that constant stays exactly as is, same casing, same order — `host`, the RFC 7230 §6.1 hop-by-hop set
+  (`connection`, `keep-alive`, `proxy-authenticate`, `proxy-authorization`, `te`, `trailer`,
+  `transfer-encoding`, `upgrade`), `content-length`, `cookie`, `authorization`. Approved as
+  **unconditional** pass-through (ADR-025's own gated ruling) — it applies to every proxy alike, with
+  no per-proxy opt-in/opt-out toggle; no task in this document, this one included, adds one.
+  **Why this is safe now, stated as the reasoning that makes it safe rather than left implicit:** the
+  per-proxy verification-header strip inside `OutboundHeaders::build()` (T26, AC27) removes *this
+  proxy's own* configured verification header value — a `shared-secret` value, or the
+  `standard-webhooks` names — before the destination request is sent, independently of this task and
+  unaffected by it. That strip is what keeps a member's own `shared-secret` value from leaving via this
+  path even after these five names stop being stripped; it is not a coincidence, and this task must not
+  weaken, loosen, or make it conditional.
+- **Dependencies:** T26 (built the AC27 per-proxy verification-header strip this task's safety rests
+  on)
+- **Files:**
+  - `app/Pipeline/DeliveryUnit.php` (production — the five-line removal from `STRIPPED_HEADERS`; its
+    doc comment at the constant's declaration currently reads "Outbound signing is #10" for this block,
+    which should be corrected to state that these five names now pass through unconditionally rather
+    than being reserved/stripped pending #10)
+  - `tests/Unit/Pipeline/DeliveryUnitTest.php` (`test_forward_headers_keeps_benign_and_strips_sensitive_case_insensitively` —
+    the five provider-signature header fixtures move from the "stripped" assertion loop to the
+    "forwarded" assertion list; the closing `assertCount` changes from 2 to 7 forwarded headers)
+  - **Explicitly not touched:** the AC27 per-proxy verification-header strip inside
+    `OutboundHeaders::build()` (T26) — must stay exactly as built; `host`, the RFC 7230 hop-by-hop set,
+    `content-length`, `cookie`, `authorization` — none of the remaining `STRIPPED_HEADERS` entries move.
+- **Acceptance Criteria:**
+  - `DeliveryUnit::STRIPPED_HEADERS` no longer contains `stripe-signature`, `x-hub-signature`,
+    `x-hub-signature-256`, `x-signature`, or `x-webhook-signature`; every other entry is unchanged,
+    same casing, same order.
+  - A request carrying `Stripe-Signature`/`X-Hub-Signature`/`X-Hub-Signature-256`/`X-Signature`/`X-Webhook-Signature`
+    (any casing) now appears, unmodified, in `DeliveryUnit::forwardHeaders()`'s return value for a
+    proxy with no verification scheme configured.
+  - The pass-through is unconditional: identical regardless of the proxy's own verification scheme
+    (`shared-secret`, `standard-webhooks`, or none) and regardless of whether the proxy also has a
+    `credential_header_name` collision (T26's existing collision rule still governs any actual name
+    clash, unaffected by this task).
+  - On a proxy with `shared-secret` verification configured under a header name that happens to
+    collide with one of the five newly-passed-through names, the proxy's own verification-header value
+    is still stripped by `OutboundHeaders::build()`'s existing AC27 step before the destination request
+    is sent — a dedicated test on a deliberately colliding header name, proving the AC27 strip still
+    wins over the new pass-through.
+  - `OutboundHeadersTest`'s (T26) AC37 byte-identical baseline and `OutboundHeadersSigningRegressionTest`'s
+    (T35) AC63 byte-identical baseline both still pass unmodified — this task changes what forwards,
+    not the composition order or any other header-building behaviour.
+  - A repository-wide search for each of the five literal strings, run before this task is marked
+    complete, confirms no other test anywhere asserted one of them as stripped on the outbound path.
+- **Testing:** extends `tests/Unit/Pipeline/DeliveryUnitTest.php` (the five-header move,
+  `assertCount(7, ...)`); one new dedicated test — in `tests/Unit/Support/OutboundHeadersTest.php` or a
+  new file, either acceptable as long as it is independently identifiable as *the* AC27-strip-still-wins
+  guard — proving the collision case above.
+- **Sequencing constraint, carried here per ADR-025 § Sequencing, not only in this document's own
+  report:** this task **must land with or after item #10, never before**. The AC27 per-proxy
+  verification-header strip this task's safety rests on exists **only on this branch**
+  (`feat/item-10-sensitive-data`, T26). Removing these five names from `STRIPPED_HEADERS` on `main`
+  ahead of #10 would let a member's own `shared-secret` verification value reach a destination for any
+  proxy without that AC27 strip in place yet. Placed in M10, alongside T50, both landing within item
+  #10's own branch and therefore after the AC27 strip that makes this safe.
 - **Completion notes:** _pending_
 
 ## Handoff
@@ -2705,10 +2904,13 @@
   `docs/architecture/adr-022-inbound-verification-at-the-ingest-boundary.md`,
   `docs/architecture/adr-023-outbound-request-contract.md`,
   `docs/architecture/adr-024-field-obfuscation-and-revealed-payload-envelope.md` (all Accepted);
-  `docs/questions/prd-10-q-10-02-…` (RESOLVED), `prd-10-q-10-03-…` (RESOLVED), `prd-10-q-10-04-…`
-  (RESOLVED), `prd-10-q-10-05-…` (RESOLVED, Principal Engineer — see `plan-10` § *Revision A*);
-  `docs/standards/planning.md`; `docs/tasks/analytics-tasks.md` (the most recent prior task
-  plan, whose house format this document follows).
+  `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`
+  (Accepted, Project Owner, 2026-08-28 — M10/T50/T51 only; committed on branch
+  `docs/adr-025-outbound-header-policy`, not yet merged onto this branch, see the Authority note at the
+  top of this document); `docs/questions/prd-10-q-10-02-…` (RESOLVED), `prd-10-q-10-03-…` (RESOLVED),
+  `prd-10-q-10-04-…` (RESOLVED), `prd-10-q-10-05-…` (RESOLVED, Principal Engineer — see `plan-10` §
+  *Revision A*); `docs/standards/planning.md`; `docs/tasks/analytics-tasks.md` (the most recent prior
+  task plan, whose house format this document follows).
 - **Outputs:** this task plan; `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`
   (raised here, **RESOLVED** by the Principal Engineer, recorded as `plan-10` § *Revision A*, technical
   ruling 15 — T31 built to it).
