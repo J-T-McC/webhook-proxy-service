@@ -7,8 +7,11 @@
   **non-blocking**: `plan-10` builds to `design-10` exactly as approved, and both answers are
   additive whichever way they go.
 - **Priority:** Low
-- **Status:** Open
+- **Status:** **RESOLVED — Designer, 2026-08-27.** Item 1: a "Remove credential" ghost
+  button is added beside Replace (Screen 3). Item 2: the plain `Input type="password"`
+  stands, on a narrower ground than N3 originally gave. See § Answer.
 - **Raised:** 2026-08-27
+- **Resolved:** 2026-08-27
 
 ## Question
 
@@ -104,4 +107,51 @@ person to read N3 will believe something about the codebase that is not true.
 
 ## Answer
 
-*(Unanswered.)*
+**Designer, 2026-08-27.** Both items are design-detail decisions within the Designer's
+authority (`CLAUDE.md`: "design → product-manager" is the approval gate, not the decision
+itself; neither item touches an acceptance criterion, as this document already notes).
+Rendered into `docs/design/design-10-sensitive-data-handling.md` directly — Screen 3 and
+its States table for item 1, Screen 1's write-only shared shape for item 2 — this is the
+answer and the reasoning, not a second copy of the design text.
+
+### Item 1 — a remove affordance is added.
+
+**Ruled: a "Remove credential" ghost button, beside Replace, inside the expanded
+disclosure.** Of the three shapes this document offered, this one was chosen over a `×`
+on the collapsed trigger (which would remove a secret from a control whose whole point is
+to stay collapsed and unremarkable) and over stating the absence as deliberate (which this
+document itself already doubted, correctly: AC30 makes the credential optional, and a
+capability a member can turn on but never fully off is a real gap, not a considered
+boundary). It also brings the credential surface into line with signing's own explicit
+**Disable signing** affordance, which this document flagged as the asymmetry worth
+noticing.
+
+Per the technical note already in this document: **removal is a save-time change**, like
+every other field on this form, not an immediate action, and needs no confirmation dialog
+under `docs/standards/design.md`'s rule — nothing stored is exposed and the credential can
+be re-entered. `plan-10`'s stated gap ("Screen 3 exactly as approved — not set, set,
+replace, and no removal") is now closed by this answer; the Principal Engineer's build
+should follow the amended Screen 3 rather than the plan's placeholder note.
+
+### Item 2 — the plain `Input type="password"` stands, but not for the reason given.
+
+**Ruled: keep the plain masked `Input`, not `PasswordInput.vue`'s show/hide toggle.** The
+premise this document corrected was wrong — `PasswordInput.vue` exists — and the original
+N3 note is left as a historical record of what the design gate considered rather than
+rewritten (per `docs/standards/documentation.md` and the standing rule `design-11`'s gate
+set). The conclusion is re-reached on a narrower ground: every secret in this feature is
+deliberately built to one idiom — type it, save it, see that it is *set*, never see it
+again — and a reveal toggle on the entry field, however harmless here (this field only
+ever holds what the member just typed, never a value read back from storage, so AC26/
+AC33/AC57's no-readback rule is not at stake either way), would sit oddly two screens away
+from an inert `[Hidden]` token that exists precisely because AC20 forbids revealing
+anything. One consistent idiom for the whole feature outweighs a convenience on one field.
+`autocomplete="off"` remains required regardless of which primitive is used, as this
+document already noted; the plain `Input` already carries it and needs no change.
+
+### What this answer does not do
+
+It does not touch any acceptance criterion, does not reopen the design gate (both changes
+are additive to the approved surface, in the same way `plan-10` already treats this
+document as non-blocking), and does not require Principal Engineer or Product Manager
+re-approval beyond the ordinary review that follows any design revision.
