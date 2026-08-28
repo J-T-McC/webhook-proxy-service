@@ -515,7 +515,7 @@ raised as a new item on `Q-11-03` (see Open Questions) rather than assumed.
 | Bridge sentence | plain `p`, muted/italic | Reused text treatment |
 | Proxies / Destinations breakdown tables | `Table`/`TableHeader`/`TableBody`/`TableRow`/`TableCell`/`TableHead` | Reused — same primitive as the Events list |
 | Sortable column header | `TableHead` + a click handler + `aria-sort` | **New small composition** on an existing primitive — no new `ui/*` primitive |
-| Trend / latency charts | Chart.js (via the Owner-suggested `@j-t-mcc/vue3-chartjs` wrapper) | **New dependency** — a Principal Engineer / Owner gate per `CLAUDE.md`, not approved here. This spec names chart *types*, states, and the accessible fallback; it does not assume a specific API |
+| Trend / latency charts | Chart.js `^4` plus the Owner-suggested `@j-t-mcc/vue3-chartjs` wrapper | **New dependency — decided, both packages adopted.** Ruled by the Project Owner (2026-08-26): `chart.js` `^4` **and** `@j-t-mcc/vue3-chartjs`, both adopted; the local-wrapper alternative (`chart.js` alone behind an in-tree `TrendChart.vue`) was considered and explicitly not taken (`docs/plans/plan-11-analytics.md` § Owner rulings on both flags, § Owner ruling on T25's check-2 finding). This spec names chart *types*, states, and the accessible fallback; it does not assume a specific API |
 | Chart data-table fallback | `Collapsible`/`CollapsibleTrigger`/`CollapsibleContent` | Reused — already shipped, first used in `design-06` |
 | Retry & replay stat tiles | `Card` + `dl`/`dt`/`dd` | Reused pattern, new composition of it |
 | Filter chips (Events list) — window, destination, **outcome** | small `Badge`-shaped composition with a remove control | **New small composition** — no existing chip/tag primitive in this app; built from `Badge` + a `button` with an `aria-label` (never an icon-only, unlabelled `×`). Outcome is a third instance of the same composition (**C1**), not a new component |
@@ -743,13 +743,16 @@ attempt grain. Written into `Q-11-03` as a new item — see § Handoff.
   {Index,Show}.vue`, `resources/js/components/ui/{table,card,badge,button,
   collapsible}/*` (current implementation studied for this spec).
 - **Outputs:** this design spec.
-- **Dependencies:** **one new dependency pair is assumed** — Chart.js 4 plus the
+- **Dependencies:** **the new-dependency pair is decided** — `chart.js` `^4` plus the
   Owner-suggested `@j-t-mcc/vue3-chartjs` wrapper — named in `docs/product/prd-11-
-  analytics.md` § Handoff as a **new-dependency Owner gate the Principal Engineer
-  records formally at plan time**; this spec does not approve it, only designs
-  against the assumption that a two-series line chart with per-series colour and
-  line-dash control is available. **Specific library capabilities this spec assumes
-  and asks the Principal Engineer to confirm:** (a) two-series line charts with
+  analytics.md` § Handoff as a **new-dependency Owner gate**, ruled by the Project
+  Owner on 2026-08-26: both packages adopted, the local-wrapper alternative
+  considered and not taken (`docs/plans/plan-11-analytics.md` § Owner rulings on
+  both flags, § Owner ruling on T25's check-2 finding). This spec did not itself
+  approve the dependency — that approval sat with the Principal Engineer and the
+  Owner — and was written against the assumption that a two-series line chart with
+  per-series colour and line-dash control is available. **Specific library
+  capabilities this spec assumed and asked the Principal Engineer to confirm:** (a) two-series line charts with
   independent line-dash styling per series; (b) per-series colour supplied as a
   resolved CSS colour value, not a token string the library re-parses (see the
   colour-resolution note below); (c) the chart canvas can be marked
@@ -777,8 +780,10 @@ attempt grain. Written into `Q-11-03` as a new item — see § Handoff.
   here awaits a PE feasibility answer the way C1 briefly did. Two feasibility
   questions from the prior approval are still folded into the Principal Engineer's
   already-open, non-blocking `Q-11-03` (items (9) and (10)), unaffected by this
-  revision; the new-dependency Owner gate is named but not approved here, per
-  PRD-11's own Handoff.
+  revision; the new-dependency Owner gate named in PRD-11's own Handoff is **ruled**
+  (Project Owner, 2026-08-26 — both packages adopted, the local-wrapper alternative
+  not taken; `docs/plans/plan-11-analytics.md` § Owner rulings on both flags), not
+  something this spec itself approves.
 - **Next Agent:** was the **Product Manager**, to approve this Amendment B revision
   against PRD-11 Amendment B (design gate, delegated per `CLAUDE.md`) — see § Amendment B
   changes below for the complete list of what changed and where.
