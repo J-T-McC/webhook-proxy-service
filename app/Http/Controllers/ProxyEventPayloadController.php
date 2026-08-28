@@ -2,22 +2,34 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\MatchSource;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
+use App\Services\SensitiveFieldMatcher;
+use App\Support\PayloadObfuscator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
 /**
- * The masked payload viewer's fetch-on-reveal endpoint (T28; AC22, AC25;
- * ADR-017 Decision 6) — the **only** content-bearing response in #6. Gated on
- * the existing proxy **view** permission, no distinct reveal permission
- * (AC14/AC22). Guards on `payload_cleaned_at` (ADR-014 Decision 7), never
- * `body IS NULL`, and reads only `webhook_events.body` — the raw capture —
- * never `dispatched_payloads.body` (ADR-017 Impact, ADR-013 Decision 3's
- * confinement of that interpretation to `StoredPayloadLookup`). The response
- * is never logged (only identifiers), never cached, never proxied into any
- * resource or prop.
+ * The masked payload viewer's fetch-on-reveal endpoint (T28, extended T8;
+ * AC15, AC18, AC21, AC22, AC25; ADR-017 Decision 6, ADR-024) — the **only**
+ * content-bearing response in the system. Gated on the existing proxy
+ * **view** permission, no distinct reveal permission (AC20). Guards on
+ * `payload_cleaned_at` (ADR-014 Decision 7), never `body IS NULL`, and reads
+ * only `webhook_events.body` — the raw capture — never `dispatched_payloads.
+ * body` (ADR-017 Impact, ADR-013 Decision 3's confinement of that
+ * interpretation to `StoredPayloadLookup`). The response is never logged
+ * (only identifiers), never cached, never proxied into any resource or prop.
+ *
+ * Branches on whether the stored body parses as JSON (ADR-024 Decision 2):
+ * a JSON-parseable body returns the `{format, document, obfuscated}`
+ * envelope with every sensitive value replaced by `null` in `document` and
+ * the matching `MatchSource` recorded per RFC 6901 pointer in `obfuscated`;
+ * a non-JSON body is returned unchanged, exactly as before this feature
+ * (AC22 — no field-level claim is possible or made). Obfuscation is applied
+ * here only — never on any write, dispatch, retry or replay path.
  */
 class ProxyEventPayloadController extends Controller
 {
@@ -28,7 +40,7 @@ class ProxyEventPayloadController extends Controller
      * binding, so a cross-team/cross-proxy event id 404s before this method
      * runs at all.
      */
-    public function __invoke(Request $request, string $current_team, Proxy $proxy, WebhookEvent $event): Response
+    public function __invoke(Request $request, string $current_team, Proxy $proxy, WebhookEvent $event): Response|JsonResponse
     {
         $this->authorize('view', $proxy);
 
@@ -49,6 +61,24 @@ class ProxyEventPayloadController extends Controller
 
         /** @var string $body */
         $body = $event->body;
+
+        $document = json_decode($body, true);
+
+        if (json_last_error() === JSON_ERROR_NONE) {
+            [$obfuscatedDocument, $pointerIndex] = PayloadObfuscator::obfuscate($document, new SensitiveFieldMatcher($proxy));
+
+            return response()->json([
+                'format' => 'json',
+                'document' => $obfuscatedDocument,
+                'obfuscated' => array_map(
+                    static fn (MatchSource $source): string => $source->value,
+                    $pointerIndex,
+                ),
+            ], 200, [
+                'X-Content-Type-Options' => 'nosniff',
+                'Cache-Control' => 'no-store, private',
+            ]);
+        }
 
         return response($body, 200, [
             'Content-Type' => 'text/plain; charset=utf-8',

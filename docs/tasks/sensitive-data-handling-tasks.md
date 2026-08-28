@@ -449,7 +449,38 @@
 - **Testing:** extends `tests/Feature/Proxies/ProxyEventPayloadControllerTest.php` (existing, from #6)
   — the JSON-envelope case, the non-JSON-unchanged case, the cleaned-410-both-shapes case, the header
   assertions.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyEventPayloadController` now `json_decode($body, true)`s the
+  stored body and branches on `json_last_error()`: a decode success re-encodes through
+  `PayloadObfuscator::obfuscate()` (a `SensitiveFieldMatcher` built from the proxy) into the
+  `{format, document, obfuscated}` envelope via `response()->json()`, with `obfuscated`'s
+  `MatchSource` values mapped to their `->value` strings; a decode failure falls through to the
+  existing unchanged raw-bytes/`text/plain` response. The `payload_cleaned_at` guard is unchanged and
+  runs before either branch, so a cleaned event returns the same empty 410 regardless of what the
+  stored body would have parsed as. `nosniff`/`no-store, private` are set on both paths.
+
+  **File path correction, not a deviation:** this task's own Testing line names
+  `tests/Feature/Proxies/ProxyEventPayloadControllerTest.php`; the file `ProxyEventPayloadController`
+  actually has (added at #6/T28) lives at `tests/Feature/ProxyEvents/ProxyEventPayloadControllerTest.php`
+  — extended that existing file rather than creating a second, since the task names the class under
+  test unambiguously and a duplicate test file for the same controller would itself be a review
+  finding.
+
+  **Return type widened** from `Illuminate\Http\Response` to `Response|JsonResponse` —
+  `response()->json()` returns `JsonResponse`, which is not a `Response` in this Laravel version;
+  PHPStan/the framework's own dispatcher enforce the declared return type at the controller boundary
+  regardless of PHPStan level, so this was required for the new branch to run at all, not a style
+  choice.
+
+  Extended the existing test file: renamed the raw-bytes test to a genuinely non-JSON body (a JSON
+  body no longer takes that path), added the JSON-envelope test (asserts the exact envelope shape,
+  headers, and that a default-list match and a proxy addition both obfuscate correctly with the right
+  `MatchSource`), added a cleaned-with-JSON-shaped-stored-body case for the "both shapes" requirement,
+  and added a smoke-check test with a live `ProxySecret` row on the proxy, asserting the response
+  never contains its value (the exhaustive sweep is T47's).
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  ProxyEventPayloadControllerTest` green (12 tests, 33 assertions); full-suite run deferred to the end
+  of this batch.
 
 ## T9 — `PayloadViewer.vue`: the obfuscated-value token, both C3 descriptions (Screen 7; AC16, AC20, AC21, C3, C6, C8, C9, N1)
 - **Description:** Extends the existing masked/revealed toggle (design-06, unchanged) so the
