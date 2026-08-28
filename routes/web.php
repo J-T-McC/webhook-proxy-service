@@ -6,6 +6,8 @@ use App\Http\Controllers\ProxyController;
 use App\Http\Controllers\ProxyEventController;
 use App\Http\Controllers\ProxyEventPayloadController;
 use App\Http\Controllers\ProxyEventReplayController;
+use App\Http\Controllers\ProxySigningController;
+use App\Http\Controllers\ProxySigningOverlapController;
 use App\Http\Controllers\ProxyVerificationOverlapController;
 use App\Http\Controllers\Teams\TeamInvitationController;
 use App\Http\Middleware\ApplyTeamScope;
@@ -39,6 +41,12 @@ Route::prefix('{current_team}')
             ->name('proxies.events.replay');
         Route::delete('proxies/{proxy}/verification/overlap', [ProxyVerificationOverlapController::class, 'destroy'])
             ->name('proxies.verification.overlap.destroy');
+        Route::post('proxies/{proxy}/signing', [ProxySigningController::class, 'store'])
+            ->name('proxies.signing.store');
+        Route::delete('proxies/{proxy}/signing', [ProxySigningController::class, 'destroy'])
+            ->name('proxies.signing.destroy');
+        Route::delete('proxies/{proxy}/signing/overlap', [ProxySigningOverlapController::class, 'destroy'])
+            ->name('proxies.signing.overlap.destroy');
     });
 
 Route::middleware(['auth'])->group(function () {

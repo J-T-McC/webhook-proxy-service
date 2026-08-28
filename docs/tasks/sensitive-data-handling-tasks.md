@@ -2025,7 +2025,31 @@
     signature list immediately.
   - A Member without `update` rights on the proxy is 403 on all three.
 - **Testing:** `tests/Feature/Proxies/ProxySigningControllerTest.php` (new) — one test per bullet.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxySigningController@store` (`POST proxies/{proxy}/signing`) always
+  calls `SecretStore::generate()` (Enable and Regenerate are literally the same call, AC56) and returns
+  `{ secret, generated_at }` as `application/json` with `Cache-Control: no-store, private` — matching
+  `ProxyEventPayloadController`'s own established `response()->json($data, 200, [...])` header-array
+  convention rather than the `HttpFoundation` fluent `setPrivate()`/`addCacheControlDirective()` API,
+  which does not compose cleanly with `response()->json()`'s own return type. `@destroy` calls
+  `SecretStore::disable()` and redirects (`back()`). `ProxySigningOverlapController@destroy`
+  (`DELETE proxies/{proxy}/signing/overlap`) calls `SecretStore::endOverlap()` and redirects —
+  the signing-surface mirror of `ProxyVerificationOverlapController`, same idempotent-by-construction
+  reliance on `SecretStore`, no guard of its own. All three gated `update` via `ProxyPolicy` (no new
+  permission); all three routes registered in `routes/web.php` alongside the existing
+  `proxies.verification.overlap.destroy` route, no destination-scoped route added anywhere.
+
+  Five tests, one per Acceptance Criteria bullet: two consecutive `store` calls produce different
+  secrets, both returned exactly once with the exact `Cache-Control` header, and the live signing set
+  afterward is `[second, first]` (current-first, matching `SecretStore::replace()`'s own ordering); the
+  generated secret is absent from the content of an immediately-following `show`, `edit` and `index`
+  response; `destroy` empties the live signing set and a subsequent `store` produces a value matching
+  neither of the two previously-live secrets; the overlap-end endpoint removes the demoted secret from
+  the live set immediately; and a Member without update rights on a teammate's proxy is 403 on all three
+  endpoints with nothing changed.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "ProxySigningControllerTest|ProxyVerificationOverlapControllerTest"` (9 tests, 39 assertions) all
+  green; full-suite run deferred to the end of this batch (T34-T40).
 
 ## T38 — `security` prop: the `signing` sub-object (AC54, AC57, AC58; plan § API, Technical ruling 4)
 - **Description:** Extends `ProxySecurityResource` with `signing: { enabled, generated_at,
