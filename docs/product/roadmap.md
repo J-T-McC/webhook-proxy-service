@@ -37,12 +37,12 @@ approved 2026-08-27). #10's approved line covers webhooks coming **in**; the Own
 ruled that a destination credential this service presents when it dispatches
 belongs in the same item rather than becoming its own line. Approval status
 retained; this is a post-approval scope change of a single item, made by the Owner,
-matching how #1 and #2 were handled. **Also pending at #10, and not yet ratified:**
+matching how #1 and #2 were handled. **Also at #10, and now ratified:**
 `docs/product/prd-10-sensitive-data-handling.md` `## Amendment A` adds **outbound
 request signing** — the reverse direction, where a destination verifies that a
-dispatch came from this service — as AC54–AC64. That is a further widening of #10
-and it takes effect only if the Owner approves that PRD; it is named here so a
-reader of this line knows it is in flight, not so it is treated as settled.
+dispatch came from this service — as AC54–AC64. That is a further widening of #10,
+and the Project Owner approved that PRD on 2026-08-27, so it is settled rather than
+in flight.
 Revised 2026-08-27: **item #15 added — pause and resume dispatch**, per Project
 Owner ruling that it is its own roadmap item rather than #10 scope, on the ground
 that it has value well beyond secret rotation (destination outages, maintenance

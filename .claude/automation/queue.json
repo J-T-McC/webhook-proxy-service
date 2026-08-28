@@ -51,7 +51,7 @@
       "title": "Upgrade league/commonmark to 2.9.0 to clear six denial-of-service advisories",
       "kind": "chore",
       "role": "senior-developer",
-      "state": "awaiting_merge",
+      "state": "done",
       "eligible": true,
       "source": "docs/status.md \u00a7 Backlog follow-ups",
       "acceptance": "composer audit reports no advisories against league/commonmark; full suite green; no other package's constraint changed.",
@@ -64,7 +64,7 @@
       "title": "Correct docs/stack/stack.md's claim that SQLite is the local default",
       "kind": "doc-correction",
       "role": "principal-engineer",
-      "state": "awaiting_merge",
+      "state": "done",
       "eligible": true,
       "source": "docs/status.md \u00a7 Backlog follow-ups",
       "acceptance": "stack.md no longer claims the full migration set runs on SQLite, and names the MySQL-only DDL in create_webhook_events_table as the reason.",
@@ -77,7 +77,7 @@
       "title": "Update design-11's Components row, which still describes the charting dependency as ungated",
       "kind": "doc-correction",
       "role": "designer",
-      "state": "awaiting_merge",
+      "state": "done",
       "eligible": true,
       "source": "docs/status.md \u00a7 Backlog follow-ups",
       "acceptance": "The row reflects the Owner's 2026-08-26 ruling that both packages were adopted.",
@@ -90,7 +90,7 @@
       "title": "Close review-07 Nits 5-7",
       "kind": "chore",
       "role": "senior-developer",
-      "state": "awaiting_merge",
+      "state": "done",
       "eligible": true,
       "source": "docs/reviews/review-07-enhanced-mode-toggle.md",
       "acceptance": "Each nit is either fixed with a test where one is meaningful, or recorded in the review document as deliberately not fixed, with the reason.",
@@ -134,11 +134,11 @@
       "title": "Item #10 sensitive data handling: Designer, then Technical Design, Task Planning, Implementation and Review",
       "kind": "feature",
       "role": "designer",
-      "state": "blocked",
-      "eligible": false,
+      "state": "ready",
+      "eligible": true,
       "source": "docs/product/prd-10-sensitive-data-handling.md",
       "acceptance": "Each phase produces its artifact and passes its own gate. Stop at the open pull request; do not merge.",
-      "note": "Blocked until the Project Owner approves PRD-10. Three things need the Owner specifically and each can be approved or struck on its own: the severable outbound block AC30-AC39, which carries a roadmap change escalated by Q-10-01; the V2 inbound verification ruling the PM made as Owner proxy; and two narrowings of already-approved documents, PRD-06 AC25 and ADR-008. On approval, set eligible to true and state to ready. PRD-10 carries a UX Direction section, so the Designer is a required phase before Technical Design and must not be skipped. Run one phase per run. This is security work: report what each gate did and did not prove rather than reporting green."
+      "note": "PRD-10 APPROVED by the Project Owner on 2026-08-27, as amended, which unblocks this item. The Owner set eligible to true directly in the same instruction ('everything can be merged and work can continue'); the driver did not promote it. Next phase is UX Design, not implementation: PRD-10 carries a ## UX Direction section, so a PM-approved design spec is a prerequisite for Technical Design."
     }
   ]
 }

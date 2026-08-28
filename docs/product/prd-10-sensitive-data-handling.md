@@ -1,10 +1,10 @@
 # PRD: Sensitive data handling
 
-- **Status:** **Draft — awaiting Project Owner approval.** Not approved, and not approvable by
-  the Product Manager. **`## Amendment A` (2026-08-27) has since revised this document on three
-  Project Owner rulings** and is listed at the end; the whole document, as amended, goes to the
-  Owner as one approval. What still needs the Owner specifically rather than riding along with an
-  ordinary requirements sign-off:
+- **Status:** **APPROVED by the Project Owner on 2026-08-27**, as amended. The Owner read the
+  document and approved it whole, which ratifies `## Amendment A` and everything enumerated
+  below; the three items are retained as a record of what the approval covered, not as open
+  questions. The three Project Owner rulings that Amendment A carries were each ratified by that
+  approval:
   1. **§ Roadmap Open Question V2 — settled here.** The earlier shared-secret-only ruling was
      **overturned by the Project Owner on 2026-08-27** and replaced with a closed, named
      two-scheme list. Approving this PRD ratifies the replacement.
