@@ -7,6 +7,25 @@ import type { RetryBackoffStrategy } from '@/data/proxyRetryBackoffStrategies';
 export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
 
+/** The closed AC23 inbound-verification scheme registry (`App\Enums\VerificationScheme`). */
+export type VerificationScheme = 'standard-webhooks' | 'shared-secret';
+
+/**
+ * The `security` prop's `verification` sub-object (mirrors `ProxySecurityResource`
+ * exactly, T22) — status only, never a value, never a length (AC20, AC26, AC28).
+ * Present only on `show()`/`edit()` (Technical ruling 3); `Create.vue` never
+ * receives this prop at all (`ProxyForm.vue`'s `security` prop is optional).
+ */
+export interface ProxySecurity {
+    verification: {
+        scheme: VerificationScheme | null;
+        header_name: string | null;
+        secret_set: boolean;
+        secret_changed_at: string | null;
+        overlap_expires_at: string | null;
+    };
+}
+
 // Re-exported so existing `@/types/proxies` imports keep working; each union is
 // derived from its shared data const (single source of truth) — `ProcessingMode`
 // from `@/data/proxyProcessingModes`, `ProxyResponseStatus` from

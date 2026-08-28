@@ -1197,7 +1197,62 @@
   production build, both themes, 360px: scheme selection and field visibility; the tolerance copy
   matches the backend constant; both branches of the Replace disclosure (no overlap / overlap running,
   achieved by rotating twice in a test fixture proxy first); scheme-switch-clears-in-session behaviour.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New "Verification" `fieldset` added to `ProxyForm.vue`, placed after
+  Processing and before Retry policy exactly as Screen 1 specifies. `Select v-model="verificationSchemeSelect"`
+  wraps `form.verification_scheme` with the `"none"` sentinel (N2), mirroring `statusSelect`'s existing
+  pattern exactly. `shared-secret` reveals a Header name field (pre-filled from the mount-seeded
+  `security.verification.header_name` only when switching back to the originally-persisted scheme,
+  cleared otherwise) plus the shared write-only secret shape; `standard-webhooks` reveals the same
+  write-only secret shape plus the static "what your sender must send" block, its `{tolerance}`
+  interpolating a new `standardWebhooksTolerance` page prop (`StandardWebhooks::TOLERANCE_SECONDS`,
+  T7) divided into minutes — never hand-typed (AC53). The write-only field's set/unset/replace states
+  (`verificationSecretIsSet`, `verificationReplaceClicked`) are governed entirely by the mount-seeded
+  `security.verification.secret_set`/`overlap_expires_at` (T22) — never re-read after mount — matching
+  `ProxyForm.vue`'s existing mount-seeded-vs-in-session-typed distinction (plan-07 §Technical ruling
+  4). **Screen 1 / Flow B step 2's amended disclosure, landed verbatim, word for word**: the ordinary
+  case ("Your current secret keeps working for 24 hours after you save this...") when
+  `initialVerificationOverlapExpiresAt` is null, and the discard case ("You already have a previous
+  secret from your last rotation, still honoured until {timestamp}. Saving a new secret now stops that
+  previous secret being honoured immediately — its 24 hours do not finish out.") when it isn't — shown
+  once Replace is clicked, before the save button has any effect, exactly as the amendment gate's
+  correction requires. Switching scheme resets the Replace/typed-secret state and reseeds/clears the
+  header name (same watcher-driven reset the Retry-policy fieldset already uses on a Mode change).
+
+  **Necessary supporting plumbing, not scope creep** (same precedent as T12/T15/T20/T22): added the
+  `standardWebhooksTolerance` page prop to `ProxyController::create()`/`edit()` (named explicitly by
+  the plan's own API table, but not in this task's Files list) and forwarded it plus the existing
+  `security` prop through `Create.vue`/`Edit.vue` down to `ProxyForm.vue`; `Create.vue` never passes
+  `security` at all (no proxy resource exists yet, Technical ruling 3), so `ProxyForm.vue`'s `security`
+  prop is optional and every mount-seeded verification value defaults to "nothing configured" there.
+  Added `App\Data`-mirroring `ProxySecurity`/`VerificationScheme` TypeScript types to
+  `resources/js/types/proxies.ts`.
+
+  **Manual verification performed** (own local Sail dev environment, seeded via `sail tinker`, deleted
+  again immediately after — same recipe as T9/T12), via a headless Playwright session against the real
+  running app (not a static build check alone): logged in as a fresh team/user, then against a Create
+  page and three seeded proxies (no verification; `standard-webhooks` with two live secrets — an
+  overlap running; `shared-secret` with exactly one live secret — no overlap):
+
+  - Create: Scheme defaults to "Not required" with no secret field; selecting `shared-secret` reveals
+    Header name + Secret value; selecting `standard-webhooks` reveals Secret value plus the static
+    block naming `webhook-id`/`webhook-timestamp`/`webhook-signature` and a tolerance sentence reading
+    "5 minutes" (confirmed programmatically against the page's rendered text, not just visually);
+    switching back to "Not required" hides the fields again; no horizontal overflow at a 360px
+    viewport (checked via `scrollWidth`/`clientWidth`).
+  - Edit, overlap-running proxy: scheme pre-selected correctly; collapsed "Secret set — changed
+    {date}" status with a Replace button; clicking Replace reveals a blank input and the **immediate
+    discard** disclosure text verbatim, with the **ordinary 24-hour copy absent** (asserted both ways,
+    not just presence of one).
+  - Edit, no-overlap proxy: header name pre-filled correctly (`X-Signature`); clicking Replace shows
+    the **ordinary 24-hour copy** verbatim, with the **immediate-discard copy absent**.
+  - Edit, no-verification proxy: scheme "Not required", no secret field — unaffected by this feature.
+  - Screenshots taken in both light and dark mode (the standard-webhooks state) — legible and
+    correctly styled in both; zero browser console/page errors observed across the whole session.
+
+  `pnpm run format:check`, `pnpm run lint:check`, `pnpm run types:check` and `pnpm run build` all
+  green. `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter Proxies` green
+  (179 tests, 927 assertions — no regression); full-suite run deferred to the end of this batch
+  (T20-T25).
 
 ## T24 — Screen 4: `proxies/Show.vue` Verification card (AC29; Flow C; plan § Architecture F)
 - **Description:** New `Card`, alongside Retry policy, after Destinations. States: not required; scheme

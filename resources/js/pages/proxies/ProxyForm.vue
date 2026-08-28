@@ -30,11 +30,13 @@ import {
     RETRY_STRATEGY_DEFAULT,
     RETRY_STRATEGY_DEFAULT_LABEL,
 } from '@/data/proxyRetryBackoffStrategies';
+import { formatTimestamp } from '@/lib/format';
 import type {
     DestinationRow,
     ProcessingMode,
     ProxyMode,
     ProxyResponseStatus,
+    ProxySecurity,
     RetryBackoffStrategy,
 } from '@/types/proxies';
 
@@ -46,6 +48,13 @@ const props = defineProps<{
     /** The fixed AC12 default list (T11) — rendered literally, one badge per
      * entry, never summarised (Screen 2, correction C4). */
     defaultSensitiveFieldNames: string[];
+    /** `StandardWebhooks::TOLERANCE_SECONDS` (T7), single-sourced — never a
+     * hand-typed "5 minutes" (AC53). */
+    standardWebhooksTolerance: number;
+    /** The `security` prop (T22) — absent on Create (no proxy resource exists
+     * yet, plan-10 Technical ruling 3), present on Edit. Governs the
+     * Verification section's write-only set/unset/overlap states (Screen 1). */
+    security?: ProxySecurity | null;
     initial: {
         name: string;
         mode: ProxyMode;
@@ -60,11 +69,28 @@ const props = defineProps<{
     };
 }>();
 
+// Verification (Screen 1; AC23, AC24, AC26) — mount-seeded from `security`
+// (never re-read after mount, matching `ProxyForm.vue`'s existing
+// mount-seeded-vs-in-session-typed distinction, plan-07 §Technical ruling 4).
+// `security` is undefined on Create, so every one of these is the "no
+// verification configured yet" default there.
+const initialVerificationScheme = props.security?.verification.scheme ?? null;
+const initialVerificationHeaderName =
+    props.security?.verification.header_name ?? null;
+const initialVerificationSecretSet =
+    props.security?.verification.secret_set ?? false;
+const initialVerificationSecretChangedAt =
+    props.security?.verification.secret_changed_at ?? null;
+const initialVerificationOverlapExpiresAt =
+    props.security?.verification.overlap_expires_at ?? null;
+
 // The response fields are held as strings for the inputs; empty status means
 // "unconfigured" and is normalised back to null on submit (below), so leaving it
 // at the default persists NULL (the resolver then returns the default 202). The
 // retry fields follow the same idiom: blank attempt limit / 'default' strategy
-// sentinel both normalise back to null on submit.
+// sentinel both normalise back to null on submit. Verification follows the same
+// idiom again: an empty `verification_scheme` (translated to/from the Select's
+// "none" sentinel below, N2) submits as "not required".
 const form = useForm({
     name: props.initial.name,
     mode: props.initial.mode,
@@ -73,6 +99,11 @@ const form = useForm({
     response_body: props.initial.responseBody ?? '',
     retry_attempt_limit: props.initial.retryAttemptLimit?.toString() ?? '',
     retry_backoff_strategy: props.initial.retryBackoffStrategy ?? '',
+    verification_scheme: initialVerificationScheme ?? '',
+    verification_header_name: initialVerificationHeaderName ?? '',
+    // Write-only (AC26) — never pre-filled with anything read back from
+    // storage; there is nothing to pre-fill it with in the first place.
+    verification_secret: '',
     sensitive_fields: [...props.initial.sensitiveFields],
     destinations: props.initial.destinations.map((row) => ({ ...row })),
 });
@@ -172,6 +203,65 @@ watch(selectedStatus, (status) => {
         form.response_body = '';
     }
 });
+
+// Verification — Screen 1 (AC23, AC24, AC26, AC29-ruling-2a; Flows A, B).
+// "none" is the Select sentinel for "Not required" (N2 — the underlying
+// Select primitive rejects an empty-string item value); `form.verification_scheme`
+// itself stays '' internally so it submits as "not required" without a
+// transform() step, matching `statusSelect`'s own sentinel-translation idiom.
+const VERIFICATION_NOT_REQUIRED = 'none';
+const verificationSchemeSelect = computed({
+    get: () =>
+        form.verification_scheme === ''
+            ? VERIFICATION_NOT_REQUIRED
+            : form.verification_scheme,
+    set: (value: string) => {
+        form.verification_scheme =
+            value === VERIFICATION_NOT_REQUIRED ? '' : value;
+    },
+});
+
+// The specification's tolerance (T7's TOLERANCE_SECONDS), single-sourced —
+// never a hand-typed "5 minutes" (AC53). 300 seconds / 60 = 5 minutes exactly.
+const toleranceMinutes = computed(() => props.standardWebhooksTolerance / 60);
+
+// Clicking Replace switches the collapsed "Secret set" status line for a
+// blank, editable field — never pre-filled (AC26). `verificationSecretIsSet`
+// governs which one renders: true whenever a live secret already exists
+// (scheme-agnostic — SecretStore's `verification` purpose holds at most one
+// secret regardless of which scheme currently uses it) and Replace hasn't
+// been clicked this session.
+const verificationReplaceClicked = ref(false);
+const verificationSecretIsSet = computed(
+    () => initialVerificationSecretSet && !verificationReplaceClicked.value,
+);
+
+function replaceVerificationSecret(): void {
+    verificationReplaceClicked.value = true;
+    form.verification_secret = '';
+}
+
+// Switching scheme clears the in-session, unsaved secret field and resets the
+// Replace disclosure (design-10 Screen 1: "the same data operation
+// design-07/design-06 already apply to the Retry-policy fieldset on a Mode
+// change" — read plan-07 §Technical ruling 4 before touching this; review-07's
+// Major came from getting exactly this wrong). The header name follows the
+// same mount-seeded-vs-in-session-typed distinction as the Retry fieldset:
+// switching TO the originally-persisted `shared-secret` scheme reseeds it from
+// `initialVerificationHeaderName` (never blank, never a stale in-session
+// value); switching to anything else clears it, since `prohibited_unless`
+// forbids submitting it outside that scheme.
+watch(
+    () => form.verification_scheme,
+    (scheme) => {
+        verificationReplaceClicked.value = false;
+        form.verification_secret = '';
+        form.verification_header_name =
+            scheme === 'shared-secret' && scheme === initialVerificationScheme
+                ? (initialVerificationHeaderName ?? '')
+                : '';
+    },
+);
 
 // Sensitive fields — Screen 2 (AC12, AC13, AC19, C4, N4). No enable/disable
 // control exists anywhere here: obfuscation is always on (N4).
@@ -387,6 +477,210 @@ function submit(): void {
                     <InputError :message="form.errors.processing_mode" />
                 </span>
             </div>
+
+            <!-- Verification (Screen 1; AC23, AC24, AC26, AC29-ruling-2a; Flows A, B) -->
+            <fieldset class="grid gap-4">
+                <legend class="text-sm font-medium">Verification</legend>
+                <p class="text-sm text-muted-foreground">
+                    Require an incoming request to prove it's really from your
+                    sender before anything is captured. Off by default —
+                    existing proxies are unaffected.
+                </p>
+
+                <div class="grid gap-2">
+                    <Label for="verification_scheme">Scheme</Label>
+                    <Select
+                        v-model="verificationSchemeSelect"
+                        :disabled="form.processing"
+                    >
+                        <SelectTrigger
+                            id="verification_scheme"
+                            class="w-full sm:w-96"
+                            :aria-invalid="
+                                form.errors.verification_scheme
+                                    ? 'true'
+                                    : undefined
+                            "
+                            aria-describedby="verification-scheme-error"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="VERIFICATION_NOT_REQUIRED">
+                                Not required
+                            </SelectItem>
+                            <SelectItem value="standard-webhooks">
+                                My sender already implements Standard Webhooks
+                            </SelectItem>
+                            <SelectItem value="shared-secret">
+                                My sender sends a shared secret in a header
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <span id="verification-scheme-error">
+                        <InputError
+                            :message="form.errors.verification_scheme"
+                        />
+                    </span>
+                </div>
+
+                <div
+                    v-if="form.verification_scheme === 'shared-secret'"
+                    class="grid gap-2"
+                >
+                    <Label for="verification_header_name">Header name</Label>
+                    <Input
+                        id="verification_header_name"
+                        v-model="form.verification_header_name"
+                        type="text"
+                        placeholder="X-Signature"
+                        :disabled="form.processing"
+                        :aria-invalid="
+                            form.errors.verification_header_name
+                                ? 'true'
+                                : undefined
+                        "
+                        aria-describedby="verification-header-name-help verification-header-name-error"
+                    />
+                    <p
+                        id="verification-header-name-help"
+                        class="text-sm text-muted-foreground"
+                    >
+                        The header your sender sends the secret in.
+                        Case-sensitive as your sender configures it.
+                    </p>
+                    <span id="verification-header-name-error">
+                        <InputError
+                            :message="form.errors.verification_header_name"
+                        />
+                    </span>
+                </div>
+
+                <div
+                    v-if="
+                        form.verification_scheme === 'shared-secret' ||
+                        form.verification_scheme === 'standard-webhooks'
+                    "
+                    class="grid gap-2"
+                >
+                    <Label for="verification_secret">Secret value</Label>
+
+                    <template v-if="verificationSecretIsSet">
+                        <p class="text-sm">
+                            Secret set — changed
+                            {{
+                                formatTimestamp(
+                                    initialVerificationSecretChangedAt as string,
+                                )
+                            }}
+                        </p>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            class="w-fit"
+                            aria-label="Replace verification secret"
+                            :disabled="form.processing"
+                            @click="replaceVerificationSecret"
+                        >
+                            Replace
+                        </Button>
+                    </template>
+                    <template v-else>
+                        <Input
+                            id="verification_secret"
+                            v-model="form.verification_secret"
+                            type="password"
+                            autocomplete="off"
+                            :disabled="form.processing"
+                            :aria-invalid="
+                                form.errors.verification_secret
+                                    ? 'true'
+                                    : undefined
+                            "
+                            aria-describedby="verification-secret-help verification-secret-error"
+                        />
+                        <!-- C5 (AC29 ruling 2a): the 24-hour-overlap disclosure,
+                             shown once Replace is clicked on an
+                             already-configured proxy — before save, branched
+                             on whether a rotation is already running. -->
+                        <p
+                            v-if="
+                                verificationReplaceClicked &&
+                                initialVerificationSecretSet
+                            "
+                            class="text-sm text-muted-foreground"
+                        >
+                            <template
+                                v-if="initialVerificationOverlapExpiresAt"
+                            >
+                                You already have a previous secret from your
+                                last rotation, still honoured until
+                                {{
+                                    formatTimestamp(
+                                        initialVerificationOverlapExpiresAt,
+                                    )
+                                }}. Saving a new secret now stops that previous
+                                secret being honoured immediately — its 24 hours
+                                do not finish out.
+                            </template>
+                            <template v-else>
+                                Your current secret keeps working for 24 hours
+                                after you save this, so you can update your
+                                sender without a coordinated cutover. To stop it
+                                early — for example if it's been leaked — use
+                                End overlap now on this proxy's page after
+                                saving.
+                            </template>
+                        </p>
+                    </template>
+
+                    <p
+                        id="verification-secret-help"
+                        class="text-sm text-muted-foreground"
+                    >
+                        <template
+                            v-if="form.verification_scheme === 'shared-secret'"
+                        >
+                            The exact value your sender will send in that
+                            header.
+                        </template>
+                        <template v-else>
+                            The secret your sender issued you for this
+                            integration. This product never generates it for you
+                            — paste the value they gave you.
+                        </template>
+                    </p>
+                    <span id="verification-secret-error">
+                        <InputError
+                            :message="form.errors.verification_secret"
+                        />
+                    </span>
+                </div>
+
+                <div
+                    v-if="form.verification_scheme === 'standard-webhooks'"
+                    class="grid gap-2 rounded-md border border-input p-3"
+                >
+                    <p class="text-sm">
+                        Your sender must send these three headers on every
+                        request:
+                    </p>
+                    <ul class="list-disc pl-5 text-sm text-muted-foreground">
+                        <li>webhook-id</li>
+                        <li>webhook-timestamp</li>
+                        <li>
+                            webhook-signature — one or more HMAC-SHA256
+                            signatures, base64-encoded, space-delimited
+                        </li>
+                    </ul>
+                    <p class="text-sm text-muted-foreground">
+                        Requests whose webhook-timestamp is more than
+                        {{ toleranceMinutes }} minutes from the current time are
+                        rejected, per the Standard Webhooks specification.
+                    </p>
+                </div>
+            </fieldset>
 
             <!-- Retry policy (enhanced mode only, Flow F) -->
             <fieldset v-if="isEnhanced" class="grid gap-4">

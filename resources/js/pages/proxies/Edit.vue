@@ -4,13 +4,17 @@ import { computed } from 'vue';
 import ProxyForm from '@/pages/proxies/ProxyForm.vue';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
-import type { ProxyFormProxy } from '@/types/proxies';
+import type { ProxyFormProxy, ProxySecurity } from '@/types/proxies';
 
 const props = defineProps<{
     proxy: ProxyFormProxy;
     /** The fixed AC12 default list, single-sourced from
      * `SensitiveFields::DEFAULTS` (T11) — rendered literally, never summarised. */
     defaultSensitiveFieldNames: string[];
+    /** `StandardWebhooks::TOLERANCE_SECONDS` (T7), single-sourced (AC53). */
+    standardWebhooksTolerance: number;
+    /** The `security` prop (T22) — status only, never a value/length. */
+    security: ProxySecurity;
 }>();
 
 const page = usePage();
@@ -71,6 +75,8 @@ defineOptions({
                 }).url
             "
             :default-sensitive-field-names="props.defaultSensitiveFieldNames"
+            :standard-webhooks-tolerance="props.standardWebhooksTolerance"
+            :security="props.security"
             :initial="{
                 name: props.proxy.name,
                 mode: props.proxy.mode,

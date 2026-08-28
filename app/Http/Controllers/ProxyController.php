@@ -17,6 +17,7 @@ use App\Services\DeliveryStatistics;
 use App\Services\IngestTokenService;
 use App\Services\SecretStore;
 use App\Support\SensitiveFields;
+use App\Support\StandardWebhooks;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -69,6 +70,7 @@ class ProxyController extends Controller
         // edit() rather than resource keys (plan-10 Technical ruling 3).
         return Inertia::render('proxies/Create', [
             'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
+            'standardWebhooksTolerance' => StandardWebhooks::TOLERANCE_SECONDS,
         ]);
     }
 
@@ -191,6 +193,7 @@ class ProxyController extends Controller
         return Inertia::render('proxies/Edit', [
             'proxy' => ProxyFormResource::make($proxy->loadMissing('destinations')),
             'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
+            'standardWebhooksTolerance' => StandardWebhooks::TOLERANCE_SECONDS,
             // Same sibling prop as show() (plan-10 Technical ruling 3) — the
             // Verification section (T23) needs it for the write-only
             // set/unset/overlap states; create() renders no proxy resource

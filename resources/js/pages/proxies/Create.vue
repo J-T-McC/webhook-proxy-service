@@ -9,6 +9,8 @@ const props = defineProps<{
     /** The fixed AC12 default list, single-sourced from
      * `SensitiveFields::DEFAULTS` (T11) — rendered literally, never summarised. */
     defaultSensitiveFieldNames: string[];
+    /** `StandardWebhooks::TOLERANCE_SECONDS` (T7), single-sourced (AC53). */
+    standardWebhooksTolerance: number;
 }>();
 
 const page = usePage();
@@ -44,6 +46,7 @@ defineOptions({
             submit-label="Create proxy"
             :cancel-href="proxyRoutes.index(teamSlug).url"
             :default-sensitive-field-names="props.defaultSensitiveFieldNames"
+            :standard-webhooks-tolerance="props.standardWebhooksTolerance"
             :initial="{
                 name: '',
                 mode: 'simple',
