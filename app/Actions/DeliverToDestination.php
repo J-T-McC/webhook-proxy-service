@@ -213,6 +213,20 @@ class DeliverToDestination
         $startedAt = now();
 
         try {
+            // T39, AC11's all-or-none rule: a signing secret that failed to
+            // decrypt (deferred by `DeliveryUnitResolver`, T36, so the
+            // `DeliveryAttempt` row above still gets created) fails THIS
+            // destination's attempt here, before any header is built and
+            // before any HTTP request is made — never a silent fallback to
+            // an unsigned dispatch. Every destination of the same proxy
+            // reads the identical corrupted `proxy_secrets` row through its
+            // own independent `resolve()` call, so this is reached
+            // identically by each of them; no shared state is needed to
+            // coordinate "the whole proxy fails together".
+            if ($unit->signingSecretsUnavailable !== null) {
+                throw $unit->signingSecretsUnavailable;
+            }
+
             $headers = OutboundHeaders::build(
                 $unit,
                 $unit->verificationHeaderNames,

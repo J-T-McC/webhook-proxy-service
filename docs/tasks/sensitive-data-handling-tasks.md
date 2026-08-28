@@ -2120,7 +2120,62 @@
   destinations and a corrupted signing-secret row, asserting all three destinations fail together with
   no part of the secret in any `error_summary`, against a control fixture (healthy secret) where all
   three succeed signed.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. **Found a real gap and fixed it, exactly as this task's own Files line
+  anticipated.** T36 deliberately does not let `SecretStore::liveFor()`'s `SecretUnavailableException`
+  propagate out of `DeliveryUnitResolver::resolve()` (see T36's own completion notes) — it defers the
+  exception onto the resolved `DeliveryUnit` (`$signingSecretsUnavailable`) instead, precisely so the
+  `DeliveryAttempt` row still gets created before the failure surfaces. Before this task, nothing ever
+  read that deferred field: `DeliverToDestination::send()` would have built headers with an EMPTY
+  signing-secret list (the safe default `DeliveryUnitResolver` falls back to on a decrypt failure) and
+  dispatched every destination **unsigned** — a silent fallback, not a loud failure, and exactly the
+  "some signed-successfully-elsewhere and some silently unsigned" state AC11 forbids (here it would
+  have been "all silently unsigned," which is the same forbidden fallback-instead-of-failure shape, not
+  a partial split, but still never allowed to happen quietly).
+
+  **The fix, entirely inside `app/Actions/DeliverToDestination.php`, nothing else touched:** at the top
+  of `send()`'s existing `try` block — before `OutboundHeaders::build()` is ever called, so no header is
+  built and no HTTP request is ever made — a new check: `if ($unit->signingSecretsUnavailable !== null)
+  { throw $unit->signingSecretsUnavailable; }`. This lands the exception inside the SAME
+  `catch (Throwable $e)` block that already handles every other transport/build failure, so the
+  attempt's `error_summary` becomes the exception's own fixed, value-free message ("The signing secret
+  could not be decrypted.") through the exact same code path already proven for HTTP failures — no new
+  failure-recording logic, no duplication. Because every destination of the same proxy reads the
+  identical corrupted `proxy_secrets` row through its own independent `asJob()` → `resolve()` call, each
+  one is caught here identically — "the whole dispatch cycle for the proxy" fails as an emergent
+  property of the shared root cause, not because of any code that coordinates across destinations (none
+  exists, and none was added — `DeliverStep.php`/`AdvanceProxyFifoQueue.php` remain untouched, per this
+  document's own binding note).
+
+  **How the all-or-none rule is pinned as "not merely one destination failed":** the test drives three
+  real destinations of one proxy through the real `DeliverToDestination::asJob()` entry point (not a
+  bare `run($unit)` call, so the corrupted-secret path is exercised exactly as production reaches it),
+  fakes `Http` with no configured response, and asserts `Http::assertNothingSent()` — proving zero HTTP
+  requests were made for ANY of the three destinations, not just that one `DeliveryAttempt` row reads
+  Failed. `DeliveryAttempt::count() === 3`, every one `Failed`, and zero `Succeeded`, closes the
+  "no destination succeeds while another fails" bullet directly rather than by inference from a single
+  destination's result.
+
+  **Queue faked, and why:** a failed attempt schedules a real, delayed `RetryDelivery` (T14/T15); under
+  this project's `QUEUE_CONNECTION=sync` a delayed dispatch still runs inline unless the queue is faked,
+  which — discovered while first running this test unfaked — cascaded each destination's own corrupted
+  secret through its full retry limit (3 destinations × 5 attempts = 15 rows, not 3), a real but
+  unrelated interaction with the pre-existing retry engine rather than a defect in this task's own fix.
+  `Queue::fake()` isolates the test to attempt 1 for each destination — exactly "that attempt cycle,"
+  the AC's own words.
+
+  Two regression-guard tests, per the task's own fourth bullet: a proxy with signing off dispatches and
+  succeeds exactly as before this task; a proxy with a healthy (uncorrupted) signing secret dispatches
+  signed to all three destinations, `webhook-signature` present on every request.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "SigningAllOrNoneFailureTest|DeliverToDestinationTest|RetryDeliveryTest|DeliveryUnitResolverTest|OutboundHeadersTest|OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|SecretStoreTest"`
+  (60 tests, 205 assertions — confirming no regression) all green; full-suite run deferred to the end of
+  this batch (T34-T40).
+
+  **Delivery-path caveat, stated per the task list's own instruction:** `QUEUE_CONNECTION=sync` runs
+  `asJob()` inline under this suite, so this proves the *logic* — the deferred exception reaching
+  `send()`, the shared-cause independent-failure mechanism — is correct when each destination's job is
+  invoked, but exercises none of Horizon's real concurrent/async dispatch of those same three jobs.
 
 ## T40 — Outbound signing integration test suite (AC54–AC64) — **delivery path**
 - **Description:** No production code — the end-to-end pinning pass across T34–T39, through the full
