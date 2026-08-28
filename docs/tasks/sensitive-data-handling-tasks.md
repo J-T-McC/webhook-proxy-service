@@ -3286,6 +3286,37 @@ rows until T54 deletes them.
   `./vendor/bin/sail test --parallel` — 1003/1003 passing, 4749 assertions. Frontend gates not
   re-run for this task (no `resources/js` file touched by T54).
 
+  **Rework (post-completion gate failure, caught by the Orchestrator's own gate run, not a
+  production defect).** After this task's own commit, a full-suite run reported 1001/1003 with two
+  failures in `tests/Feature/Proxies/SensitiveFieldsPersistenceTest.php` — `sensitive_fields` reading
+  back `null` on a freshly-created proxy. Both tests pass in isolation and against a clean database,
+  which ruled out `ProxyController::store()`/`StoreProxyRequest` (T53's own edits) as the cause before
+  either was touched. Root cause: `RemoveInboundVerificationMigrationTest.php`'s
+  `test_it_deletes_every_verification_purpose_secret_and_leaves_signing_untouched` creates a
+  `Team`/`Proxy`/three `proxy_secrets` rows sandwiched between two `Artisan::call()` migration
+  commands. DDL (both migration calls) causes an implicit `COMMIT` on MySQL, which escapes
+  `RefreshDatabase`'s per-test transaction sandbox entirely — a documented hazard, not a new one (see
+  this project's own `schema_migrations.md` agent memory, "DDL inside a `RefreshDatabase`-wrapped test
+  escapes the per-test transaction sandbox on MySQL"). The rows created between the two DDL calls were
+  never rolled back at test teardown, because the wrapping transaction had already been closed out
+  from under it; they persisted as leftover committed data in whichever worker database ran that test,
+  and `Proxy::firstOrFail()` in `SensitiveFieldsPersistenceTest` (no explicit ordering, first-row
+  semantics) picked up the leaked row — with its `sensitive_fields` of `null` — instead of the row the
+  test itself had just created. **No production code was at fault**; every other pre-existing test in
+  this migration test file already avoided the hazard by never creating a row between its own pair of
+  DDL calls, and this was the one new test that didn't.
+
+  Fixed by wrapping the row-creation-and-assert block in `try`/`finally`, explicitly deleting the
+  `proxy_secrets`, `proxy` and `team` rows in the `finally` regardless of pass/fail, since transactional
+  rollback can no longer be relied on once DDL has run in the same test method. Verified by dropping
+  and recreating all fifteen `sail`-managed testing databases (`testing`, `testing_test_1..14`) to
+  clear the pre-existing leak, then running `./vendor/bin/sail test --parallel` **twice in a row**
+  against the same (now checksum-skipped, not re-migrated) worker databases — both runs
+  1003/1003 — proving the fix is idempotent and does not merely move the leak rather than closing it.
+  `composer lint`/`composer types:check` unaffected (test-only change). No completion note above this
+  one needed correction — the migration, the enum change and the schema-test edits were all already
+  correct; only the new test file's own hygiene was at fault.
+
 ---
 
 ## M10 — Outbound header policy corrections (ADR-025 Decision 2; ADR-026 Decision A)

@@ -54,54 +54,66 @@ class RemoveInboundVerificationMigrationTest extends TestCase
         // longer exists as an enum case, so these are inserted directly
         // through the query builder, the same way a pre-#54 database's
         // rows would already exist on disk.
+        // DDL (the two Artisan migrate calls) implicitly commits on MySQL,
+        // escaping RefreshDatabase's per-test transaction sandbox — any row
+        // created between them survives this test regardless of pass/fail
+        // and would otherwise leak into every later test in this worker's
+        // database. `finally` deletes it explicitly rather than relying on
+        // transactional rollback, which does not apply once DDL has run.
         Artisan::call('migrate:rollback', ['--step' => 1]);
 
         $team = Team::factory()->createQuietly();
         $proxy = Proxy::factory()->createQuietly(['team_id' => $team->id]);
 
-        DB::table('proxy_secrets')->insert([
-            [
-                'team_id' => $team->id,
-                'proxy_id' => $proxy->id,
-                'purpose' => 'verification',
-                'value' => 'current-verification-ciphertext',
-                'is_current' => true,
-                'expires_at' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'team_id' => $team->id,
-                'proxy_id' => $proxy->id,
-                'purpose' => 'verification',
-                'value' => 'superseded-verification-ciphertext',
-                'is_current' => null,
-                'expires_at' => now()->addHours(24),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'team_id' => $team->id,
-                'proxy_id' => $proxy->id,
-                'purpose' => 'signing',
-                'value' => 'current-signing-ciphertext',
-                'is_current' => true,
-                'expires_at' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        ]);
+        try {
+            DB::table('proxy_secrets')->insert([
+                [
+                    'team_id' => $team->id,
+                    'proxy_id' => $proxy->id,
+                    'purpose' => 'verification',
+                    'value' => 'current-verification-ciphertext',
+                    'is_current' => true,
+                    'expires_at' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+                [
+                    'team_id' => $team->id,
+                    'proxy_id' => $proxy->id,
+                    'purpose' => 'verification',
+                    'value' => 'superseded-verification-ciphertext',
+                    'is_current' => null,
+                    'expires_at' => now()->addHours(24),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+                [
+                    'team_id' => $team->id,
+                    'proxy_id' => $proxy->id,
+                    'purpose' => 'signing',
+                    'value' => 'current-signing-ciphertext',
+                    'is_current' => true,
+                    'expires_at' => null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ],
+            ]);
 
-        Artisan::call('migrate');
+            Artisan::call('migrate');
 
-        $this->assertSame(
-            0,
-            DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->where('purpose', 'verification')->count(),
-        );
-        $this->assertSame(
-            1,
-            DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->where('purpose', 'signing')->count(),
-        );
+            $this->assertSame(
+                0,
+                DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->where('purpose', 'verification')->count(),
+            );
+            $this->assertSame(
+                1,
+                DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->where('purpose', 'signing')->count(),
+            );
+        } finally {
+            DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->delete();
+            DB::table('proxies')->where('id', $proxy->id)->delete();
+            DB::table('teams')->where('id', $team->id)->delete();
+        }
     }
 
     public function test_down_restores_exactly_the_two_columns_matching_their_original_nullable_definitions(): void
