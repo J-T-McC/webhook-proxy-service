@@ -1095,7 +1095,26 @@
   - Idempotent — calling it again, or when no overlap is running, is a no-op, no error.
   - A Member without `update` rights on the proxy is **403**.
 - **Testing:** `tests/Feature/Proxies/ProxyVerificationOverlapControllerTest.php` (new).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxyVerificationOverlapController@destroy` (`DELETE
+  proxies/{proxy}/verification/overlap`) authorizes `update` on the proxy through `ProxyPolicy`
+  (unchanged, no new permission), calls `SecretStore::endOverlap($proxy, SecretPurpose::Verification)`
+  — already idempotent by construction from T14 — and redirects with `back()`, matching the plan's API
+  table exactly and mirroring `ProxyEventReplayController::store()`'s own `back()` PRG precedent.
+  Route registered in `routes/web.php` alongside the other proxy-scoped mutating routes; a single
+  `{proxy}` binding needs no `->scopeBindings()` (that's reserved for a doubly-nested child like
+  `{destination}`).
+
+  Four tests: ending a running overlap removes the previous secret from the live set immediately (the
+  "stops verifying" claim, proven at the `SecretStore::liveFor()` level rather than a second HTTP
+  round trip through the ingest endpoint, since `InboundVerifier` reads exactly that live set — T25's
+  integration suite additionally proves this over real HTTP); calling it twice is a no-op the second
+  time; calling it when no overlap is running is a no-op; and a Member without update rights on a
+  teammate's proxy (attached via `TeamRole::Member`, not the proxy's creator) is 403 with nothing
+  changed.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  ProxyVerificationOverlapControllerTest` all green (4 tests, 10 assertions); full-suite run deferred
+  to the end of this batch (T20-T25).
 
 ## T22 — `ProxySecurityResource`: the `security` prop's `verification` sub-object (AC20, AC26, AC28; plan Technical rulings 3, 5; § API)
 - **Description:** New resource, status-only — never a value, never a length. `verification: {
