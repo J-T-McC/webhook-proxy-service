@@ -28,29 +28,63 @@
   the outbound signing header rename, approved with the rename landing before item #10 merges to
   `main`. Decision 3 carried no gate and is out of scope for this document.) Committed on branch
   `docs/adr-025-outbound-header-policy`, **not yet merged onto `feat/item-10-sensitive-data` or
-  `main`** — merge or cherry-pick that file onto this branch before **T50**/**T51** below are
-  implemented, so the document this task plan cites as their Authority actually exists here.
+  `main`** — merge or cherry-pick that file onto this branch before **T50** below is implemented, so
+  the document this task plan cites as its Authority actually exists here. **Decision 1's boundary is
+  itself superseded by ADR-026 Decision A below** — the five-name reduction stands, unconditional, as
+  originally approved; ADR-026 widens it to seven names. The task that was going to carry Decision 1,
+  **T51**, is superseded before being built — see its own entry below — and **T55** carries the wider
+  reduction instead.
+- **Authority (ADR-026):** `docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+  (Status **ACCEPTED** — Project Owner, 2026-08-28, both rulings the Owner's own, quoted verbatim in
+  the ADR and recorded rather than proposed there. Committed at `38ac603` on this branch,
+  `feat/item-10-sensitive-data` — no merge/cherry-pick step needed, unlike ADR-025 above. Supersedes
+  ADR-022 in full; supersedes ADR-025 Decision 1 in part, per the note above; supersedes one premise of
+  ADR-023 Decision 2 and one clause of ADR-023 Decision 5; retires two ADR-008 strip bullets.) Decision
+  B (inbound verification removed) is carried out at **T52–T54**; Decision A (the wider outbound strip
+  reduction) at **T55**; the Decision 4 migration and the `SecretPurpose::Verification` case removal
+  are both inside **T54**, landed together per the ADR's own ordering constraint.
 - **Approved by:** Task Planner (task-plan gate; no further Owner approval required at this stage —
-  the Reviewer catches drift against the plan/PRD-10/design-10 at review time). **M10** (T50, T51)
-  below is added against ADR-025 on the same no-further-Owner-gate basis — the Owner gate is already
-  recorded on the ADR itself, both decisions ruled by name.
+  the Reviewer catches drift against the plan/PRD-10/design-10 at review time). **M10** (T50, T55)
+  below is added against ADR-025/ADR-026 on the same no-further-Owner-gate basis — the Owner gate is
+  already recorded on each ADR itself, every decision ruled by name. **M11** (T52–T54) below is added
+  against ADR-026 Decision B on the same basis — ADR-026's own Owner-approval-flags section carries no
+  outstanding item, including for the data-model change T54 carries out, which that section states is
+  approved by the words of the Owner's ruling.
 
 > **Scope / conventions.** Every task traces to `plan-10` and PRD-10's ACs (AC1–AC64, both
-> amendments) or a named plan technical ruling, **with one named exception**: **M10** (T50–T51)
-> traces instead to `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`,
-> Accepted by the Project Owner 2026-08-28 — after `plan-10` was certified and after M1–M9 below were
-> already task-planned, so it is not and could not be one of `plan-10`'s own named milestones. It is
-> appended the same way item #11's own M8 was appended to `plan-11` after that plan's own
-> certification: a later Owner-approved decision, broken down into tasks without reopening or
-> renumbering anything already task-planned. Sequencing otherwise follows the plan's own milestones
-> verbatim (**M1–M9**, with M8 split into **M8a** backend and **M8b** surface exactly as the plan
-> names them), each mapped to a contiguous task range below: **M1 data model** (T1–T3) → **M2
-> obfuscation engine, no surface** (T4–T6) → **M3 Standard Webhooks primitive, no surface** (T7) →
-> **M4 revealed-payload envelope** (T8–T9) → **M5 sensitive-fields configuration** (T10–T12) → **M6
-> `SecretStore` and inbound verification** (T13–T25) → **M7 outbound credential** (T26–T33) → **M8a
-> outbound signing, backend** (T34–T40) → **M8b outbound signing, surface** (T41–T44) → **M9
-> cross-cutting hardening and the verification sweep** (T45–T49) → **M10 outbound header policy
-> corrections, ADR-025** (T50–T51). No task depends on a later task. **51 tasks, T1–T51.**
+> amendments) or a named plan technical ruling, **with two named exceptions**: **M10** (T50, T55)
+> traces to `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`
+> and `docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`,
+> and **M11** (T52–T54) traces to ADR-026 alone — both Accepted by the Project Owner, 2026-08-28, after
+> `plan-10` was certified and after M1–M9 below were already task-planned, so neither is or could be
+> one of `plan-10`'s own named milestones. Both are appended the same way item #11's own M8 was
+> appended to `plan-11` after that plan's own certification: a later Owner-approved decision, broken
+> down into tasks without reopening or renumbering anything already task-planned. Sequencing otherwise
+> follows the plan's own milestones verbatim (**M1–M9**, with M8 split into **M8a** backend and **M8b**
+> surface exactly as the plan names them), each mapped to a contiguous task range below: **M1 data
+> model** (T1–T3) → **M2 obfuscation engine, no surface** (T4–T6) → **M3 Standard Webhooks primitive,
+> no surface** (T7) → **M4 revealed-payload envelope** (T8–T9) → **M5 sensitive-fields configuration**
+> (T10–T12) → **M6 `SecretStore`** (T13–T15; **T16–T25 superseded and removed by ADR-026 Decision B**
+> — see each task's own status note, and M11 below for the removal itself) → **M7 outbound credential**
+> (T26–T33; T26/T27 narrowed by ADR-026, see their own notes) → **M8a outbound signing, backend**
+> (T34–T40) → **M8b outbound signing, surface** (T41–T43; **T44 withdrawn, folded into T49** — see its
+> own entry) → **M11 inbound verification removal, ADR-026 Decision B** (T52–T54) → **M10 outbound
+> header policy corrections, ADR-025 Decision 2 and ADR-026 Decision A** (T50, then **T55** — **T51
+> superseded before being built**, see its own entry) → **M9 cross-cutting hardening and final
+> regression sweep** (T45 narrowed, T46–T48, T49 narrowed and folding in T44's scope). No task depends
+> on a later task **in build order**. **55 task numbers issued, T1–T55: nine (T16–T21, T23–T25) are
+> superseded-and-removed in full; three more (T22, T26, T27) are partially superseded, the surviving
+> part of each still live; two (T44, T51) are withdrawn without ever having been built; forty-four
+> tasks are live** — T1–T15, T22, T26–T43, T45–T50, T52–T55.
+>
+> **Numbers are stable identifiers, not build order, from T50 onward.** Every task through T49 is
+> numbered in the order it is built, and that held without exception through this document's first
+> forty-nine tasks. ADR-026 breaks it once, on purpose: **T52, T53 and T54 must be built before T50**,
+> even though their numbers are higher, because ADR-026 was decided after ADR-025 was already
+> task-planned as M10 and this document does not renumber an already-numbered task (T44–T51) to keep a
+> later decision's arrivals in numeric step — the same principle M10's own original addition already
+> established for T50/T51 against M1–M9. **Read the milestone list above, or a task's own Dependencies
+> line, for build order — never the numeric sequence of the task IDs once past T49.**
 >
 > **All four Owner-approval flags are ruled and `design-10`'s amendment gate has closed with its four
 > corrections landed** (`docs/status.md` item #10), so — unlike `plan-10`'s own sequencing note,
@@ -74,7 +108,8 @@
 >
 > Every task must leave `composer lint` (Pint) and `composer types:check` (PHPStan level 7) green,
 > and `./vendor/bin/sail test` green with its own tests included (`CLAUDE.md`,
-> `docs/standards/planning.md`). Frontend tasks (T9, T12, T23, T24, T30, T31, T33, T41, T42, T43)
+> `docs/standards/planning.md`). Frontend tasks (T9, T12, T30, T31, T33, T41, T42, T43, T52) —
+> **T23 and T24 dropped from this list, withdrawn by ADR-026, see their own status notes** —
 > additionally require `pnpm lint:check`, `pnpm types:check` and `pnpm format:check` green, plus the
 > manual-verification steps named on the task (no frontend test harness exists — backlog **T31** on
 > `docs/tasks/walking-skeleton-tasks.md`, a different T31 than this document's own; see the note on
@@ -94,8 +129,11 @@
 > the credential), **T34** (`OutboundHeaders` extended with signing headers, computed in the send
 > path), **T35** (the AC63 byte-identical regression, exercised through `send()`), **T36**
 > (`DeliveryUnitResolver`/`DeliveryUnit` carrying the proxy's live signing set), **T39** (the AC11
-> signing all-or-none behaviour, exercised through `send()`), and **T40** (the outbound signing
-> integration suite, which drives retries and replays through the same job path). Manual verification
+> signing all-or-none behaviour, exercised through `send()`), **T40** (the outbound signing
+> integration suite, which drives retries and replays through the same job path), **T53** (removing
+> the verification header-names parameter from that same `OutboundHeaders`/`DeliverToDestination`/
+> `DeliveryUnitResolver` call chain, ADR-026 Decision B), and **T55** (`DeliveryUnit::STRIPPED_HEADERS`,
+> read on every dispatch, ADR-026 Decision A). Manual verification
 > against a real queued dispatch (Horizon, `QUEUE_CONNECTION=redis`) is recommended at **T49** if it
 > is available in the environment, though it is not required by any single task's Acceptance Criteria
 > — `plan-10` asserts no numeric or environment-specific target here (AC47).
@@ -139,15 +177,23 @@
 >    secret, which is never typed at all) — carried into T20, T23, T29, T30's Acceptance Criteria
 >    individually rather than asserted once, because each is a separate form field and a separate
 >    regression surface.
-> 9. **ADR-025's two corrections are outbound-only; inbound is untouched, and a global `webhook-`
->    find-and-replace across the codebase is the wrong implementation of either.**
+> 9. **Superseded by ADR-026 — kept for history, replaced by the rule below.** This constraint
+>    originally read: "ADR-025's two corrections are outbound-only; inbound is untouched, and a
+>    global `webhook-` find-and-replace across the codebase is the wrong implementation of either.
 >    `StandardWebhooksScheme`'s own request-header reads and `DeliveryUnitResolver`'s AC27
->    verification-header map keep the Standard Webhooks specification names (`webhook-id`,
->    `webhook-timestamp`, `webhook-signature`) verbatim, because those are the names an inbound
->    sender actually transmits — pinned by name at **T50**. The AC27 per-proxy verification-header
->    strip inside `OutboundHeaders::build()` (T26) stays exactly as built; it is the reason removing
->    five provider-signature names from `DeliveryUnit::STRIPPED_HEADERS` is safe, not a coincidence —
->    pinned by name at **T51**.
+>    verification-header map keep the Standard Webhooks specification names ... verbatim, because
+>    those are the names an inbound sender actually transmits — pinned by name at T50. The AC27
+>    per-proxy verification-header strip inside `OutboundHeaders::build()` (T26) stays exactly as
+>    built; it is the reason removing five provider-signature names from
+>    `DeliveryUnit::STRIPPED_HEADERS` is safe, not a coincidence — pinned by name at T51." **Both
+>    premises are gone**: inbound verification itself is removed (ADR-026 Decision B, T52–T54), so
+>    there is no `StandardWebhooksScheme`, no AC27 verification-header map, and no AC27 strip left to
+>    stay unchanged or to lean on for safety. **The operative rule now:** `DeliveryUnit::STRIPPED_HEADERS`
+>    is safe at its Decision-A width (**T55**) because no member can configure an inbound verification
+>    header any more, not because of a strip this constraint used to point at. A global `webhook-`
+>    find-and-replace remains the wrong way to implement **T50** — that half of this constraint
+>    survives even though its inbound-preservation half does not; the rename still touches exactly one
+>    production file.
 >
 > **Scope discipline (`plan-10` §§ Explicitly out of scope / Out of Scope) — do NOT build in this
 > feature:** any third verification scheme, IP allow-listing, mutual TLS, or free-form verification
@@ -161,7 +207,9 @@
 > exclusions); any analytics, counter, or notification for a rejected inbound request (AC46); any
 > change to retention, GC, holds, retry, replay, processing mode, the mode attribute, FIFO ordering,
 > or #11's figures and indexes; any second payload read surface, export, download, share path, cache
-> or archive (AC3).
+> or archive (AC3). **Added by ADR-026:** any inbound verification scheme, header, secret, surface, or
+> configuration of any kind — the capability is removed from the product, not made optional; do not
+> reintroduce any part of it while building T45–T55, however convenient a stray reference might look.
 
 ---
 
@@ -863,6 +911,13 @@
   assertions); full-suite run deferred to the end of this batch.
 
 ## T16 — `App\Enums\VerificationScheme` (AC23, AC50; plan § Services & Actions, ADR-022)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** This task's output,
+> `App\Enums\VerificationScheme`, is deleted in full at **T53**. The work was correct against
+> ADR-022/PRD-10 AC23/AC50 as approved at the time; it is removed because the Project Owner withdrew
+> inbound verification from the product, not because anything here was built wrong. This task also
+> filled in `Proxy::casts()`'s deferred `verification_scheme` cast (T2's own deferral) — that cast,
+> its `@property` line and its `#[Fillable]` entry are undone at T53 alongside the enum. Original task
+> content below is preserved for history; do not build against it.
 - **Description:** Backed enum, exactly two cases: `StandardWebhooks = 'standard-webhooks'`,
   `SharedSecret = 'shared-secret'`. The closed list AC50 requires — adding a case is a Project Owner
   decision, never absorbed quietly.
@@ -888,6 +943,15 @@
   Proxy/schema coverage); full-suite run deferred to the end of this batch.
 
 ## T17 — `App\Verification\SharedSecretScheme`, `StandardWebhooksScheme` (AC51, AC52, AC53; plan § Services & Actions)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** This task's output — the
+> `VerificationSchemeHandler` interface and both scheme classes, plus the whole `app/Verification/`
+> directory they live in — is deleted in full at **T53**. **Note the boundary:** `App\Support\StandardWebhooks`
+> (T7), which `StandardWebhooksScheme` here delegated to, is a *different* class in a different
+> namespace and is **not** touched by this removal — it stays whole, `verify()` included, because
+> outbound signing's own suites use it as their receiver-side oracle (ADR-026 Decision 3). The work
+> here was correct against ADR-022/PRD-10 AC51–AC53 as approved at the time; it is removed because the
+> Project Owner withdrew inbound verification, not because anything here was built wrong. Original
+> task content below is preserved for history; do not build against it.
 - **Description:** One class per scheme, implementing a shared interface (e.g.
   `App\Verification\VerificationSchemeHandler`, new): `verify(Proxy $proxy, Request $request, string
   $rawBody, list<string> $liveSecrets): bool`. `SharedSecretScheme` — the named header's value must
@@ -937,6 +1001,11 @@
   deferred to the end of this batch.
 
 ## T18 — `App\Services\InboundVerifier` (AC24, AC25; plan § Architecture A, ADR-022 Decisions 1–3)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** This task's output —
+> `App\Services\InboundVerifier` and `App\Enums\VerificationResult` — is deleted in full at **T53**.
+> The work was correct against ADR-022/PRD-10 AC24/AC25 as approved at the time; it is removed because
+> the Project Owner withdrew inbound verification, not because anything here was built wrong. Original
+> task content below is preserved for history; do not build against it.
 - **Description:** The **resolution-time gate**: establishes `$proxy->verification_scheme !== null`
   **before** asking `SecretStore` for anything, so a proxy with verification off never queries
   `proxy_secrets` (AC24's "behaves exactly as today," at the query-count level). `verify(Proxy $proxy,
@@ -978,6 +1047,18 @@
   green (6 tests, 7 assertions); full-suite run deferred to the end of this batch.
 
 ## T19 — `IngestController` integration: the verification gate, 401/500 shapes, reason-code log (AC8, AC11, AC25; plan § Architecture A, H; Technical ruling 12; ADR-022 Decisions 4, 5)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** The verification gate this task
+> added to `IngestController` — the `InboundVerifier` dependency, the `SecretUnavailableException`
+> catch with its `report()`/`abort(500)`, the `VerificationResult::Failed` 401 branch, the
+> `ingest.verification_failed` log line, the `VERIFICATION_FAILED_BODY` constant, and the
+> `VerificationResult`/`SecretUnavailableException`/`InboundVerifier`/`Log` imports — is removed in
+> full at **T53**. **Not everything in this task's own diff goes**: the single `$request->getContent()`
+> read this task's own completion notes describe stays exactly where it is (it predates verification
+> and is unrelated to it), the capture-failure `report($e)`/`try`/`catch (Throwable)` block is
+> untouched, and the body-read-once test stays, re-pointed at the surviving single read rather than
+> deleted. The gate itself was correct against ADR-022/PRD-10 AC8/AC11/AC25 as approved at the time; it
+> is removed because the Project Owner withdrew inbound verification, not because anything here was
+> built wrong. Original task content below is preserved for history; do not build against it.
 - **Description:** `IngestController` gains exactly one step between proxy resolution and the capture
   transaction: read `$rawBody` **once**, call `InboundVerifier::verify()`. `NotRequired`/`Verified` →
   continue to capture unchanged. `Failed` → **401**, a fixed non-configurable body, log
@@ -1037,6 +1118,14 @@
   batch boundary — 42 new tests across T13-T19).
 
 ## T20 — Verification validation rules (AC23, AC24, AC26; plan § Validation)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** Every validation rule this task
+> added (`verification_scheme`, `verification_header_name`, `verification_secret` on both
+> `StoreProxyRequest`/`UpdateProxyRequest`) and every piece of persistence plumbing it added to
+> `ProxyController::store()`/`update()` (the `SecretStore::replace()` calls, the `verification_scheme`/
+> `verification_header_name` write-attribute keys) are removed in full at **T53**. The work was correct
+> against ADR-022/PRD-10 AC23/AC24/AC26 as approved at the time; it is removed because the Project
+> Owner withdrew inbound verification, not because anything here was built wrong. Original task content
+> below is preserved for history; do not build against it.
 - **Description:** On `StoreProxyRequest`/`UpdateProxyRequest`: `verification_scheme` —
   `nullable`, `Rule::enum(VerificationScheme::class)`. `verification_header_name` —
   `required_if:verification_scheme,shared-secret`, `prohibited_unless:verification_scheme,shared-secret`,
@@ -1110,6 +1199,13 @@
   all green (92 tests, 285 assertions); full-suite run deferred to the end of this batch (T20-T25).
 
 ## T21 — `ProxyVerificationOverlapController@destroy` (AC29; plan § API)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** This task's output —
+> `ProxyVerificationOverlapController` and the `proxies.verification.overlap.destroy` route — is
+> deleted in full at **T53**. The work was correct against AC29's inbound half as approved at the time;
+> it is removed because the Project Owner withdrew inbound verification, not because anything here was
+> built wrong. AC29's outbound (signing) half is untouched — `SecretStore::endOverlap()` (T14) and the
+> three `proxies.signing.*` routes (T37) stand. Original task content below is preserved for history;
+> do not build against it.
 - **Description:** `DELETE proxies/{proxy}/verification/overlap`, gated `update` via `ProxyPolicy`,
   calls `SecretStore::endOverlap($proxy, SecretPurpose::Verification)`, Inertia redirect (`back()`).
 - **Dependencies:** T14
@@ -1142,6 +1238,15 @@
   to the end of this batch (T20-T25).
 
 ## T22 — `ProxySecurityResource`: the `security` prop's `verification` sub-object (AC20, AC26, AC28; plan Technical rulings 3, 5; § API)
+> **Status: PARTIALLY SUPERSEDED by ADR-026 Decision B, 2026-08-28 — narrower than T16–T21/T23–T25,
+> read carefully.** Only the `verification` sub-object and its status lookup are removed, at **T53**.
+> **`ProxySecurityResource` itself, the sibling `security` prop wiring on `ProxyController::show()`/
+> `::edit()`, and `SecretStore::statusFor()` (this task's own addition) all stand** — they now carry
+> only the `signing` sub-object (T38) and the `destinations` credential map (T32), both untouched by
+> the removal, as is `#[PreserveKeys]`. Do not delete this file, the `security` prop, or `statusFor()`
+> when acting on T53 — only the `verification` key and its lookup go. Original task content below is
+> preserved for history exactly as built; its `verification`-specific portions are superseded, its
+> resource/prop-wiring portions are not.
 - **Description:** New resource, status-only — never a value, never a length. `verification: {
   scheme, header_name, secret_set, secret_changed_at, overlap_expires_at } | null`. Wired as a sibling
   **`security`** prop on `ProxyController::show()` and `::edit()` (never `index()`, never a key on
@@ -1193,6 +1298,18 @@
   T1–T22's existing coverage); full-suite run deferred to the end of this batch (T20-T25).
 
 ## T23 — Screen 1: `ProxyForm.vue` Verification section (AC23, AC24, AC26, AC29-ruling-2a; Flows A, B; plan Implementation Notes 13–15, 20–21)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** This task's own contribution to
+> `ProxyForm.vue` — the whole Verification `fieldset`, the five `initialVerification*` mount seeds, the
+> `verification_scheme`/`verification_header_name`/`verification_secret` form keys, the
+> `VERIFICATION_NOT_REQUIRED` sentinel, `verificationSchemeSelect`, `verificationReplaceClicked`,
+> `verificationSecretIsSet`, `replaceVerificationSecret()`, the scheme-switch clearing watcher, and the
+> `standardWebhooksTolerance` prop — is removed in full at **T52**. `ProxyForm.vue` itself survives
+> with everything other tasks built (Sensitive fields, Destinations) untouched. Screen 1 and Flows A/B
+> are withdrawn in full by the `design-10` revision (Designer, per ADR-026 § Impact). The work here was
+> correct against `design-10`'s original Screen 1/Flows A–B and AC23/AC24/AC26/AC29-ruling-2a as
+> approved at the time; it is removed because the Project Owner withdrew inbound verification, not
+> because anything here was built wrong. Original task content below is preserved for history; do not
+> build against it.
 - **Description:** New section, placed after **Processing**, before **Retry policy**. `Select` bound to
   `form.verification_scheme` with a `"none"` sentinel for "Not required" (the underlying `Select`
   primitive rejects an empty string — N2). Conditional fields per scheme, the shared write-only
@@ -1280,6 +1397,17 @@
   (T20-T25).
 
 ## T24 — Screen 4: `proxies/Show.vue` Verification card (AC29; Flow C; plan § Architecture F)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** This task's own contribution to
+> `Show.vue` — the whole Verification `Card`, `verificationSchemeLabel`, `verificationSecretStatus`,
+> `verificationOverlapStatus`, `verificationOverlapBusy`, `verificationOverlapError`,
+> `endVerificationOverlap()` and its `proxyRoutes.verification.overlap.destroy` call — is removed in
+> full at **T52**. `Show.vue` itself survives; the Signing card immediately below this one, its own
+> end-overlap handler and the signing dialog are untouched by this removal, exactly as ADR-026 states.
+> Screen 4 and Flow C are withdrawn in full by the `design-10` revision (Designer, per ADR-026 §
+> Impact). The work here was correct against `design-10`'s original Screen 4/Flow C and AC29 as
+> approved at the time; it is removed because the Project Owner withdrew inbound verification, not
+> because anything here was built wrong. Original task content below is preserved for history; do not
+> build against it.
 - **Description:** New `Card`, alongside Retry policy, after Destinations. States: not required; scheme
   set, no overlap (`dl`/`dt`/`dd` of scheme, header if `shared-secret`, "Set — changed {date}");
   overlap running (adds the rotation-in-progress line and an **End overlap now** button, gated on the
@@ -1336,6 +1464,12 @@
   (T20-T25).
 
 ## T25 — Inbound verification integration test suite (AC24, AC25, AC28, AC29, AC51–AC53; ADR-022 Decision 6)
+> **Status: SUPERSEDED — removed by ADR-026 Decision B, 2026-08-28.** This task's output,
+> `tests/Feature/Ingest/InboundVerificationIntegrationTest.php`, is deleted in full at **T53** — its
+> whole subject is a capability the product no longer has. The work was correct against
+> ADR-022/PRD-10 AC24/AC25/AC28/AC29/AC51–AC53 as approved at the time; it is removed because the
+> Project Owner withdrew inbound verification, not because anything here was built wrong. Original task
+> content below is preserved for history; do not build against it.
 - **Description:** No production code — the end-to-end pinning pass across everything T16–T22 built,
   through real HTTP requests rather than unit calls.
 - **Dependencies:** T19, T20, T21
@@ -1457,6 +1591,15 @@
   `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter OutboundHeadersTest`
   green (6 tests, 12 assertions); full-suite run deferred to the end of this batch (T26-T33).
 
+> **Note (ADR-026 Decision B, 2026-08-28) — partially superseded, narrower than T16–T21/T23–T25.** The
+> AC27 verification-header strip step this task built inside `OutboundHeaders::build()` is removed at
+> **T53** — inbound verification no longer exists, so there is no per-proxy verification header left to
+> strip, and `build()`'s signature narrows accordingly (drops the verification header-names parameter).
+> **Everything else this task built stands unchanged**: the credential composition, the AC30 verbatim
+> value, the AC38 collision rule, and the AC37 byte-identical regression (which becomes a *stronger*
+> claim once fewer headers are stripped overall — see T55). Do not delete this file or its surviving
+> methods when acting on the removal at T53.
+
 ## T27 — `DeliveryUnitResolver`: load the proxy `withTrashed()`, carry verification header names (R3; plan § Architecture C, Implementation Note 5) — **delivery path**
 - **Description:** `DeliveryUnitResolver` must load `$delivery->proxy()->withTrashed()->firstOrFail()`
   — `Delivery::proxy()` is a plain `belongsTo` on a model using `SoftDeletes`, so an unqualified load
@@ -1491,6 +1634,16 @@
   (21 tests, 101 assertions, confirming the new defaulted constructor parameter didn't disturb any
   existing `DeliveryUnit` construction site) all green; full-suite run deferred to the end of this
   batch (T26-T33).
+
+> **Note (ADR-026 Decision B, 2026-08-28) — partially superseded, narrower than T16–T21/T23–T25.** The
+> verification-header-name carrying this task added — `DeliveryUnitResolver::verificationHeaderNamesFor()`
+> and the `verificationHeaderNames` constructor argument/property on `DeliveryUnit` — is removed at
+> **T53**. **The `withTrashed()` proxy load this task also built stands unchanged.** It was introduced
+> carrying two reasons (the AC27 verification header names and the proxy's live signing set); the first
+> is gone, and the second — `Delivery::proxy()` is a plain `belongsTo` on a `SoftDeletes` model, so an
+> unqualified load would resolve `null` for a soft-deleted proxy at runtime where PHPStan cannot see it
+> — was always independently sufficient (ADR-026 Decision 3). Do not remove the `withTrashed()` load
+> when acting on T53.
 
 ## T28 — `DeliverToDestination::send()` calls `OutboundHeaders` (AC17, AC30, AC32; plan § Architecture C) — **delivery path**
 - **Description:** `send()` gains the one build point: composes the outbound header set through
@@ -2615,6 +2768,14 @@
   pre-existing baseline exactly (no backend code touched by this task).
 
 ## T44 — Manual verification: `design-10` Flows G, H, I against a production build
+> **Status: WITHDRAWN — folded into T49, Task Planner's call per ADR-026 § *Sequencing and build
+> order*, which flagged the fold as this document's own decision to make.** Once ADR-026 resequences
+> this task to run after Decision A's strip reduction (**T55**), it sits immediately before **T49**'s
+> own whole-surface pass with nothing in between to regress — the two tasks would walk the identical
+> Flows G/H/I back to back for no reason. **T49 below now explicitly covers Flows D through I**,
+> folding this task's scope into its own Acceptance Criteria; no coverage is lost. This entry is kept,
+> not deleted, because ADR-026 refers to "T44" by number throughout. Do not build against the original
+> scope below independently of T49.
 - **Description:** The signing surface's own full walkthrough, now that M8b is built end to end —
   `plan-10`'s own test-strategy note excluded Flows G–I "because the surface they describe is not
   built"; it now is, so this task closes that exclusion explicitly rather than leaving it silently
@@ -2627,138 +2788,349 @@
   360px.
 - **Testing:** manual, recorded in completion notes with concrete steps and observed outcomes per
   `docs/standards/planning.md`'s "AC-trace"/"Verify step" requirement.
+- **Completion notes:** WITHDRAWN — see status note above. Folded into T49; no independent completion
+  record is made for this task number.
+
+---
+
+## M11 — Inbound verification removal (ADR-026 Decision B)
+
+Three tasks carrying out ADR-026's Decision B in the order its own § *Sequencing and build order*
+requires — surfaces, then backend, then the migration carrying the `SecretPurpose::Verification`
+removal — physically placed here, **before** M10's T50/T55, even though T52–T54's numbers are higher
+than T50's. See this document's own conventions note above ("Numbers are stable identifiers, not build
+order, from T50 onward."). ADR-026 states steps 1 through 3 (T52, T53, T54) should not leave the branch
+parked between them, because a working database that has run T1's migration holds `'verification'`
+rows until T54 deletes them.
+
+## T52 — Remove member-facing inbound verification surfaces (ADR-026 Decision B, Step 1)
+- **Description:** The frontend goes first, and the order is not interchangeable (ADR-026 §
+  *Sequencing and build order*, Step 1): removing `ProxySecurityResource`'s `verification` sub-object
+  while `Show.vue` still reads `props.security.verification.scheme` is a runtime break `pnpm
+  types:check` cannot catch, because the TypeScript interface still declares the member; the reverse —
+  a component reading nothing from a key the backend still emits — is harmless. Remove, per ADR-026
+  Decision 2 § *Edited — the member-facing surfaces*:
+  - `resources/js/pages/proxies/ProxyForm.vue` (design-10 Screen 1, withdrawn by the `design-10`
+    revision): the whole Verification `fieldset`, the five `initialVerification*` mount seeds, the
+    `verification_scheme`/`verification_header_name`/`verification_secret` form keys, the
+    `VERIFICATION_NOT_REQUIRED` sentinel and `verificationSchemeSelect` computed,
+    `verificationReplaceClicked`, `verificationSecretIsSet`, `replaceVerificationSecret()`, the
+    `watch(() => form.verification_scheme, …)` clearing arm, and the `standardWebhooksTolerance` prop.
+    **The Sensitive fields section and the Destinations fieldset are untouched.** The `security` prop
+    itself stays on this component — Screen 3's credential subsection reads it.
+  - `resources/js/pages/proxies/Show.vue` (design-10 Screen 4, withdrawn): the whole Verification
+    `Card`, the `verificationSchemeLabel`, `verificationSecretStatus` and `verificationOverlapStatus`
+    computeds, `verificationOverlapBusy`, `verificationOverlapError`, `endVerificationOverlap()` and
+    its `proxyRoutes.verification.overlap.destroy` call. **The Signing card immediately below it, its
+    own end-overlap handler and the signing dialog are untouched.**
+  - `resources/js/pages/proxies/Create.vue` and `Edit.vue`: the `standardWebhooksTolerance` prop
+    declaration and its forwarding to `ProxyForm.vue`. `defaultSensitiveFieldNames` stays.
+  - `resources/js/types/proxies.ts`: the exported `VerificationScheme` union and the
+    `ProxySecurity.verification` member. `ProxySecurity.signing` and `ProxySecurity.destinations` stay.
+  - `resources/js/components/DestinationRows.vue`: one comment referring to "Screen 1's verification
+    secret" as the shape precedent for the credential field. The behaviour it describes is unchanged;
+    only the dangling reference goes.
+  - `resources/js/routes/` is generated by `@laravel/vite-plugin-wayfinder` and needs no manual edit.
+- **Dependencies:** T43
+- **Files:** `resources/js/pages/proxies/ProxyForm.vue`, `resources/js/pages/proxies/Show.vue`,
+  `resources/js/pages/proxies/Create.vue`, `resources/js/pages/proxies/Edit.vue`,
+  `resources/js/types/proxies.ts`, `resources/js/components/DestinationRows.vue`
+- **Acceptance Criteria:**
+  - `ProxyForm.vue` renders no Verification section on Create or Edit; `form` never carries a
+    `verification_scheme`/`verification_header_name`/`verification_secret` key; the Sensitive fields
+    section and Destinations fieldset render exactly as before this task.
+  - `Show.vue` renders no Verification Card; the Signing card, its end-overlap control and its dialog
+    render unchanged.
+  - `Create.vue`/`Edit.vue` no longer declare or forward `standardWebhooksTolerance`;
+    `defaultSensitiveFieldNames` still forwards unchanged.
+  - `resources/js/types/proxies.ts` exports no `VerificationScheme`; `ProxySecurity` declares no
+    `verification` member; `ProxySecurity.signing`/`.destinations` are unchanged.
+  - `DestinationRows.vue`'s comment no longer cites Screen 1's verification secret; the credential
+    field behaviour it describes is byte-for-byte unchanged.
+  - A repository-wide grep of `resources/js` for `verification_scheme`, `verification_header_name`,
+    `verification_secret`, `VerificationScheme`, `standardWebhooksTolerance`,
+    `verificationSchemeSelect`, `verificationReplaceClicked`, `verificationSecretIsSet`,
+    `replaceVerificationSecret`, `verificationSchemeLabel`, `verificationSecretStatus`,
+    `verificationOverlapStatus`, `verificationOverlapBusy`, `verificationOverlapError`,
+    `endVerificationOverlap`, `VERIFICATION_NOT_REQUIRED` finds zero matches.
+  - The backend still emits `security.verification` at this point — that is not removed until **T53**
+    — and nothing on this component tree reads it any more, which is what makes this ordering safe.
+  - `pnpm run format:check`, `pnpm run lint:check`, `pnpm run types:check` and `pnpm run build` all
+    green.
+- **Testing:** no frontend test harness — manual verification against a production build, both themes:
+  Create and Edit for a proxy that previously had verification configured (the form loads without
+  error and saves correctly with the verification columns simply never submitted); Show.vue for a
+  proxy that previously showed a Verification card (no error, Signing card intact).
+- **Completion notes:** _pending_
+
+## T53 — Remove backend inbound verification: classes, ingest gate, and every surviving wiring point except the enum case and the migration (ADR-026 Decision B, Step 2)
+- **Description:** Everything in ADR-026 Decision 2's removal set **except** the
+  `SecretPurpose::Verification` case and the migration — those two land together at **T54**, per
+  Decision 2's own ordering constraint: `ProxySecret::$casts` maps `purpose` to `SecretPurpose`, and
+  removing the case while `'verification'` rows still exist makes every hydration of those rows throw.
+
+  **Deleted outright — production classes:** `app/Services/InboundVerifier.php`;
+  `app/Verification/VerificationSchemeHandler.php`; `app/Verification/SharedSecretScheme.php`;
+  `app/Verification/StandardWebhooksScheme.php`; the `app/Verification/` directory itself, which holds
+  nothing else; `app/Enums/VerificationScheme.php`; `app/Enums/VerificationResult.php`;
+  `app/Http/Controllers/ProxyVerificationOverlapController.php`.
+
+  **Deleted outright — test files whose entire subject is inbound verification:**
+  `tests/Unit/Verification/SharedSecretSchemeTest.php`;
+  `tests/Unit/Verification/StandardWebhooksSchemeTest.php`;
+  `tests/Unit/Services/InboundVerifierTest.php`; `tests/Unit/Enums/VerificationSchemeTest.php`;
+  `tests/Feature/Ingest/InboundVerificationIntegrationTest.php`;
+  `tests/Feature/Proxies/VerificationValidationTest.php`;
+  `tests/Feature/Proxies/ProxyVerificationOverlapControllerTest.php`.
+
+  **Edited — the ingest path:** `app/Http/Controllers/IngestController.php` — the verification gate
+  goes: the `InboundVerifier` constructor dependency, the `try`/`catch (SecretUnavailableException)`
+  with its `report()` and `abort(500)`, the `VerificationResult::Failed` branch with its 401 response,
+  the `ingest.verification_failed` log line, the `VERIFICATION_FAILED_BODY` constant, and the
+  `VerificationResult`, `SecretUnavailableException`, `InboundVerifier` and `Log` imports. **The single
+  `$request->getContent()` read stays exactly where it is**, immediately after the proxy resolution and
+  before the capture transaction, passed to `WebhookEventCapture` unchanged. The capture-failure
+  `report($e)` and its surrounding `try`/`catch (Throwable)` are untouched.
+  `app/Pipeline/PipelineFactory.php` — the reserved comment naming `VerifyStep` as "#10 — verification
+  token (front)" is removed; that step was never built and now never will be.
+
+  **Edited — the outbound path:** `app/Support/OutboundHeaders.php` — the `$verificationHeaderNames`
+  parameter and the first `withoutNames()` call go, so `build()` takes the unit, the credential header
+  name, the credential value and the signing secrets; the class docblock's step (2) goes with it.
+  Nothing else in this class changes. `app/Services/DeliveryUnitResolver.php` —
+  `verificationHeaderNamesFor()` and the `verificationHeaderNames:` constructor argument go, along with
+  the `VerificationScheme` import and the docblock clause. **The `withTrashed()` proxy load stays** —
+  see T27's own note; it was always independently sufficient for the proxy's live signing set.
+  `app/Pipeline/DeliveryUnit.php` — the `$verificationHeaderNames` constructor property and its
+  docblock go. **`STRIPPED_HEADERS` itself is not touched by this task — that is T55's, alone.**
+  `forwardHeaders()`'s implementation is unchanged. `app/Actions/DeliverToDestination.php` — the
+  `$unit->verificationHeaderNames` argument passed to `OutboundHeaders::build()`, and the docblock
+  sentence naming the verification strip.
+
+  **Edited — configuration, persistence and the API surface:** `app/Models/Proxy.php` — the
+  `verification_scheme` cast, both `@property` docblock lines, both `#[Fillable]` entries, and the
+  `VerificationScheme` import. The `secrets()` relation stays. `app/Http/Requests/StoreProxyRequest.php`
+  and `app/Http/Requests/UpdateProxyRequest.php` — the `verification_scheme`,
+  `verification_header_name` and `verification_secret` rules, the `VerificationScheme` import, and —
+  on `UpdateProxyRequest` — the `proxyHasLiveVerificationSecret()` helper with its `SecretStore` and
+  `SecretPurpose` imports. `app/Http/Controllers/ProxyController.php` — both
+  `SecretStore::replace(…, SecretPurpose::Verification, …)` calls in `store()` and `update()`; the
+  `verification_scheme` and `verification_header_name` keys in `update()`'s attribute array; both
+  `standardWebhooksTolerance` page props on `create()` and `edit()`; and, once those are gone, the
+  `SecretStore` constructor dependency and the `SecretStore`, `SecretPurpose` and `StandardWebhooks`
+  imports, none of which this controller has any remaining use for. `DeliveryStatistics` stays.
+  `app/Http/Resources/ProxySecurityResource.php` — the entire `verification` sub-object and the
+  `$verificationStatus` lookup. **The `signing` sub-object, the `destinations` credential map,
+  `#[PreserveKeys]`, the resource class itself, and the `security` prop wiring on `show()`/`edit()` are
+  untouched** — see T22's own note. `routes/web.php` — the `proxies.verification.overlap.destroy`
+  route and the `ProxyVerificationOverlapController` import. The three signing routes stay.
+
+  **Edited — tests that survive with their verification cases pruned:**
+  `tests/Feature/Ingest/IngestControllerTest.php` — remove the four AC25 negatives, the AC11 500 case,
+  the log-payload assertion, and the FIFO rejection case. **The body-read-once test stays**, re-pointed
+  at the surviving single read. `tests/Unit/Services/DeliveryUnitResolverTest.php` — remove the
+  `verificationHeaderNames` assertions, including the `['webhook-id', 'webhook-timestamp',
+  'webhook-signature']` expectation (this is the same assertion **T50**'s own "explicitly not touched"
+  list names as staying unmodified — it does not, once this task runs first; see T50's own sequencing
+  note). `tests/Unit/Support/OutboundHeadersTest.php` — remove the verification-strip cases. **The
+  AC37 byte-identical baseline stays**, and becomes a stronger claim once T55 also runs.
+  `tests/Feature/Proxies/ProxySecurityResourceTest.php` — remove the `verification` sub-object
+  assertions. `tests/Unit/Services/SecretStoreTest.php`, `tests/Unit/Models/ProxySecretTest.php`,
+  `tests/Unit/Actions/ExpireProxySecretsTest.php`, `tests/Feature/Console/PurgeExpiredProxySecretsTest.php`,
+  `tests/Feature/ProxyEvents/ProxyEventPayloadControllerTest.php` — every fixture using
+  `SecretPurpose::Verification` retargets to `SecretPurpose::Signing`; none loses coverage, since each
+  is testing rotation, expiry, hiding or sweeping, none of which is purpose-specific.
+  `tests/Feature/Delivery/OutboundSigningIntegrationTest.php` — remove any fixture configuring a
+  verification scheme in order to assert the AC27 strip alongside signing.
+
+  **The three traps ADR-026 names explicitly, carried here rather than left to be rediscovered:**
+  1. **`SecretStore` has no verification branch at all.** It is purpose-parameterised end to end —
+     every method takes a `SecretPurpose` and filters on it — and the word "verification" appears only
+     in its docblocks, never in a branch. **`app/Services/SecretStore.php` is not touched by this
+     task, at all, in any way**, except one docblock sentence on `disable()` that contrasts signing's
+     semantics with verification's dormant-secret retention — rewrite that one sentence to state
+     signing's own semantics directly; do not delete the method. `liveFor()` is the rotation engine
+     outbound signing runs on every dispatch (`DeliveryUnitResolver`, ADR-023 Decision 4); `replace()`
+     carries the two-row cap; `generate()` is AC56; `endOverlap()` is the Signing card's own control;
+     `disable()` is disabling signing (ADR-021 Decision 5); `statusFor()` is the `signing` sub-object
+     of the `security` prop (T22, T38). A grep-driven removal of "verification" from this file deletes
+     the mechanism signing depends on — do not do it.
+  2. **`App\Support\StandardWebhooks` stays whole**, including `verify()`, `parseEntries()` and
+     `TOLERANCE_SECONDS` — not touched by this task at all. Its name makes it the likeliest casualty of
+     a careless removal, but it is a different class in a different namespace from
+     `App\Verification\StandardWebhooksScheme` (which this task does delete). `sign()` is what emits
+     the outbound signature; **`verify()` is the receiver-side oracle `tests/Unit/Support/OutboundHeadersSigningTest.php`
+     and `tests/Feature/Delivery/OutboundSigningIntegrationTest.php` (T34, T40) call to prove the
+     emitted signature is verifiable by a conforming recipient** — deleting it would silently reduce
+     those suites to asserting that a header string is present. `TOLERANCE_SECONDS` is `verify()`'s own
+     replay window.
+  3. **`app/Enums/SecretPurpose.php` is not touched by this task.** Both cases (`Verification`,
+     `Signing`) still exist when this task finishes. Removing `Verification` here, before
+     `'verification'` rows are deleted, makes every `ProxySecret` hydration of such a row throw
+     (`$casts` maps `purpose` through the enum). The case removal happens only at **T54**, in the same
+     task as the row deletion.
+- **Dependencies:** T52
+- **Files:** as enumerated above — 8 production files deleted, 7 test files deleted, 12 production
+  files edited, 10 test files edited. `app/Services/SecretStore.php` and `app/Enums/SecretPurpose.php`
+  are explicitly **not** touched by this task.
+- **Acceptance Criteria:**
+  - The eight production classes/interfaces and the `app/Verification/` directory no longer exist; the
+    seven verification-only test files no longer exist.
+  - `IngestController` has no `InboundVerifier` dependency, no `VerificationResult`/
+    `SecretUnavailableException`/`Log` import, no `ingest.verification_failed` log line, no
+    `VERIFICATION_FAILED_BODY` constant; the single `$request->getContent()` read remains at its
+    existing point; the capture-failure `report($e)`/`try`/`catch (Throwable)` block is untouched; a
+    proxy that previously required verification now ingests and dispatches exactly as a never-gated
+    proxy always has.
+  - `PipelineFactory.php`'s reserved `VerifyStep` comment is gone.
+  - `OutboundHeaders::build()` no longer accepts a verification header-names argument; the credential
+    composition (AC30, AC38) and the AC37 byte-identical baseline are otherwise unchanged.
+  - `DeliveryUnitResolver` has no `verificationHeaderNamesFor()` method and no `verificationHeaderNames`
+    constructor argument; its `withTrashed()` proxy load is still present and still exercised (a retry
+    against a soft-deleted proxy still resolves and still dispatches correctly).
+  - `DeliveryUnit` has no `$verificationHeaderNames` constructor property; `STRIPPED_HEADERS` is
+    byte-for-byte unchanged by this task.
+  - `DeliverToDestination::send()` no longer passes a verification header-names argument to
+    `OutboundHeaders::build()`.
+  - `Proxy` has no `verification_scheme` cast, no matching `@property` lines, no `#[Fillable]` entries
+    for it, no `VerificationScheme` import; `secrets()` is unchanged.
+  - `StoreProxyRequest`/`UpdateProxyRequest` accept no `verification_scheme`/`verification_header_name`/
+    `verification_secret` field — submitting any of the three is silently dropped, never validated,
+    never persisted; `UpdateProxyRequest::proxyHasLiveVerificationSecret()` no longer exists.
+  - `ProxyController::store()`/`update()` write no verification column and call `SecretStore` for
+    nothing at all any more; `create()`/`edit()` emit no `standardWebhooksTolerance` prop; the
+    controller has no `SecretStore` constructor dependency and no `SecretStore`/`SecretPurpose`/
+    `StandardWebhooks` import. `DeliveryStatistics` usage is unchanged.
+  - `ProxySecurityResource`'s `security` prop carries no `verification` key on any surface, for any
+    proxy, regardless of whether that proxy previously had verification configured; `signing` and
+    `destinations` are unchanged.
+  - `DELETE proxies/{proxy}/verification/overlap` no longer routes; the three signing routes still
+    resolve.
+  - The five retargeted tests all still pass using `SecretPurpose::Signing` fixtures, with no loss of
+    the property each was actually testing.
+  - `composer lint`, `composer types:check`, `./vendor/bin/sail test --parallel` all green.
+- **Testing:** covered entirely by the deleted/edited test files enumerated in the Description; no new
+  test file required by this task (T54 adds the migration-specific one).
+- **Completion notes:** _pending_
+
+## T54 — Migration: drop `proxies.verification_scheme`/`verification_header_name`, delete every `verification`-purpose secret, and remove `SecretPurpose::Verification` (ADR-026 Decision 4, and the ordering constraint of Decision 2 § *What stays*)
+- **Description:** One new migration, `database/migrations/2026_08_28_000001_remove_inbound_verification.php`,
+  doing two things: (1) `DELETE FROM proxy_secrets WHERE purpose = 'verification'` — every row, current
+  and superseded alike; (2) `ALTER TABLE proxies DROP COLUMN verification_scheme, DROP COLUMN
+  verification_header_name`, a single `Schema::table()` call with both names. The order between the two
+  is not load-bearing. **`2026_08_27_000001_add_sensitive_data_handling_schema.php` (T1) is not
+  edited** — a database that has already run it will not run it again, so the two columns would survive
+  silently on any developer's working database that skipped this new migration, and the row deletion
+  cannot be expressed as an edit to a create-table migration in any case. **One migration, not a
+  two-step expand-and-contract** — the columns are read only by code deleted at T53, in the same
+  change, and item #10 has never merged to `main`, so no deployed instance reads them at all.
+  `sensitive_fields` on `proxies`, and `credential_header_name`/`credential_secret`/`credential_set_at`
+  on `destinations`, are not touched.
+
+  `down()` restores **the two columns and nothing else** — `verification_scheme` `string(32)` nullable,
+  `verification_header_name` `string(128)` nullable, in that order, matching their original definitions
+  exactly. `down()` cannot restore, and must say so in its own docblock: the column **values** (every
+  proxy's chosen scheme and header name — a rolled-back database has two columns that are `NULL` on
+  every row); the **deleted secrets** (every `proxy_secrets` row of purpose `verification` is gone
+  permanently — these are secrets issued by upstream providers, PRD-10 AC26, never generated or
+  displayed by this product and impossible to reconstruct); or the **code** (a rolled-back schema has
+  no reader, no writer and no surface for either column). This mirrors T1's own migration's `down()`
+  docblock precedent.
+
+  **The ordering constraint, load-bearing, stated once more because it is the one item T53 explicitly
+  deferred here:** `ProxySecret::$casts` maps `purpose` to `SecretPurpose`. Removing the
+  `SecretPurpose::Verification` case while rows carrying `'verification'` still exist makes every
+  hydration of those rows throw. **This task removes the case and deletes the rows in the same
+  commit**, closing that exposure entirely rather than relying on the (currently true) fact that no
+  shipping code path hydrates such a row today.
+- **Dependencies:** T53
+- **Files:** `database/migrations/2026_08_28_000001_remove_inbound_verification.php` (new),
+  `app/Enums/SecretPurpose.php` (edit — drop the `Verification` case, `Signing` survives alone),
+  `tests/Unit/Migrations/SensitiveDataHandlingSchemaTest.php` (edit — T1's `proxies` column assertion
+  narrows from three added columns to one, `sensitive_fields`; the rollback round trip and the
+  pre-existing-index-survival list are otherwise unchanged),
+  `tests/Unit/Migrations/RemoveInboundVerificationMigrationTest.php` (new)
+- **Acceptance Criteria:**
+  - Running migrations end to end (T1's migration followed by this one) leaves `proxies` with exactly
+    one of the three T1-added columns — `sensitive_fields` — and no `verification_scheme`/
+    `verification_header_name` column.
+  - Every `proxy_secrets` row of purpose `verification` (current and superseded alike) is deleted;
+    every row of purpose `signing` is untouched.
+  - `2026_08_27_000001_add_sensitive_data_handling_schema.php` is not edited — `git diff` against that
+    file shows zero changes.
+  - `down()` restores exactly `verification_scheme`/`verification_header_name`, matching the original
+    column definitions exactly; its docblock states plainly that it cannot restore column values or the
+    deleted secrets, and names the deleted secrets as provider-issued and unrecoverable.
+  - The rollback round trip (`migrate:rollback --step=1` + `migrate`) is clean and leaves every
+    pre-existing table, column and index — including `proxy_secrets` itself, `sensitive_fields`, and
+    the three `destinations` credential columns — untouched.
+  - `app/Enums/SecretPurpose.php` has exactly one case, `Signing = 'signing'`; hydrating a `signing`-
+    purpose `ProxySecret` row still works via the existing `purpose` enum cast.
+  - `SensitiveDataHandlingSchemaTest`'s `proxies` column assertion now names exactly one added column.
+  - The Owner-approval-flags §'s explicit "not in the change set" list is confirmed unaffected: the
+    `proxy_secrets` table, its unique index and its other eight columns; `destinations.credential_header_name`/
+    `credential_secret`/`credential_set_at`; `proxies.ingest_token`/`ingest_token_hash`; every index on
+    `proxies` and `destinations`; every other table.
+  - `composer lint`, `composer types:check`, `./vendor/bin/sail test --parallel` all green.
+- **Testing:** new file for the migration's own round-trip/deletion assertions; edited T1 schema test.
 - **Completion notes:** _pending_
 
 ---
 
-## M9 — Cross-cutting hardening and the verification sweep
+## M10 — Outbound header policy corrections (ADR-025 Decision 2; ADR-026 Decision A)
 
-## T45 — Old-input scrub (R4; plan Technical ruling 7)
-- **Description:** `verification_secret` added to `bootstrap/app.php`'s `dontFlash` list. Because
-  `Arr::forget()` (Laravel's flashing mechanism) has no wildcard support, `destinations.*.credential_secret`
-  **cannot** be excluded that way — `StoreProxyRequest`/`UpdateProxyRequest` override
-  `failedValidation()` to scrub the nested secret values from `$request->input()` before the validation
-  exception propagates. Inertia's client form keeps its own state and never reads `old()`, so nothing
-  functional is lost.
-- **Dependencies:** T20, T29
-- **Files:** `bootstrap/app.php`, `app/Http/Requests/StoreProxyRequest.php`,
-  `app/Http/Requests/UpdateProxyRequest.php`
-- **Acceptance Criteria:**
-  - A 422 on the proxy form leaves **no submitted secret** in the flashed old input, including
-    `verification_secret` and every `destinations.*.credential_secret`.
-- **Testing:** `tests/Feature/Proxies/OldInputScrubTest.php` (new) — asserts session-flashed input after
-  a failed validation contains neither secret, for both `Store` and `Update`.
-- **Completion notes:** _pending_
+Two Owner-approved decisions, from two ADRs decided on the same day. Both tasks are outbound-only;
+neither touches inbound verification, which by the time either runs no longer exists (removed at M11
+above). Physically placed here, after M11, per ADR-026 § *Sequencing and build order*, Steps 4 and 5.
+**T51 was going to carry ADR-025 Decision 1's five-name reduction; it is superseded before being built
+by ADR-026 Decision A's wider seven-name reduction — see T51's own status note and T55 below, which
+replaces it.**
 
-## T46 — Capture-failure report wrap: no interpolated SQL (R5; plan Technical ruling 8)
-- **Description:** `QueryException::formatMessage()` interpolates bindings into the exception message.
-  Today those bindings are ciphertext (the `encrypted` cast runs before binding), so no plaintext has
-  ever reached a log — but an encrypted copy of payload content in a log file is still a copy AC3's
-  enumeration does not include and no retention pass touches. Wrap the capture-failure `report($e)`
-  call in `IngestController` so what is reported names the `ingest_id`, the proxy, and the SQLSTATE —
-  never the interpolated statement.
-- **Dependencies:** T19
-- **Files:** `app/Http/Controllers/IngestController.php`
-- **Acceptance Criteria:**
-  - A simulated `QueryException` on a payload-bearing insert produces a report carrying `ingest_id`,
-    proxy identifier, and SQLSTATE, and **no SQL statement** — including no ciphertext binding.
-  - The same treatment applies to a failed secret write (`proxy_secrets`/`destinations.credential_secret`).
-- **Testing:** `tests/Unit/Http/IngestControllerReportWrapTest.php` (new) — simulates a `QueryException`
-  during capture and asserts the reported payload's shape.
-- **Completion notes:** _pending_
+**Two consequences the ADRs routed to other roles — both now landed, recorded here as done rather than
+outstanding:**
+- **PRD-10 AC55** used to read "the same three headers" in a context describing the Standard Webhooks
+  specification names on the outbound signing path. After T50, the outbound header *names* are
+  `WebhookProxy-Id`/`WebhookProxy-Timestamp`/`WebhookProxy-Signature`; only the *value format* remains
+  Standard-Webhooks-compatible (`v1,<base64>`). **Landed: PRD-10 `## Amendment C`, Product Manager,
+  commit `3015b28`.** Amendment C withdraws AC23–AC28, AC46 and AC50–AC53 in full (the inbound-
+  verification criteria ADR-026 Decision B removes), and narrows AC29, AC11, AC10, AC44, AC43, AC55,
+  AC60, AC38 and AC64 rather than withdrawing them. **AC29 specifically survives, in its signing half
+  only, and carries its own do-not-withdraw note** — the cap of two, the immediate discard on a second
+  rotation inside an overlap, the ruling-2a before-save disclosure, the fixed 24 hours, ending an
+  overlap early, and the destination-credential exclusion are all still live requirements, pinned at
+  **T43** (the surviving disclosure surface) and re-certified at **T49**; only its inbound-verification
+  clauses fall.
+- **`design-10` carried stale outbound copy on Flow G step 5** ("carries the Standard Webhooks
+  signature headers"), which goes stale after T50 regardless of the removal — the header *names* become
+  `WebhookProxy-*`, and only the value format/algorithm stays Standard-Webhooks-shaped. **Landed: the
+  `design-10` revision, Designer, commit `622b454`** — Screens 1 and 4 and Flows A, B and C are
+  withdrawn in full, and correction B2 (the AC29 ruling-2a disclosure) is restated for its single
+  surviving surface, the signing dialog (T43).
 
-## T47 — Prune/trim/retention ordering test (Q-10-02 finding B)
-- **Description:** One test asserting `queue:prune-failed --hours 168`, Horizon's `failed`/`monitored`
-  trim (10080 minutes), and the resolved `retention.days` window (default 30, env-overridable) stay
-  correctly ordered — the failed-job/Horizon windows below the retention window — so a failure record
-  cannot outlive the erase meant to remove the content it once referenced. Two of the three are
-  literals in different files and one is env-overridable, hence one dedicated test rather than
-  three separate assumptions.
-- **Dependencies:** none
-- **Files:** none production; test-only (unless the ordering is found to already be wrong, in which
-  case flag rather than silently fix — this is a pre-existing configuration this feature is pinning,
-  not changing)
-- **Acceptance Criteria:** a single test reads all three values from their actual sources (the
-  `routes/console.php` literal, Horizon's config, `config('retention.days')`) and asserts the ordering
-  holds at whatever the current environment resolves them to.
-- **Testing:** `tests/Unit/Config/RetentionOrderingTest.php` (new).
-- **Completion notes:** _pending_
-
-## T48 — Secret-absence sweep (R6)
-- **Description:** A sweep across every proxy-bearing response — `show`, `edit`, `index`, the events
-  pages, and the payload endpoint — asserting the absence of every stored secret's value, including a
-  deliberately constructed case where the proxy's `secrets` relation has been eager-loaded (`->with('secrets')`)
-  before the response is built, proving the two independent guards (never serialized into a resource,
-  and `$hidden = ['value']`) both hold even under that mistake.
-- **Dependencies:** T3, T14, T22, T32, T38
-- **Files:** none production expected; test-only unless a gap is found
-- **Acceptance Criteria:** no response from any of the five surfaces above contains any stored secret's
-  value, under both the ordinary query path and the eager-loaded-relation path.
-- **Testing:** `tests/Feature/Proxies/SecretAbsenceSweepTest.php` (new).
-- **Completion notes:** _pending_
-
-## T49 — Whole-surface manual verification pass (`design-10` Flows A–I) and final regression sweep
-- **Description:** The feature's closing task, mirroring `plan-11`'s T29 — re-checks `plan-10`'s
-  Implementation Notes and § Explicitly out of scope list against the finished diff (not against
-  earlier tasks' own completion notes), then walks every `design-10` flow (**A–I, all nine, now that
-  M8b is built** — `plan-10`'s own test-strategy note excluding G–I no longer applies once T44 has
-  passed) against a real production build, both themes, at 360px. If a queued/async environment is
-  available (`QUEUE_CONNECTION=redis`, Horizon), a spot check of one signed dispatch and one verified
-  ingest through the real async path is recommended given this document's delivery-path caveat, though
-  not required by any AC below (AC47 — no numeric or environment target). **Sequencing note, the only
-  edit made to this task by the M10/ADR-025 addition:** T50 and T51 now run before this task, not
-  after — both change delivery-path header behaviour (a header-name rename and a
-  `DeliveryUnit::STRIPPED_HEADERS` entry removal), and this task's own byte-identical re-run and Flow
-  walkthrough must certify the header set item #10 actually ships, not a pre-rename one.
-- **Dependencies:** T9, T12, T23, T24, T30, T31, T33, T41, T42, T43, T44, T45, T46, T47, T48, T50, T51
-- **Files:** none; verification-only
-- **Acceptance Criteria:**
-  - Every Implementation Note (1–23) holds against the finished code, checked by inspection of the
-    diff.
-  - Every item in `plan-10` § Explicitly out of scope is confirmed **not** built.
-  - `design-10` Flows A–I each pass end to end against a production build (`public/hot` absent), both
-    themes, 360px.
-  - The AC37 (T26) and AC63 (T35) byte-identical regressions both still hold against the finished
-    tree, re-run one final time.
-  - AC29's cap-of-two and both ruling-2a disclosures (T23, T43) are confirmed present together on one
-    finished screen pass each, not merely at the unit level.
-  - The finished outbound signing headers are the **renamed** set — `WebhookProxy-Id`,
-    `WebhookProxy-Timestamp`, `WebhookProxy-Signature` (T50) — nowhere a `webhook-id`/`webhook-timestamp`/`webhook-signature`
-    key on an outbound request; the five provider-signature names pass through unconditionally (T51);
-    and inbound verification (header names read, the AC27 map, the AC27 strip) is confirmed unchanged
-    by both.
-- **Testing:** manual, recorded in completion notes with concrete steps and observed outcomes.
-- **Completion notes:** _pending_
-
----
-
-## M10 — Outbound header policy corrections (ADR-025)
-
-Two Owner-approved decisions from `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`
-(Status ACCEPTED, Project Owner, 2026-08-28), appended after M9 rather than inserted earlier in the
-sequence, so that no already-committed task (T1–T43) or already-numbered pending task (T44–T49) is
-renumbered — matching this document's own precedent for a later Owner-approved addition (see the
-Scope/conventions note above on item #11's M8). Both tasks are outbound-only; neither touches inbound
-verification. **T49 above has been amended, the only edit made to any existing task**, to depend on
-both and to re-certify the final header set as part of its own closing sweep.
-
-**Two consequences the ADR routes to other roles — named here as outstanding, not actioned by either
-task below, so nothing proceeds as though they are already settled:**
-- **PRD-10 AC55** currently reads "the same three headers" in a context describing the Standard
-  Webhooks specification names on the outbound signing path. After T50, the outbound header *names*
-  are `WebhookProxy-Id`/`WebhookProxy-Timestamp`/`WebhookProxy-Signature`; only the *value format*
-  remains Standard-Webhooks-compatible (`v1,<base64>`). This is a **Product Manager** amendment to
-  PRD-10, not a Task Planner or Senior Developer call, and is not made here.
-- **`design-10` carries stale outbound copy that ADR-025 itself mis-cites.** The ADR points at Screen
-  6 lines 534–536; those lines are **inbound** copy on the `standard-webhooks` scheme field (the
-  member-facing text explaining why the field's help copy no longer says "signing secret") and must
-  **not** change — recorded here as a correction to the ADR's own citation, not repeated. The line that
-  actually goes stale after T50 is **Flow G step 5** (design-10 line 415): "carries the Standard
-  Webhooks signature headers" — after the rename the header *names* are `WebhookProxy-*`, and only the
-  underlying value format/algorithm is Standard-Webhooks-shaped. This is a **Designer** correction to
-  `design-10`, not made here.
+**Both parallel tracks named in ADR-026 § Impact have now landed**, so this document's task content
+above (T45, T49, and every superseded/narrowed status note) is written against the *finished* PRD-10
+and `design-10`, not against a pending amendment. **PRD-16 is also withdrawn** (Product Manager, commit
+`a7a32e5`) — `docs/architecture/prd-16-template-model-feasibility.md`, the separate feasibility study
+ADR-026 § Impact keeps for its provider-construction evidence, is unaffected by PRD-16's own
+withdrawal. None of this reopens any task above; T45–T55 were already written to the post-removal
+shape these commits ratify. **T49's final sweep still re-certifies against them** — not because they
+might still be in flux, but because a closing regression pass should read the actual committed
+documents rather than trust a summary, this one included.
 
 ## T50 — Outbound signing header rename: `webhook-*` → `WebhookProxy-*` (ADR-025 Decision 2)
+> **Sequencing note (ADR-026, 2026-08-28) — read before starting this task.** This task now runs after
+> **T52–T54** (ADR-026's inbound-verification removal), not immediately after T39/T40 as originally
+> planned. **Scope is unchanged below — the rename itself is exactly as specified.** But this task's
+> own "Explicitly not touched" list and its final inbound-regression `Testing` filter, both below, name
+> `app/Verification/StandardWebhooksScheme.php`, `DeliveryUnitResolver`'s AC27 verification-header map,
+> and four inbound test files/suites. **All of that is gone by the time this task runs** — deleted at
+> T53 — which makes the caution moot rather than wrong (ADR-026 § *Sequencing and build order*, Step
+> 4: "its argument becomes stronger" once nothing named `webhook-` remains anywhere but this one
+> production file). Do not attempt to restore, exercise, or regression-test any of the named-gone
+> files. The one still-applicable check from this task's own `Testing` line is the **outbound** suite
+> filter — `OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|SigningAllOrNoneFailureTest|OutboundSigningIntegrationTest`
+> — run only that; skip the `StandardWebhooksSchemeTest|InboundVerifierTest|InboundVerificationIntegrationTest|DeliveryUnitResolverTest`
+> filter entirely, since none of those files exist any more.
 - **Description:** `OutboundHeaders::signingHeaders()` (T34) currently emits three header names —
   `webhook-id`, `webhook-timestamp`, `webhook-signature`. Rename all three, together, to
   `WebhookProxy-Id`, `WebhookProxy-Timestamp`, `WebhookProxy-Signature`. Nothing else about signing
@@ -2834,6 +3206,16 @@ task below, so nothing proceeds as though they are already settled:**
 - **Completion notes:** _pending_
 
 ## T51 — Provider signature headers pass through unconditionally (ADR-025 Decision 1)
+> **Status: SUPERSEDED — replaced by ADR-026 Decision A, 2026-08-28, before being built (this task was
+> never started; the original body below is preserved for the record only).** This task's premise —
+> that the AC27 per-proxy verification-header strip inside `OutboundHeaders::build()` is what keeps a
+> member's own `shared-secret` value from leaking via provider-signature pass-through — **is void**:
+> that strip is removed at **T53**, because inbound verification itself no longer exists (ADR-026
+> Decision B). Decision A also reduces `DeliveryUnit::STRIPPED_HEADERS` by **seven** entries, not this
+> task's five — `cookie` and `authorization` leave too. **Superseded in full by T55**, which carries
+> Decision A's own reasoning instead: pass-through is safe because no member-configurable verification
+> header exists to leak, not because of a strip this task depended on. Do not build against the
+> original scope below; it is kept only so a reader can see exactly what changed and why.
 - **Description:** Remove five names from `DeliveryUnit::STRIPPED_HEADERS`: `stripe-signature`,
   `x-hub-signature`, `x-hub-signature-256`, `x-signature`, `x-webhook-signature`. Every other entry in
   that constant stays exactly as is, same casing, same order — `host`, the RFC 7230 §6.1 hop-by-hop set
@@ -2895,29 +3277,245 @@ task below, so nothing proceeds as though they are already settled:**
   #10's own branch and therefore after the AC27 strip that makes this safe.
 - **Completion notes:** _pending_
 
+## T55 — Outbound strip list reduces to the technically required minimum (ADR-026 Decision A — replaces T51)
+- **Description:** Reduce `DeliveryUnit::STRIPPED_HEADERS` to exactly ten entries: `host`,
+  `content-length`, and the RFC 7230 §6.1 hop-by-hop set (`connection`, `keep-alive`,
+  `proxy-authenticate`, `proxy-authorization`, `te`, `trailer`, `transfer-encoding`, `upgrade`).
+  Remove exactly **seven** entries: `cookie`, `authorization`, `stripe-signature`, `x-hub-signature`,
+  `x-hub-signature-256`, `x-signature`, `x-webhook-signature`. Every remaining entry keeps its existing
+  casing and order. Rewrite the constant's docblock: it is now a **transport-scoped deny-list only** —
+  an entry belongs only because forwarding it would produce a malformed or misrouted request under a
+  specification that can be cited (`host` — routing/request-smuggling and the ADR-006 outbound guard;
+  `content-length` — recomputed for the body actually sent; the hop-by-hop set — RFC 7230 §6.1 scopes
+  these to a single transport connection), never because of what its value might contain. **Why this is
+  safe now, stated as the reasoning that replaces T51's void premise:** no member can configure an
+  inbound verification secret any more (ADR-026 Decision B, T52–T54), so there is no header whose value
+  this service put there for a sender to leak — the hazard the old per-proxy AC27 strip existed to
+  prevent is removed at its source, not mitigated at this boundary. `Authorization` and `Cookie` now
+  reach every destination of the proxy — an accepted trade, ruled by the Project Owner, not reopened
+  here (ADR-026 Decision A). **`proxy-authorization` stays**, on hop-by-hop grounds alone — it is a
+  credential, and it is retained while `authorization` is released; state this explicitly in the
+  docblock so a later reader does not "correct" it out for looking inconsistent.
+
+  **The credential collision is now the ordinary case, and precedence already handles it, unchanged.**
+  PRD-10 AC30 defaults a destination credential's header name to `Authorization`. ADR-023 Decision 2's
+  existing precedence rule — every forwarded header whose lowercased name matches a lowercased added
+  name is dropped before the added set is merged — resolves it correctly with no code change: the
+  destination receives the credential this member configured for it, never the sender's, and never two
+  `Authorization` headers. This task does not touch that rule; it only makes the collision fire far
+  more often than before.
+- **Dependencies:** T54 (Decision A's safety argument depends on there being no member-configurable
+  inbound verification header — that dependency is substantive, not merely a preferred ordering), T26
+- **Files:**
+  - `app/Pipeline/DeliveryUnit.php` (production — the seven-entry removal from `STRIPPED_HEADERS` and
+    the docblock rewrite described above)
+  - `tests/Unit/Pipeline/DeliveryUnitTest.php` (the seven header fixtures move from the "stripped"
+    assertion to the "forwarded" assertion; count the fixture for the closing `assertCount`, don't
+    hardcode a number quoted in any document)
+  - `tests/Feature/Delivery/DeliverToDestinationTest.php` (extended — the one new test named below)
+  - **Explicitly not touched:** ADR-023 Decision 2's precedence rule; any AC27 strip (there is none any
+    more — removed at T53); `OutboundHeaders::build()`'s credential composition (T26/T28).
+- **Acceptance Criteria:**
+  - `DeliveryUnit::STRIPPED_HEADERS` contains exactly the ten entries named above, same casing/order as
+    previously for the survivors; `cookie`, `authorization`, and the five provider-signature names are
+    absent.
+  - A request carrying `Cookie`, `Authorization`, and any one of the five provider-signature headers
+    (any casing), dispatched by a proxy whose destination has no credential of its own, forwards all
+    three unmodified.
+  - **The one new test ADR-026 § Impact names as worth adding, dedicated, in
+    `DeliverToDestinationTest`:** a request carrying `Authorization`, `Cookie`, and a provider-signature
+    header (e.g. `Stripe-Signature`), dispatched to a destination that carries its own credential under
+    the default `Authorization` header name, delivers the destination's credential (not the sender's),
+    delivers `Cookie` and the provider-signature header unchanged, and emits **exactly one**
+    `Authorization` header — proving ADR-023 Decision 2's existing precedence rule resolves the now-
+    ordinary collision correctly, unmodified by this task.
+  - `proxy-authorization` (any casing) is still stripped — the hop-by-hop set is unaffected by this
+    task.
+  - `OutboundHeadersTest`'s (T26) AC37 byte-identical baseline and `OutboundHeadersSigningRegressionTest`'s
+    (T35) AC63 byte-identical baseline both still pass unmodified.
+  - A repository-wide search for each of the seven removed literal strings, run before this task is
+    marked complete, confirms no other test anywhere still asserts one of them as stripped on the
+    outbound path.
+  - `composer lint`, `composer types:check`, `./vendor/bin/sail test --parallel` all green.
+- **Testing:** extends `tests/Unit/Pipeline/DeliveryUnitTest.php` (the seven-header move); one new test
+  in `tests/Feature/Delivery/DeliverToDestinationTest.php` for the credential-collision-plus-forwarded-
+  headers case described above.
+- **Sequencing constraint, carried here per ADR-026 § Sequencing, not only in this document's own
+  report:** this task **must land with or after T54, never before** — its safety argument is only true
+  once inbound verification is fully removed. Unlike T51's original (now-superseded) constraint, there
+  is no "must land with or after item #10" concern distinct from that, because by this point in the
+  branch's own history item #10's inbound-verification capability has already been withdrawn on this
+  same branch.
+- **Completion notes:** _pending_
+
+---
+
+## M9 — Cross-cutting hardening and final regression sweep
+
+Physically placed here, after M11 and M10, per ADR-026 § *Sequencing and build order*, Steps 6 and 7.
+T45's narrowed scope and T46–T48 are unrelated to header policy and could in principle run earlier, but
+ADR-026 groups the whole of M9 after the removal/strip-reduction work as one continuous finish to the
+branch, and this document follows that grouping. **Renamed from "…and the verification sweep"** — there
+is no verification sweep left; T45 loses its verification half (see its own note) and T49 loses
+Flows A–C and folds in T44.
+
+## T45 — Old-input scrub (R4; plan Technical ruling 7)
+> **Narrowed by ADR-026, 2026-08-28.** This task originally also added `verification_secret` to
+> `bootstrap/app.php`'s `dontFlash` list; that half is dropped — the field no longer exists, removed at
+> **T53** — leaving the `destinations.*.credential_secret` `failedValidation()` scrub as this task's
+> whole scope, which is also its harder half (`Arr::forget()`'s lack of wildcard support is what forces
+> the manual override in the first place). `bootstrap/app.php` is no longer touched by this task.
+- **Description:** `destinations.*.credential_secret` cannot be excluded from Laravel's old-input flash
+  via `bootstrap/app.php`'s `dontFlash` list — `Arr::forget()` (the flashing mechanism) has no wildcard
+  support. `StoreProxyRequest`/`UpdateProxyRequest` override `failedValidation()` to scrub the nested
+  secret values from `$request->input()` before the validation exception propagates. Inertia's client
+  form keeps its own state and never reads `old()`, so nothing functional is lost.
+- **Dependencies:** T29
+- **Files:** `app/Http/Requests/StoreProxyRequest.php`, `app/Http/Requests/UpdateProxyRequest.php`
+- **Acceptance Criteria:**
+  - A 422 on the proxy form leaves **no submitted** `destinations.*.credential_secret` in the flashed
+    old input, for both `Store` and `Update`.
+- **Testing:** `tests/Feature/Proxies/OldInputScrubTest.php` (new) — asserts session-flashed input after
+  a failed validation contains no credential secret, for both `Store` and `Update`.
+- **Completion notes:** _pending_
+
+## T46 — Capture-failure report wrap: no interpolated SQL (R5; plan Technical ruling 8)
+- **Description:** `QueryException::formatMessage()` interpolates bindings into the exception message.
+  Today those bindings are ciphertext (the `encrypted` cast runs before binding), so no plaintext has
+  ever reached a log — but an encrypted copy of payload content in a log file is still a copy AC3's
+  enumeration does not include and no retention pass touches. Wrap the capture-failure `report($e)`
+  call in `IngestController` so what is reported names the `ingest_id`, the proxy, and the SQLSTATE —
+  never the interpolated statement. **Note (ADR-026):** the `IngestController` this task edits is
+  T53's simplified, post-removal version — the capture-failure `report($e)`/`try`/`catch (Throwable)`
+  block this task wraps is exactly the block ADR-026 Decision 2 states is untouched by the removal, so
+  nothing about this task's own target code changes; the added dependency below only sequences the two
+  tasks' edits to the same file to avoid a stale patch.
+- **Dependencies:** T19, T53
+- **Files:** `app/Http/Controllers/IngestController.php`
+- **Acceptance Criteria:**
+  - A simulated `QueryException` on a payload-bearing insert produces a report carrying `ingest_id`,
+    proxy identifier, and SQLSTATE, and **no SQL statement** — including no ciphertext binding.
+  - The same treatment applies to a failed secret write (`proxy_secrets`/`destinations.credential_secret`).
+- **Testing:** `tests/Unit/Http/IngestControllerReportWrapTest.php` (new) — simulates a `QueryException`
+  during capture and asserts the reported payload's shape.
+- **Completion notes:** _pending_
+
+## T47 — Prune/trim/retention ordering test (Q-10-02 finding B)
+- **Description:** One test asserting `queue:prune-failed --hours 168`, Horizon's `failed`/`monitored`
+  trim (10080 minutes), and the resolved `retention.days` window (default 30, env-overridable) stay
+  correctly ordered — the failed-job/Horizon windows below the retention window — so a failure record
+  cannot outlive the erase meant to remove the content it once referenced. Two of the three are
+  literals in different files and one is env-overridable, hence one dedicated test rather than
+  three separate assumptions.
+- **Dependencies:** none
+- **Files:** none production; test-only (unless the ordering is found to already be wrong, in which
+  case flag rather than silently fix — this is a pre-existing configuration this feature is pinning,
+  not changing)
+- **Acceptance Criteria:** a single test reads all three values from their actual sources (the
+  `routes/console.php` literal, Horizon's config, `config('retention.days')`) and asserts the ordering
+  holds at whatever the current environment resolves them to.
+- **Testing:** `tests/Unit/Config/RetentionOrderingTest.php` (new).
+- **Completion notes:** _pending_
+
+## T48 — Secret-absence sweep (R6)
+- **Description:** A sweep across every proxy-bearing response — `show`, `edit`, `index`, the events
+  pages, and the payload endpoint — asserting the absence of every stored secret's value, including a
+  deliberately constructed case where the proxy's `secrets` relation has been eager-loaded (`->with('secrets')`)
+  before the response is built, proving the two independent guards (never serialized into a resource,
+  and `$hidden = ['value']`) both hold even under that mistake.
+- **Dependencies:** T3, T14, T22, T32, T38
+- **Files:** none production expected; test-only unless a gap is found
+- **Acceptance Criteria:** no response from any of the five surfaces above contains any stored secret's
+  value, under both the ordinary query path and the eager-loaded-relation path.
+- **Testing:** `tests/Feature/Proxies/SecretAbsenceSweepTest.php` (new).
+- **Completion notes:** _pending_
+
+## T49 — Whole-surface manual verification pass (`design-10` Flows D–I) and final regression sweep
+- **Description:** The feature's closing task, mirroring `plan-11`'s T29 — re-checks `plan-10`'s
+  Implementation Notes and § Explicitly out of scope list against the finished diff (not against
+  earlier tasks' own completion notes), then walks every surviving `design-10` flow against a real
+  production build, both themes, at 360px. **Narrowed by ADR-026, 2026-08-28: Flows A, B and C
+  (inbound verification) are withdrawn along with Screens 1 and 4 — there is nothing left on those
+  flows to walk.** **Folds in T44** (Task Planner's call — ADR-026 § *Sequencing and build order*
+  flagged the question rather than making it): Flows G, H and I — T44's own original scope — are
+  walked here instead, since T44 would otherwise sit immediately before this task re-walking the
+  identical ground with nothing in between to regress. **This task's flow walk is therefore Flows D
+  through I, six flows, not nine.** If a queued/async environment is available
+  (`QUEUE_CONNECTION=redis`, Horizon), a spot check of one signed dispatch through the real async path
+  is recommended given this document's delivery-path caveat, though not required by any AC below (AC47
+  — no numeric or environment target). **Sequencing:** T50 and T55 both run before this task, not
+  after — both change delivery-path header behaviour (a header-name rename and a `STRIPPED_HEADERS`
+  reduction), and this task's own byte-identical re-run and flow walkthrough must certify the header
+  set item #10 actually ships, not a pre-rename, pre-reduction one. **AC29's ruling-2a disclosure
+  requirement narrows to one surface**: T23 (the inbound half) is withdrawn along with Screen 1; only
+  T43's signing-surface disclosure remains to confirm.
+- **Dependencies:** T9, T12, T30, T31, T33, T41, T42, T43, T45, T46, T47, T48, T50, T52, T53, T54, T55
+- **Files:** none; verification-only
+- **Acceptance Criteria:**
+  - Every Implementation Note (1–23) holds against the finished code, checked by inspection of the
+    diff, read against ADR-026's own removal set rather than against the pre-removal plan text where
+    the two differ.
+  - Every item in `plan-10` § Explicitly out of scope, and this document's own ADR-026 scope-discipline
+    addition (no inbound verification of any kind), are confirmed **not** built.
+  - `design-10` Flows D, E, F, G, H and I each pass end to end against a production build (`public/hot`
+    absent), both themes, 360px — **not** Flows A, B, C (withdrawn) and not a separate T44 pass (folded
+    in here).
+  - The AC37 (T26) and AC63 (T35) byte-identical regressions both still hold against the finished tree,
+    re-run one final time, against the **narrower** `STRIPPED_HEADERS` (T55).
+  - AC29's cap-of-two and its ruling-2a disclosure are confirmed present on the **signing surface**
+    (T43) — the inbound surface no longer exists to check.
+  - The finished outbound signing headers are the **renamed** set — `WebhookProxy-Id`,
+    `WebhookProxy-Timestamp`, `WebhookProxy-Signature` (T50) — nowhere a `webhook-id`/`webhook-timestamp`/`webhook-signature`
+    key on an outbound request; `Authorization`, `Cookie` and every provider-signature header pass
+    through unconditionally (T55); and no inbound verification scheme, header, secret or surface exists
+    anywhere in the finished tree (T52–T54).
+  - **This pass certifies against the landed amendments, not a summary of them**: PRD-10 `##
+    Amendment C` (Product Manager, commit `3015b28` — AC23–AC28, AC46, AC50–AC53 withdrawn in full;
+    AC29, AC11, AC10, AC44, AC43, AC55, AC60, AC38, AC64 narrowed, AC29's signing half confirmed
+    surviving) and the `design-10` revision (Designer, commit `622b454` — Screens 1/4 and Flows A/B/C
+    withdrawn, correction B2 restated on the signing dialog). Re-read both documents directly at the
+    time this task runs rather than trusting this task plan's own summary of them, in case either has
+    moved again since this plan was last updated.
+- **Testing:** manual, recorded in completion notes with concrete steps and observed outcomes.
+- **Completion notes:** _pending_
+
 ## Handoff
 - **Inputs:** `docs/plans/plan-10-sensitive-data-handling.md` (fully approved, all four Owner-approval
   flags ruled); `docs/product/prd-10-sensitive-data-handling.md` (Approved, `## Amendment A` and
-  `## Amendment B` both ratified, 64 ACs); `docs/design/design-10-sensitive-data-handling.md`
-  (Approved, as amended, both gates closed — C1–C10 and B1–B4 all landed);
-  `docs/architecture/adr-021-secret-handling-and-rotation.md`,
-  `docs/architecture/adr-022-inbound-verification-at-the-ingest-boundary.md`,
-  `docs/architecture/adr-023-outbound-request-contract.md`,
+  `## Amendment B` both ratified; **`## Amendment C` now committed, Product Manager, commit `3015b28`**
+  — AC23–AC28, AC46 and AC50–AC53 withdrawn in full, AC29 (signing half survives, see M10's note),
+  AC11, AC10, AC44, AC43, AC55, AC60, AC38 and AC64 narrowed rather than withdrawn);
+  `docs/design/design-10-sensitive-data-handling.md` (Approved, as amended, both original gates closed
+  — C1–C10 and B1–B4 all landed; **a further revision is now committed, Designer, commit `622b454`** —
+  Screens 1 and 4 and Flows A, B and C withdrawn, correction B2 restated for the signing dialog, its
+  one surviving surface); `docs/architecture/adr-021-secret-handling-and-rotation.md`,
+  `docs/architecture/adr-022-inbound-verification-at-the-ingest-boundary.md` (superseded in full by
+  ADR-026, kept for history), `docs/architecture/adr-023-outbound-request-contract.md`,
   `docs/architecture/adr-024-field-obfuscation-and-revealed-payload-envelope.md` (all Accepted);
   `docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`
-  (Accepted, Project Owner, 2026-08-28 — M10/T50/T51 only; committed on branch
-  `docs/adr-025-outbound-header-policy`, not yet merged onto this branch, see the Authority note at the
-  top of this document); `docs/questions/prd-10-q-10-02-…` (RESOLVED), `prd-10-q-10-03-…` (RESOLVED),
-  `prd-10-q-10-04-…` (RESOLVED), `prd-10-q-10-05-…` (RESOLVED, Principal Engineer — see `plan-10` §
-  *Revision A*); `docs/standards/planning.md`; `docs/tasks/analytics-tasks.md` (the most recent prior
-  task plan, whose house format this document follows).
+  (Accepted, Project Owner, 2026-08-28 — M10/T50 only now, Decision 1 superseded in part by ADR-026;
+  committed on branch `docs/adr-025-outbound-header-policy`, not yet merged onto this branch, see the
+  Authority note at the top of this document); `docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+  (Accepted, Project Owner, 2026-08-28 — M11/T52–T54 and M10/T55; committed at `38ac603` on this
+  branch, no merge step needed); `docs/product/prd-16-configurable-inbound-verification.md`
+  (**withdrawn**, Product Manager, commit `a7a32e5` — nothing left for it to configure once inbound
+  verification is removed; `docs/architecture/prd-16-template-model-feasibility.md`, the separate
+  feasibility study, is retained per ADR-026 § Impact and is unaffected by PRD-16's own withdrawal, no
+  task here touches either); `docs/questions/prd-10-q-10-02-…` (RESOLVED), `prd-10-q-10-03-…`
+  (RESOLVED), `prd-10-q-10-04-…` (RESOLVED), `prd-10-q-10-05-…` (RESOLVED, Principal Engineer — see
+  `plan-10` § *Revision A*); `docs/standards/planning.md`; `docs/tasks/analytics-tasks.md` (the most
+  recent prior task plan, whose house format this document follows).
 - **Outputs:** this task plan; `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`
   (raised here, **RESOLVED** by the Principal Engineer, recorded as `plan-10` § *Revision A*, technical
   ruling 15 — T31 built to it).
 - **Dependencies:** none new — no Composer package, no pnpm package, no stack change
   (`docs/stack/stack.md` untouched).
 - **Outstanding Questions:** none. `Q-10-05` is RESOLVED; no task in this plan is blocked on anything
-  outside this document.
-- **Next Agent:** Senior Developer, starting at **T1**. M2 (T4–T6) and M3 (T7) may be worked in
-  parallel with M1 if convenient — both are pure and dependency-free — but every task is listed in a
-  dependency-respecting order and no task depends on a later one.
+  outside this document. PRD-10 `## Amendment C` and the `design-10` revision are both now committed
+  (see Inputs above); neither is a blocker for any task in this document, and T49's closing sweep
+  re-certifies against both directly rather than against this plan's own summary of them.
+- **Next Agent:** Senior Developer. **T1–T43 are already built and committed** (this branch's own git
+  history). Resume at **T52** — the next unbuilt task in build order — not at the next numeric ID
+  (T44, withdrawn) and not at T45 (M9 runs after M10/M11, see the milestone list above). Build order
+  from here: **T52 → T53 → T54 → T50 → T55 → T45 → T46 → T47 → T48 → T49.** Every task is listed with
+  an explicit Dependencies line; consult it, not the numeric sequence, for any task from T50 on.
