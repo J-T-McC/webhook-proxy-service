@@ -4,6 +4,12 @@
   (Accepted, ratified by the Project Owner's approval of PRD-10, 2026-08-27). The decision itself —
   the safe allowlist — stands whole and operative; see the inline pointers below and ADR-023
   § *Positions amended*. **This is an amendment, not a supersession.**
+  - **Two further properties are proposed for supersession by ADR-025** (`Proposed`, 2026-08-28,
+    pending Project Owner approval) — the strip of the five provider signature header names, and the
+    § *Reasoning* sentence that groups those signatures with `Cookie` and `Authorization`. The
+    allowlist policy is again untouched, and every other entry in the strip list stands verbatim on
+    grounds ADR-025 restates in full. See the inline pointers at **P3** and **P4** below and ADR-025
+    § *Positions superseded*.
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** walking-skeleton (Roadmap #1 / PRD-01 AC7/AC8); referenced by
@@ -39,6 +45,16 @@ remainder). At item #1, `DeliveryUnit::forwardHeaders()`:
     original body for the original recipient; they are meaningless-to-misleading at
     a destination and can leak verification material. Outbound signing is item #10,
     not #1.
+
+    > **[P3 — PROPOSED supersession by ADR-025 (`Proposed`, 2026-08-28, pending Owner approval).]**
+    > The five provider signature header names are removed from `DeliveryUnit::STRIPPED_HEADERS` and
+    > forwarded, so a recipient holding the provider's secret can verify the original signature with
+    > that provider's own library. Two premises in this bullet are corrected there: a provider
+    > signature header carries an HMAC **digest**, not key material, so it discloses nothing; and at
+    > a destination that does hold the provider's secret it is not meaningless but the only means of
+    > verification available. **The one signature-shaped header that does carry key material — a
+    > `shared-secret` verification header, whose value is the member's own secret — is stripped per
+    > proxy under PRD-10 AC27 and stays stripped**, which is what makes the change safe.
 
 - **Forwards everything else, including `Content-Type`** — preserving the payload's
   media type so destinations interpret the replayed body correctly (AC8), along with
@@ -88,6 +104,12 @@ items can extend it without touching the fan-out logic.
   to the inbound leg** (`Cookie`, `Authorization`, provider signatures). Removing
   exactly these prevents credential leakage and framing confusion while leaving the
   sender's descriptive headers intact for destination logic.
+
+  > **[P4 — PROPOSED supersession by ADR-025 (`Proposed`, 2026-08-28, pending Owner approval), in
+  > the grouping only.]** `Cookie` and `Authorization` carry credentials and stay stripped for
+  > exactly the reason stated here. Provider signatures carry a digest rather than a credential and
+  > are removed from this category; the rest of the sentence, and every strip that rests on it,
+  > stands.
 - A deny-list (option a) matches the walking skeleton's fidelity posture — replay
   the webhook faithfully — while the explicit strip list keeps the security-relevant
   removals auditable and extensible for #10 (outbound signing) and #5 (payload

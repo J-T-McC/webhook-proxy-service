@@ -57,6 +57,44 @@
 - **Revised:** 2026-08-27 — **`## Revision A`** adds technical ruling 15, the transport for Screen 3's
   **Remove credential** signal, answering `Q-10-05`. Purely additive: no existing ruling, gate,
   milestone, ADR or approval is altered or reopened.
+- **Pointer, 2026-08-28 — `ADR-025` is Proposed and would rename the outbound signing headers.**
+  See the pointer section immediately below. **Nothing in this plan is revised by it**, and nothing
+  in this plan becomes false unless and until the Project Owner accepts that ADR.
+
+## Pointer to ADR-025 (Proposed, 2026-08-28) — nothing in this plan is revised
+
+**This is a pointer, not a revision.** No ruling, Owner-approval flag, milestone, data-model entry,
+approval or certification in this plan is altered, reopened or superseded here. It exists so that a
+reader of this plan is not misled by three passages that would become stale if
+`docs/architecture/adr-025-outbound-header-policy-signature-pass-through-and-signing-header-names.md`
+is accepted.
+
+**What ADR-025 would change, in the two places it touches this plan's subject matter.**
+
+- **The outbound signing headers are renamed** from `webhook-id`, `webhook-timestamp` and
+  `webhook-signature` to a **branded, non-`X-` prefix** — `WebhookProxy-Id`, `WebhookProxy-Timestamp`,
+  `WebhookProxy-Signature`, hard-coded at the single build point (ADR-025 Decision 2,
+  superseding the emitted names in ADR-023 Decisions 3 and 4). Only the names change: the
+  `msg_{dispatch_uuid}_{destination_id}` derivation, the per-attempt timestamp, the space-delimited
+  `v1,<base64>` entry per live signing secret, the signed content, the algorithm, the encoding and
+  the single build point are all unchanged. **Inbound verification's header names are not renamed.**
+- **Five provider signature header names are removed from `DeliveryUnit::STRIPPED_HEADERS`** and
+  forwarded to destinations (ADR-025 Decision 1, superseding an ADR-008 position). The per-proxy
+  AC27 verification-header strip this plan specifies is unchanged and is what keeps a member's
+  `shared-secret` value from leaving.
+
+**The three passages in this plan that state the old header names**, listed so a reader can check
+them against ADR-025 rather than discover the divergence: § *Architecture* (the signing composition
+and the `webhook-id` derivation), § *Risks* **R9** (a member naming a header one of the three
+`webhook-*` names), and § *Validation* (the AC60 and AC43 expectations, including "a proxy with
+signing off still forwards a `webhook-signature` a sender happened to send"). Each remains an
+accurate statement of the plan as certified; each would be restated in the renamed vocabulary if
+ADR-025 is accepted.
+
+**Sequencing, because it bears on this plan's own delivery.** ADR-025 Decision 2 must be applied on
+this item's branch **before** it merges, since after the merge the header names are a contract held
+by members' receivers and a rename becomes a breaking change with no notification surface. ADR-025
+§ *Sequencing* carries the reasoning; the ADR's Owner gate is where it is decided.
 
 ## Revision A — the destination credential removal signal (2026-08-27)
 

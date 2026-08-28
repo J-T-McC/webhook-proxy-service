@@ -22,6 +22,15 @@
   > the Principal Engineer's**, per `docs/standards/documentation.md` — amend or supersede is their
   > call, not mine, and the Owner left it there.
 
+  - **The three emitted signing header names are proposed for supersession by ADR-025**
+    (`Proposed`, 2026-08-28, pending Project Owner approval): `webhook-id`, `webhook-timestamp` and
+    `webhook-signature` become `WebhookProxy-Id`, `WebhookProxy-Timestamp` and `WebhookProxy-Signature`, under a
+    branded, non-`X-` prefix, hard-coded at the single build point.
+    **Only the names change.** The derivation, the per-attempt timestamp, the one-entry-per-live-secret
+    signature list, the signed content, the algorithm, the encoding, the precedence rule and the
+    single build point are all unchanged and remain operative. See the inline pointers at Decisions
+    3, 4 and 5 below and ADR-025 § *Positions superseded*.
+
   **What the Owner ratified:** that this service now adds headers to an outbound dispatch — a
   credential (AC30–AC39) and the Standard Webhooks signing headers (AC54–AC64) — and that the
   verification headers are stripped (AC27). **What is Principal Engineer mechanism, self-certified
@@ -135,6 +144,15 @@ ours.
 
 ### (3) `webhook-id` is derived, not stored: `msg_{delivery.dispatch_uuid}_{delivery.destination_id}`.
 
+> **[Decision 3 — PROPOSED supersession by ADR-025 (`Proposed`, 2026-08-28, pending Owner approval),
+> in the header name only.]** The header is emitted as **`WebhookProxy-Id`**, under a branded, non-`X-`
+> prefix, hard-coded at the single build point. The derivation, its
+> stability across retries, its newness on replay, its per-destination uniqueness and the reasoning
+> for all three are unchanged, as is `webhook-timestamp` → **`WebhookProxy-Timestamp`** and its
+> per-attempt semantics. The rename exists because a Svix-family sender puts the unprefixed names on
+> an **inbound** request, and Decision 2's precedence rule would then silently destroy the sender's
+> headers on the way out.
+
 AC60 requires the id to **identify the delivery**: stable across every retry of that delivery, so a
 deduplicating receiver treats a retry as the same message; and **new on a replay**, because a replay
 is new work under PRD-06 and mints a fresh `dispatch_uuid` (ADR-017 Decision 1).
@@ -157,6 +175,13 @@ correct — they are different messages to different receivers, and AC60's dedup
 about a *delivery*, not about a dispatch.
 
 ### (4) Signing composes with rotation by carrying one signature entry per live secret (AC58).
+
+> **[Decision 4 — PROPOSED supersession by ADR-025 (`Proposed`, 2026-08-28, pending Owner approval),
+> in the header name only.]** The list is emitted as **`WebhookProxy-Signature`**. Its value format is
+> unchanged — space-delimited `v1,<base64>` entries, one per live signing secret, current first — as
+> are the signed content, the shared primitive, the secret generation and the one-time display. A
+> recipient using a Standard Webhooks library with configurable header names verifies exactly as
+> this decision describes.
 
 `webhook-signature` carries **one space-delimited `v1,<base64>` entry for each member of the
 proxy's live signing set** — `expires_at IS NULL OR expires_at > NOW()`, current first (ADR-021
@@ -185,6 +210,15 @@ PRD-10 currently describes would not have that property. Recorded in `Q-10-04` s
 Manager rules on it with the trade-off visible rather than inheriting it.
 
 ### (5) `DeliveryUnit::STRIPPED_HEADERS` is **not** extended with the three `webhook-*` names.
+
+> **[Decision 5 — PROPOSED amendment by ADR-025 (`Proposed`, 2026-08-28, pending Owner approval).
+> Not a supersession.]** This decision's reasoning stands unchanged and now applies to the renamed
+> `WebhookProxy-*` trio: this service's own outbound header names never go into the constant. Two things
+> ADR-025 adds that this decision did not contemplate. First, ADR-025 Decision 1 **removes** five
+> names from that constant — the provider signature headers — so the constant becomes a
+> transport-scoped and credential-to-us deny-list rather than one that also covers verification
+> artefacts. Second, the renamed trio makes the collision this decision reasons about impossible
+> rather than merely resolved: no sender sends `WebhookProxy-*`.
 
 This looks like the obvious tidy and it is wrong. Adding them to the constant would strip
 `webhook-id`/`webhook-timestamp`/`webhook-signature` from the outbound set of **every** destination,
