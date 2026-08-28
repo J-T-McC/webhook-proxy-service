@@ -266,6 +266,18 @@ function viewEventsHref(destination: DestinationBreakdownRow) {
 }
 
 /**
+ * Screen 5's `Credential` badge (T33; AC30; plan Technical ruling 4) — looked
+ * up by the row's existing id in the `security.destinations` map (T32),
+ * never a field on `DestinationBreakdownRow` itself (that DTO is untouched
+ * by this feature). Defaults to `false` for an id the map doesn't carry
+ * (there is none in practice — T32's map is built `withTrashed()` over every
+ * destination the proxy has — but this keeps the lookup total).
+ */
+function hasCredential(destination: DestinationBreakdownRow): boolean {
+    return props.security.destinations[destination.id]?.has_credential ?? false;
+}
+
+/**
  * The Trend table's per-day, per-unit drill-through target (Flow C step 3;
  * design-11 Flow E entry-point table; T23/Revision A, `Q-11-04`, plan
  * Technical ruling 10) — proxy (current) · window (still carried, ruling 10)
@@ -803,6 +815,12 @@ function confirmDeleteProxy(): void {
                                 <span class="truncate font-mono text-sm">{{
                                     destination.url
                                 }}</span>
+                                <Badge
+                                    v-if="hasCredential(destination)"
+                                    variant="outline"
+                                >
+                                    Credential
+                                </Badge>
                             </div>
                         </TableCell>
                         <TableCell>{{

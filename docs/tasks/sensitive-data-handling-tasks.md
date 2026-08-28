@@ -1820,7 +1820,30 @@
   - No new table column exists; the existing Actions cell is unchanged.
 - **Testing:** no frontend test harness — **manual verification** against a production build: badge
   presence/absence matches `has_credential` for a small fixture of destinations.
-- **Completion notes:** _pending_
+- **Completion notes:** Done, to `design-10` Screen 5's pseudocode exactly (badge inline in the
+  Destination cell, after the URL span, `outline` variant, text "Credential", no new column, Actions
+  cell untouched). One difference from the spec's literal pseudocode, a naming detail within this task's
+  own discretion: the spec writes `v-if="destination.hasCredential"` as if that were a field on
+  `DestinationBreakdownRow` itself; per plan-10 Technical ruling 4 that DTO is untouched by this feature,
+  so a new `hasCredential(destination)` helper looks the flag up by the row's existing id in the
+  `security.destinations` map (T32) instead — the same "looks up by id" transport ruling 4 and this
+  task's own description both name. Defaults `false` for an id the map doesn't carry (none in practice,
+  since T32's map is built `withTrashed()` over every destination the proxy has), keeping the lookup
+  total rather than partial.
+
+  **Manual verification performed against a live Vite dev server, not a production build** — same
+  `public/hot` caveat as T30/T31 (a real dev-server process confirmed listening, not a stale file);
+  `pnpm run build` is green but nothing was checked against its output in the browser. Seeded a fresh
+  Sail-DB user/team/proxy (own local dev DB, deleted again immediately after) with one credentialed and
+  one uncredentialed destination, logged in via Playwright, opened the Show page, and confirmed via DOM
+  text extraction (not just visual inspection): the credentialed row's text includes "Credential", the
+  uncredentialed row's does not; the table header row is unchanged (`Destination`, `Delivery success`,
+  `Attempt success`, `Latency (avg)`, `Actions` — five columns, no sixth). Screenshot confirms the badge
+  renders inline beside the URL, correctly styled, with the Actions cell (`View events`) unchanged.
+
+  `pnpm run format:check`, `pnpm run lint:check`, `pnpm run types:check` and `pnpm run build` all green
+  (with the live-dev-server caveat above). `composer lint`/`composer types:check` unaffected by this
+  frontend-only task (no PHP file touched); full-suite run at the close of this batch (T26-T33) below.
 
 ---
 
