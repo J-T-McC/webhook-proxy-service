@@ -147,3 +147,19 @@ rules live in `docs/standards/testing.md`, not repeated here.
   authenticated user ⇒ `TeamScope` no-ops entirely, so the test's own explicit `where('team_id',
   ...)` is the only thing providing isolation — actually the more rigorous test design for proving
   a service's own explicit scoping works, independent of session state).
+- **Larastan cannot see a cast-triggered exception through a plain Eloquent property access** — a
+  `try { return $model->value; } catch (DecryptException) {...}` around an `encrypted`-cast
+  attribute is flagged `catch.neverThrown` (dead catch), because PHPStan has no model of what
+  `Model::getAttribute()` does internally for that cast. Fix at the root: call
+  `Crypt::decryptString((string) $model->getRawOriginal('column'))` directly instead of reading the
+  cast attribute — functionally identical to what the cast does, but now a real, statically-visible
+  call whose vendor docblock carries `@throws DecryptException`, so the catch is genuine rather than
+  suppressed.
+- **Proving "the raw request body is read exactly once" cannot be done through the full HTTP test
+  client when any route middleware itself legitimately calls `$request->getContent()`** (e.g. a
+  body-size-limit middleware falling back to `strlen($request->getContent())` when
+  `Content-Length` is absent) — that read is real, pre-existing, and unrelated to the guarantee
+  under test, and would false-fail a naive whole-pipeline counter. Isolate to the class that owns
+  the guarantee: resolve the controller from the container and call `__invoke()` directly against a
+  small `Illuminate\Http\Request` subclass that increments a counter inside an overridden
+  `getContent()`, bypassing route/middleware entirely.
