@@ -743,7 +743,34 @@
 - **Testing:** `tests/Unit/Services/SecretStoreTest.php` (new) — one test per bullet above, including a
   three-rotation R7 case, the invariant-holds-after-every-operation sweep, the corrupted-ciphertext
   fail-loud case, and the idempotent-end-overlap case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Services\SecretStore` implements all five operations exactly as
+  described — `liveFor()`, `replace()`, `generate()`, `endOverlap()`, `disable()` — with `replace()`'s
+  delete-superseded / demote-current / insert-new sequence run inside one `DB::transaction()`, so the
+  two-row cap is never briefly exceeded even mid-write. `App\Exceptions\SecretUnavailableException`
+  takes a `SecretPurpose` and produces a fixed message naming only the purpose ("The verification secret
+  could not be decrypted.") — never a proxy/team id, never any part of the value.
+
+  **One implementation choice PHPStan forced, not a design change:** `liveFor()`'s decrypt step calls
+  `Crypt::decryptString((string) $secret->getRawOriginal('value'))` directly rather than reading
+  `$secret->value` (which triggers the identical decrypt inside Eloquent's `encrypted` cast, but
+  invisibly to static analysis — Larastan cannot see a cast-triggered exception through a plain property
+  access, so a `catch (DecryptException)` around `$secret->value` was flagged as dead code, correctly:
+  PHPStan had no way to know it could ever throw). Calling `Crypt::decryptString()` directly is
+  functionally identical to what the cast does internally and makes the exception path real and visible
+  to the analyzer rather than papering over it with a suppression comment.
+
+  **The delayed-expiry dispatch named in T15's own description ("Dispatched with a delay from
+  `SecretStore::replace()`/`generate()`") is deliberately not wired in this commit.** `App\Actions\
+  ExpireProxySecrets` does not exist until T15, and T14's own Dependencies line (T2, T13 only) and Files
+  list (no `ExpireProxySecrets` reference) confirm T14 must stand alone. Nothing in T14's own Acceptance
+  Criteria needs the job — expiry is correct by data alone (`ProxySecret::live()`'s predicate), which is
+  exactly the "no mechanism needed for correctness" property ADR-021 Decision 3 states and which this
+  task's own second bullet through fourth bullet test directly via `expires_at`, without invoking any
+  job. The dispatch call is added to this same `replace()` method at T15, once the Action it calls
+  exists — noted here so a later reader does not read its absence as an oversight.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter SecretStoreTest` green (8
+  tests, 20 assertions); full-suite run deferred to the end of this batch.
 
 ## T15 — `App\Actions\ExpireProxySecrets` and the `secrets:purge-expired` daily sweeper (R10; plan § Services & Actions, ADR-015 Decision 5's shape)
 - **Description:** `ExpireProxySecrets` (`AsJob`), scalar arguments only (`proxyId: int, purpose:
