@@ -1771,7 +1771,41 @@
     no diff in either file).
 - **Testing:** extends `tests/Feature/Proxies/ProxySecurityResourceTest.php` — the `destinations` map
   shape, the untouched-analytics-DTO assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxySecurityResource` gains a `destinations` key: `$this->destinations()
+  ->withTrashed()->get(['id', 'credential_set_at'])->mapWithKeys(...)`, keyed by destination id,
+  `has_credential` (derived from `credential_set_at !== null`, never reading — and so never decrypting —
+  `credential_secret` itself) and `credential_changed_at` only. Deliberately `withTrashed()`: T33's
+  Destinations table (`Show.vue`) renders the union of live destinations and any soft-deleted one with
+  historical traffic (`DeliveryStatistics::destinationBreakdown()`), so this map's id coverage has to be
+  a superset of the live relation alone, matching ruling 4's own framing. `DestinationBreakdownRow`/
+  `DeliveryStatistics` are untouched — grepped directly in a test, not just claimed.
+
+  **Defect found and fixed, load-bearing for this task's entire purpose:** the naive implementation
+  serialized `destinations` as an unkeyed JSON *array*, silently discarding every destination id — found
+  by testing against a real HTTP response (`$resource->response()->getContent()`), not assumed from the
+  unit-level `toArray()` call, which looked correct in isolation and would have hidden this. Root cause:
+  `Illuminate\Http\Resources\ConditionallyLoadsAttributes::removeMissingValues()` calls `array_values()`
+  on any array (including a nested one, recursively) whose keys are **all** numeric, discarding the keys
+  entirely — destination ids are exactly that case, and this fires on every level of a resource's `toArray()`
+  output, not just the top. Laravel's own fix for this, `#[PreserveKeys]` (a class-level attribute added to
+  `ProxySecurityResource`), was verified to be scoped correctly: it only changes behaviour for a nested
+  array whose keys are already all-numeric, which is exclusively the `destinations` map here (`verification`'s
+  keys are all string names — `scheme`, `header_name`, etc — so `removeMissingValues()` never treated that
+  branch as reindexable in the first place, before or after the attribute). Re-verified against the real
+  response after the fix; the existing `verification`-shape tests (T22) still pass unchanged, confirming no
+  side effect on the sibling sub-object. This is a defect in the naive approach, not a deviation from the
+  task's own Acceptance Criteria — the task explicitly requires "keyed by id", which the array form silently
+  broke.
+
+  Two new tests: the `destinations` map's shape (a credentialed, an uncredentialed, and a **soft-deleted**
+  credentialed destination, each asserted by id — the soft-deleted case is what proves `withTrashed()` is
+  actually wired, not merely present in a comment — plus the secret value/key-name-never-in-response
+  assertion, mirroring T30's own discipline), and the grep-level untouched-analytics-DTO check.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter ProxySecurityResourceTest`
+  (7 tests, 82 assertions) green; also re-ran the full `Proxies` feature suite (191 tests, 1010 assertions)
+  as a regression check for the `#[PreserveKeys]` change, green. Full-suite run deferred to the end of this
+  batch (T26-T33).
 
 ## T33 — Screen 5: Destinations table Credential badge (AC30; plan § Architecture E)
 - **Description:** Extends the existing Destinations table on `proxies/Show.vue` (design-11's table)

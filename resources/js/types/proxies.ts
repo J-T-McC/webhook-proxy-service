@@ -11,10 +11,14 @@ export type HttpMethod = 'POST' | 'PUT';
 export type VerificationScheme = 'standard-webhooks' | 'shared-secret';
 
 /**
- * The `security` prop's `verification` sub-object (mirrors `ProxySecurityResource`
- * exactly, T22) — status only, never a value, never a length (AC20, AC26, AC28).
+ * The `security` prop (mirrors `ProxySecurityResource` exactly, T22/T32) —
+ * status only, never a value, never a length (AC20, AC26, AC28, AC33).
  * Present only on `show()`/`edit()` (Technical ruling 3); `Create.vue` never
  * receives this prop at all (`ProxyForm.vue`'s `security` prop is optional).
+ * `destinations` (T32; Technical ruling 4) is keyed by destination id and
+ * covers every destination the proxy has, including a soft-deleted one with
+ * historical traffic — the same id set `Show.vue`'s analytics-sourced
+ * Destinations table (T33) can render.
  */
 export interface ProxySecurity {
     verification: {
@@ -24,6 +28,13 @@ export interface ProxySecurity {
         secret_changed_at: string | null;
         overlap_expires_at: string | null;
     };
+    destinations: Record<
+        number,
+        {
+            has_credential: boolean;
+            credential_changed_at: string | null;
+        }
+    >;
 }
 
 // Re-exported so existing `@/types/proxies` imports keep working; each union is

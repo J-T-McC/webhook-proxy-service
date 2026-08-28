@@ -3,9 +3,11 @@
 namespace App\Http\Resources;
 
 use App\Enums\SecretPurpose;
+use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\SecretStore;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Attributes\PreserveKeys;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -15,12 +17,20 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * also serves `index()`, unaffected by this feature) and never rendered on
  * `create()` (no proxy exists yet to have a status).
  *
- * Only the `verification` sub-object is built here (T22); `signing` and
- * `destinations` are added in later, out-of-scope-for-this-batch tasks
- * (T32, T41) per the plan's own milestone split.
+ * The `verification` sub-object is built at T22; `destinations` (T32; AC30,
+ * AC33; plan-10 Technical ruling 4) here; `signing` is added in a later,
+ * out-of-scope-for-this-batch task (T41) per the plan's own milestone split.
+ *
+ * `#[PreserveKeys]` is load-bearing, not decorative: `destinations`' keys
+ * are destination ids — all-numeric — and `JsonResource`'s own
+ * `removeMissingValues()` silently `array_values()`s (discarding the keys
+ * entirely, turning the map into an unkeyed list) any nested array whose
+ * keys are ALL numeric, unless this attribute is present. Verified directly
+ * against a real HTTP response before adding this, not assumed.
  *
  * @mixin Proxy
  */
+#[PreserveKeys]
 class ProxySecurityResource extends JsonResource
 {
     /**
@@ -54,6 +64,30 @@ class ProxySecurityResource extends JsonResource
                 'secret_changed_at' => $status?->changedAt,
                 'overlap_expires_at' => $status?->overlapExpiresAt,
             ],
+            // Destination credential presence (T32; Technical ruling 4) —
+            // deliberately `withTrashed()`: the Show page's Destinations
+            // table (T33) renders the union of live destinations and any
+            // soft-deleted one with historical traffic (plan-11's
+            // `DeliveryStatistics::destinationBreakdown()`), so the id set
+            // this map must cover is a superset of the live relation alone.
+            // Never on `DestinationBreakdownRow`/`DeliveryStatistics` — that
+            // would make the analytics service read secret columns and
+            // reopen a shape plan-11 certified.
+            'destinations' => $this->destinations()
+                ->withTrashed()
+                ->get(['id', 'credential_set_at'])
+                ->mapWithKeys(fn (Destination $destination): array => [
+                    $destination->id => [
+                        // Presence only, derived from the timestamp rather
+                        // than reading (and decrypting) `credential_secret`
+                        // itself — the same discipline `DestinationResource`
+                        // (T30) and `SecretStore::statusFor()` already
+                        // establish.
+                        'has_credential' => $destination->credential_set_at !== null,
+                        'credential_changed_at' => $destination->credential_set_at,
+                    ],
+                ])
+                ->all(),
         ];
     }
 }
