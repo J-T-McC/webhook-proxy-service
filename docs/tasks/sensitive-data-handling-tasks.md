@@ -2204,7 +2204,82 @@
     applies AC27's strip, and still signs.
 - **Testing:** `tests/Feature/Delivery/OutboundSigningIntegrationTest.php` (new) — one test method per
   bullet.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New test-only file, `tests/Feature/Delivery/OutboundSigningIntegrationTest.php`,
+  nine test methods (one per named bullet, `AC55/AC59` and `AC56/AC57` each folded into one method as
+  the bullets themselves already pair them) — real HTTP requests throughout (`$this->postJson()` against
+  the ingest route, `$this->post()`/`postJson()` against the signing/replay management routes), through
+  the real send/retry/replay path, no production code touched.
+
+  **AC54:** signing off produces no `webhook-signature` on any destination; enabling signing and adding a
+  destination afterward signs both the pre-existing and the newly-added destination identically, with no
+  per-row lookup.
+
+  **AC55/AC59:** a signing proxy and a non-signing twin dispatch byte-identical bodies for the same
+  payload; the signing proxy's signature verifies via `StandardWebhooks::verify()` against the exact
+  dispatched bytes.
+
+  **AC56/AC57:** the real `POST proxies/{proxy}/signing` endpoint's generated secret is `whsec_`-prefixed
+  with valid base64 material after the prefix, returned with `Cache-Control: no-store, private`, and
+  absent from an immediately-following `show` response — composing with, not duplicating, T37's own
+  fuller endpoint coverage.
+
+  **AC58:** an overlap of two live secrets produces a two-entry `webhook-signature`, each verifying
+  independently against its own secret; pushing the demoted secret's `expires_at` into the past (no
+  sweeper run) collapses a subsequent dispatch to exactly one entry.
+
+  **AC60:** attempt 1 (failed) and its real, sync-driver-drained retry carry the identical `webhook-id`;
+  a second destination of the same dispatch carries a different one despite the shared signing key; a
+  replay of the same event through the real `POST .../events/{event}/replay` endpoint mints a fresh
+  `dispatch_uuid` and therefore a new `webhook-id`.
+
+  **ADR-021 Decision 5:** the real `DELETE`/`POST proxies/{proxy}/signing` endpoints empty the live set
+  and then generate a value distinct from the one just disabled; a dispatch afterward verifies against
+  only the new secret, never the disabled one.
+
+  **AC61:** the widest-reaching method in this suite — a positional assertion on
+  `DeliverToDestination`'s pushed job parameters (`$params === [$delivery->id, 1]`, the same technique
+  `AdvanceProxyFifoQueueTest` already established for its own scalars) proves only two integers ever
+  travel with the queued job; the entire serialized job payload, the resulting `DeliveryAttempt` row's
+  every string attribute, a forced failure's `error_summary`, the proxy's `show`/`edit` responses, the
+  events index and event show pages, and the event's payload-view response are all swept for the
+  secret's literal substring, plus a `Log::listen()` collector run across the whole method proving no log
+  line at any level ever carried it.
+
+  **AC64:** an ingest request carrying attacker-forged `webhook-id`/`webhook-timestamp`/`webhook-signature`
+  headers never lets those values reach the destination — the proxy's own signing headers win by
+  precedence, and the outbound signature verifies against the real signing secret, not the forged one.
+
+  **R3:** a delivery whose proxy is soft-deleted before its retry runs still resolves via
+  `RetryDelivery::handle()`, still strips the proxy's own verification header outbound, and still signs
+  — composed directly against T27's own established soft-deleted-proxy regression shape rather than a
+  fresh fixture.
+
+  **Two genuine test-authoring bugs found and fixed while building this suite, both isolated by dumping
+  actual state rather than guessing — neither is a defect in T34–T39's production code, confirmed by the
+  full delivery-path suite staying green throughout:**
+  1. `Illuminate\Http\Client\Factory::fake()`, given an array, MERGES each call's stub onto the
+     existing `stubCallbacks` collection rather than replacing it, and request resolution takes the
+     FIRST matching stub. A second `Http::fake(['*' => Http::response('boom', 500)])` call later in the
+     same test therefore never overrides an earlier `Http::fake(['*' => Http::response('ok', 200)])`
+     registered against the same `'*'` pattern — the earlier 200 stub keeps winning silently. AC61's own
+     "failure record" section needed genuinely different behaviour mid-test, so it now uses one
+     `Http::fake()` closure for the whole method, branched on a mutable `$shouldFail` flag, rather than a
+     second array-form call.
+  2. That flag was first captured with an arrow `fn () => $shouldFail ? ...`, which captures its
+     enclosing variables **by value at definition time** — silently freezing `$shouldFail` at `false`
+     forever regardless of the later `$shouldFail = true;` reassignment. Fixed by using a plain
+     `function () use (&$shouldFail) { ... }` closure (by reference) instead.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "OutboundSigningIntegrationTest|SigningAllOrNoneFailureTest|DeliverToDestinationTest|RetryDeliveryTest|DeliveryUnitResolverTest|OutboundHeadersTest|OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|SecretStoreTest|ProxySigningControllerTest|ProxySecurityResourceTest|ReplayAcceptanceTest|AsyncDispatchAcceptanceTest"`
+  (100 tests, 491 assertions) all green. **Full suite run at the close of this batch (T34-T40):
+  `./vendor/bin/sail test --parallel` green at 1063/1063.**
+
+  **Delivery-path caveat, stated per the task list's own instruction:** `QUEUE_CONNECTION=sync` runs
+  every job inline under this suite — including the "real, sync-driver-drained retry" this suite itself
+  relies on for AC60 — so this proves the *logic* across T34-T39 is correct when exercised end to end,
+  but exercises none of Horizon's real concurrent/async dispatch of the same jobs. No claim of having
+  exercised the async path is made.
 
 ---
 
