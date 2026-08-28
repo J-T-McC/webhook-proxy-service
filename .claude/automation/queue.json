@@ -62,22 +62,26 @@
       "title": "Correct docs/stack/stack.md's claim that SQLite is the local default",
       "kind": "doc-correction",
       "role": "principal-engineer",
-      "state": "ready",
+      "state": "awaiting_merge",
       "eligible": true,
       "source": "docs/status.md \u00a7 Backlog follow-ups",
       "acceptance": "stack.md no longer claims the full migration set runs on SQLite, and names the MySQL-only DDL in create_webhook_events_table as the reason.",
-      "note": "The document is the half that is wrong, not the migration. Do not change the migration."
+      "note": "The document is the half that is wrong, not the migration. Do not change the migration.",
+      "consecutive_failures": 0,
+      "pull_request": 22
     },
     {
       "id": "fu-design-11-charting",
       "title": "Update design-11's Components row, which still describes the charting dependency as ungated",
       "kind": "doc-correction",
       "role": "designer",
-      "state": "ready",
+      "state": "awaiting_merge",
       "eligible": true,
       "source": "docs/status.md \u00a7 Backlog follow-ups",
       "acceptance": "The row reflects the Owner's 2026-08-26 ruling that both packages were adopted.",
-      "note": "Stale rather than wrong in a way that misleads implementation. Touch this row only; the 2026-08-26 design gate deliberately did not reopen the rest."
+      "note": "Stale rather than wrong in a way that misleads implementation. Touch this row only; the 2026-08-26 design gate deliberately did not reopen the rest.",
+      "consecutive_failures": 0,
+      "pull_request": 22
     },
     {
       "id": "fu-review-07-nits",
