@@ -197,13 +197,16 @@ class DeliverToDestination
      * Perform the outbound send, settle the given attempt row in place, and
      * transition the parent delivery row accordingly.
      *
-     * The outbound header set is built here, through `OutboundHeaders` (T26)
-     * — the one build point (plan-10 § Architecture C) — so the credential
-     * and verification strip apply identically to attempt 1 (`asJob()`),
-     * every retry (`RetryDelivery`), and every replay, all of which funnel
-     * into this same method. `$unit->destination->credential_secret` decrypts
-     * via the model's `encrypted` cast at read time here, in the send path,
-     * never earlier.
+     * The outbound header set is built here, through `OutboundHeaders` (T26,
+     * T34) — the one build point (plan-10 § Architecture C) — so the
+     * credential, verification strip and signing headers apply identically
+     * to attempt 1 (`asJob()`), every retry (`RetryDelivery`), and every
+     * replay, all of which funnel into this same method.
+     * `$unit->destination->credential_secret` decrypts via the model's
+     * `encrypted` cast at read time here, in the send path, never earlier;
+     * `$unit->signingSecrets` (T36) is already resolved by the time this
+     * runs — only the signature itself, over the exact dispatched bytes and
+     * this attempt's timestamp, is computed here.
      */
     private function send(DeliveryUnit $unit, DeliveryAttempt $attempt): void
     {
@@ -215,6 +218,7 @@ class DeliverToDestination
                 $unit->verificationHeaderNames,
                 $unit->destination->credential_header_name,
                 $unit->destination->credential_secret,
+                $unit->signingSecrets,
             );
 
             $response = Http::withHeaders($headers)

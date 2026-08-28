@@ -31,6 +31,10 @@ use App\Pipeline\DeliveryUnit;
  * cannot see) so a retry against a soft-deleted proxy still resolves — and
  * carries that proxy's own verification header name(s) on the resulting unit
  * for `OutboundHeaders`' strip step (T26) at send time.
+ *
+ * Also carries `$delivery->dispatch_uuid` (T34; ADR-023 Decision 3) — with
+ * the destination's id, the ingredients `OutboundHeaders` derives
+ * `webhook-id` from at send time, needing no new column.
  */
 class DeliveryUnitResolver
 {
@@ -58,6 +62,7 @@ class DeliveryUnitResolver
             deliveryId: $delivery->id,
             attemptNumber: $attemptNumber,
             verificationHeaderNames: $this->verificationHeaderNamesFor($proxy),
+            dispatchUuid: $delivery->dispatch_uuid,
         );
     }
 

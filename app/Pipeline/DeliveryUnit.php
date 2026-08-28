@@ -54,6 +54,14 @@ final class DeliveryUnit
      *                                                 Defaulted to `[]` rather than made required so
      *                                                 every pre-#10 construction site (delivery-path
      *                                                 tests unrelated to #10) stays valid unchanged.
+     * @param  string  $dispatchUuid  the owning `Delivery`'s natural-key half (T34; ADR-023 Decision
+     *                                3) — with {@see self::$destination}'s id, derives `webhook-id`
+     *                                without a new column. Defaulted to `''` for the same
+     *                                pre-#10-construction-site reason as `$verificationHeaderNames`.
+     * @param  list<string>  $signingSecrets  the proxy's live `signing`-purpose secret set (T36) —
+     *                                        current first, at most two (AC29's cap); empty when
+     *                                        signing is not enabled, in which case `OutboundHeaders`
+     *                                        (T34) adds no signing headers at all (AC63).
      */
     public function __construct(
         public readonly string $ingestId,
@@ -66,6 +74,8 @@ final class DeliveryUnit
         public readonly int $deliveryId,
         public readonly int $attemptNumber,
         public readonly array $verificationHeaderNames = [],
+        public readonly string $dispatchUuid = '',
+        public readonly array $signingSecrets = [],
     ) {}
 
     /**

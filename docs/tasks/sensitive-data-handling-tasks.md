@@ -1876,7 +1876,52 @@
     (e.g. from a `standard-webhooks`-verified proxy) never lets those values reach a destination as the
     proxy's own signing headers — the signing values always win (AC64).
 - **Testing:** `tests/Unit/Support/OutboundHeadersSigningTest.php` (new) — one test per bullet.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `OutboundHeaders::build()` gains the fifth composition step (ADR-023
+  Decision 1): an explicit `list<string> $signingSecrets` parameter (default `[]`, matching this
+  document's established defaulting-new-parameter precedent so no existing call site breaks), composed
+  into the same `added`/collision-removal mechanism T26 already built for the credential header, rather
+  than a second bespoke precedence path — AC38 and AC64 are now the same rule applied to a longer list.
+  A new private `signingHeaders()` derives `webhook-id` as `msg_{dispatch_uuid}_{destination_id}`
+  (ADR-023 Decision 3, no new column), takes `webhook-timestamp` at the exact moment of this call via
+  `now()->getTimestamp()` (this app's established `Carbon::setTestNow()`-testable convention, rather
+  than `StandardWebhooks::verify()`'s own bare `time()`, which only reads an already-received header
+  value and has no equivalent testability need), and builds `webhook-signature` as one space-delimited
+  `v1,<sig>` entry per live secret via `StandardWebhooks::sign()` (T7) over `$unit->payload` — the exact
+  bytes about to be dispatched, never touched or read back by this class (AC59).
+
+  **Necessary supporting plumbing, not scope creep (this document's own established precedent — T12,
+  T15, T20, T22, T23, T27, T29, T30, T32):** `webhook-id`'s derivation needs the delivery's
+  `dispatch_uuid`, which `DeliveryUnit` did not carry before this task. Added `dispatchUuid: string = ''`
+  to `DeliveryUnit`'s constructor (defaulted for the same reason T27's `verificationHeaderNames` was —
+  every pre-#10 construction site stays valid unchanged) and wired
+  `DeliveryUnitResolver::resolve()` to pass `$delivery->dispatch_uuid` through. Also added
+  `signingSecrets: array = []` to `DeliveryUnit` (populated for real at T36; `[]` until then, so this
+  task's own production wiring is inert everywhere it lands ahead of T36) and updated
+  `DeliverToDestination::send()`'s existing `OutboundHeaders::build()` call site to pass
+  `$unit->signingSecrets` as the fifth argument — otherwise this task's own class-level capability would
+  never actually reach a real dispatch, leaving T34–T38 unconnected until some later task noticed.
+
+  Five tests, one per Acceptance Criteria bullet: `webhook-id` identical across an attempt and its retry
+  (same `dispatchUuid`), different on a replay (different `dispatchUuid`) and different per destination
+  of the same dispatch despite a shared signing key (AC60); `webhook-timestamp` reflects each call's own
+  time via `Carbon::setTestNow()`, not a fixed/original one; an overlap of two live secrets produces
+  exactly two space-delimited entries, each independently verifying via `StandardWebhooks::verify()`
+  against only its own secret, collapsing to exactly one entry once only one secret is live; the
+  signature verifies against the specification over the exact dispatched bytes, with `$unit->payload`
+  provably unread/unmutated by `build()` and no `body` key ever present in its return; and an inbound
+  request that happened to carry `webhook-id`/`webhook-timestamp`/`webhook-signature` never lets those
+  values reach a destination as the proxy's own once signing is on (AC64).
+
+  **Delivery-path caveat, stated per the task list's own instruction:** `QUEUE_CONNECTION=sync` runs the
+  send path inline under this suite; this is strong evidence the *logic* — the composition order, the
+  derivation, the collision rule — is correct, but exercises none of Horizon's real async/queued
+  dispatch, and this task's own suite is a pure unit test of `OutboundHeaders` directly, not even routed
+  through a queued job.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "OutboundHeadersTest|OutboundHeadersSigningTest|DeliverToDestinationTest|DeliveryUnitResolverTest|RetryDeliveryTest"`
+  (43 tests, 151 assertions — confirming no regression on T26/T27/T28's existing coverage) all green;
+  full-suite run deferred to the end of this batch (T34-T40).
 
 ## T35 — AC63 byte-identical regression, dedicated (AC63; plan § Test strategy, "the regression that matters most") — **delivery path**
 - **Description:** The signing-surface counterpart to T26's AC37 test, named separately per `plan-10`'s
