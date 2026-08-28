@@ -122,6 +122,22 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   doesn't promise ordinal order without an explicit `ORDER BY`). Always add
   `ORDER BY ORDINAL_POSITION` to the query, and prefer `assertEqualsCanonicalizing` over `assertSame`
   when the acceptance criterion is "these columns exist", not "in this row order" (item #10 T1/T6).
+- **A migration test that creates Eloquent/DB rows *between* two `Artisan::call()` migration
+  commands in the same test method leaks those rows permanently**, not just schema state — the DDL
+  implicit-commit hazard above applies to any DML sandwiched between two DDL calls, since the
+  wrapping transaction is already gone by the second call. Symptom is a **misleading, unrelated**
+  failure in a totally different test file later in the same run/worker (e.g. `firstOrFail()`/
+  `first()` with no explicit ordering silently returning someone else's leaked row instead of the
+  row the failing test itself just created) — this reads exactly like a production regression in
+  whatever feature the leaked row's table belongs to, and following that lead wastes time before
+  the actual cause (a sibling migration test's own hygiene) is found. Diagnostic tell: the
+  "regressed" test passes in complete isolation and against a freshly-reset database. Fix: wrap the
+  row-creation-and-assert block in `try`/`finally`, explicitly deleting the created rows in
+  `finally` regardless of pass/fail — don't rely on transactional rollback once DDL has run in that
+  method. Verify by resetting every `sail`-managed testing database (`testing`, `testing_test_1..N`)
+  and running the full parallel suite **twice in a row** against the same now-checksum-skipped
+  worker databases (item #10 T54's `RemoveInboundVerificationMigrationTest`, which leaked into
+  `SensitiveFieldsPersistenceTest`).
 - **`migrate:rollback --step=N` walks the last N migrations by run order (id), never by name or
   path** — verified in `Migrator::getMigrationsForRollback()`/`rollback()`; passing `--path` only
   restricts which files are loaded to resolve a migration class, it does NOT filter which rows get

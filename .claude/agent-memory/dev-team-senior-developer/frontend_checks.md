@@ -131,3 +131,15 @@ manual-verification script that unconditionally clicks "View as table" before re
 the table will see 0 rows and wrongly look like a densification bug. Read the content
 directly without clicking when `default-open` is set; only click to test the
 collapse/expand toggle itself.
+
+`resources/js/routes/**`/`resources/js/actions/**` can go stale on disk relative to
+`routes/web.php` between sessions (another agent's checkout, a container restart, or simply not
+having been regenerated since a route changed) — `pnpm types:check` then fails with `Property 'x'
+does not exist` against the generated module, on files unrelated to your own diff. Confirm via
+`git stash` (the same failures reproduce on the pre-edit tree) before assuming your change broke
+it. Regenerate with `sail artisan wayfinder:generate --with-form` — the `--with-form` flag is
+required and must match `vite.config.ts`'s `wayfinder({ formVariants: true })`; a plain
+`wayfinder:generate` without it strips every route's `.form` variant and reintroduces ~20 new
+`Property 'form' does not exist` errors across unrelated pages (Login, Register, settings, team
+management — anywhere `useForm()` binds a Wayfinder route's `.form`). The regenerated directories
+stay gitignored either way (see the note above).
