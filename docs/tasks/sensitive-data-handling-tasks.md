@@ -1412,7 +1412,25 @@
 - **Testing:** `tests/Unit/Support/OutboundHeadersTest.php` (new) — the AC37 byte-identical case as its
   own named test method, the verification-strip cases per scheme, the AC43 off-verification-forwards
   case, the AC38 collision case, the verbatim-value case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Support\OutboundHeaders::build()` takes a `DeliveryUnit`, this
+  proxy's verification header name(s), and the destination's credential header name/value; it starts
+  from `$unit->forwardHeaders()` (the existing ADR-008 strip, reused rather than duplicated — no
+  second copy of `DeliveryUnit::STRIPPED_HEADERS` exists anywhere), strips the verification names
+  case-insensitively, then overlays the credential header, first stripping any forwarded header whose
+  lowercased name collides with it (AC38, R9). `DeliveryUnit::STRIPPED_HEADERS` itself is untouched
+  (Implementation Note 4).
+
+  **Naming note, not a deviation:** this task's own Acceptance Criteria names the AC37 comparison
+  target as `DeliveryUnit::outboundHeaders()`, a method that does not exist on that class — the
+  pre-#10 method `DeliverToDestination::send()` actually calls is `forwardHeaders()`. Read as the
+  same intent (the pre-#10 outbound header set) and implemented/tested against the real method name.
+
+  Six tests: the AC37 byte-identical regression (named first, per the task's own instruction), the
+  `shared-secret`/`standard-webhooks` per-scheme strip cases, the AC43 off-verification-forwards case,
+  the AC38 collision case, and the verbatim-no-prefix case.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter OutboundHeadersTest`
+  green (6 tests, 12 assertions); full-suite run deferred to the end of this batch (T26-T33).
 
 ## T27 — `DeliveryUnitResolver`: load the proxy `withTrashed()`, carry verification header names (R3; plan § Architecture C, Implementation Note 5) — **delivery path**
 - **Description:** `DeliveryUnitResolver` must load `$delivery->proxy()->withTrashed()->firstOrFail()`
