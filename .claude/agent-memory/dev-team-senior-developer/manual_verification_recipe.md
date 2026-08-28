@@ -197,6 +197,16 @@ in completion notes exactly what was traced and what was deferred to the later t
 right call by the coordinator mid-task (item #10 T41): the full Flow G/H/I browser walkthrough
 belongs to T43/T44 by the task doc's own words, not T41.
 
+**To prove two `v-if`/`v-else-if` branches' copy is genuinely mutually exclusive (never both render,
+never neither) without a browser pass:** grep the `pnpm build` output for each branch's exact phrase —
+each should appear exactly once in the whole bundle (`grep -c '<phrase>' public/build/assets/*.js`).
+Then confirm they sit in separate arms of the same compiled ternary/switch (Vue's `v-else-if` chain
+compiles to a `cond ? (...) : cond2 ? (...) : ...` with sequential `key:N` markers) rather than two
+independent `v-if`s that could both fire — read the raw minified chunk around each match for the
+`key:N`/`O.value===` structure. This is stronger than a source read alone, since it also catches a
+build-step regression (e.g. a bad `v-else` → `v-if` edit that Prettier/ESLint wouldn't flag). Used for
+item #10 T43 (Screen 6 states 3/4 in `ProxySigningDialog.vue`) in place of a live browser pass.
+
 **Playwright login flow in this app: don't `await page.waitForLoadState('networkidle')` right after
 clicking submit** — it can resolve while still mid-redirect and leave the script reading the `/login`
 page's own DOM (stale selectors, confusing "element not visible" failures downstream). Race the click
