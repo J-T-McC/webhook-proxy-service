@@ -847,7 +847,20 @@
 - **Acceptance Criteria:** exactly the two documented cases; `VerificationScheme::tryFrom('github') ===
   null`.
 - **Testing:** `tests/Unit/Enums/VerificationSchemeTest.php` (new).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Enums\VerificationScheme` — exactly `StandardWebhooks =
+  'standard-webhooks'`, `SharedSecret = 'shared-secret'`. T2's deferred cast is now filled in:
+  `Proxy::casts()` gains `'verification_scheme' => VerificationScheme::class`, the `@property`
+  docblock line changes from `string|null` to `VerificationScheme|null`, and — matching T2's own
+  completion note, which named both the cast *and* the `#[Fillable]` entry as deferred together —
+  `'verification_scheme'` is added to `Proxy`'s `#[Fillable]` list alongside
+  `verification_header_name`/`sensitive_fields`. No other file changed; nothing else in the codebase
+  yet references `verification_scheme` (confirmed by search) so this cast has no downstream surface to
+  regress before T20/T23 build the validation and form.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "VerificationSchemeTest|ProxySecretTest|SensitiveDataHandlingSchemaTest|EncryptedColumnSurfaceTest"`
+  green (32 tests, 113 assertions, confirming the cast change is a no-regression on T1-T3's existing
+  Proxy/schema coverage); full-suite run deferred to the end of this batch.
 
 ## T17 — `App\Verification\SharedSecretScheme`, `StandardWebhooksScheme` (AC51, AC52, AC53; plan § Services & Actions)
 - **Description:** One class per scheme, implementing a shared interface (e.g.

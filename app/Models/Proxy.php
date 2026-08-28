@@ -7,6 +7,7 @@ use App\Concerns\HasCreator;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
+use App\Enums\VerificationScheme;
 use App\Services\IngestTokenService;
 use Database\Factories\ProxyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -31,7 +32,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $response_body
  * @property string $ingest_token_hash
  * @property string $ingest_token
- * @property string|null $verification_scheme
+ * @property VerificationScheme|null $verification_scheme
  * @property string|null $verification_header_name
  * @property list<string>|null $sensitive_fields
  * @property Carbon|null $created_at
@@ -53,6 +54,7 @@ use Illuminate\Support\Carbon;
     'retry_backoff_strategy',
     'response_status',
     'response_body',
+    'verification_scheme',
     'verification_header_name',
     'sensitive_fields',
 ])]
@@ -164,8 +166,7 @@ class Proxy extends Model
             'retry_backoff_strategy' => RetryBackoffStrategy::class,
             'response_status' => 'integer',
             'ingest_token' => 'encrypted',
-            // verification_scheme's cast to App\Enums\VerificationScheme is added at
-            // T16, once that enum exists (task T2 explicitly permits deferring it).
+            'verification_scheme' => VerificationScheme::class,
             'sensitive_fields' => 'array',
         ];
     }
