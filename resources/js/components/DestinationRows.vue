@@ -80,13 +80,12 @@ async function removeRow(index: number): Promise<void> {
 }
 
 // Screen 3's Credential subsection (T30; AC30, AC33). The write-only shape
-// is identical to Screen 1's verification secret but per-row rather than
-// per-proxy: `credentialIsSet()` governs whether the collapsed "Credential
-// set" status line renders or the blank input does, and `credential_replacing`/
-// `credential_removed` (kept on the row object itself, not a parallel
-// index-keyed structure, so they always travel with their row through
-// add/remove) track whether this row's Replace/Remove credential has been
-// clicked this session.
+// is per-row rather than per-proxy: `credentialIsSet()` governs whether the
+// collapsed "Credential set" status line renders or the blank input does,
+// and `credential_replacing`/`credential_removed` (kept on the row object
+// itself, not a parallel index-keyed structure, so they always travel with
+// their row through add/remove) track whether this row's Replace/Remove
+// credential has been clicked this session.
 function credentialIsSet(row: DestinationRow): boolean {
     return (
         (row.has_credential ?? false) &&

@@ -86,7 +86,8 @@ const props = defineProps<{
     permissions: ProxyPermissions;
     statistics: StatisticsPanel;
     destinations: DestinationBreakdownRow[];
-    /** Status-only verification state (T22) — never a value, never a length. */
+    /** Status-only signing and destination-credential state (T22) — never a
+     * value, never a length. */
     security: ProxySecurity;
 }>();
 
@@ -103,35 +104,6 @@ const canDelete = computed(
         props.permissions.canDeleteProxy &&
         (props.proxy.is_creator || props.permissions.canDeleteAnyProxy),
 );
-
-// Verification card display helpers (Screen 4) — kept as computeds rather
-// than inline template expressions so a missing/impossible combination
-// (e.g. a scheme with no live secret, which the write-only validation
-// contract never actually produces) degrades to a safe fallback instead of
-// a runtime crash on a null timestamp.
-const verificationSchemeLabel = computed(() => {
-    switch (props.security.verification.scheme) {
-        case 'shared-secret':
-            return 'Shared secret';
-        case 'standard-webhooks':
-            return 'Standard Webhooks';
-        default:
-            return '';
-    }
-});
-const verificationSecretStatus = computed(() => {
-    const { secret_set: secretSet, secret_changed_at: secretChangedAt } =
-        props.security.verification;
-
-    return secretSet && secretChangedAt
-        ? `Set — changed ${formatTimestamp(secretChangedAt)}`
-        : null;
-});
-const verificationOverlapStatus = computed(() => {
-    const expiresAt = props.security.verification.overlap_expires_at;
-
-    return expiresAt ? formatTimestamp(expiresAt) : null;
-});
 
 defineOptions({
     layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
@@ -307,40 +279,10 @@ function trendDayHref(date: string, unit: 'delivery' | 'attempt') {
     );
 }
 
-// Verification card — Screen 4 (AC29; Flow C). `canUpdate`-gates the "End
-// overlap now" action only; the read-only status line always renders
-// (matching the note above `canUpdate` for every mutating control this
-// feature adds to Show).
-const verificationOverlapBusy = ref(false);
-const verificationOverlapError = ref<string | null>(null);
-
-function endVerificationOverlap(): void {
-    verificationOverlapBusy.value = true;
-    verificationOverlapError.value = null;
-
-    router.delete(
-        proxyRoutes.verification.overlap.destroy({
-            current_team: teamSlug.value,
-            proxy: props.proxy.id,
-        }).url,
-        {
-            preserveScroll: true,
-            only: ['security'],
-            onError: () => {
-                verificationOverlapError.value =
-                    'Could not end the rotation overlap. Try again.';
-            },
-            onFinish: () => {
-                verificationOverlapBusy.value = false;
-            },
-        },
-    );
-}
-
 // Signing card — Screen 4b (AC54, AC57, AC63; Flows G, I). Proxy-wide status
 // only, driven entirely by `security.signing` (T38); the mutating actions
 // (Enable/Manage signing, End overlap now) are `canUpdate`-gated, the status
-// itself always renders (same convention as the Verification card above).
+// itself always renders.
 const signingOverlapStatus = computed(() => {
     const expiresAt = props.security.signing.overlap_expires_at;
 
@@ -895,78 +837,6 @@ function confirmDeleteProxy(): void {
             </Table>
         </Card>
 
-        <!-- Verification card (Screen 4; AC29; Flow C) -->
-        <Card class="gap-4 p-6">
-            <h2 class="text-base font-semibold">Verification</h2>
-            <p class="text-sm text-muted-foreground">
-                Whether this proxy requires an incoming request to prove it's
-                from your expected sender before anything is captured.
-            </p>
-
-            <p
-                v-if="props.security.verification.scheme === null"
-                class="text-sm text-muted-foreground"
-            >
-                No verification required — this ingest URL accepts any request.
-            </p>
-
-            <template v-else>
-                <dl class="flex flex-col gap-3">
-                    <div
-                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                    >
-                        <dt class="text-sm text-muted-foreground">Scheme</dt>
-                        <dd class="text-sm">{{ verificationSchemeLabel }}</dd>
-                    </div>
-                    <div
-                        v-if="
-                            props.security.verification.scheme ===
-                            'shared-secret'
-                        "
-                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                    >
-                        <dt class="text-sm text-muted-foreground">Header</dt>
-                        <dd class="text-sm">
-                            {{ props.security.verification.header_name }}
-                        </dd>
-                    </div>
-                    <div
-                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                    >
-                        <dt class="text-sm text-muted-foreground">Secret</dt>
-                        <dd class="text-sm">
-                            {{ verificationSecretStatus }}
-                        </dd>
-                    </div>
-                </dl>
-
-                <!-- Rotation status always renders for anyone who can view
-                     this proxy (status, not a control); only "End overlap
-                     now" is canUpdate-gated (Flow C step 2). -->
-                <template v-if="verificationOverlapStatus">
-                    <p class="text-sm">
-                        A rotation is in progress — your previous secret is
-                        still honoured until {{ verificationOverlapStatus }}.
-                    </p>
-                    <Button
-                        v-if="canUpdate"
-                        variant="outline"
-                        class="w-fit"
-                        :disabled="verificationOverlapBusy"
-                        @click="endVerificationOverlap"
-                    >
-                        <Spinner v-if="verificationOverlapBusy" />
-                        End overlap now
-                    </Button>
-                    <AlertError
-                        v-if="verificationOverlapError"
-                        :errors="[verificationOverlapError]"
-                        title="Could not end the rotation overlap"
-                    />
-                </template>
-            </template>
-        </Card>
-
         <!-- Signing card (Screen 4b; AC54, AC57, AC63; Flows G, I) — the
              proxy-wide outbound signing status. No per-destination badge
              anywhere (Amendment B ruling 1) and no trust-domain warning
@@ -1004,8 +874,7 @@ function confirmDeleteProxy(): void {
                 </dl>
 
                 <!-- Rotation status always renders for anyone who can view
-                     this proxy; only the mutating actions are canUpdate-gated
-                     (same convention as the Verification card above). -->
+                     this proxy; only the mutating actions are canUpdate-gated. -->
                 <template v-if="signingOverlapStatus">
                     <p class="text-sm">
                         A rotation is in progress — your previous secret is

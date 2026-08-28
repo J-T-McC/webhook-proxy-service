@@ -11,8 +11,6 @@ const props = defineProps<{
     /** The fixed AC12 default list, single-sourced from
      * `SensitiveFields::DEFAULTS` (T11) — rendered literally, never summarised. */
     defaultSensitiveFieldNames: string[];
-    /** `StandardWebhooks::TOLERANCE_SECONDS` (T7), single-sourced (AC53). */
-    standardWebhooksTolerance: number;
     /** The `security` prop (T22) — status only, never a value/length. */
     security: ProxySecurity;
 }>();
@@ -75,7 +73,6 @@ defineOptions({
                 }).url
             "
             :default-sensitive-field-names="props.defaultSensitiveFieldNames"
-            :standard-webhooks-tolerance="props.standardWebhooksTolerance"
             :security="props.security"
             :initial="{
                 name: props.proxy.name,

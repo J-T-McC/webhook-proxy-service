@@ -7,12 +7,9 @@ import type { RetryBackoffStrategy } from '@/data/proxyRetryBackoffStrategies';
 export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
 
-/** The closed AC23 inbound-verification scheme registry (`App\Enums\VerificationScheme`). */
-export type VerificationScheme = 'standard-webhooks' | 'shared-secret';
-
 /**
  * The `security` prop (mirrors `ProxySecurityResource` exactly, T22/T32) —
- * status only, never a value, never a length (AC20, AC26, AC28, AC33).
+ * status only, never a value, never a length (AC20, AC33).
  * Present only on `show()`/`edit()` (Technical ruling 3); `Create.vue` never
  * receives this prop at all (`ProxyForm.vue`'s `security` prop is optional).
  * `destinations` (T32; Technical ruling 4) is keyed by destination id and
@@ -21,21 +18,14 @@ export type VerificationScheme = 'standard-webhooks' | 'shared-secret';
  * Destinations table (T33) can render.
  */
 export interface ProxySecurity {
-    verification: {
-        scheme: VerificationScheme | null;
-        header_name: string | null;
-        secret_set: boolean;
-        secret_changed_at: string | null;
-        overlap_expires_at: string | null;
-    };
     /**
      * Outbound signing status (T38; mirrors `ProxySecurityResource`'s
      * `signing` key exactly) — one object on the shared prop, never a value
      * and never a per-destination field (PRD-10 `## Amendment B` ruling 1:
-     * signing is proxy-level, shared by every destination). `enabled` plays
-     * `verification.secret_set`'s presence-only role; a proxy that was
-     * enabled and then disabled reads identically to one that was never
-     * enabled (`SecretStore::disable()` deletes every row).
+     * signing is proxy-level, shared by every destination). `enabled` plays a
+     * presence-only role; a proxy that was enabled and then disabled reads
+     * identically to one that was never enabled (`SecretStore::disable()`
+     * deletes every row).
      */
     signing: {
         enabled: boolean;
