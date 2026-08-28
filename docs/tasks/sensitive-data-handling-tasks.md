@@ -797,7 +797,45 @@
     `JobDecorator`).
 - **Testing:** `tests/Unit/Actions/ExpireProxySecretsTest.php` (new) — the delete/no-op cases;
   `tests/Feature/Console/PurgeExpiredProxySecretsTest.php` (new) — the R10 lost-job case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Actions\ExpireProxySecrets` (`AsJob`, scalar `proxyId: int,
+  purpose: string` arguments) deletes the superseded row for that `(proxy, purpose)` only when its
+  `expires_at` has already passed; guarded by the same `WHERE` clause rather than a separate check, so
+  a row whose window hasn't passed or that no longer exists is a plain no-op with zero rows affected.
+  `App\Actions\PurgeExpiredProxySecrets` (`AsAction` with `$commandSignature = 'secrets:purge-expired'`,
+  matching `PurgeExpiredPayloads`'s existing convention exactly rather than the `Schedule::call()`
+  closure style the two per-minute sweepers use — this task's own Testing line names
+  `tests/Feature/Console/PurgeExpiredProxySecretsTest.php` and drives it via `$this->artisan(...)`,
+  which needs a real registered command name) does one unscoped `DELETE` across every proxy/purpose for
+  a superseded row past its `expires_at`. Registered in `routes/console.php` beside
+  `payloads:purge-expired`, `Schedule::command('secrets:purge-expired')->daily()`; `Actions::
+  registerCommands()` already wires the Artisan entry, no new call needed.
+
+  **`SecretStore::replace()` (T14) now dispatches the delayed job**, exactly as T14's own completion
+  notes flagged as deferred to this task: `ExpireProxySecrets::dispatch($proxy->id, $purpose->value)
+  ->delay(now()->addHours(RotationOverlap::HOURS))->afterCommit()`, fired only when a row was actually
+  demoted (`$hadCurrent`). `app/Services/SecretStore.php` is therefore touched by this task too, even
+  though it isn't in T15's own Files list — necessary wiring the task's own description names
+  explicitly ("Dispatched with a delay from `SecretStore::replace()`/`generate()`"), not scope creep.
+
+  **File choice, not a deviation:** used `app/Actions/PurgeExpiredProxySecrets.php` rather than
+  `app/Console/Commands/PurgeExpiredProxySecrets.php` — the task's own either/or explicitly allows
+  matching "whichever pattern `queue:prune-failed`/existing scheduled commands use", and
+  `payloads:purge-expired` (the closer precedent: a daily sweep with a genuine Artisan command name,
+  versus `queue:prune-failed`'s framework-owned command) is itself an `App\Actions\*` class using
+  `AsAction` + `$commandSignature`, not a `Console\Commands` class.
+
+  `tests/Feature/Console/PurgeExpiredProxySecretsTest.php`'s R10 case uses `Queue::fake()` +
+  `ExpireProxySecrets::assertPushed(1)` (the lorisleiva-actions pattern already established by
+  `SweepDueRetriesTest`/`AdvanceProxyFifoQueueTest` — a plain `Queue::assertPushed(ExpireProxySecrets::
+  class)` does not match, since the object actually pushed is `JobDecorator`, never `instanceof` the
+  wrapped action) to simulate the delayed job being lost, then moves the superseded row's `expires_at`
+  into the past directly (standing in for 24 real hours elapsing) before invoking
+  `$this->artisan('secrets:purge-expired')` and asserting the row is gone and the current secret
+  untouched.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "ExpireProxySecretsTest|PurgeExpiredProxySecretsTest|SecretStoreTest"` green (13 tests, 30
+  assertions); full-suite run deferred to the end of this batch.
 
 ## T16 — `App\Enums\VerificationScheme` (AC23, AC50; plan § Services & Actions, ADR-022)
 - **Description:** Backed enum, exactly two cases: `StandardWebhooks = 'standard-webhooks'`,

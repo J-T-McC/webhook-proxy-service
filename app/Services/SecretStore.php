@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Actions\ExpireProxySecrets;
 use App\Enums\SecretPurpose;
 use App\Exceptions\SecretUnavailableException;
 use App\Models\Proxy;
@@ -52,16 +53,15 @@ class SecretStore
      * Rotate the secret: delete any already-superseded row, demote the
      * current row (if any) into a {@see RotationOverlap::HOURS}-hour
      * overlap, then insert the new current row — one transaction, so the
-     * two-row cap (AC29) is never briefly exceeded. The demoted row's
-     * prompt erasure (the delayed job plus the daily sweeper) is wired in
-     * at T15, once `App\Actions\ExpireProxySecrets` exists; until then the
-     * live-set predicate on `expires_at` is what makes the demoted row stop
-     * being honoured at the right instant regardless (ADR-021 Decision 3 —
-     * "expiry needs no mechanism to be correct").
+     * two-row cap (AC29) is never briefly exceeded. Schedules
+     * {@see ExpireProxySecrets} to erase the demoted row once its overlap
+     * passes (R10); the job's own guard, and the fact that the live-set
+     * predicate excludes an expired row on its own regardless
+     * (ADR-021 Decision 3), make early, late or lost execution harmless.
      */
     public function replace(Proxy $proxy, SecretPurpose $purpose, string $newValue): void
     {
-        DB::transaction(function () use ($proxy, $purpose, $newValue): void {
+        $hadCurrent = DB::transaction(function () use ($proxy, $purpose, $newValue): bool {
             ProxySecret::query()
                 ->where('proxy_id', $proxy->id)
                 ->where('purpose', $purpose)
@@ -89,7 +89,15 @@ class SecretStore
                 'is_current' => true,
                 'expires_at' => null,
             ]);
+
+            return $current !== null;
         });
+
+        if ($hadCurrent) {
+            ExpireProxySecrets::dispatch($proxy->id, $purpose->value)
+                ->delay(now()->addHours(RotationOverlap::HOURS))
+                ->afterCommit();
+        }
     }
 
     /**

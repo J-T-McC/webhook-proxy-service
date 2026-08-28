@@ -38,6 +38,15 @@ Schedule::command('payloads:purge-expired')
     ->withoutOverlapping()
     ->description('Erase expired stored payloads');
 
+// Secret rotation hygiene net (R10; ADR-021 Decision 3 / Decision 5's shape,
+// reused from the retention sweeper above). `SecretStore::replace()`/
+// `generate()` already schedule a delayed per-row delete; this daily sweep
+// only catches a lost or dropped one, and only ever deletes, never extends
+// a window.
+Schedule::command('secrets:purge-expired')
+    ->daily()
+    ->description('Erase superseded proxy secrets past their overlap window');
+
 // Bounds how long a plaintext copy of an event's payload can persist in
 // `failed_jobs` (Q-05-06 D2; ruling E1, Project Owner-accepted 2026-08-25).
 // This is a mitigation, not the fix — #10 owns encrypting/scrubbing that
