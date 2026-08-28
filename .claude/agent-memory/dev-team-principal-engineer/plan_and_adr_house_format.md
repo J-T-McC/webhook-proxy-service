@@ -192,6 +192,22 @@ make the *write path* enforce the AC so it stays literally true, make both *read
 number so raising the cap later is one line, and **route the "should the cap change?" question to the
 PM** rather than widening an approved criterion on an inferred reading.
 
+**A *purely additive* `## Revision A` is the right shape when the plan is approved and nothing in it
+becomes false** (plan-10 / `Q-10-05`: a design-gate correction assigned the PE a wire shape the plan
+predated). Differences from the amend-in-place cases: say **"purely additive: no existing ruling,
+gate, milestone, ADR or approval is altered"** in the new `Revised:` header bullet *and* under the
+Revision table; carry the § *Validation*, § *Test strategy* and § *Implementation Notes* material
+**inside** the Revision section as explicitly-labelled *additions* ("the section above is unchanged"),
+so the certified sections are never edited; and where an existing **§ Explicitly out of scope** bullet
+is now false, **append an inline `*(No longer out of scope — superseded by § Revision A ruling N …)*`
+annotation and keep the bullet's own words**, saying they still record why the plan withheld it at
+certification. Close with a **Task material** paragraph naming what the unblocked task now needs
+(extra Files entries, test items) so the Task Planner is routed rather than left to infer.
+**Reject an alternative on failure direction where you can** — "a lost boolean costs a second click,
+a collapsed absent-vs-empty distinction destroys a secret" outlives any ergonomics argument — and
+when a vendor claim cannot be verified (package not installed in the tree), **say so and make the
+argument not depend on it** rather than asserting it.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
