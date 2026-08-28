@@ -177,3 +177,19 @@ rules live in `docs/standards/testing.md`, not repeated here.
   controller will read via `$request->getContent()`, reconstruct the same `json_encode($data)` call
   independently rather than trying to capture the request's own serialization; the two are
   guaranteed byte-identical by construction, not merely likely to match.
+- **`Http::fake([...])` calls accumulate — they never replace.** `Illuminate\Http\Client\Factory::fake()`
+  given an array merges each stub onto the existing `stubCallbacks` collection, and request resolution
+  takes the FIRST matching stub (`->filter()->first()`). A second `Http::fake(['*' => Http::response(...,
+  500)])` later in the same test never overrides an earlier `Http::fake(['*' => Http::response(..., 200)])`
+  registered against the same pattern — the old stub keeps winning silently (only `Http::recorded()`'s
+  history resets on each `fake()` call, not the stub rules). To change response behaviour mid-test, use
+  one `Http::fake()` closure for the whole method branched on a mutable flag captured `use (&$flag)` — a
+  plain closure, never an arrow `fn`, since `fn` captures enclosing variables BY VALUE at definition time
+  and silently freezes the flag forever. Found for item #10 T40 by dumping actual `Http::recorded()`
+  status codes rather than assuming the second fake took effect.
+- **A job dispatched inside `ProcessIngestedWebhook::run()` via `::dispatch()->onQueue()->afterCommit()`
+  needs `ProcessIngestedWebhook::run($ingestId)` (the direct action call, not `::dispatch()`) to create
+  its `Delivery`/`DeliverToDestination`-job side effects while `Queue::fake()` is active** — faking the
+  queue BEFORE dispatching `ProcessIngestedWebhook` itself (e.g. via the ingest HTTP endpoint, which
+  dispatches it through the queue) prevents it from running at all, so nothing downstream ever gets
+  created. Established precedent: `AsyncDispatchAcceptanceTest::test_each_destination_gets_a_separate_job_on_the_webhooks_queue`.
