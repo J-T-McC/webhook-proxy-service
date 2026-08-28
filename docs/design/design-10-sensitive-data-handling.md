@@ -1,39 +1,59 @@
 # Design Spec: Sensitive data handling
 
-- **Status:** **Approved — with ten required corrections (C1–C10)** (design gate,
-  delegated per `CLAUDE.md`). All ten land **under this approval**; none requires
-  re-approval, because each is stated concretely enough at § Approval record for the
-  Designer to land and for a Reviewer to check afterwards. **Where the approval record
-  and the spec body conflict, the approval record governs until the corrections land.**
-  **Flagged design call 4 is overturned** — the one-time signing-secret reveal must
-  suppress `Esc` and overlay-click dismissal; see § Approval record, ruling 4. The
-  other three flagged calls are accepted as designed, two of them with binding
-  conditions.
+- **Status:** **Approved at the original design gate — with ten required corrections
+  (C1–C10)** — **and the amendment approved at a second gate, with four further required
+  corrections (B1–B4).** The original gate's approval,
+  its ten corrections, its four flagged-design-call rulings and its five non-blocking
+  notes all stand and are recorded, unrewritten, at § Approval record (design gate).
+  **`## Amendment` (below, at the end of this document) re-grains outbound signing from
+  per destination to per proxy**, per PRD-10 `## Amendment B` (Project Owner ruling,
+  2026-08-27), and adds one disclosure to the inbound rotation surface (PRD-10 `##
+  Amendment B` ruling 2a). **The amendment was approved by the Product Manager on
+  2026-08-27 with corrections B1–B4** — see § Approval record — amendment gate
+  (2026-08-27), the second, separate gate entry at the very end of this document. Two
+  further items are answered in the amendment's own pass, both resolving
+  `docs/questions/prd-10-q-10-03-credential-removal-and-secret-field-primitive.md`: a
+  **Remove credential** control is added to Screen 3, and the write-only secret field's
+  primitive question is settled (plain `Input type="password"` stands, on a corrected
+  ground). **Where the amendment and the original spec body conflict, the amendment
+  governs**, the same rule the original approval record set for its own corrections.
 - **Author:** Designer
 - **PRD:** `docs/product/prd-10-sensitive-data-handling.md` (**APPROVED** by the
-  Project Owner, 2026-08-27, as amended — `## Amendment A` ratified whole; 64
-  acceptance criteria)
-- **Approved by / date:** **Product Manager, 2026-08-27.** Verified against PRD-10's
-  64 acceptance criteria: every UI-bearing criterion traces to a screen, state or flow;
-  the UX Direction is honoured, including all seven of its "not the Designer's to
-  decide" rulings; **no path anywhere in this spec reads a stored secret back**; AC29's
-  exclusion of the destination credential from the rotation overlap is respected without
-  exception; and the claim that the proxies Index and the events list pages are
-  unchanged holds against the criteria. See **§ Approval record (design gate)** at the
-  end of this document for the coverage trace, the rulings on the four flagged design
-  calls, the ten required corrections, the five non-blocking notes, and the three items
-  carried forward to the Principal Engineer.
+  Project Owner, 2026-08-27, as amended — `## Amendment A` **and** `## Amendment B`,
+  both ratified whole; 64 acceptance criteria, nothing renumbered)
+- **Approved by / date:** **Product Manager, 2026-08-27, at the original gate — and
+  Product Manager, 2026-08-27, at the amendment gate (corrections B1–B4, § Approval
+  record — amendment gate).** The original gate's record below is unchanged and describes
+  what that gate considered.
+  Verified against PRD-10's 64 acceptance criteria as they stood before Amendment B:
+  every UI-bearing criterion traces to a screen, state or flow; the UX Direction is
+  honoured, including all seven of its "not the Designer's to decide" rulings; **no path
+  anywhere in this spec reads a stored secret back**; AC29's exclusion of the destination
+  credential from the rotation overlap is respected without exception; and the claim
+  that the proxies Index and the events list pages are unchanged holds against the
+  criteria. See **§ Approval record (design gate)** at the end of this document for the
+  coverage trace, the rulings on the four flagged design calls, the ten required
+  corrections, the five non-blocking notes, and the three items carried forward to the
+  Principal Engineer — **all unchanged by, and pre-dating, the amendment below.** **The
+  amendment itself has not yet been approved** — see `## Amendment` and the Handoff's
+  Next Agent note.
 
 > **Scope note.** #10 adds **no new page and no new navigation entry.** It extends
 > four existing surfaces: **(1)** the proxy create/edit form (`ProxyForm.vue`) gains
 > a **Verification** section (inbound scheme + secret, AC23–AC29, AC51–AC53), a
 > **Sensitive fields** section (AC12–AC22), and a **Credential** subsection inside
 > each destination row (AC30–AC39); **(2)** the proxy **Show** page gains a
-> **Verification** card (status + the AC29 end-it-now action) and two small status
-> badges plus a **Manage signing** action on the existing Destinations table
-> (AC54–AC64); **(3)** a new **Manage destination signing** dialog, reached from that
-> action, is where a destination's signing secret is generated, regenerated, shown
-> once (AC57), and rotated (AC58); **(4)** the event detail page's existing
+> **Verification** card (status + the AC29 end-it-now action) **and** a **Signing**
+> card, its proxy-grain sibling, with its own **Manage signing** action (AC54–AC64)
+> — the Destinations table gains only the **Credential** status badge, because
+> signing is no longer a per-row fact once it applies to every destination of the
+> proxy alike *(Amendment — re-grained to the proxy, per PRD-10 `## Amendment B`,
+> Project Owner ruling of 2026-08-27; see `## Amendment — outbound signing
+> re-grained to the proxy` at the end of this document)*; **(3)** a new **Manage
+> proxy signing** dialog, reached from that action, is where the proxy's one
+> signing secret is generated, regenerated, shown once (AC57), and rotated (AC58)
+> for every destination that proxy dispatches to; **(4)** the event detail page's
+> existing
 > `PayloadViewer` (design-06 Flow C) is extended so a revealed payload's sensitive
 > field **values** — never names, never structure — are obfuscated (AC15–AC22). The
 > **proxies Index page and the events list page are unchanged by #10** — neither
@@ -54,16 +74,23 @@ honours every one of them without exception:
 - There is no per-field reveal, for any role (AC20).
 - No member-supplied secret is ever redisplayed — the verification secret (AC26)
   and the destination credential (AC33).
-- The destination signing secret is displayed **exactly once**, at generation, and
-  never again (AC57).
+- The **proxy** signing secret is displayed **exactly once**, at generation, and
+  never again (AC57). *(Amendment — renamed and re-grained from "destination
+  signing secret"; see `## Amendment — outbound signing re-grained to the proxy`.)*
 - The verification scheme list is closed to exactly two values, presented as a
   selection, never a free-form or described configuration (AC23).
 - The rotation overlap is a **fixed 24 hours**, not a member setting, in both
-  directions it applies to — the verification secret and the destination signing
-  secret (AC29, AC58). The destination credential has **no** overlap at all (AC29's
-  closing clause) and this spec's destination-credential surface (Screen 3) is
-  written so nothing on it implies one — no "previous", no countdown, no "honoured
-  until" language anywhere near it.
+  directions it applies to — the verification secret and the **proxy** signing
+  secret (AC29, AC58), **both at proxy grain**. The destination credential has
+  **no** overlap at all (AC29's closing clause) and this spec's
+  destination-credential surface (Screen 3) is written so nothing on it implies
+  one — no "previous", no countdown, no "honoured until" language anywhere near
+  it. *(Amendment — the signing secret's grain changed; the credential's exclusion
+  did not.)*
+- A rotation started while a previous secret is already honoured states, **before
+  save**, that the oldest secret stops being honoured immediately (AC29's added
+  bullet) — this binds the inbound verification surface (Screen 1) explicitly;
+  see `## Amendment`. *(Amendment — added.)*
 - Obfuscation discloses nothing about a value's length (AC16).
 
 ## Scope boundaries (confirmed, not designed here)
@@ -76,8 +103,8 @@ ones:
   "your secret is encrypted" indicator anywhere — the guarantee is structural, not
   displayed (mirroring how PRD-05's own at-rest floor has never had a UI element).
 - **AC11 has a surface (C7) — it is not grouped with AC1–AC10 above.** An
-  undecryptable verification secret, destination credential, or destination
-  signing secret makes the affected operation fail **visibly**, and that failure
+  undecryptable verification secret, destination credential, or **proxy** signing
+  secret makes the affected operation fail **visibly**, and that failure
   surfaces through the delivery-attempt error treatment `design-06` already
   ships (for a credential or signing-secret failure) or the verification-rejection
   path (AC25, for a verification-secret failure). **#10 adds no new surface for
@@ -90,6 +117,20 @@ ones:
   obfuscating delivery-attempt error summaries — the summary itself stays
   unobfuscated exactly as design-06 renders it; the secret is kept out of the
   message text at the source, never masked after the fact.
+  *(Amendment — re-grained: the signing failure is proxy-wide, not per row.)*
+  **A proxy whose signing secret cannot be decrypted fails dispatch to every
+  destination of that proxy, not to one** — AC11 as amended forbids the partial
+  fan-out that a per-destination failure would otherwise produce. Concretely:
+  every destination of that proxy gets its own failed delivery-attempt entry,
+  through the same existing attempt-history treatment named above, and there is
+  no destination of that proxy that keeps dispatching signed traffic while
+  another fails — the failure is uniform across the proxy's whole fan-out, not a
+  per-row state a member has to compare row-by-row to notice. **This is a
+  rendering consequence of an existing surface, not a new one**: #10 still adds
+  no dedicated "signing secret undecryptable" banner or indicator; the
+  proxy-wide extent of the failure is what a member already sees by reading
+  every destination's attempt history at once, and nothing in this spec singles
+  one destination row out as though the others were unaffected.
 - **AC14 — obfuscation matches by field name only, never by value.** No
   card-number-shaped heuristic, no entropy warning, no "this looks like a secret"
   suggestion is offered anywhere this spec touches the Sensitive fields editor
@@ -156,11 +197,17 @@ check. On the proxy's **Show** page, a new **Verification** card mirrors that
 status read-only, and is where a rotation overlap becomes visible as a period
 ("your previous secret is still honoured until …") with an explicit **End overlap
 now** action for the member who needs to kill a leaked secret before the fixed
-24 hours run out. The existing Destinations table gains two small status badges
-(Credential, Signed) and a **Manage signing** action that opens a dedicated dialog:
-the *only* place in this feature a secret is ever shown to the member, because the
-product generates the destination's signing secret itself and this is the member's
-one chance to copy it before it is gone for good. Everywhere else in the app that
+24 hours run out. A new **Signing** card sits alongside it, because signing is a
+property of the *proxy* — one secret, generated by the product, used to sign
+every dispatch to every destination that proxy has, including one added later —
+and its **Manage signing** action opens a dedicated dialog: the *only* place in
+this feature a secret is ever shown to the member, and this is the member's one
+chance to copy it before it is gone for good, before they have to reconfigure
+every receiver that proxy dispatches to. *(Amendment — re-grained from a
+per-destination surface to this proxy-level one; see `## Amendment` at the end
+of this document.)* The existing Destinations table gains only the **Credential**
+status badge — a per-row **Signed** badge would say the same thing on every row
+once signing is on, so it is not shown there. Everywhere else in the app that
 already shows a stored payload — the single masked/revealed viewer #6 built — now
 obfuscates sensitive field **values** the instant it renders them, leaving field
 **names** and the payload's structure fully visible, so a member can still see that
@@ -200,13 +247,27 @@ other side, because the old one keeps working for a stated period.")*
    credential).
 2. Member clicks **Replace** → a blank secret field appears (never pre-filled;
    AC26 forbids redisplaying the current value), together with a help line
-   stated **before save** (C5): *"Your current secret keeps working for 24
-   hours after you save this, so you can update your sender without a
-   coordinated cutover. To stop it early — for example if it's been
-   leaked — use End overlap now on this proxy's page after saving."* This is
-   the one point in the form where the member decides to rotate, so it is the
-   one point that has to carry the consequence, not the Show page after the
-   fact (UX Direction point 8).
+   stated **before save** (C5), and its wording depends on whether a rotation
+   is already running for this proxy's verification secret:
+   - **No overlap currently running (the ordinary case):** *"Your current
+     secret keeps working for 24 hours after you save this, so you can update
+     your sender without a coordinated cutover. To stop it early — for
+     example if it's been leaked — use End overlap now on this proxy's page
+     after saving."*
+   - **An overlap is already running (this proxy already has a previous
+     secret being honoured) — *(Amendment — added. PRD-10 `## Amendment B`
+     ruling 2a; see `## Amendment` at the end of this document.)*:** the line
+     is replaced with *"You already have a previous secret from your last
+     rotation, still honoured until {timestamp}. Saving a new secret now
+     stops that previous secret being honoured immediately — its 24 hours do
+     not finish out."* AC29's two-slot rule discards the oldest secret the
+     instant this save lands, so the promise made at the first rotation would
+     otherwise be broken silently by this second one; this line is what makes
+     it said **before** the member commits to it, not discovered afterward on
+     Show.
+   Either way, this is the one point in the form where the member decides to
+   rotate, so it is the one point that has to carry the consequence, not the
+   Show page after the fact (UX Direction point 8).
 3. Member types the new secret and saves.
 4. On save, the new secret becomes current and the previous one is demoted, not
    discarded — both are honoured inbound for the fixed 24 hours the step-2 help
@@ -320,20 +381,21 @@ into the destination URL.")*
    confirmation, matching how removing a row already discards its URL/method with
    no extra step.
 
-### Flow G — Enable a destination's signing and capture the one-time secret
+### Flow G — Enable a proxy's outbound signing and capture the one-time secret
 *(User stories: "prove that a webhook it received came from my proxy... my
 receiver can reject everything else"; "see the signing secret once... and never
-again afterwards.")*
-1. On a proxy's **Show** page, the Destinations table's Actions column gains a
-   **Manage signing** button per **live** (non-deleted) destination — absent for
-   a deleted one, since nothing is dispatched to it any more.
-   *(Only available once a destination is saved and has an id — a row just added
-   in the current create/edit session, not yet submitted, shows no such action
-   anywhere, because there is nothing yet to attach signing to.)*
-2. Clicking it opens the **Manage destination signing** dialog (Screen 6), scoped
-   to that one destination. **Not yet enabled** shows a single statement ("This
-   destination does not verify dispatches from us yet") and an **Enable signing**
-   button.
+again afterwards." Amendment — re-grained from a per-destination flow to this
+proxy-level one; see `## Amendment` at the end of this document. Pre-amendment
+this flow opened from a per-row action on the Destinations table and was scoped
+to one destination throughout — see § Approval record for what that gate
+considered.)*
+1. On a proxy's **Show** page, a new **Signing** card (Screen 4b) sits alongside
+   the Verification card. **Not yet enabled** (every proxy today, AC63) shows a
+   single statement ("This proxy does not sign its dispatches yet") and an
+   **Enable signing** button.
+2. Clicking it opens the **Manage proxy signing** dialog (Screen 6), scoped to
+   the **proxy**, not to any one destination. Its default state mirrors the
+   card's not-yet-enabled statement and repeats the **Enable signing** action.
 3. Member clicks **Enable signing** → the product generates the secret
    immediately (AC56 — generation is the only way one exists; nothing is typed).
    The dialog transitions to its **one-time reveal** state: the secret in a
@@ -344,47 +406,70 @@ again afterwards.")*
    app) and clicks **Done**. The dialog's next open shows the ordinary **enabled**
    status (Screen 6, default state) — never the secret again, under any
    circumstance or role (AC57).
-5. From this point, every dispatch to this destination — original, retry, and
-   replay alike — carries the Standard Webhooks signature headers (AC55, AC60);
-   nothing else about the request changes (AC59).
+5. From this point, every dispatch to **every destination this proxy has** —
+   original, retry, and replay alike — carries the Standard Webhooks signature
+   headers under this one secret (AC54, AC55, AC60); nothing else about any of
+   those requests changes (AC59). **A destination added to this proxy afterward
+   is covered immediately, with no separate per-destination enable step** (AC54)
+   — there is nothing to turn on per row.
 
-### Flow H — Regenerate a destination's signing secret, and end its overlap early
+### Flow H — Regenerate a proxy's signing secret, and end its overlap early
 *(User story: "rotate a secret without coordinating the exact moment... the old
-one keeps working for a stated period" — the outbound half of Flow B/C, AC58.)*
-1. Member opens **Manage signing** on an already-enabled destination (Screen 6).
-   The dialog's default state shows **"Enabled — generated {date}"** and two
-   actions: **Regenerate signing secret** and **Disable signing**.
+one keeps working for a stated period" — the outbound half of Flow B/C, AC58.
+Amendment — re-grained to the proxy; see `## Amendment`.)*
+1. Member opens **Manage signing** from the proxy's **Signing** card (Screen 4b)
+   on an already-enabled proxy. The dialog's default state shows
+   **"Enabled — generated {date}"** and two actions: **Regenerate signing
+   secret** and **Disable signing**.
 2. Clicking **Regenerate signing secret** immediately generates a new one (same
    AC56 rule — there is no "type a replacement" path for this secret, ever) and
-   transitions to the same one-time reveal state Flow G step 3 describes. The
-   previous secret is demoted, not discarded: both are honoured **outbound** for
-   the same fixed 24 hours (AC58) — every dispatch in that window carries a
-   signature under both, per the specification's own space-delimited list, asking
-   nothing extra of the receiver.
-3. Once acknowledged (**Done**), the dialog's default state shows the rotation
-   line exactly as Screen 4 does for the inbound direction: **"A rotation is in
-   progress — your previous secret is still honoured until {timestamp}"** plus an
-   **End overlap now** button (Screen 6).
-4. Clicking **End overlap now** stops the previous secret being honoured
-   immediately, with no further confirmation (same reasoning as Flow C step 3 —
-   this narrows exposure, it does not destroy anything the member is relying on
-   going forward).
+   transitions to the same one-time reveal state Flow G step 3 describes. What
+   happens to the *previously* current secret depends on whether an overlap is
+   already running for this proxy's signing secret — the same branch Flow B
+   step 2 makes for the inbound direction, because AC29's added bullet (ruling
+   2a) binds "a replacement **or a regeneration**" alike:
+   - **No overlap currently running (the ordinary case):** the previous secret
+     is demoted, not discarded — both are honoured **outbound**, for every
+     destination this proxy has, for the same fixed 24 hours (AC58); every
+     dispatch in that window, to every one of the proxy's destinations,
+     carries a signature under both, per the specification's own
+     space-delimited list, asking nothing extra of any receiver.
+   - **An overlap is already running (this proxy already has a previous
+     signing secret being honoured) — *(Amendment — added; B2.)*:** Screen 6
+     state 4 states this **before** the member clicks **Regenerate signing
+     secret** (see Screen 6, state 4, for the exact copy) — clicking it
+     discards the currently-honoured previous secret immediately, for
+     **every destination of this proxy**, rather than letting its 24 hours
+     finish out. No confirmation step is added; the disclosure is the
+     requirement, not a ceremony in front of a single-click action (§
+     Interactions).
+3. Once acknowledged (**Done**), the dialog's default state and the Signing card
+   both show the rotation line exactly as Screen 4 does for the inbound
+   direction: **"A rotation is in progress — your previous secret is still
+   honoured until {timestamp}"** plus an **End overlap now** button.
+4. Clicking **End overlap now** stops the previous secret being honoured for
+   **every destination of this proxy**, immediately, with no further confirmation
+   (same reasoning as Flow C step 3 — this narrows exposure, it does not destroy
+   anything the member is relying on going forward).
 
-### Flow I — Disable a destination's signing
+### Flow I — Disable a proxy's signing
 *(Falls out of AC54's "optional... off by default" — a two-way toggle implies a
-way back to off. Not separately named by an AC beyond that; see Open Questions.)*
-1. From the **Manage signing** dialog's enabled state, member clicks **Disable
-   signing**.
-2. Signing stops applying to this destination's dispatches immediately — they
-   revert to byte-identical, unsigned requests (mirroring AC63's "existing
-   destinations" behaviour). No overlap, no confirmation step (non-destructive:
-   nothing stored is exposed or lost by this action).
+way back to off. Not separately named by an AC beyond that; see Open Questions.
+Amendment — re-grained to the proxy; see `## Amendment`.)*
+1. From the **Manage signing** dialog's enabled state (or the Signing card
+   directly, Screen 4b), member clicks **Disable signing**.
+2. Signing stops applying to **every destination of this proxy** immediately —
+   their dispatches revert to byte-identical, unsigned requests (mirroring
+   AC63's "existing destinations" behaviour, now stated of the proxy rather than
+   of one row). No overlap, no confirmation step (non-destructive: nothing
+   stored is exposed or lost by this action).
 3. **Re-enabling later** always generates a fresh secret and re-runs Flow G's
    one-time reveal in full — the product never resurfaces or reuses a
    previously-generated secret, because AC57 already forbids displaying it again,
    so there is nothing to resurrect it as. Stated explicitly in the dialog's
-   disabled-state copy so a member does not expect their receiver's old
-   configuration to keep working without updating it.
+   disabled-state copy so a member does not expect their receivers' old
+   configuration to keep working without updating it — **every** receiver that
+   proxy dispatches to, not one.
 
 ## Screens & States
 
@@ -434,8 +519,15 @@ v-if scheme === 'shared-secret':
 v-if scheme === 'standard-webhooks':
   Label "Secret value" for="verification_secret"
   [write-only field — see States below]
-  p (help) "The signing secret your sender issued you for this integration.
-     This product never generates it for you — paste the value they gave you."
+  p (help) "The secret your sender issued you for this integration. This
+     product never generates it for you — paste the value they gave you."
+     (Amendment — reworded from "The signing secret …"; NB1. Under the
+     pre-amendment grain this sat a page away from anything else called a
+     signing secret; it now sits one card away from Screen 4b's Signing
+     card, where "signing secret" means the product's own, so the inbound
+     copy drops the word to remove the collision. The specification's own
+     term for this value is unaffected — this is member-facing copy, not
+     the scheme's vocabulary.)
   div (static, always visible under this scheme)
     p "Your sender must send these three headers on every request:"
     ul
@@ -457,15 +549,24 @@ established for its default-attempt-limit copy (`ProxyForm.vue`'s
 **Write-only secret field — shared shape (AC26, and reused verbatim for Screen 3's
 credential and Screen 6's signing secret display).** Two states:
 - **Unset** (nothing saved yet, or `scheme` freshly changed to one that has never
-  held a secret): a plain `Input type="password" autocomplete="off"` (N3) —
-  chosen because there is no existing password-input precedent in this app to
-  follow and this is the standard semantic for a masked-entry field, and
-  `autocomplete="off"` (the same value `ForgotPassword.vue` already uses for a
-  non-login field) stops a browser's password manager from offering the
-  member's own login password into a verification secret, credential, or
-  signing-secret field that has nothing to do with signing in; nothing else
-  about it needs styling beyond the input treatment every other text field
-  already has.
+  held a secret): a plain `Input type="password" autocomplete="off"` (N3), **not**
+  `PasswordInput.vue`'s show/hide toggle. *(Q-10-03 item 2, answered here rather
+  than left open: `PasswordInput.vue` does exist in this app — N3's claim that no
+  password-input precedent exists was wrong, and this spec no longer relies on
+  that claim as its reason.)* **Ruled: plain `Input type="password"` stands, on a
+  narrower ground than N3 originally gave.** A reveal toggle would breach nothing
+  by itself — this field only ever holds what the member just typed, never a
+  value read back from storage — but every secret in this feature is deliberately
+  designed to behave identically ("type it, save it, see that it is *set*, never
+  see it again"), and a Show toggle on the entry field would sit oddly two
+  screens away from an inert `[Hidden]` token that exists precisely because
+  AC20 forbids revealing anything. One idiom for the whole feature is worth more
+  than a convenience on one field. `autocomplete="off"` (the same value
+  `ForgotPassword.vue` already uses for a non-login field) stops a browser's
+  password manager from offering the member's own login password into a
+  verification secret, credential, or signing-secret field that has nothing to
+  do with signing in; nothing else about it needs styling beyond the input
+  treatment every other text field already has.
 - **Set** (editing a proxy with a stored secret for the current scheme): a
   collapsed line, not an input — **"Secret set — changed {date}"** — plus a
   **Replace** button (`variant="ghost"`, small). Clicking it swaps the line for a
@@ -477,12 +578,14 @@ credential and Screen 6's signing secret display).** Two states:
 
 **Screen 1's instance of this shape carries one addition the shared shape does
 not (C5): once Replace is clicked, a help line under the new blank field
-discloses the 24-hour overlap before the member saves** — see Flow B step 2 for
-the exact copy and reasoning. Screen 3's credential reuses this shape verbatim
-**without** that line, because AC29 excludes the destination credential from any
-overlap; Screen 6's signing-secret display is a different sub-state (generation,
-not replace-in-place) and carries its own overlap disclosure at Screen 6 states
-2 and 4.
+discloses the 24-hour overlap before the member saves, and, if a rotation is
+already running, discloses the immediate discard instead** *(Amendment —
+the second branch added, PRD-10 `## Amendment B` ruling 2a)* — see Flow B
+step 2 for the exact copy and reasoning. Screen 3's credential reuses this
+shape verbatim **without** that line, because AC29 excludes the destination
+credential from any overlap; Screen 6's signing-secret display is a different
+sub-state (generation, not replace-in-place) and carries its own overlap
+disclosure at Screen 6 states 2 and 4.
 
 **States.**
 | Scheme | Fields shown | Status line (edit, already set) |
@@ -591,11 +694,40 @@ div.grid.gap-2.rounded-md.border.p-3   (existing row, unchanged)
       [same write-only shape as Screen 1's secret field, applied to two fields:]
       Label "Header name" / Input (default "Authorization", visible + editable always)
       Label "Secret value" / [write-only field — unset: Input type="password";
-        set: "Credential set — changed {date}" + Replace]
+        set: "Credential set — changed {date}" + Replace + Remove credential]
       p (help) "Sent verbatim on every dispatch to this destination — the
          product adds no scheme prefix (e.g. enter "Bearer abc123" yourself if
          your destination expects one)."
 ```
+
+**Remove credential — answers Q-10-03 item 1.** *(Q-10-03, `docs/questions/
+prd-10-q-10-03-credential-removal-and-secret-field-primitive.md`, answered here
+rather than left open.)* The **set** status line gains a second, ghost-variant
+button beside **Replace**: **Remove credential**. AC30 makes the credential
+optional, and today the only way back to "no credential" was deleting the whole
+destination row, which also discards its URL, method and delivery-attempt
+history — too large a cost for undoing one optional field, and inconsistent
+with signing's own explicit **Disable signing** affordance one flow over.
+Clicking **Remove credential** clears the header name back to its default and
+the secret status back to **unset**, in-session; nothing is sent to the server
+until the form saves — the same save-time semantics every other field on this
+form already has, not an immediate action, and no confirmation dialog is added
+(nothing stored is exposed by the removal, and the credential can always be
+re-entered — the same standard `docs/standards/design.md` sets for every other
+non-destructive action in this spec).
+
+**Removal is an explicit signal, never an empty field** *(Amendment — added;
+B3)*. § Interactions rules that "a present-but-empty secret field must not
+submit as 'clear the secret'" — that rule protects a member who opens Replace,
+changes their mind, and leaves the field blank; it must not be read backwards
+as also covering **Remove credential**, which is a distinct, deliberate control
+the member chooses on its own, not a blank field arrived at by inaction.
+**Clicking Remove credential and leaving a Replace field blank must never be
+indistinguishable to the form**, however the two are eventually carried to the
+server — that transport is the Principal Engineer's call, not specified here;
+what this spec fixes is that the two states have to stay distinguishable
+end to end, because collapsing them would silently turn every abandoned
+Replace into an unintended removal.
 
 **Default expand state.** A row whose destination already has a credential set
 opens **expanded** by default (the member's most likely reason to open this row
@@ -616,16 +748,19 @@ next dispatch — there's no transition period.").
 |---|---|---|
 | New row, this session | "Add credential" | Header name (Authorization), blank Secret value |
 | Existing, no credential | "Add credential" | same as above |
-| Existing, credential set | "Credential: set" (expanded by default) | Header name (editable), "Credential set — changed {date}" + Replace |
+| Existing, credential set | "Credential: set" (expanded by default) | Header name (editable), "Credential set — changed {date}" + Replace + Remove credential |
 | Replace clicked | "Credential: set" | Header name (pre-filled), blank Secret value |
+| Remove credential clicked (in-session, before save) | "Add credential" | Header name resets to default (Authorization), blank Secret value — same as an unconfigured row |
+| **Removal saved** *(Amendment — added; B3)* | "Add credential" | Header name (Authorization), blank Secret value — indistinguishable from "Existing, no credential" once the save round-trips; the removal is complete, not merely staged |
 
 **Removing a row** removes its Credential block with it — no separate prompt,
 identical to how removing a row already discards its URL/method silently.
 
 **Permission gating on the Show page.** Every mutating control this spec adds to the
-Show page — Screen 4's **End overlap now**, Screen 5's **Manage signing**, and every
-state-changing action inside Screen 6 (Enable signing, Regenerate signing secret,
-Disable signing, End overlap now) — is gated on the same `canUpdate` computed
+Show page — Screen 4's **End overlap now**, Screen 4b's **Enable signing**, **Manage
+signing** and **End overlap now**, and every state-changing action inside Screen 6
+(Enable signing, Regenerate signing secret, Disable signing, End overlap now) — is
+gated on the same `canUpdate` computed
 `resources/js/pages/proxies/Show.vue` already uses for its **Edit** button:
 ```
 canUpdate = permissions.canUpdateProxy && (proxy.is_creator || permissions.canUpdateAnyProxy)
@@ -686,37 +821,124 @@ No loading/error states beyond the page-level ones `design-01` already
 specifies — this card renders fields already on the Show payload, no independent
 fetch except the End-overlap-now action itself.
 
-### Screen 5 — Proxy Show — Destinations table, extended (Credential/Signed badges + Manage signing action)
+**Unchanged by this amendment.** Screen 4 is the **inbound** verification card
+only; it never renders anything about outbound signing. The two used to be
+easy to conflate because both rotate under AC29, but they are separate cards
+rendering separate state — see Screen 4b immediately below.
+
+### Screen 4b — Proxy Show — Signing card (NEW) *(Amendment — added; displaces the
+per-destination surface Screens 5 and 6 carried pre-amendment. See `## Amendment`
+at the end of this document.)*
+Placement: alongside the Verification card (Screen 4), in the same card-stack
+position (pipeline/security cards, grouped together, before the destination-facing
+Destinations table). Same `Card` shape as every other Show-page card.
+
+```
+Card
+  h2 "Signing"
+  p (help) "Whether this proxy signs its dispatches so every destination it
+     sends to can verify the request really came from this proxy."
+  [state block — see States]
+```
+
+**States.**
+- **Not enabled (default — every proxy today, AC63):**
+  ```
+  p "This proxy does not sign its dispatches yet."
+  Button v-if="canUpdate" "Enable signing"
+  ```
+  Clicking **Enable signing** opens the **Manage proxy signing** dialog (Screen 6)
+  directly into its one-time-reveal flow (Flow G).
+- **Enabled, no overlap:**
+  ```
+  dl
+    dt "Status" / dd "Enabled — generated Aug 20, 2026"
+  Button v-if="canUpdate" variant="ghost" "Manage signing"
+  ```
+- **Enabled, overlap running** — the same rotation line and action Screen 4 uses
+  for the inbound direction, because AC29 is one rule applied at proxy grain in
+  both directions:
+  ```
+  p "A rotation is in progress — your previous secret is still honoured until
+     Aug 21, 2026, 10:03 AM."
+  Button v-if="canUpdate" variant="outline" "End overlap now"
+  Button v-if="canUpdate" variant="ghost" "Manage signing"
+  ```
+  **The rotation line and the "Enabled — generated …" status always render for
+  anyone who can view the proxy** — this is status, not a control. **`Manage
+  signing` and `End overlap now` are `canUpdate`-gated** (see the note above
+  Screen 4), matching every other mutating control this spec adds to Show.
+- **Disabled after having been enabled once:** identical to "Not enabled" — the
+  card carries no memory of a prior configuration on its face; that history is
+  what the dialog's own disabled-state copy (Screen 6, state 5) exists to state
+  when the member re-opens it.
+
+**This card is proxy-wide, and it says so structurally rather than in a
+warning.** There is exactly one Signing card per proxy, not one per destination
+and not a badge repeated on every row — the same status is true of every
+destination this proxy has, so it is stated once, where the setting lives
+(AC54). **No trust-domain warning is added here** — PRD-10 `## Amendment B`
+ruling 2b rules explicitly that none is required, and this spec follows that
+ruling rather than second-guessing it.
+
+**Failure state (AC11, re-grained).** If this proxy's signing secret cannot be
+decrypted, the card renders **no dedicated error of its own** — #10 still adds
+no new surface for this failure (see § Scope boundaries' AC11 bullet). What the
+card must **not** do is imply a state that is not true: it continues to show
+whatever its last-known enabled/overlap status was, because that status is
+static configuration data, not a live read of decryptability. **The failure
+itself is visible where every dispatch attempt already renders its outcome** —
+every destination of this proxy's attempt history, in the existing design-06
+treatment, all failing together, because AC11 forbids a partial fan-out. A
+member investigating why *every* destination of a signing-enabled proxy has
+stopped delivering is not left to notice this one row at a time.
+
+### Screen 5 — Proxy Show — Destinations table, extended (Credential badge only)
+*(Amendment — the per-row **Signed** badge and the per-row **Manage signing**
+action are removed by this amendment; the heading is renamed to match. See
+`## Amendment` for what this section looked like pre-amendment.)*
 Extends the existing Destinations table (design-11 Screen 3) with no new column
-— two small status badges inline with the existing Destination cell content, and
-one new Actions-column button.
+and no new action — one small status badge inline with the existing Destination
+cell content.
 
 ```
 TableCell   (Destination — existing cell, extended)
   Badge outline {{ destination.httpMethod }}       (existing)
   span.font-mono {{ destination.url }}              (existing)
   Badge v-if="destination.hasCredential" outline "Credential"   (NEW)
-  Badge v-if="destination.isSigningEnabled" outline "Signed"    (NEW)
 
-TableCell   (Actions — existing cell, extended)
+TableCell   (Actions — existing cell, unchanged by #10)
   Badge v-if="destination.isDeleted" secondary "Deleted"        (existing)
   Button variant="ghost" size="sm" as-child                     (existing)
     Link "View events"
-  Button v-if="!destination.isDeleted && canUpdate" variant="ghost" size="sm"  (NEW)
-    @click="openSigningDialog(destination)"
-    "Manage signing"
 ```
-**`canUpdate`-gated**, same computed as Screen 4's (see the note above Screen 4) —
-a member without update rights never sees this button, only the `Credential`/`Signed`
-status badges, which stay visible to anyone who can view the proxy.
 
-**Why badges, not new columns.** The table already carries four data columns plus
-Actions (design-11); a fifth and sixth column for two booleans would crowd a table
-that is already dense on narrow viewports. A badge that renders only when true
-(the same "absence is the compliance" idiom the `Deleted` badge already uses)
-keeps the row scannable and costs nothing when neither applies — which is every
-destination today (AC37, AC63: existing destinations are unaffected, so this is
-the common case at ship time). *(Flagged design call 3.)*
+**Why no `Signed` badge here.** Signing is a property of the **proxy**, not of
+any one destination (AC54) — once enabled, every destination this proxy has
+receives signed dispatches, including one added afterward, with no per-row
+enable step and no per-row rotation state. A badge repeated identically on
+every row of the table would say the same true thing on each one, which
+carries no information a member could act on at the row level: there is
+nothing to turn on or off per destination, so there is nothing for the row to
+distinguish. The proxy-level fact belongs on the proxy-level surface — Screen
+4b's **Signing** card — not on this table. *(This is the correction Q-10-04's
+answer named explicitly: "under a proxy-level secret a per-row `Signed` badge
+says the same thing on every row.")*
+
+**The `Credential` badge is unaffected by this amendment** — the destination
+credential stays per destination (AC31) exactly as before, so it remains the
+one badge this table renders, exactly as designed pre-amendment.
+
+**Why a badge, not a new column, for `Credential`.** The table already carries
+four data columns plus Actions (design-11); a fifth column for one boolean
+would crowd a table that is already dense on narrow viewports. A badge that
+renders only when true (the same "absence is the compliance" idiom the
+`Deleted` badge already uses) keeps the row scannable and costs nothing when it
+does not apply — which is every destination today (AC37: existing destinations
+are unaffected, so this is the common case at ship time). *(Flagged design
+call 3 — its second binding condition, that the badge stays an inert status
+indicator, is unaffected by removing `Signed`; see § Approval record, which is
+not rewritten by this amendment.)*
 
 **No `Credential` action here** — a destination's credential is edited only from
 the proxy's **Edit** form (Screen 3), matching the existing precedent that this
@@ -724,27 +946,29 @@ table has never carried a per-row "Edit" action; editing a destination's own
 fields (URL, method) is already Edit-form-only. The `Credential` badge is a status
 indicator, not a button.
 
-**`Manage signing` is absent for a deleted destination** — nothing is dispatched
-to it any more, so there is nothing for signing to apply to (mirrors why the
-`Replay`/credential-editing affordances are similarly withheld from a destination
-no longer reachable through the live form).
-
 **States:** unchanged loading/error handling from the existing table (design-11);
 this is a presentation-only extension of data already on the Show payload plus
-the two new booleans.
+the one boolean that remains.
 
-### Screen 6 — Manage destination signing dialog (NEW)
-Triggered by Screen 5's **Manage signing** button, scoped to one destination.
-Modelled directly on `ReplayDialog.vue`'s shape (plain `Dialog`, not
-`AlertDialog` — nothing here is destructive; see *Interactions*).
+### Screen 6 — Manage proxy signing dialog (NEW)
+*(Amendment — renamed and re-grained from "Manage destination signing dialog";
+see `## Amendment` at the end of this document. Every state below is unchanged
+in shape from the pre-amendment version; only the scope — proxy, not
+destination — moves.)*
+Triggered by Screen 4b's **Enable signing** or **Manage signing** action, scoped
+to the **proxy**, never to one of its destinations. Modelled directly on
+`ReplayDialog.vue`'s shape (plain `Dialog`, not `AlertDialog` — nothing here is
+destructive; see *Interactions*).
 
 ```
 Dialog
   DialogHeader
-    DialogTitle "Signing for {METHOD} {url}"
-    DialogDescription "Lets this destination verify that a dispatch really came
-      from this proxy, using the same Standard Webhooks specification this
-      product can also verify incoming requests under."
+    DialogTitle "Signing for {proxy.name}"
+    DialogDescription "Lets every destination this proxy dispatches to verify
+      that a dispatch really came from this proxy, using the same Standard
+      Webhooks specification this product can also verify incoming requests
+      under. One secret is used for all of this proxy's destinations,
+      including any added later."
   [state block — see States]
   DialogFooter
     DialogClose as-child → Button variant="ghost" "Close"
@@ -752,9 +976,9 @@ Dialog
 ```
 
 **States.**
-1. **Not enabled (default for every destination today, AC63):**
+1. **Not enabled (default for every proxy today, AC63):**
    ```
-   p "This destination does not verify dispatches from us yet."
+   p "This proxy does not sign its dispatches yet."
    ```
    Footer primary action: **Enable signing** (`Spinner` while generating).
 
@@ -764,7 +988,7 @@ Dialog
    Alert (info-styled, TeamInvitationAlert.vue precedent)
      AlertTitle "Copy this now"
      AlertDescription "This is the only time this secret will ever be shown.
-       Configure your destination's receiver with it before you close this
+       Configure every destination's receiver with it before you close this
        dialog — the product cannot show it to you again."
    CopyField :value="secret" copy-label="Copy signing secret"
      announcement="Signing secret copied to clipboard"
@@ -801,16 +1025,28 @@ Dialog
    p "A rotation is in progress — your previous secret is still honoured until
       Aug 21, 2026, 10:03 AM."
    Button variant="outline" "End overlap now"
+   p (help, same paragraph group as the footer actions) "Regenerating again now
+      will stop that previous secret being honoured immediately, for every
+      destination this proxy has — its 24 hours will not finish out."
    ```
-   Footer: **Regenerate signing secret** + **Disable signing** + **Close**
-   (regenerating again while an overlap is already running is allowed — AC29's
-   two-slot rule discards the oldest immediately, which **is** the documented
-   remedy for a compromised secret discovered mid-overlap).
+   Footer: **Regenerate signing secret** + **Disable signing** + **Close**.
+   **The added help line is member-facing copy, not designer commentary**
+   *(Amendment — added; B2)*: it renders as part of this state, so it is in
+   front of the member **before** they click **Regenerate signing secret**,
+   satisfying AC29's added bullet (ruling 2a) for the signing surface exactly
+   as Screen 1's C5 note already does for the inbound one. Regenerating again
+   while an overlap is already running is still allowed — AC29's two-slot rule
+   discards the oldest immediately, which **is** the documented remedy for a
+   compromised secret discovered mid-overlap — and this line is what makes
+   that consequence said rather than merely true. **No confirmation step is
+   added**: the disclosure satisfies the requirement, and § Interactions'
+   single-click rule for Enable / Regenerate / Disable is unchanged.
 
 5. **Disabled (re-visited after Flow I):** identical to state 1, with one line
    added: *"Enabling again generates a new secret — your previous one is never
    shown or reused."* (Flow I step 3's stated behaviour, made visible here so a
-   member doesn't assume their receiver's old configuration still applies.)
+   member doesn't assume their receivers' old configuration still applies —
+   **every** receiver this proxy dispatches to, not one.)
 
 **Loading/error.** Every state-changing action (Enable, Regenerate, Disable, End
 overlap now) disables its own button and shows `Spinner` for the duration of the
@@ -934,15 +1170,16 @@ reveal-mechanism note into Q-06-03 rather than asserting a mechanism itself.
 | Role | Component | Status |
 |---|---|---|
 | Verification scheme select | `Select`/`SelectTrigger`/`SelectContent`/`SelectItem`/`SelectValue` | Reused, unchanged shape |
-| Verification/credential/signing secret entry | `Input type="password"` | **New usage** — no prior `type="password"` precedent in this app; standard semantic choice, no new primitive |
+| Verification/credential/signing secret entry | `Input type="password"` | **Deliberate choice, not want of a precedent** *(Amendment — corrected; B1)*: `PasswordInput.vue` exists and wraps `Input` with a show/hide toggle, so a precedent for masked entry is available. Plain `Input type="password"` is used anyway, so every secret in this feature keeps one write-only idiom — type it, save it, see that it is *set*, never see it again — rather than a reveal toggle on this field sitting oddly beside the inert `[Hidden]` token elsewhere in this feature. No new primitive either way |
 | Write-only status + Replace | plain text + `Button variant="ghost"` | Reused primitives, new small pattern (first use, repeated at Screens 1, 3) |
 | Sensitive-field default/addition badges | `Badge` (`secondary` no-×, `outline` with ×) | Reused, unchanged variant set |
 | Sensitive-field add control | `Input` + `Button` | Reused, same add-row idiom as `DestinationRows.vue` |
 | Destination credential disclosure | `Collapsible`/`CollapsibleTrigger`/`CollapsibleContent` | Reused — already-established precedent (design-06's attempt-history use) |
 | Verification card | `Card`, `dl`/`dt`/`dd` | Reused, same pattern as Retry policy / Response cards |
+| Signing card *(Amendment — added; proxy-grain sibling of the Verification card)* | `Card`, `dl`/`dt`/`dd` | Reused, same pattern as the Verification card |
 | End overlap now | `Button variant="outline"` + `Spinner` | Reused |
-| Destination status badges (Credential/Signed) | `Badge variant="outline"` | Reused, same idiom as the existing `Deleted` badge |
-| Manage signing dialog shell | `Dialog`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogClose` | Reused (non-destructive-dialog pattern, `ReplayDialog.vue` precedent) |
+| Destination status badge (Credential only — `Signed` removed by this amendment) | `Badge variant="outline"` | Reused, same idiom as the existing `Deleted` badge |
+| Manage proxy signing dialog shell *(Amendment — renamed from "Manage destination signing")* | `Dialog`, `DialogHeader`, `DialogTitle`, `DialogDescription`, `DialogFooter`, `DialogClose` | Reused (non-destructive-dialog pattern, `ReplayDialog.vue` precedent) |
 | One-time secret reveal | `CopyField` | **Reused outside its original context** — first use for a value other than the ingest URL; same props shape (`value`, `copy-label`, `announcement`) |
 | One-time reveal notice | `Alert`, `AlertTitle`, `AlertDescription` | Reused (design-07's first `AlertTitle` use precedent, now a second) |
 | Obfuscated value token | new inline `span` (muted background, `title` attribute + `sr-only` text node) | **New small composition**, built entirely from existing tokens — no new `ui/*` primitive, same shape as design-06's `PayloadViewer` masked-block treatment |
@@ -996,6 +1233,8 @@ new component.
   replace where ambiguous in isolation (`aria-label="Replace verification
   secret"`, `aria-label="Replace credential for {url}"`) — the icon-only/
   ambiguous-target rule this app already applies to Delete/Remove buttons.
+  **Remove credential** (Screen 3, Q-10-03 item 1) carries the same treatment:
+  `aria-label="Remove credential for {url}"`.
 - **The obfuscated value token** (Screen 7) carries a `title` **and** an `sr-only`
   text node inside the span holding the same string, not an `aria-label` (N1) — a
   bare `aria-label` on a non-interactive, non-landmark `span` is not reliably
@@ -1017,7 +1256,7 @@ new component.
   `aria-live="polite"` copy announcement verbatim. Focus trap and
   return-to-trigger on close are Reka UI defaults, relied on as everywhere else
   in this app.
-- **"End overlap now" actions** (Screens 4, 6): standard button semantics; their
+- **"End overlap now" actions** (Screens 4, 4b, 6): standard button semantics; their
   disabled-while-in-flight state pairs with the existing `Spinner`
   `role="status"` convention.
 - Meets **WCAG 2.1 AA** per `docs/standards/design.md`'s baseline; every
@@ -1059,7 +1298,11 @@ not as open items:
 3. **Destinations-table status badges, not new columns** (Screen 5). **Accepted as
    designed**, with two binding conditions already folded into Screen 5 above: each
    badge carries text, never colour or icon alone, and `Credential` stays a status
-   indicator rather than an action.
+   indicator rather than an action. *(Amendment — the `Signed` badge this ruling
+   also covered is removed by this amendment, because signing is now a proxy-grain
+   fact and would say the same thing on every row; the `Credential` badge and both
+   binding conditions stand unchanged. See `## Amendment` at the end of this
+   document.)*
 4. **The one-time signing-secret reveal permits `Esc`/overlay-click dismissal**
    (Screen 6, state 2). **Overturned — both are now suppressed for that sub-state
    only**, with **Done** as the sole, keyboard-reachable exit and no confirmation
@@ -1081,19 +1324,30 @@ design, exactly as `PayloadViewer.vue`'s original fetch-on-reveal shape was
 reader does not mistake an absence for an omission): a "disable verification"
 confirmation of any kind (Flow A step 6 treats it as a plain field change, the
 same low-ceremony precedent `design-07`'s AC17 already set for a *more*
-consequential mode switch); and whether a destination's disabled signing secret
+consequential mode switch); and whether a proxy's disabled signing secret
 is erased from storage immediately or simply stops being applied (Flow I step 2)
 — a storage-lifecycle detail with no user-facing difference either way, since
-AC57 already forbids ever displaying it again regardless.
+AC57 already forbids ever displaying it again regardless. *(Amendment — updated
+from "a destination's" to "a proxy's"; the question itself is unchanged by the
+re-grain.)*
 
 ## Handoff
 - **Inputs:** `docs/product/prd-10-sensitive-data-handling.md` (Approved, as
-  amended — esp. `## UX Direction`, AC1–AC64, `## Amendment A`);
+  amended — esp. `## UX Direction`, AC1–AC64, `## Amendment A` **and**
+  `## Amendment B`, both approved by the Project Owner, 2026-08-27);
   `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md`
   (RESOLVED — the outbound-credential shape AC30–AC39 render);
-  `docs/questions/prd-10-q-10-02-at-rest-payload-copy-inventory.md` (OPEN,
-  Principal Engineer, technical, non-blocking for this gate — nothing in this
-  spec depends on its answer); `docs/design/design-06-retry-replay.md`
+  `docs/questions/prd-10-q-10-02-at-rest-payload-copy-inventory.md` (RESOLVED,
+  Principal Engineer, technical — nothing in this spec depended on its answer);
+  `docs/questions/prd-10-q-10-04-proxy-level-signing-grain-and-live-secret-cap.md`
+  (RESOLVED by PRD-10 `## Amendment B` — the ruling this design amendment
+  renders); `docs/questions/prd-10-q-10-03-credential-removal-and-secret-field-
+  primitive.md` (RESOLVED by the Designer in this same pass — see Screen 3's
+  Remove-credential control and Screen 1's write-only-primitive note);
+  `docs/architecture/adr-021-secret-handling-and-rotation.md`,
+  `docs/architecture/adr-023-outbound-request-contract.md` (Accepted — the
+  proxy-grain storage and signature-list shape this amendment's screens render
+  against); `docs/design/design-06-retry-replay.md`
   (`PayloadViewer.vue`'s fetch-on-reveal mask/reveal mechanics, extended not
   rebuilt at Screen 7; the Collapsible/attempt-history precedent Screen 3
   reuses); `docs/design/design-07-enhanced-mode-toggle.md` (the write-only
@@ -1119,17 +1373,29 @@ AC57 already forbids ever displaying it again regardless.
   an addition. `CopyField` and `Collapsible` are reused beyond their originating
   context, not added.
 - **Outstanding Questions:** None blocking. Four flagged, reversible design calls
-  above for the Product Manager's design-gate review; one technical transport
+  from the original gate, ruled — see § Approval record. One technical transport
   note folded for the Principal Engineer, resolved at technical design rather
-  than gating this one (mirroring `design-06`'s Q-06-03 precedent). Q-10-02
-  remains open to the Principal Engineer, unrelated to and non-blocking for this
-  spec.
-- **Next Agent:** **Product Manager**, to approve this spec against PRD-10
-  (design gate, delegated per `CLAUDE.md`). On approval, hands to the
-  **Principal Engineer** for technical design, which also settles Q-10-02 and
-  the transport note above.
-  **Done: approved 2026-08-27 with corrections C1–C10 — see § Approval record
-  (design gate) below. The next agent is now the Principal Engineer.**
+  than gating this one (mirroring `design-06`'s Q-06-03 precedent). **Q-10-02**
+  RESOLVED. **Q-10-04** RESOLVED by PRD-10 `## Amendment B` and rendered into
+  this amendment. **Q-10-03** RESOLVED in this same pass. Nothing is open.
+- **Next Agent:** **Product Manager**, to re-approve this amendment against
+  PRD-10 `## Amendment B` (design gate, delegated per `CLAUDE.md`) — this
+  revision changes material the Product Manager already approved once (the
+  signing surface's grain, and the AC29 second-rotation disclosure), so it goes
+  back through the same gate rather than being treated as self-certified. On
+  re-approval, hands to the **Principal Engineer**, whose `plan-10` is already
+  written to this ruling and needs nothing further from this amendment beyond
+  the screens it revises.
+  **Done (original gate): approved 2026-08-27 with corrections C1–C10 — see
+  § Approval record (design gate) below, which records what that gate
+  considered and is not rewritten by this amendment.** **Done (amendment
+  gate): the amendment (outbound signing re-grained to the proxy, per
+  `## Amendment B`) was approved by the Product Manager on 2026-08-27 with
+  four required corrections, B1–B4 — see § Approval record — amendment gate
+  (2026-08-27) at the very end of this document. B1–B4 land under that
+  approval and do not come back through the gate; B2 must be applied before
+  `plan-10`'s M8b is broken down into tasks.** Next: the **Principal
+  Engineer**, whose `plan-10` is already written to this ruling.
 
 ## Approval record (design gate)
 
@@ -1447,3 +1713,305 @@ Three items, recorded so they are inherited rather than rediscovered at technica
 
 Unrelated and unchanged by this gate: **Q-10-02** remains open to the Principal Engineer,
 and nothing in this spec depends on its answer.
+
+## Amendment — outbound signing re-grained to the proxy (2026-08-27)
+
+**Ruling amended:** PRD-10 `## Amendment B`, Project Owner ruling of 2026-08-27:
+**outbound signing is per proxy, not per destination.** One signing secret per proxy,
+shared by every destination that proxy dispatches to (including one added afterward),
+rotated at the proxy level. Rendered into PRD-10 as AC54 (rewritten), AC58, AC60
+(confirmed), AC63 and § Definitions; routed to the Designer via
+`docs/questions/prd-10-q-10-04-proxy-level-signing-grain-and-live-secret-cap.md`
+(RESOLVED). **The destination credential (AC33) is unchanged and stays per
+destination** — this amendment does not touch it anywhere.
+
+**Date:** 2026-08-27.
+
+**Author of this amendment:** Designer, in response to PRD-10 `## Amendment B` and the
+Q-10-04 answer's § *What the Designer needs, afterwards*.
+
+**Status of this amendment: APPROVED by the Product Manager on 2026-08-27, with four
+required corrections (B1–B4).** It went through the same delegated design gate the
+original spec used, and that gate's ruling is recorded separately at
+**§ Approval record — amendment gate (2026-08-27)** at the end of this document.
+**The original approval record above (§ Approval record (design gate))
+is retained exactly as it was written and is not rewritten by this amendment** — it
+records what that gate considered, which was the pre-amendment, per-destination
+design, per the standing rule `design-11`'s gate set and `docs/standards/
+documentation.md` (retain history; never rewrite a ruling silently).
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| § Scope note | Item (2) rewritten: the Show page gains a **Signing** card, its own proxy-grain sibling of the Verification card, rather than badges/an action on the Destinations table; item (3) renamed to the **Manage proxy signing** dialog |
+| § Overview | The signing paragraph rewritten to describe a proxy-level **Signing** card and dialog; the Destinations table now gains only the **Credential** badge |
+| § Decisions carried forward from the UX Direction | "Destination signing secret" renamed **proxy** signing secret throughout; a new bullet added for AC29's ruling-2a disclosure |
+| § Scope boundaries, AC11 bullet | Extended: an undecryptable **proxy** signing secret fails dispatch to **every** destination of that proxy, not one — AC11's fail-loudly rule at proxy grain, forbidding partial fan-out. Stated as a rendering consequence of the existing attempt-history surface, not a new one |
+| Flow B, step 2 (Screen 1) | **Added** (PRD-10 `## Amendment B` ruling 2a): the Replace help copy now branches on whether a rotation is already running for this proxy's verification secret, and if so states, before save, that saving now discards the currently-honoured previous secret immediately |
+| Screen 1, write-only shared shape | The C5 addition's description extended to name the new branch; the primitive note also answers Q-10-03 item 2 (kept below) |
+| Flow G | Rewritten — "Enable a proxy's outbound signing", opened from the new Signing card (Screen 4b), not from a per-row Destinations-table action |
+| Flow H | Rewritten — "Regenerate a proxy's signing secret"; the overlap and its end-early action are proxy-wide |
+| Flow I | Rewritten — "Disable a proxy's signing"; disabling stops signed dispatch to every destination of the proxy at once |
+| Screen 4 | Unchanged in content; one line added noting it is the **inbound**-only card and that outbound signing now has its own sibling card (Screen 4b) |
+| **Screen 4b (NEW)** | Added — the proxy-grain **Signing** card on Show, mirroring Screen 4's states (not enabled / enabled / overlap running), gated the same way, and stating the AC11 proxy-wide failure consequence rather than a per-row one |
+| Screen 5 | Renamed and narrowed to "Destinations table, extended (Credential badge only)" — the per-row **Signed** badge and the per-row **Manage signing** action are removed; the `Credential` badge and its surrounding text are unchanged |
+| Screen 6 | Renamed **Manage proxy signing dialog** (from "Manage destination signing dialog"); `DialogTitle` and `DialogDescription` re-scoped to the proxy; all five states unchanged in shape, including flagged design call 4's ruling that **Done** is the sole keyboard-reachable exit from the one-time reveal, which binds unchanged at the new scope; copy referring to "your destination's receiver" pluralised to "every destination's receiver" |
+| § Components | Two rows updated (dialog shell renamed; the destination status badge row narrowed to Credential only) and one row added (the Signing card) |
+| § Accessibility | The "Replace buttons" bullet extended to cover the new **Remove credential** button (Q-10-03 item 1) |
+| § Accessibility | The "End overlap now" actions bullet's screen list extended to include Screen 4b — Screens 4, 4b, 6 *(Amendment — corrected; B4, this row was misattributed to § Interactions)* |
+| § Open Questions | Item 3's resolved-log entry annotated to note the `Signed` badge's removal; the storage-lifecycle note's "a destination's disabled signing secret" corrected to "a proxy's" |
+| § Handoff | Inputs, Outstanding Questions and Next Agent all updated — Q-10-02, Q-10-04 and Q-10-03 recorded RESOLVED, ADR-021/ADR-023 added as inputs, and the Next Agent note states this amendment awaits Product Manager re-approval |
+| Header block (Status, PRD, Approved by/date) | Rewritten to distinguish the original gate's approval (retained, unrewritten) from this amendment (written, unapproved) |
+
+**Not changed, and deliberately so:** Screens 1–3 and 7 in substance (Screen 1 gains
+only the ruling-2a branch above; Screen 3 gains only the Q-10-03 answers below, both
+additive); every flow not named above (A, C, D, E, F); every AC55–AC57, AC59, AC61,
+AC62, AC64 UI consequence, none of which the grain ruling touches; the whole of
+§ Approval record (design gate), which is history and is not rewritten.
+
+### The AC11 proxy-grain failure state, rendered
+
+**AC11 changed behaviour, not only a term** (PRD-10 `## Amendment B`): a proxy whose
+signing secret cannot be decrypted must not fall back to dispatching unsigned to *any*
+of its destinations — partial fan-out, where some destinations of a proxy keep getting
+signed traffic while others silently stop, is exactly the state fail-loudly exists to
+prevent. This spec renders that at **proxy grain**, not as a per-row error:
+
+- **No new dedicated surface is added** — #10's existing rule holds: an undecryptable
+  secret's failure appears through design-06's existing delivery-attempt error
+  treatment, and the rendered failure never names the secret (AC35, AC61).
+- **What is new is the extent, stated explicitly in § Scope boundaries and on Screen
+  4b:** the failure is uniform across every destination the proxy has, not isolated to
+  one row. A member is not left to notice this by comparing rows one at a time — every
+  destination of a signing-enabled proxy fails together, because they all draw on the
+  one secret that cannot be decrypted.
+- **The Signing card (Screen 4b) does not invent a live decryptability indicator** — it
+  continues to show its last-known configuration state, because that state is static
+  configuration, not a per-request read. The failure surfaces where every dispatch
+  attempt already renders its own outcome, which is where a member already looks to
+  diagnose *any* delivery failure.
+
+### Q-10-03 — resolved in this same pass, not left for the amendment to carry
+
+Both items are the Designer's own decisions (component and affordance choices, not
+requirement questions, as the question document itself says) and are answered in full
+in this pass — **nothing in Q-10-03 needs a Product Manager or Owner decision**:
+
+1. **A "Remove credential" control is added** to Screen 3's expanded disclosure, beside
+   Replace, resolving the affordance gap the question raised. Save-time, no
+   confirmation, per `docs/standards/design.md`.
+2. **The plain `Input type="password"` stands**, on a corrected ground: not because no
+   `PasswordInput.vue` precedent exists (it does — N3's original claim was wrong and is
+   left as history, not rewritten), but because one write-only idiom across the whole
+   feature outweighs a reveal toggle's convenience on one field.
+
+`docs/questions/prd-10-q-10-03-credential-removal-and-secret-field-primitive.md` is
+marked RESOLVED accordingly.
+
+## Approval record — amendment gate (2026-08-27)
+
+**Approved by: Product Manager · 2026-08-27 · with four required corrections (B1–B4).**
+
+This is a **second, separate gate entry**, for the amendment `## Amendment — outbound signing
+re-grained to the proxy (2026-08-27)` only. **The first gate entry — § Approval record (design
+gate), with its ten corrections C1–C10, its four flagged-call rulings and its five notes — is
+history and is not rewritten by this one.** It records what that gate considered, which was the
+pre-amendment, per-destination design.
+
+The four corrections below land **under this approval**. None of them reopens a ruling, and none
+requires the amendment to come back through this gate: each is stated concretely enough for the
+Designer to apply it without me present and for a Reviewer to check it against the finished
+surface. Until they land, this record governs where it conflicts with the amendment or the spec
+body.
+
+**What was checked, and against what.** The amendment was read against PRD-10 as approved with
+`## Amendment A` and `## Amendment B` (64 acceptance criteria, nothing renumbered), against
+Amendment B's four rulings, and against `docs/plans/plan-10-sensitive-data-handling.md`, which is
+fully approved and was not reopened.
+
+### Check 1 — the proxy-grain sweep is complete
+
+Every place the spec described signing at destination grain now describes it at proxy grain, and
+the sweep reaches further than the three surfaces the ruling names.
+
+- **Screen 5** is narrowed to the `Credential` badge alone. The per-row **Signed** badge and the
+  per-row **Manage signing** action are gone, and the section states positively why a per-row badge
+  would carry no information a member could act on at the row level (AC54: no per-destination
+  enable, secret or rotation state). The `Credential` badge is untouched, which is correct — AC31
+  keeps the credential per destination.
+- **Screen 6** is re-scoped to the proxy in its title, its description and all five states, and
+  the one-time reveal's copy is pluralised to "every destination's receiver", which is the right
+  reading of AC57 under the widened loss UX Direction point 5 now names.
+- **Screen 4b** is a genuine proxy-grain sibling of the Verification card rather than a relabelled
+  row control: one card per proxy, the same three states, the same `canUpdate` gate the first gate
+  required at C2.
+- **Flows G, H and I** all open from the proxy's Signing card, and each states the fan-out
+  consequence in its own terms — Flow G that a destination added afterwards is covered with no
+  per-row step, Flow H that one rotation is one overlap for every destination, Flow I that
+  disabling stops signed dispatch to all of them at once.
+- **The three further places the Designer reports sweeping check out:** the Overview prose now
+  describes a proxy-level Signing card and says why the table carries no `Signed` badge; § Decisions
+  carried forward renames the secret and re-grains the rotation bullet while leaving the
+  credential's exclusion visibly untouched; and the § Scope boundaries AC11 bullet is extended as
+  described in Check 2 below.
+- **No stale per-destination signing language survives in the live spec.** The remaining
+  occurrences of the old grain are all in § Approval record (design gate), where they are history
+  and must stay, and in the amendment's own retained quotations of what was superseded.
+
+**Ruling 2b is followed rather than second-guessed.** Screen 4b adds no trust-domain warning and
+says so explicitly, which is what Amendment B ruled. The card's scope is legible from where the
+control lives, which is the ground the ruling gave.
+
+### Check 2 — the AC11 failure state is rendered at proxy grain
+
+**Satisfied.** AC11 as amended is a behaviour change, not a term change, and the spec renders it as
+one. The § Scope boundaries AC11 bullet and Screen 4b's failure-state paragraph both state that a
+proxy whose signing secret cannot be decrypted fails dispatch to **every** destination of that
+proxy, that no destination keeps dispatching signed traffic while another fails, and that the
+member is therefore not left to infer the fault by comparing rows one at a time. The spec is also
+right to add no new surface: C7 at the first gate ruled that AC11 surfaces through design-06's
+existing delivery-attempt error treatment, and the amendment changes the **extent** of the failure
+without inventing an indicator for it. Screen 4b's refusal to render a live decryptability
+indicator is correct — the card shows static configuration, and a card that claimed to know
+decryptability would be asserting a per-request read it does not have.
+
+**This does not contradict `plan-10`.** The plan's own AC11 verification line — "an undecryptable
+credential or signing secret fails the attempt **without sending**, and the recorded
+`error_summary` contains no part of the secret" — produces exactly the per-destination failed
+attempt entries, uniformly across the fan-out, that the spec describes a member reading.
+
+### Check 3 — the discard is stated before the save on Screen 1 / Flow B step 2
+
+**Satisfied for the inbound verification surface.** Flow B step 2 branches on whether a rotation is
+already running for this proxy's verification secret, and the second branch states, in member-facing
+copy attached to the Replace path, that saving a new secret now stops the previous secret being
+honoured immediately and that its 24 hours do not finish out. Screen 1's C5 note carries the same
+branch. That is AC29's added bullet honoured where the member commits to the rotation, not
+discovered afterwards on Show, which is what ruling 2a asked for.
+
+**It is not satisfied on the signing surface, and that is correction B2 below.** AC29's added
+bullet binds "a replacement **or a regeneration**", and regeneration is the signing word.
+
+### Check 4 — the Q-10-03 answers invent no requirement PRD-10 does not carry
+
+**Neither answer invents a requirement. Both stand.**
+
+1. **The Remove credential control on Screen 3 is an affordance for a state PRD-10 already
+   defines, not a new capability.** AC30 makes the credential **optional**; AC33 specifies a surface
+   that shows **set / not set**; AC37 describes the behaviour of a destination that has no
+   credential. "No credential" is therefore a state the approved requirements carry, and a control
+   that returns a destination to it is design detail in the Designer's own authority. It changes no
+   dispatch semantics beyond AC32 and AC37, introduces no permission (AC28 is untouched), and adds
+   no rotation, overlap or previous-value state that AC29's exclusion of the credential forbids. The
+   Designer's own ground — that the only route back was deleting the whole destination row, which
+   also discards its URL, method and delivery-attempt history — is sound, and the asymmetry it
+   removes against signing's explicit **Disable signing** is real.
+2. **`Input type="password"` over `PasswordInput.vue` is a component choice and nothing more.** It
+   asserts no requirement in either direction. Note that the ground the Designer now gives — one
+   write-only idiom across the whole feature, rather than the absence of a precedent — is the
+   honest one, and correcting a wrong ground in place while leaving the superseded claim visible as
+   history is the right handling. The consequence for § Components is correction B1.
+
+### Check 5 — nothing in the amendment contradicts `plan-10`
+
+**No contradiction found.** `plan-10` is fully approved and was not reopened.
+
+- Technical ruling 13 withholds precisely the surfaces this amendment redesigns — Screen 5's per-row
+  badge and action, Screen 6's dialog, and Flows G, H and I — and builds the backend to the
+  proxy-level ruling. The amendment lands on that boundary exactly.
+- The plan's proxy-scoped **generate / disable / end-overlap** endpoints, with `store` serving as
+  both Enable and Regenerate, match Flows G, H and I's action set with nothing left over and nothing
+  missing.
+- ADR-021 Decision 5 (disabling deletes every signing row; re-enabling generates a different
+  secret) matches Flow I step 3's rule that a previous secret is never resurfaced or reused.
+- AC29's cap of two, which Amendment B ruling 2 settles as a requirement, matches the plan's
+  Technical ruling 14 and its R7 test; Screen 6 state 4's allowance of a second regeneration inside
+  an overlap is the remedy AC29 itself names.
+- **The Remove credential control does not conflict with the plan either.** `plan-10` § Out of
+  Scope names the removal affordance, records that `design-10` designed none, and states that
+  "whatever `Q-10-03` answers is additive". This approval therefore does not force the control into
+  any milestone: **where it lands is the Principal Engineer's call**, and correction B3 exists so
+  that the requirement it has to satisfy is stated rather than inferred.
+
+### Four required corrections, returned to the Designer
+
+**(B1) § Components restates the claim the amendment itself corrected.** The row
+*"Verification/credential/signing secret entry | `Input type="password"` | **New usage** — no prior
+`type="password"` precedent in this app"* contradicts the Screen 1 ruling added in this same pass,
+which states that `PasswordInput.vue` does exist and that N3's no-precedent claim was wrong.
+`resources/js/components/PasswordInput.vue` renders `Input` with `:type="showPassword ? 'text' :
+'password'"`, so the precedent is real. Correct the row so it states the precedent exists and that
+the plain `Input type="password"` is chosen deliberately — one write-only idiom across the whole
+feature, per Screen 1 — rather than for want of a precedent. Do not restate the wrong claim
+anywhere else; N3 itself stays as written, because it is history.
+
+**(B2) AC29's ruling-2a disclosure is missing from the signing surface, where the amendment moved
+that surface.** AC29's added bullet binds "the surface that begins a replacement **or a
+regeneration** while a previous secret is still honoured", and ruling 2a says in terms that it
+applies to the signing surface as well as to the inbound one. Today Screen 6 state 4 renders the
+rotation line, then offers **Regenerate signing secret** in the footer with no member-facing
+statement that clicking it discards the currently-honoured previous secret immediately; Flow H step
+2 states only the ordinary case ("The previous secret is demoted, not discarded"), which is false
+when an overlap is already running. The spec's only acknowledgement of the discard is the
+parenthetical in Screen 6 state 4, which is prose addressed to the reader of this document, not
+copy addressed to the member, and it therefore does not satisfy the bullet. Required:
+- **Screen 6 state 4** carries member-facing copy, rendered as part of that state and therefore
+  visible **before** the member clicks **Regenerate signing secret**, stating that regenerating now
+  stops the currently-honoured previous secret being honoured immediately, that its 24 hours do not
+  finish out, and — because the grain makes this larger than it was — that this applies to every
+  destination of the proxy at once. Wording is yours; that it is said before the action commits is
+  not.
+- **Flow H step 2** branches on whether an overlap is already running, mirroring Flow B step 2's two
+  branches, so the flow and the screen agree.
+- **No confirmation step is added.** § Interactions' single-click rule for Enable / Regenerate /
+  Disable stands; AC29's bullet asks for disclosure, not ceremony. Because a signing regeneration is
+  an immediate action rather than a form save, "before the save" means before the action is invoked.
+
+**(B3) Screen 3 must state that removing a credential is an explicit signal, never an empty
+field.** § Interactions rules that "a present-but-empty secret field must not submit as 'clear the
+secret'", and the new **Remove credential** control resets the row to unset in-session and takes
+effect at save. The two rules now meet on the same field, and an implementer is left to reconcile
+them. State on Screen 3 that **Remove credential** is a distinct, explicit removal the form carries
+in its own right, and that a blank secret field never means removal under any circumstance. The
+transport for that signal is the Principal Engineer's, not yours; the requirement that the two be
+distinguishable is what this correction fixes. While landing it, add the missing **post-save** row
+to Screen 3's states table — after a saved removal the row reads as an unconfigured one (trigger
+back to "Add credential", header name back to `Authorization`) — so the table covers the removal
+round-trip and not only the pre-save state.
+
+**(B4) The amendment's § What changed table misattributes one edit.** Its § Interactions row claims
+the "End overlap now" bullet's screen list was extended to include Screen 4b. § Interactions'
+bullet carries no screen list — it reads "Neither 'End overlap now' action is gated behind a
+confirmation dialog" — and the screen-list edit landed in § Accessibility instead. Fix it in either
+direction: extend the § Interactions bullet to name Screens 4, 4b and 6 and reword "Neither" so it
+cannot be read as "there are two surfaces", or correct the change table to name § Accessibility.
+The change table is the amendment's own account of itself and is read as evidence long after this
+gate.
+
+### Three non-blocking notes
+
+- **(NB1)** Screen 1's `standard-webhooks` help copy calls the inbound secret *"The signing secret
+  your sender issued you for this integration"*. Under the old grain that phrase sat a page away
+  from anything called a signing secret; it now sits one card away from Screen 4b's **Signing**
+  card, where "signing secret" means the product's own. The copy is not wrong — it is the
+  specification's term for the sender's secret — but "the secret your sender issued you for this
+  integration" would remove the collision at no cost. Your call.
+- **(NB2)** § Open Questions still records, as not designed here, whether a proxy's disabled signing
+  secret is erased from storage or merely stops being applied. **ADR-021 Decision 5 answers it** —
+  disabling deletes every signing row — and this amendment already lists ADR-021 as an input. The
+  note remains harmless because it correctly says the difference is not user-facing; annotate it
+  when the section is next touched.
+- **(NB3)** Not the Designer's, mine: **PRD-10's Status block still carries the pre-approval bullet
+  reading "`## Amendment B` — AWAITING PROJECT OWNER APPROVAL"**, which contradicts § Amendment B's
+  own recorded approval of 2026-08-27 and the Status block's own opening line. That is a defect in
+  the PRD, not in this spec, and it is corrected there rather than here.
+
+### What this approval unblocks
+
+**M8b — the outbound signing surface — is unblocked for Task Planning**, which was the only
+milestone `plan-10` withheld pending this gate. **B2 must be applied before M8b is broken down**,
+because it adds member-facing copy and a flow branch that a task has to carry; the other three
+corrections do not gate M8b. B3 concerns Screen 3, which belongs to M7's territory, and `plan-10`
+already treats the removal affordance as additive, so the Principal Engineer decides where it
+lands. Nothing here reopens `plan-10`, PRD-10, or any ADR.
