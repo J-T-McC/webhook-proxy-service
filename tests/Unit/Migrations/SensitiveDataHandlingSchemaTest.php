@@ -20,7 +20,8 @@ class SensitiveDataHandlingSchemaTest extends TestCase
         return collect(DB::select(
             'SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
              FROM information_schema.COLUMNS
-             WHERE TABLE_NAME = ? AND TABLE_SCHEMA = DATABASE()',
+             WHERE TABLE_NAME = ? AND TABLE_SCHEMA = DATABASE()
+             ORDER BY ORDINAL_POSITION',
             [$table],
         ))->mapWithKeys(fn ($row) => [
             (string) $row->COLUMN_NAME => strtolower((string) $row->DATA_TYPE).'|'.strtoupper((string) $row->IS_NULLABLE),
@@ -47,7 +48,7 @@ class SensitiveDataHandlingSchemaTest extends TestCase
     {
         $columns = $this->columnTypesFor('proxy_secrets');
 
-        $this->assertSame([
+        $this->assertEqualsCanonicalizing([
             'id', 'team_id', 'proxy_id', 'purpose', 'value', 'is_current', 'expires_at', 'created_at', 'updated_at',
         ], array_keys($columns));
 

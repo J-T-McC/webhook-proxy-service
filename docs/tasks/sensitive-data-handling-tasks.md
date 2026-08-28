@@ -343,7 +343,23 @@
   the whole-object/array replacement case (C6), the structure-preserved case, the pointer-index
   default-vs-addition case, and a fixture asserting two different real values that both matched a
   sensitive name produce identical (`null`) output.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `PayloadObfuscator::obfuscate(mixed $document, SensitiveFieldMatcher
+  $matcher): array{0: mixed, 1: array<string, MatchSource>}` walks the decoded tree recursively;
+  `array_is_list()` distinguishes a JSON array (indices, never tested as names) from a JSON object
+  (keys, tested via `matchFor()`). A matched key's value is replaced with `null` and recursion stops
+  there — C6's whole-value replacement falls out of `continue`-ing before the recursive call rather
+  than needing a separate "don't walk into this" branch. Pointer segments are RFC 6901-escaped
+  (`~` before `/`, order-sensitive). `composer lint`, `composer types:check` and
+  `./vendor/bin/sail test --parallel` all green.
+
+  Incidental fix required to keep the full parallel suite green: T1's
+  `SensitiveDataHandlingSchemaTest::test_proxy_secrets_table_has_exactly_the_nine_columns_and_the_one_unique_index`
+  asserted `information_schema.COLUMNS` row order via `assertSame` with no `ORDER BY`, which is not a
+  guarantee MySQL makes — under `--parallel` (a separate schema per worker) the returned order was
+  not always ordinal. Added `ORDER BY ORDINAL_POSITION` to the query and switched the column-name
+  assertion to `assertEqualsCanonicalizing` (the acceptance criterion is "exactly these columns
+  exist", not "in this row order"). Test-only; no requirement, interface, data-model or ADR'd decision
+  changed.
 
 ---
 
