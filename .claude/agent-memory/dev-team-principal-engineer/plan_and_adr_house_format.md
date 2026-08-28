@@ -208,6 +208,42 @@ a collapsed absent-vs-empty distinction destroys a secret" outlives any ergonomi
 when a vendor claim cannot be verified (package not installed in the tree), **say so and make the
 argument not depend on it** rather than asserting it.
 
+**An ADR that supersedes *in part* two Accepted ADRs at once, with no PRD behind it** (ADR-025 — an
+Owner product ruling changed what the outbound header set should contain). Shape that worked: a
+`## The product position this ADR renders` section directly under the header, quoting the ruling once
+as the authority for reversing ratified positions and enumerating its consequences — **that is a
+settled position, not a chronology**, and it is what licenses the supersession. Then a
+`## Positions superseded` table with a row per position, each **named (P3, P4, "Decisions 3 and 4"),
+quoted verbatim, and given its replacement**, plus a **"Not superseded, and named because each looks
+as though it should be"** list underneath — that list is what stops a reader over-reading the change.
+Where a superseded bullet's *premise* is wrong (not just its conclusion), correct the premise
+explicitly ("a signature header carries a digest, not a key"): a Reviewer can apply a corrected
+premise to a header they have never seen, which a conclusion does not give them. The superseded ADRs
+get **inline `[Pn — PROPOSED supersession by ADR-NNN (pending Owner approval)]` blockquotes plus one
+sub-bullet under their Status line** — verify with `git diff --numstat` that those edits are
+**pure insertions, zero deletions**, which is the checkable form of "additive pointer, not a rewrite".
+
+**An approved plan gets a `## Pointer to ADR-NNN (Proposed)` section, not a `## Revision`, when
+nothing in it changes yet.** Say "this is a pointer, not a revision" in the first line, list the
+passages that *would* go stale, state that each remains accurate as certified, and add **no
+re-certification** — a revision letter implies a ruling moved, and none has while the ADR is Proposed.
+
+**When a decision's literal value is the Owner's but its principle is yours, ship the principle and
+mark the value with a find-and-replace placeholder** (`<BRAND>`). The ADR stays complete and
+committable, the flag says "a value they supply, not a decision to ratify", and one `sed` closes it.
+When the value arrives, **fold it in as decided and delete the placeholder scaffolding** — a
+settled document should not narrate that it was once pending. Same for an option the Owner floats
+and then withdraws (a configurable header prefix): remove it from § *Alternatives* entirely rather
+than recording it as considered-and-rejected, but **keep the neighbouring rejection that prevents a
+real defect** (member-configurable per-proxy names would reintroduce the very collision the decision
+removes). The test is whether a future reader could re-propose something harmful, not whether the
+option was ever discussed.
+
+**A "time-critical before merge" decision earns its own `#### Sequencing` subsection**, stating what
+the change costs before the merge (nothing) and after (a breaking change), why no mechanism softens
+it (no wire version negotiation, no notification surface, no record of who is affected), and that
+**the sequencing is part of what the Owner is approving** — not a scheduling note appended to it.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
