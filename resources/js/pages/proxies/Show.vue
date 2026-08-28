@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import AlertError from '@/components/AlertError.vue';
 import CopyField from '@/components/CopyField.vue';
 import TrendChart from '@/components/TrendChart.vue';
 import {
@@ -21,6 +22,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
     TableBody,
@@ -63,6 +65,7 @@ import {
     proxyRetryAttemptLimitDisplay,
     proxyRetryBackoffStrategyDisplay,
 } from '@/data/proxyRetryBackoffStrategies';
+import { formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
 import type { Team } from '@/types';
@@ -71,13 +74,19 @@ import type {
     DestinationBreakdownRow,
     StatisticsPanel,
 } from '@/types/analytics';
-import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
+import type {
+    ProxyDetail,
+    ProxyPermissions,
+    ProxySecurity,
+} from '@/types/proxies';
 
 const props = defineProps<{
     proxy: ProxyDetail;
     permissions: ProxyPermissions;
     statistics: StatisticsPanel;
     destinations: DestinationBreakdownRow[];
+    /** Status-only verification state (T22) — never a value, never a length. */
+    security: ProxySecurity;
 }>();
 
 // Edit/delete visibility derives from the shared page-level permissions + the
@@ -93,6 +102,35 @@ const canDelete = computed(
         props.permissions.canDeleteProxy &&
         (props.proxy.is_creator || props.permissions.canDeleteAnyProxy),
 );
+
+// Verification card display helpers (Screen 4) — kept as computeds rather
+// than inline template expressions so a missing/impossible combination
+// (e.g. a scheme with no live secret, which the write-only validation
+// contract never actually produces) degrades to a safe fallback instead of
+// a runtime crash on a null timestamp.
+const verificationSchemeLabel = computed(() => {
+    switch (props.security.verification.scheme) {
+        case 'shared-secret':
+            return 'Shared secret';
+        case 'standard-webhooks':
+            return 'Standard Webhooks';
+        default:
+            return '';
+    }
+});
+const verificationSecretStatus = computed(() => {
+    const { secret_set: secretSet, secret_changed_at: secretChangedAt } =
+        props.security.verification;
+
+    return secretSet && secretChangedAt
+        ? `Set — changed ${formatTimestamp(secretChangedAt)}`
+        : null;
+});
+const verificationOverlapStatus = computed(() => {
+    const expiresAt = props.security.verification.overlap_expires_at;
+
+    return expiresAt ? formatTimestamp(expiresAt) : null;
+});
 
 defineOptions({
     layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
@@ -251,6 +289,36 @@ function trendDayHref(date: string, unit: 'delivery' | 'attempt') {
                 date,
                 outcome:
                     unit === 'delivery' ? 'delivery_failed' : 'attempt_failed',
+            },
+        },
+    );
+}
+
+// Verification card — Screen 4 (AC29; Flow C). `canUpdate`-gates the "End
+// overlap now" action only; the read-only status line always renders
+// (matching the note above `canUpdate` for every mutating control this
+// feature adds to Show).
+const verificationOverlapBusy = ref(false);
+const verificationOverlapError = ref<string | null>(null);
+
+function endVerificationOverlap(): void {
+    verificationOverlapBusy.value = true;
+    verificationOverlapError.value = null;
+
+    router.delete(
+        proxyRoutes.verification.overlap.destroy({
+            current_team: teamSlug.value,
+            proxy: props.proxy.id,
+        }).url,
+        {
+            preserveScroll: true,
+            only: ['security'],
+            onError: () => {
+                verificationOverlapError.value =
+                    'Could not end the rotation overlap. Try again.';
+            },
+            onFinish: () => {
+                verificationOverlapBusy.value = false;
             },
         },
     );
@@ -764,6 +832,78 @@ function confirmDeleteProxy(): void {
                     </TableRow>
                 </TableBody>
             </Table>
+        </Card>
+
+        <!-- Verification card (Screen 4; AC29; Flow C) -->
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Verification</h2>
+            <p class="text-sm text-muted-foreground">
+                Whether this proxy requires an incoming request to prove it's
+                from your expected sender before anything is captured.
+            </p>
+
+            <p
+                v-if="props.security.verification.scheme === null"
+                class="text-sm text-muted-foreground"
+            >
+                No verification required — this ingest URL accepts any request.
+            </p>
+
+            <template v-else>
+                <dl class="flex flex-col gap-3">
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                    >
+                        <dt class="text-sm text-muted-foreground">Scheme</dt>
+                        <dd class="text-sm">{{ verificationSchemeLabel }}</dd>
+                    </div>
+                    <div
+                        v-if="
+                            props.security.verification.scheme ===
+                            'shared-secret'
+                        "
+                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                    >
+                        <dt class="text-sm text-muted-foreground">Header</dt>
+                        <dd class="text-sm">
+                            {{ props.security.verification.header_name }}
+                        </dd>
+                    </div>
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                    >
+                        <dt class="text-sm text-muted-foreground">Secret</dt>
+                        <dd class="text-sm">
+                            {{ verificationSecretStatus }}
+                        </dd>
+                    </div>
+                </dl>
+
+                <!-- Rotation status always renders for anyone who can view
+                     this proxy (status, not a control); only "End overlap
+                     now" is canUpdate-gated (Flow C step 2). -->
+                <template v-if="verificationOverlapStatus">
+                    <p class="text-sm">
+                        A rotation is in progress — your previous secret is
+                        still honoured until {{ verificationOverlapStatus }}.
+                    </p>
+                    <Button
+                        v-if="canUpdate"
+                        variant="outline"
+                        class="w-fit"
+                        :disabled="verificationOverlapBusy"
+                        @click="endVerificationOverlap"
+                    >
+                        <Spinner v-if="verificationOverlapBusy" />
+                        End overlap now
+                    </Button>
+                    <AlertError
+                        v-if="verificationOverlapError"
+                        :errors="[verificationOverlapError]"
+                        title="Could not end the rotation overlap"
+                    />
+                </template>
+            </template>
         </Card>
 
         <!-- Retry policy card -->

@@ -1273,7 +1273,42 @@
 - **Testing:** no frontend test harness — **manual verification**, `design-10` Flow C, against a
   production build: all three states render correctly; End overlap now works and updates the card;
   the button is absent for a Member without update rights on a teammate's proxy.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New "Verification" `Card` added to `proxies/Show.vue`, placed
+  immediately after the Destinations table and before the Retry policy card, matching Screen 4's
+  placement instruction. Three states, driven entirely by the existing `security` prop (T22, now a
+  required prop on `Show.vue` since `show()` has always emitted it): **not required** (the plain
+  status line); **scheme set, no overlap** (`dl` of Scheme/Header-if-shared-secret/Secret, via two new
+  computeds — `verificationSchemeLabel` and `verificationSecretStatus` — kept as computeds rather than
+  inline template expressions so an impossible combination the write-only validation contract never
+  actually produces, e.g. a scheme with no live secret, degrades to a safe fallback instead of a
+  runtime crash on a null timestamp); **overlap running** (the rotation line, always rendered for
+  anyone who can view the proxy, plus a `canUpdate`-gated **End overlap now** button — the same reused
+  `canUpdate` computed this page already has, no new permission, AC28). Clicking **End overlap now**
+  calls T21's endpoint via `router.delete(..., { only: ['security'] })` — a partial Inertia reload of
+  just the `security` prop, never a full page reload — with a `Spinner` while in flight and an
+  `AlertError` (this app's existing `ReplayDialog.vue`-style convention) on failure, leaving the card's
+  prior state intact rather than clearing it.
+
+  **Manual verification performed** (own local Sail dev environment, seeded via `sail tinker`, deleted
+  again immediately after — same recipe as T23), via a headless Playwright session against the real
+  running app: an Owner and a Member (attached via `TeamRole::Member`, not the proxy's creator) against
+  three seeded proxies (not required; `shared-secret` with one live secret, no overlap; `standard-webhooks`
+  with two live secrets, an overlap running).
+
+  - Not-required proxy: the plain "No verification required" line renders; no End overlap button.
+  - Shared-secret, no overlap: Scheme "Shared secret", Header "X-Signature", "Set — changed {date}"
+    all render; no rotation line, no End overlap button (there is nothing running to end).
+  - Overlap-running proxy: the rotation line and End overlap now button both render for the Owner;
+    clicking it left the URL unchanged (confirming no full-page navigation), removed the rotation line,
+    and the card settled into the plain "Set — changed {date}" state — all via one partial reload.
+  - Member session on the shared-secret proxy (no update rights, not the creator): the same read-only
+    status line rendered identically; the End overlap now button was absent.
+  - Zero browser console/page errors observed across the whole session.
+
+  `pnpm run format:check`, `pnpm run lint:check`, `pnpm run types:check` and `pnpm run build` all
+  green. `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter Proxies` green
+  (187 tests, 982 assertions — no regression); full-suite run deferred to the end of this batch
+  (T20-T25).
 
 ## T25 — Inbound verification integration test suite (AC24, AC25, AC28, AC29, AC51–AC53; ADR-022 Decision 6)
 - **Description:** No production code — the end-to-end pinning pass across everything T16–T22 built,
