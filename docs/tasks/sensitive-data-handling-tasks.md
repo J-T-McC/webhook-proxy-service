@@ -881,7 +881,35 @@
     verifies when only one entry matches (delegated to T7, exercised here at the scheme layer).
 - **Testing:** `tests/Unit/Verification/SharedSecretSchemeTest.php`,
   `tests/Unit/Verification/StandardWebhooksSchemeTest.php` (new) — one test per bullet.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Verification\VerificationSchemeHandler` (interface, exactly
+  `verify(Proxy $proxy, Request $request, string $rawBody, array $liveSecrets): bool` as specified) is
+  implemented by `SharedSecretScheme` (named-header exact/constant-time match, nothing computed over
+  the body) and `StandardWebhooksScheme` (delegates to `StandardWebhooks::verify()` (T7) over the three
+  `webhook-*` headers; the tolerance check stays inside T7 per that task's own completion note, not
+  duplicated here as a gate — see below for why it's still read once more).
+
+  **One deliberate addition beyond the interface's own `verify(): bool`, needed by T19 and decided as a
+  local implementation detail (within this Senior Developer's decision authority):** both classes also
+  expose a `reasonFor(...): ?string` method — pure, stateless, recomputed from the same arguments rather
+  than cached from a `verify()` call — returning one of ADR-022 Decision 5's five value-free reason codes
+  (`missing_header`, `malformed_header`, `timestamp_out_of_tolerance`, `signature_mismatch`,
+  `secret_mismatch`) or `null` if the request would verify. `verify()` itself is implemented as
+  `reasonFor(...) === null`, so there is exactly one place per scheme that decides pass/fail. T18/T19
+  need this because `InboundVerifier::verify()`'s own return type (`VerificationResult`, filed under
+  `app/Enums/` per T18's own file list — a plain three-case enum, not a DTO) has nowhere to carry a
+  reason, and T19's log line needs the *specific* one of the five codes, not just "failed" — computing
+  it anywhere other than inside the scheme that owns the wire format would mean duplicating header/
+  format knowledge in `IngestController` or `InboundVerifier`. Kept off the shared interface (interface
+  stays exactly as specified) since only `InboundVerifier` needs to call it, and it already has to
+  branch on the concrete scheme to dispatch `verify()` in the first place. `StandardWebhooksScheme::
+  reasonFor()` re-checks the tolerance window itself (one cheap `abs(time() - $timestamp)` comparison,
+  reusing `StandardWebhooks::TOLERANCE_SECONDS` — no second magic number) purely so a
+  `timestamp_out_of_tolerance` result can be distinguished from a `signature_mismatch` one; the
+  constant itself is still single-sourced from T7.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "SharedSecretSchemeTest|StandardWebhooksSchemeTest"` green (12 tests, 18 assertions); full-suite run
+  deferred to the end of this batch.
 
 ## T18 — `App\Services\InboundVerifier` (AC24, AC25; plan § Architecture A, ADR-022 Decisions 1–3)
 - **Description:** The **resolution-time gate**: establishes `$proxy->verification_scheme !== null`
