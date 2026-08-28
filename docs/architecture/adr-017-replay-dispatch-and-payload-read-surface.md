@@ -1,6 +1,10 @@
 # ADR-017: Replay as a first-class dispatch through the existing pipeline, and the stored-event read surface with fetch-on-reveal
 
-- **Status:** **Accepted (Project Owner, 2026-08-12).** Gates carried and approved with this
+- **Status:** **Accepted (Project Owner, 2026-08-12)** — **one position of Decision 6 and one
+  § Alternatives bullet are under a PROPOSED partial supersession by ADR-024 (pending Owner
+  approval)**. Everything else stands, Accepted and operative. See the inline pointers below and
+  ADR-024 § *Positions superseded*.
+  Gates carried and approved with this
   acceptance: the first user-facing read path over stored payload content (security-sensitive —
   PRD-05 AC16's standing constraint lands here), and the pipeline-envelope extension
   (`PipelineContext` gains a dispatch identity).
@@ -111,6 +115,13 @@ body exclusively as text (Vue text interpolation — never `v-html`). Cleaned �
 (lifecycle, not error); never captured ⇒ 404. The endpoint response is never logged, never
 cached, never proxied into any resource or prop.
 
+> **[Decision 6, response hardening — PROPOSED supersession by ADR-024 (pending Owner approval).]**
+> **Narrowed to the non-JSON path only.** Under PRD-10 AC18 a stored payload that parses as JSON is
+> returned as `application/json` carrying an obfuscation envelope; a payload that does not parse as
+> JSON keeps this `text/plain` response verbatim (PRD-10 AC22). `nosniff`, `no-store, private`,
+> never-logged, never-cached, never-a-prop, text-interpolation-never-`v-html`, the 410-on-cleaned
+> mapping and the 404 are **unchanged and apply to both paths**.
+
 ## Alternatives
 - **A parallel replay path (skip the pipeline, send stored bytes per destination directly)** —
   simpler today, but violates AC11 verbatim ("the same processing/dispatch path"), silently
@@ -135,6 +146,14 @@ cached, never proxied into any resource or prop.
 - **A JSON envelope (`{"body": …}`) for the payload endpoint** — `json_encode` fails on
   non-UTF-8 bytes (captured bodies are arbitrary), forcing base64 and a decode hop. Raw
   `text/plain` + `nosniff` is exact, binary-safe-enough for display, and simpler. Rejected.
+  > **[ADOPTED for the JSON path only — this bullet's original "rejected" position is superseded
+  > there by ADR-024 (PROPOSED, pending Owner approval); it still governs the non-JSON path.]**
+  > The reasoning above is correct and is kept rather than deleted, with the correction attached:
+  > it rests on captured bodies being arbitrary bytes, and that premise does not describe a body
+  > which `json_decode` has already accepted — such a body is by definition valid UTF-8, so
+  > re-encoding cannot fail and needs no base64 hop. On every payload that does **not** parse as
+  > JSON the premise holds exactly as written, which is why ADR-024 keeps the raw `text/plain`
+  > response there instead of wrapping it.
 - **A distinct reveal permission or reveal-specific gate** — explicitly ruled out by the Owner
   (Q-06-02a / AC14/AC25): the proxy read permission is the gate. Not ours to reopen.
 - **Signed/expiring URLs for the payload endpoint** — machinery for a session-authenticated,
