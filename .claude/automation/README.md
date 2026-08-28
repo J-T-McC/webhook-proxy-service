@@ -1,21 +1,47 @@
 # Autopilot
 
 An experiment in letting the dev-team agents advance work without a human typing
-each step. It drives one work item as far as an open pull request and stops.
+each step. It drives one work item from the queue to a merged pull request.
 
 Started 2026-08-27 by the Project Owner.
 
 ## What it does and does not do
 
 It picks one item from `queue.json`, delegates it to the matching dev-team agent,
-runs every gate, opens a pull request, and notifies you. **It does not merge**, it
-does not push to `main`, and it does not approve anything.
+runs every gate, opens a pull request, waits for CI, and merges it.
 
-That boundary is deliberate for the first phase. The point of running it this way
-is to find out whether the review agent is genuinely catching problems or
-rubber-stamping — and the pull requests it produces are the evidence. Once a few
-of them have been read and the answer is clear, `stop_before_merge` can be
-turned off with something better than optimism behind the decision.
+**It still does not approve anything, and it does not push to `main`.** A PRD, a
+release, a new production dependency, a stack or data-model change, a security
+decision, or anything irreversible stops the run and comes to you. The merge grant
+lets the driver land work that is already authorised; it does not let the driver
+authorise work.
+
+The first phase held every pull request open so the Owner could read them and judge
+whether the review agents were catching problems or rubber-stamping. Four ran that
+way on 2026-08-27 — PRs #22, #24 and #25, plus the doc corrections — and the Owner
+granted the merge authority afterwards, recorded in `policy.merge_authority` with
+the date and the reasoning. To take it back, set `in_force` to `false`; the driver
+then stops at an open pull request exactly as it did before.
+
+## What the first phase found
+
+Four defects in the driver itself, all recorded in `run-log.jsonl` and all now
+fixed in `SKILL.md`:
+
+1. **Queue state was invisible across runs.** State changes are committed on the
+   feature branch, so `main` still showed finished items as `ready` — a scheduled
+   run would have redone completed work. The driver now reconciles against GitHub
+   before trusting `queue.json`.
+2. **Worktrees inside the repository poison the gates.** A worktree at
+   `.claude/worktrees/` is gitignored but not lint-ignored, and produced 365 ESLint
+   errors in a change that touched no frontend code. Worktrees now go outside the
+   repo.
+3. **The preflight assumed it owned the checkout.** It refused to run whenever
+   another agent held the working tree, even though the run was perfectly safe.
+   There is now a worktree escape hatch.
+4. **The run log conflicts on every parallel branch.** It is append-only; the
+   resolution is always to keep both sides in run order, and that is now written
+   down rather than rediscovered.
 
 ## The parts
 

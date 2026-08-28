@@ -6,7 +6,6 @@
   "consecutive_failures": 0,
   "policy": {
     "max_consecutive_failures": 2,
-    "stop_before_merge": true,
     "forbidden_paths": [
       ".env",
       ".env.example",
@@ -17,14 +16,16 @@
       "docs/product/roadmap.md"
     ],
     "forbidden_actions": [
-      "merging any pull request",
+      "merging a pull request when policy.merge_authority.in_force is false, or when CI on that pull request is red or still pending",
       "pushing to main",
       "changing branch protection or any repository setting",
       "changing any item's `eligible` flag, or anything in the `policy` block, in queue.json \u2014 the driver may update an item's `state`, `consecutive_failures`, `halted` and `halt_reason`, and append to run-log.jsonl, and nothing else in .claude/automation",
       "approving anything on the Project Owner's behalf",
       "editing an approved PRD, design, plan or ADR to make a task pass",
       "adding a production dependency without an Owner approval entry in this file",
-      "rerunning CI more than twice for the same commit"
+      "rerunning CI more than twice for the same commit",
+      "placing a git worktree inside the repository \u2014 worktrees go outside it, because a worktree inside is gitignored but not lint-ignored and poisons every gate that walks the tree",
+      "selecting an item that already has an open pull request against it, or trusting queue.json on main without reconciling it against GitHub first"
     ],
     "gates": [
       "composer lint",
@@ -33,7 +34,15 @@
       "pnpm run format:check",
       "pnpm run lint:check",
       "pnpm run build"
-    ]
+    ],
+    "merge_authority": {
+      "in_force": true,
+      "granted_by": "Project Owner",
+      "granted_on": "2026-08-27",
+      "grant": "The driver may squash-merge its own pull requests once CI reports success on the pull request itself, and delete the branch. Granted for the autopilot trial, on the Owner's instruction that constant confirmation defeats the point of the exercise.",
+      "does_not_cover": "Approving anything. A PRD, a release, a new production dependency, a stack or data-model change, a security decision, or anything irreversible still stops the run and goes to the Owner. The grant lets the driver land work that is already authorised; it does not let the driver authorise work.",
+      "withdraw_by": "Set in_force to false. The driver then stops at an open pull request as it did before."
+    }
   },
   "items": [
     {
