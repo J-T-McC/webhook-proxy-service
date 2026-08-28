@@ -22,8 +22,24 @@
   > the Principal Engineer's**, per `docs/standards/documentation.md` — amend or supersede is their
   > call, not mine, and the Owner left it there.
 
-  - **The three emitted signing header names are proposed for supersession by ADR-025**
-    (`Proposed`, 2026-08-28, pending Project Owner approval): `webhook-id`, `webhook-timestamp` and
+  - **Three properties are superseded by ADR-026**
+    (`adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`, Accepted,
+    Project Owner, 2026-08-28), none of them the contract itself. **Decision 1 step 2** — the
+    per-proxy verification-header strip — is deleted, because inbound verification is removed from
+    the product; the composition becomes steps 1, 3, 4 and 5, unchanged. **Decision 2's
+    default-case parenthetical** is superseded: a credential-versus-forwarded `Authorization`
+    collision is now the ordinary case rather than an unreachable one, and the rule that resolves
+    it needs no change. **Decision 5's closing sentence** about the constant's five
+    inbound-signature entries is superseded: seven entries leave the constant in total. See the
+    inline pointers at Decisions 1, 2 and 5 below. **Decisions 3, 4, 6, 7 and 8 stand verbatim**,
+    and one of them is load-bearing in a way worth naming — the `withTrashed()` **proxy** load in
+    Decision 8 arrived carrying two reasons, and the surviving one, the proxy's live signing set,
+    is sufficient on its own.
+  - **This ADR's normative cross-reference is re-pointed.** The construction of the outbound
+    signature is stated in ADR-022 Decision 4, which ADR-026 supersedes; **ADR-026 Decision 5
+    restates it in full and is now its normative record.**
+  - **The three emitted signing header names are superseded by ADR-025**
+    (Accepted, Project Owner, 2026-08-28): `webhook-id`, `webhook-timestamp` and
     `webhook-signature` become `WebhookProxy-Id`, `WebhookProxy-Timestamp` and `WebhookProxy-Signature`, under a
     branded, non-`X-` prefix, hard-coded at the single build point.
     **Only the names change.** The derivation, the per-attempt timestamp, the one-entry-per-live-secret
@@ -100,6 +116,14 @@ proxy with no verification and no signing secret, receives a **byte-identical** 
 
 ### (1) One build point: `App\Support\OutboundHeaders`, called from `DeliverToDestination::send()`.
 
+> **[Decision 1, step 2 — SUPERSEDED by ADR-026 (Accepted, Project Owner, 2026-08-28).]** Inbound
+> verification is removed from the product, so there is no per-proxy verification header to strip.
+> **Step 2 is deleted; steps 1, 3, 4 and 5 are unchanged and remain operative**, and the single
+> build point, the send-path placement and the reasoning for both stand exactly as written. One
+> consequence of the deletion, since this decision's own prose calls out that two of the three
+> added-header inputs are proxy-level: `DeliveryUnitResolver` still loads the proxy `withTrashed()`,
+> now for the signing set alone (Decision 8).
+
 The outbound header set is composed in exactly one place, in this order:
 
 ```
@@ -141,6 +165,18 @@ collision (which cannot arise in the default case, since ADR-008 already strips 
 can the moment a member names their credential header something else) and AC64's rule that no
 combination of settings lets an inbound `webhook-signature` reach a destination as though it were
 ours.
+
+> **[Decision 2 — SUPERSEDED by ADR-026 (Accepted, Project Owner, 2026-08-28), in the
+> default-case parenthetical only. The rule itself is unchanged and needs no change.]** ADR-026
+> Decision A removes `authorization` from `DeliveryUnit::STRIPPED_HEADERS`, so an inbound
+> `Authorization` is now forwarded. A destination credential defaults to the `Authorization` header
+> name (AC30). **The collision is therefore the ordinary case rather than an unreachable one**, and
+> removal-then-addition resolves it exactly as this decision specifies: the added credential wins,
+> the forwarded header is dropped, matched case-insensitively, and the destination receives one
+> `Authorization` header. The consequence worth naming, because it is what a support conversation
+> will be about: a destination carrying its own credential never sees the sender's, and one that
+> does not carry its own sees the sender's — so two destinations of a single proxy can legitimately
+> receive different `Authorization` values.
 
 ### (3) `webhook-id` is derived, not stored: `msg_{delivery.dispatch_uuid}_{delivery.destination_id}`.
 
@@ -227,6 +263,15 @@ destination receives and breaks AC63's byte-identical guarantee. The three names
 only when we are actually adding them. The constant's five inbound-signature entries
 (`stripe-signature`, `x-hub-signature`, `x-hub-signature-256`, `x-signature`,
 `x-webhook-signature`) are unchanged; AC43 confirms inbound forwarding is otherwise untouched.
+
+> **[Decision 5's closing sentence — SUPERSEDED by ADR-025 and then by ADR-026 (both Accepted,
+> Project Owner, 2026-08-28). The decision itself stands whole and operative.]** This service's own
+> outbound header names never go into the constant, for exactly the reason given above, and that
+> now applies to the renamed `WebhookProxy-*` trio. What is superseded is only the claim that the
+> constant is otherwise unchanged: **seven entries leave it.** ADR-025 removes the five
+> provider-signature names; ADR-026 removes `cookie` and `authorization` as well, leaving `host`,
+> `content-length` and the eight RFC 7230 §6.1 hop-by-hop fields. The constant is now
+> **transport-scoped only** — nothing is in it because of what its value might contain.
 
 ### (6) Nothing here changes the dispatched bytes.
 

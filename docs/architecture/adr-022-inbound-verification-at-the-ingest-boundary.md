@@ -6,6 +6,15 @@
   PRD-10 (AC23–AC29, AC50–AC53). What is not ratified is the **seam**: where verification runs, and
   the shape a third scheme would be added to. AC50 makes adding a scheme a Project Owner decision
   each time, so the Owner should ratify the structure that decision will be taken against.
+  - **SUPERSEDED IN FULL by `adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+    (Accepted, Project Owner, 2026-08-28).** Inbound verification is removed from the product — not
+    disabled, not deprecated — on the Owner's ruling that this service is a fan-out relay and does
+    not validate incoming webhooks. The scheme registry, both handlers, the `InboundVerifier` gate,
+    the 401 rejection path, the `proxies.verification_scheme` and `proxies.verification_header_name`
+    columns, every stored `verification`-purpose secret, and the inbound verification surfaces are
+    all removed. **This document keeps its file, its Accepted status and its full text as the record
+    of what was built and why.** One passage is carried forward rather than retired — see the
+    pointer at Decision 4 below.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-27
 - **Feature:** prd-10-sensitive-data-handling (AC23, AC24, AC25, AC26, AC27, AC28, AC29, AC46,
@@ -122,6 +131,17 @@ Product Manager ever raises the cap, nothing here changes.
 scheme is NULL never reads a secret at all (ADR-021 Decision 5).
 
 ### (4) `standard-webhooks`, stated precisely.
+
+> **[Decision 4 — CARRIED FORWARD into `adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+> Decision 5 (Accepted, Project Owner, 2026-08-28), which is now its normative record.]** The
+> inbound scheme this decision defines is removed with the rest of this ADR. **The construction it
+> states is not**: outbound signing computes the same signed content, under the same algorithm and
+> encoding, through the same `App\Support\StandardWebhooks` primitive, and ADR-023 cites this
+> decision as the one place the construction is written down. ADR-026 Decision 5 restates it in
+> full so that citation resolves to a live document. The inbound-only elements — the three request
+> header names this decision reads, and the tolerance as a *rejection rule applied to an incoming
+> request* — go with the capability; `TOLERANCE_SECONDS` itself survives as `verify()`'s own replay
+> window, which the outbound signing suites use as their receiver-side oracle.
 
 Everything below is the specification's, not the product's. AC52 and AC53 bind it; this ADR records
 it so an implementer does not have to infer it from a library.

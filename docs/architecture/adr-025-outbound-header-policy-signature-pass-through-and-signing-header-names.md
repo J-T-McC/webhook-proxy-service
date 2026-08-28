@@ -5,6 +5,22 @@
   unconditional rather than member-opt-in, and Decision 2 renaming all three headers before item #10
   merges. Decision 3 carried no gate. **Decision 2 is time-critical against item #10's merge** — see
   § *Sequencing*.
+  - **Decision 1 is superseded by `adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+    (Accepted, Project Owner, 2026-08-28), later the same day.** Its **outcome is contained rather
+    than reversed** — the five provider signature names still leave the strip list — but its
+    **boundary** and its **safety argument** both move. `cookie` and `authorization` leave the
+    constant too, so the strip list reduces to `host`, `content-length` and the RFC 7230 §6.1
+    hop-by-hop set and becomes **transport-scoped only** rather than "transport-scoped and
+    credential-to-us". And the per-proxy AC27 verification-header strip this decision names as what
+    makes pass-through safe is **deleted**, because inbound verification is removed from the
+    product; pass-through is safe now because no member can configure a verification header at all.
+    See the inline pointers at Decision 1 below and ADR-026 § *Positions superseded*.
+  - **Decisions 2 and 3 stand, whole and operative.** The outbound signing headers are
+    `WebhookProxy-Id`, `WebhookProxy-Timestamp` and `WebhookProxy-Signature`, hard-coded at the
+    single build point, retaining the Standard Webhooks `v1,<base64>` value format, and the rename
+    still lands before item #10 merges. No provenance header is emitted, and Decision 3's four
+    conditions for revisiting are unchanged. **Decision 2's argument is strengthened by ADR-026,
+    not weakened** — see the pointer at Decision 2 below.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-28
 - **Feature:** cross-cutting. There is no PRD behind this ADR: it governs the outbound header set that
@@ -94,6 +110,32 @@ their Accepted status and their full text.
 
 ### (1) The five provider signature header names are removed from the strip list and forwarded to destinations, unconditionally.
 
+> **[Decision 1 — SUPERSEDED by ADR-026 (Accepted, Project Owner, 2026-08-28).]** The removal of
+> the five names stands and is unconditional exactly as ruled here; ADR-026 Decision A **contains
+> this decision rather than reversing it**, and removes two more names. Three passages below are no
+> longer accurate and a reader must not carry them forward.
+>
+> - **"What remains stripped" is now shorter.** `cookie` and `authorization` are forwarded too.
+>   The list is `host`, `content-length` and the eight RFC 7230 §6.1 hop-by-hop fields. The
+>   grounds this decision gives for the `cookie` and `authorization` strips are not withdrawn as
+>   descriptions of the exposure — they are accurate — but the product no longer classifies a
+>   sender's headers by what they might contain. ADR-026 § *Decision A* records the
+>   forwarded-credential consequence as the Owner's accepted trade rather than as an argument that
+>   lost.
+> - **"The constant's character" changes again.** It is **transport-scoped only**, not
+>   "transport-scoped and credential-to-us". Every entry is one a Reviewer can settle against a
+>   specification rather than by judgement.
+> - **"The per-proxy strip is unchanged and is what makes Decision 1 safe" is void**, and this is
+>   the correction that matters most. That strip is deleted with inbound verification. Pass-through
+>   is safe now for a different reason: **no header carries a member's own verification secret,
+>   because no member can configure a verification secret.** The hazard is removed at its source
+>   rather than mitigated at the boundary.
+>
+> The **§ Sequencing** note below is likewise overtaken: it required this decision to land on or
+> after item #10's branch because the AC27 strip had to exist first. That constraint lapses with
+> the strip. The decision still lands on `feat/item-10-sensitive-data`, now simply because that is
+> where the work is.
+
 `DeliveryUnit::STRIPPED_HEADERS` loses `stripe-signature`, `x-hub-signature`,
 `x-hub-signature-256`, `x-signature` and `x-webhook-signature`. A destination receives whatever
 signature header the original provider sent, exactly as the provider sent it, so a recipient holding
@@ -163,6 +205,18 @@ forward a `shared-secret` member's own secret to every destination. **Decision 1
 or after item #10's branch, and never before it.**
 
 ### (2) The outbound signing headers are renamed to a branded, non-`X-` prefix: `WebhookProxy-Id`, `WebhookProxy-Timestamp`, `WebhookProxy-Signature`.
+
+> **[Decision 2 — STANDS WHOLE under ADR-026 (Accepted, Project Owner, 2026-08-28), and its
+> argument is strengthened.]** The collision this decision closes was conditional on PRD-10 AC43's
+> case — a proxy with **no** verification configured, whose inbound `webhook-*` trio nothing
+> strips. With inbound verification removed, **nothing strips that trio on any proxy**, so the
+> collision is universal rather than conditional: an identically-named outbound trio would silently
+> destroy a Svix-family sender's headers on every signing proxy. Two supporting passages below lose
+> their subject without affecting the decision: "**Inbound is untouched**" describes a scheme that
+> no longer exists, and the caution against a global `webhook-` find-and-replace is now moot
+> because there is no inbound reader and no AC27 strip map left to break. The rename itself, the
+> value format, the hard-coding at the single build point and the pre-merge sequencing are all
+> unchanged.
 
 `OutboundHeaders::signingHeaders()` emits those three names. **Nothing else about outbound signing
 changes.** The value formats are exactly the Standard Webhooks ones:
@@ -312,6 +366,14 @@ is edited by this ADR**, and each belongs to a different role:
 
 ### (3) No provenance headers. `Forwarded`, the `X-Forwarded-*` family and a custom equivalent are all deferred.
 
+> **[Decision 3 — STANDS WHOLE under ADR-026 (Accepted, Project Owner, 2026-08-28).]** No
+> provenance header is emitted, the four conditions for revisiting are unchanged, and the absolute
+> constraint that the ingest path never appears in a host, URL or referrer header is unchanged —
+> `host` remaining stripped is still what enforces it. One supporting argument gets **stronger**:
+> this decision notes that most of what "identify the upstream source" means is already delivered
+> by what is on the wire, and under ADR-026 Decision A strictly more of the sender's own
+> vocabulary now arrives at the destination.
+
 The outbound request carries no header whose purpose is to identify the upstream source or the relay
 hop. This is a deferral with stated conditions for revisiting, not a rejection on merit.
 
@@ -405,6 +467,17 @@ can verify a given provider. The evidence base records which providers fall on w
 product says nothing.
 
 ## Consequence for PRD-16 — for the Product Manager
+
+> **[This whole section is overtaken by ADR-026 (Accepted, Project Owner, 2026-08-28).]** It sets
+> out, item by item, how PRD-16's criteria would need to be re-justified under the product
+> position. **PRD-16 is withdrawn instead** — inbound verification is removed from the product, so
+> there is nothing left for a template model to configure. The section is retained unedited as the
+> record of the analysis. Two things in it survive its subject: the evidence base
+> `docs/architecture/prd-16-template-model-feasibility.md` is **retained**, because its
+> twenty-one-provider findings are about verification *constructions* and remain this ADR's and
+> ADR-026 Decision A's evidence base; and item 5's observation — that configuring inbound
+> verification would remove a provider's signature from every outbound dispatch — is resolved
+> rather than answered, since no configuration exists to cause it.
 
 `docs/product/prd-16-configurable-inbound-verification.md` is Draft, has never been approved, and is
 **not edited by this ADR**. It is the Product Manager's document. What follows is the technical
