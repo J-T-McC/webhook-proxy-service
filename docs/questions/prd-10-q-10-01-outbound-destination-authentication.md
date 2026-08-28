@@ -5,15 +5,16 @@
 - **Directed To:** Product Manager
 - **Required By:** Before #10's PRD is written. The answer changes that PRD's shape rather than adding a detail to it, so it cannot be settled during drafting.
 - **Priority:** Medium
-- **Status:** **Answered by the Product Manager, 2026-08-27 — and ESCALATED to the Project Owner.
-  Not RESOLVED.** The scoping call was put to me and I have made it: merging outbound destination
-  authentication into #10 **changes the roadmap rather than interpreting it**, so under
-  `CLAUDE.md` ("Owner approval only for PRDs, releases, and major decisions") it is not mine to
-  decide. I **recommend** the merge, and the four sub-questions below are **settled
-  conditionally** so the Owner has a concrete thing to approve or strike rather than a
-  placeholder. The ruling point is **PRD-10's approval gate**: `docs/product/prd-10-sensitive-data-handling.md`
-  § *Outbound destination authentication* is written as a **severable** section, and striking it
-  leaves every other criterion in that PRD standing. See § Answer.
+- **Status:** **RESOLVED — 2026-08-27. The Project Owner APPROVED the merge.** Outbound
+  destination authentication belongs in roadmap item #10. `docs/product/prd-10-sensitive-data-handling.md`
+  § *Outbound destination authentication* (**AC30–AC39**) **stands as written, is no longer
+  severable**, and all four sub-questions are settled as the Product Manager answered them below.
+  See § Project Owner ruling.
+- **History:** Answered by the Product Manager and **escalated** to the Project Owner on
+  2026-08-27 — the scoping call was made (merging **changes the roadmap rather than interpreting
+  it**, so under `CLAUDE.md` it was not the Product Manager's to decide), the merge was
+  **recommended**, and the four sub-questions were settled **conditionally** so the Owner had a
+  concrete thing to approve or strike. The § Answer below is that escalation, retained unedited.
 
 ## Question
 
@@ -167,3 +168,29 @@ itself already records the leaning as a preference. If the Owner ratifies the me
 approval gate, this document's Status becomes RESOLVED with that date and `docs/status.md`'s #10
 row records the outcome. If the Owner declines, the same happens with the opposite outcome and the
 capability becomes its own backlog line.
+
+## Project Owner ruling — 2026-08-27
+
+**APPROVED. Outbound destination authentication is merged into roadmap item #10.**
+
+The Owner reviewed the escalation and ratified the merge as recommended. What follows from it:
+
+1. **AC30–AC39 stand as written**, and **all four sub-questions are settled as answered above** —
+   a static secret presented as a header rather than an HMAC signature (1); per-destination rather
+   than per-proxy (2); write-only, never redisplayed to any role, gated by the existing
+   `proxy:update` permission (3); existing destinations byte-identical and untouched, with the
+   `destinations.url` exposure explicitly left as found (4). The Owner overturned none of them.
+2. **The severability is withdrawn.** AC30–AC39 are now ordinary criteria of PRD-10. Every trace of
+   the severable framing has been removed from that document — Status block, acceptance-criteria
+   preamble, section heading and preamble, and the supporting sections.
+3. **This question is RESOLVED and is not a gate on anything.** PRD-10 still needs Owner approval
+   as a whole, but no longer on this account.
+
+**One thing this ruling does not settle, recorded so it is not mistaken for settled.** In the same
+session the Owner **added outbound request *signing*** to #10 — the reverse capability, where a
+destination verifies that a dispatch came from this service. That is **not** what this question
+asked about and is **not** covered by this ruling: it is a separate roadmap widening, carried by
+**PRD-10 `## Amendment A`** as **AC54–AC64**, and it is ratified at PRD-10's approval gate. The two
+are independent by design — a destination may have neither, either or both. Sub-question 1's answer
+here (the **credential** is a static secret, not a signature) is unaffected and still stands;
+signing is the other capability, not a reversal of that one.

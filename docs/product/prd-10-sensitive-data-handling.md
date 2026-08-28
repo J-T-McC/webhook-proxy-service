@@ -1,18 +1,24 @@
 # PRD: Sensitive data handling
 
 - **Status:** **Draft — awaiting Project Owner approval.** Not approved, and not approvable by
-  the Product Manager. Three things in this document need the Owner specifically rather than
-  riding along with an ordinary requirements sign-off, and each is written to be approved or
-  struck on its own:
-  1. **§ Outbound destination authentication (AC30–AC39)** — a **severable** section carrying a
-     **roadmap change**, escalated by `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md`.
-     Striking it leaves every other criterion in this PRD standing and unmodified.
-  2. **§ Roadmap Open Question V2 — settled here** — the inbound verification scheme, ruled by
-     the Product Manager as the Owner's proxy. Approving this PRD ratifies it.
+  the Product Manager. **`## Amendment A` (2026-08-27) has since revised this document on three
+  Project Owner rulings** and is listed at the end; the whole document, as amended, goes to the
+  Owner as one approval. What still needs the Owner specifically rather than riding along with an
+  ordinary requirements sign-off:
+  1. **§ Roadmap Open Question V2 — settled here.** The earlier shared-secret-only ruling was
+     **overturned by the Project Owner on 2026-08-27** and replaced with a closed, named
+     two-scheme list. Approving this PRD ratifies the replacement.
+  2. **§ Outbound request signing (AC54–AC64)** — a new capability added on the Owner's direct
+     ruling of 2026-08-27, and a **roadmap widening** of the same class Q-10-01 carried.
+     Approving this PRD ratifies it.
   3. **§ Consequences for approved documents** — this PRD **narrows PRD-06 AC25** and **narrows a
-     stated property of ADR-008**. Both are named there rather than applied silently.
+     stated property of ADR-008**. Both are named there rather than applied silently. Both were
+     **accepted as recorded** by the Owner on 2026-08-27.
+- **Settled, no longer at issue:** **§ Outbound destination authentication (AC30–AC39) is
+  APPROVED** (Project Owner, 2026-08-27). It is **no longer severable**, and
+  `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md` is **RESOLVED**.
 - **Author:** Product Manager
-- **Date:** 2026-08-27
+- **Date:** 2026-08-27 (Amendment A, 2026-08-27)
 - **Approved by / date:** —
 - **Backlog item:** Roadmap #10 (`docs/product/roadmap.md`). Depends on **#5 (Done)**.
 - **Build-ahead status:** written against shipped code only. #1, #3, #4, #5, #6, #7 and #11 are
@@ -23,18 +29,22 @@
   prerequisite for Technical Design.
 
 ## Feature
-Three protections over the data this service already holds and receives, plus — subject to the
-Owner ruling at Q-10-01 — one new outbound capability:
+Three protections over the data this service already holds and receives, plus two outbound
+capabilities the Project Owner ruled into this item on 2026-08-27:
 
 1. **Encryption at rest is guaranteed as a property of the system**, not as a property of three
    named columns: no durable at-rest copy of payload content exists anywhere in plaintext,
    wherever the dispatch mechanism puts it.
 2. **Known and user-defined sensitive fields are visually obfuscated** wherever payload content is
    shown, without altering what is stored or what is delivered.
-3. **An incoming webhook can be verified with a shared secret** before it is accepted, at an MVP
-   level.
-4. *(Severable, Owner-gated.)* **A destination can carry a credential** this service presents when
-   it dispatches, so a secret no longer has to be smuggled through `destinations.url`.
+3. **An incoming webhook can be verified before it is accepted**, under one of **two named
+   schemes** — the published **Standard Webhooks** specification, or a plain **shared secret** in a
+   member-named header.
+4. **A destination can carry a credential** this service presents when it dispatches, so a secret
+   no longer has to be smuggled through `destinations.url`. *(Q-10-01, approved.)*
+5. **A destination can verify that a dispatch came from us**, because this service signs it under
+   the same Standard Webhooks scheme it can verify inbound. This is the reverse direction of (4)
+   and independent of it.
 
 ## Definitions
 Fixed vocabulary. Every criterion below uses these words exactly.
@@ -46,11 +56,14 @@ Fixed vocabulary. Every criterion below uses these words exactly.
 | **The at-rest floor** | PRD-05 AC15's protection floor: at least the encryption the raw body has carried since #3 (ADR-010 Amendment B), extended to captured headers by PRD-05 AC22 and implemented across three columns by ADR-014. |
 | **Obfuscated** | Rendered so that no part of the value and no information about its length is disclosed. A display property only — see AC17. Distinct from **redacted**, which would alter stored or delivered data and which #10 does not do anywhere. |
 | **Sensitive field** | A field of a stored payload whose **name** appears either in the product's default list (AC12) or in the proxy's member-maintained additions (AC13). Matching is by name, never by value (AC14). |
-| **Verification secret** | The per-proxy shared secret an incoming request must present to be accepted (AC23). **Not** the ingest URL's own path token, which is ADR-006's and is untouched by this PRD. |
+| **Verification scheme** | The named rule by which an incoming request is verified. The list is **closed**: `standard-webhooks` or `shared-secret` (AC23). Not free-form configuration. |
+| **Verification secret** | The per-proxy secret an incoming request is verified against (AC23). **Issued by the upstream provider and stored by us — never generated by us** (AC26). **Not** the ingest URL's own path token, which is ADR-006's and is untouched by this PRD. |
 | **Destination credential** | The per-destination secret this service presents when dispatching (AC30). Configuration, not payload content — so retention never touches it (AC36). |
+| **Destination signing secret** | The per-destination secret this service **generates** and signs its dispatches with (AC56), so the destination can verify us. The only secret in this feature the product owns, and therefore the only one that can be regenerated. Distinct from the destination credential: one authenticates us to them, the other lets them verify us, and a destination may have neither, either or both (AC54). |
+| **Rotation overlap** | The bounded period during which a replaced secret is still honoured alongside its replacement (AC29). Applies in both directions. |
 
 ## Problem
-Four gaps, each traceable to a document rather than asserted.
+Five gaps, each traceable to a document rather than asserted.
 
 1. **"Stored payloads are encrypted" is true of three columns, not of the system.** ADR-014 put
    `webhook_events.body`, `webhook_events.headers` and `dispatched_payloads.body` behind the
@@ -75,6 +88,13 @@ Four gaps, each traceable to a document rather than asserted.
    plaintext in the database and in every surface that renders a destination URL. **This is a
    current fact about the system, not something #10 introduces**, and #10 does not clean it up
    (AC39).
+5. **A destination has no way to tell that a dispatch came from us.** Gap 4 is about us proving
+   ourselves *to* a destination's own authentication; this is the reverse row and it is empty in
+   every document. `DeliveryUnit::outboundHeaders()` adds no header of any kind, so a destination
+   operator receiving one of our dispatches has nothing to verify against — the request is
+   indistinguishable from any other POST to a URL that anyone who learns it can call. The product
+   asks its own upstream senders to authenticate themselves (gap 3) while offering its own
+   receivers nothing. **Identified by the Project Owner, 2026-08-27.**
 
 ## What earlier items already delivered vs. what #10 adds
 Recorded so scope is unambiguous. Three items moved this boundary after #10's roadmap line was
@@ -91,9 +111,10 @@ written, and two of them moved it substantially.
 | Payload-free attempt records | #1 (ADR-003) | **Done.** #10 must not put secrets into them (AC35) |
 | Ingest URL unguessability | #1 (ADR-006) | **Done and untouched.** The verification secret is a second, independent factor |
 | **Field-level obfuscation** | **#10** | **This PRD** |
-| **Inbound verification secret (V2)** | **#10** | **This PRD** |
+| **Inbound verification, two named schemes (V2)** | **#10** | **This PRD**, as replaced by Amendment A |
 | **System-wide at-rest guarantee (D2)** | **#10** | **This PRD** |
-| **Outbound destination authentication** | **#10, if the Owner ratifies** | **This PRD, severable** |
+| **Outbound destination authentication** | **#10** | **This PRD.** Q-10-01 **approved** by the Owner, 2026-08-27 — no longer severable |
+| **Outbound request signing** | **#10** | **This PRD**, added by Amendment A on the Owner's ruling |
 | Key rotation / re-encryption tooling; per-team key policy | assigned to #10 by PRD-05 § Out of Scope | **Deferred out of #10 with a named cost** — AC44, AC45 |
 
 ## Goals
@@ -104,10 +125,17 @@ written, and two of them moved it substantially.
   displayed, and can extend the hidden set for their own proxy.
 - Obfuscation never changes what a destination receives. A protection that alters delivered data
   would be a defect, not a feature.
-- A proxy owner can require that an incoming webhook prove it is from the expected sender, with a
-  mechanism small enough to be complete at MVP rather than a per-vendor programme of work.
+- A proxy owner can require that an incoming webhook prove it is from the expected sender, under a
+  **closed, named list of schemes** — bounded work that is complete at MVP, rather than the
+  per-vendor programme that free-form configuration would become.
+- A destination operator can verify that a dispatch came from this service, using the same
+  published specification the product verifies inbound, so one implementation serves both
+  directions.
 - Every secret this feature introduces carries the same at-rest floor as payload content and is
-  never displayed after it is saved.
+  never displayed after it is saved — with exactly one deliberate exception, the one-time display
+  of a secret the product itself generates (AC57).
+- A secret can be rotated without a synchronised cutover, in both directions, because a bounded
+  overlap is honoured (AC29).
 - Nothing here depends on #8 or #9, and nothing here pre-empts them.
 
 ## Users
@@ -117,8 +145,8 @@ written, and two of them moved it substantially.
   (Q-02-01 / ADR-009 Amendment A2.2).
 - **Upstream sender** — a third-party system that must now present the verification secret if the
   proxy requires one, and is rejected if it does not.
-- **Destination** *(severable section only)* — receives an additional header it can authenticate
-  the request with.
+- **Destination** — receives an additional header it can authenticate the request with (AC30), and
+  can verify the request's signature to establish that this service sent it (AC54).
 - **The product (system)** — holds the secrets, applies obfuscation at the point content leaves
   the server, and must keep both out of jobs, attempt records, analytics and logs.
 
@@ -129,14 +157,23 @@ written, and two of them moved it substantially.
   product cannot know that my vendor calls it `ssn_last4`.
 - As a team member, I want obfuscation to be a display decision only, so my destinations keep
   receiving the payload exactly as they do today.
-- As a team member, I want to require a shared secret on my ingest URL, so knowing the URL is not
-  by itself enough to post to my proxy.
+- As a team member, I want to require verification on my ingest URL, so knowing the URL is not by
+  itself enough to post to my proxy.
+- As a team member whose sender already speaks Standard Webhooks, I want to point the product at
+  the secret that sender issued me and have it verified as that specification says, rather than
+  weakening my sender to a plain shared secret to fit this product.
+- As a team member, I want to rotate a secret without coordinating the exact moment with the other
+  side, because the old one keeps working for a stated period.
 - As a team member, I want a rejected request to be rejected *before* anything is stored, so a
   request that failed authentication never becomes an event in my history.
 - As a team member, I want every secret I save to be unreadable afterwards — by me included — so
   a compromised session cannot harvest them.
-- *(Severable.)* As a team member, I want to give a destination a credential, so I stop having to
-  paste it into the destination URL where it sits in plaintext.
+- As a team member, I want to give a destination a credential, so I stop having to paste it into
+  the destination URL where it sits in plaintext.
+- As a team member, I want my destination to be able to prove that a webhook it received came from
+  my proxy and not from anyone who guessed its URL, so my receiver can reject everything else.
+- As a team member, I want to see the signing secret **once**, when the product generates it, so I
+  can configure my receiver with it — and never again afterwards.
 - As the product, I want the at-rest guarantee stated as a testable property, so a future queue
   backend or a future pipeline step cannot reintroduce a plaintext copy without a criterion
   failing.
@@ -164,26 +201,49 @@ member has to enter.
    default list and their own additions together, because the question they are actually asking is
    "is `card_number` already covered, or do I need to add it?"
 4. **Secrets are write-only, and the interface has to make that legible rather than surprising.**
-   Every secret field in this feature — the verification secret, and the destination credential if
-   merged — behaves the same way: enter once, see *set* and when it changed, never see the value
-   again, replace at will. A member who expects to be able to check what they typed will be wrong,
-   so the interface has to say so **before** they save, not after.
-5. **A rejected inbound request is the hardest thing to debug in this feature, and the interface
+   Every secret a member *supplies* — the inbound verification secret, the destination credential —
+   behaves the same way: enter once, see *set* and when it changed, never see the value again,
+   replace at will. A member who expects to be able to check what they typed will be wrong, so the
+   interface has to say so **before** they save, not after.
+5. **The one secret the product generates is the one exception, and it gets exactly one chance to
+   be read.** The destination signing secret (AC56) is displayed **once**, at generation, because
+   the member has to configure their receiver with it and nobody else can tell them what it is. The
+   experience must optimise for *the member actually captures it before leaving the screen* — this
+   is the one place in the feature where a member losing a value costs them a regeneration and a
+   receiver reconfiguration. After that screen it behaves like every other secret here.
+6. **Choosing a verification scheme is a two-option decision and must not read as a protocol
+   menu.** The list is closed (AC23) and stays closed. The member's real question is "does my sender
+   already speak Standard Webhooks, or do I just need a shared secret", so the choice should be
+   framed by *what the sender does*, not by algorithm names.
+7. **A rejected inbound request is the hardest thing to debug in this feature, and the interface
    should not pretend otherwise.** #10 ships no analytics or notification surface for rejections
-   (AC46), which is a real cost. The configuration surface should therefore be explicit about what
-   the sender must send — header name and the fact of a secret — so a member can check their
-   sender's configuration against it without needing a log.
+   (AC46), which is a real cost, and the `standard-webhooks` scheme has more ways to fail than a
+   shared secret does — wrong secret, stale timestamp, malformed header set. The configuration
+   surface should therefore be explicit about exactly what the sender must send under the chosen
+   scheme, so a member can check their sender against it without needing a log.
+8. **Rotation has to be legible as a period, not an event.** While an overlap is running (AC29) the
+   member must be able to see that two secrets are currently honoured and when the older one stops
+   being honoured. A rotation that looks instantaneous when it is not will produce members who
+   update their sender late and never learn that they were covered.
 
 **Not the Designer's to decide, because they are ruled here:** that obfuscation survives the
-whole-payload reveal (AC18); that there is no per-field reveal for anyone (AC20); that no secret
-is ever redisplayed (AC26, AC33); and that obfuscation shows nothing about a value's length
-(AC16).
+whole-payload reveal (AC18); that there is no per-field reveal for anyone (AC20); that no
+member-supplied secret is ever redisplayed (AC26, AC33); that the generated signing secret is
+displayed exactly once and never again (AC57); that the verification scheme list is closed to two
+values (AC23); that the rotation overlap is a fixed 24 hours and not a member setting (AC29); and
+that obfuscation shows nothing about a value's length (AC16).
 
 ## Acceptance Criteria
 
-> **Numbering is append-only** and follows the house rule set by PRD-05 and PRD-11. **AC30–AC39
-> are severable**: if the Project Owner declines the Q-10-01 merge, they are struck as a block and
-> nothing else here changes. Their numbers are not reused.
+> **Numbering is append-only** and follows the house rule set by PRD-05 and PRD-11 — a number
+> identifies a criterion, it does not mark a position, so **AC51–AC64 (added by Amendment A) sit in
+> the section they belong to rather than at the end**. This is PRD-05's idiom, where AC21 and AC22
+> were added in place. **Nothing is renumbered**, because Q-10-01, `docs/status.md` and this
+> document's own cross-references cite these numbers.
+>
+> **AC30–AC39 are no longer severable.** The Project Owner approved the Q-10-01 merge on
+> 2026-08-27. **AC23–AC29 were revised in place** and **AC29 was replaced outright** by Amendment
+> A; the pre-amendment text of both is quoted in that section rather than lost.
 
 ### Encryption at rest — discharging D2
 
@@ -228,15 +288,21 @@ is ever redisplayed (AC26, AC33); and that obfuscation shows nothing about a val
 10. **The key-lifecycle rule extends to every secret this feature introduces.** ADR-010
     Amendment B's binding `APP_PREVIOUS_KEYS` rule — a prior key is never dropped until every
     encrypted value has been re-encrypted under the current one — covers the verification secret
-    (AC26) and the destination credential (AC33) exactly as it covers payload content. **This
-    widens the key-lifecycle surface, and AC44 states the cost of widening it without shipping
-    rotation tooling.**
+    (AC26), the destination credential (AC33) and the destination signing secret (AC57) exactly as
+    it covers payload content, **including any secret currently held only as a rotation overlap
+    (AC29)**. **This widens the key-lifecycle surface, and AC44 states the cost of widening it
+    without shipping rotation tooling.** *(Two distinct rotations are in play and must not be
+    conflated: the application encryption key, which #10 does not rotate at all, and a member's or
+    the product's secret under AC29, which #10 does.)*
 11. **Losing a secret fails loudly, never silently.** If a secret cannot be decrypted, the
     affected operation fails visibly rather than proceeding as though no secret were configured.
     A proxy with an undecryptable verification secret must not fall back to accepting unverified
-    requests, and a destination with an undecryptable credential must not fall back to dispatching
-    without it. *(This is the class of failure ADR-014 Decision 7 guards for payload content; it is
-    asserted here for secrets because the failure mode is silent authentication bypass.)*
+    requests; a destination with an undecryptable credential must not fall back to dispatching
+    without it; and a destination with an undecryptable signing secret must not fall back to
+    dispatching unsigned. *(This is the class of failure ADR-014 Decision 7 guards for payload
+    content; it is asserted here for secrets because the failure mode is silent authentication
+    bypass — and, for signing, a receiver that correctly rejects unsigned traffic seeing it arrive
+    unsigned.)*
 
 ### Field obfuscation
 
@@ -297,42 +363,117 @@ is ever redisplayed (AC26, AC33); and that obfuscation shows nothing about a val
 
 ### Inbound verification (roadmap Open Question V2)
 
-23. **A proxy may require a verification secret on incoming requests.** The proxy owner configures
-    a **header name** and a **secret value**; a request is verified when the named header is
-    present and its value matches exactly. Comparison is exact and constant-time. **This is the
-    whole of the MVP scheme** — see § V2 for the ruling and its grounds.
+23. **(Amendment A — revised.) A proxy may require verification on incoming requests, under one of
+    exactly two named schemes.** The proxy owner selects **`standard-webhooks`** (AC52) or
+    **`shared-secret`** (AC51) and supplies the secret that scheme needs. **The list is closed and
+    the scheme is selected, never described**: there is no free-form configuration of header names
+    beyond `shared-secret`'s one name, no member-composed signed string, no member-chosen digest or
+    encoding. Adding a third scheme is an Owner decision at the time a real integration needs it
+    (AC50). See § V2 for the ruling and its grounds.
 24. **Verification is optional and off by default. Existing proxies are unaffected.** A proxy with
-    no verification secret configured behaves **exactly as it does today**: same acceptance, same
-    capture, same response, same dispatch. Nothing is migrated and no proxy is opted in.
+    no verification configured behaves **exactly as it does today**: same acceptance, same capture,
+    same response, same dispatch. Nothing is migrated and no proxy is opted in.
 25. **A failed verification is rejected before capture, and nothing else happens.** The request is
     rejected with **HTTP 401** and a fixed, non-configurable body; **no `webhook_events` row is
     created**, no delivery is created, no dispatch occurs, and **the proxy's user-defined #3
     response is not used**. *(The last clause is the load-bearing one: returning the configured
-    success response to an unverified sender would make verification decorative.)*
-26. **The verification secret is write-only and encrypted at rest.** After saving, the value is
-    never redisplayed to any role. The surface shows that a secret is **set** and when it last
-    changed; the header name remains visible, because the sender has to be configured to match it.
-    The secret carries the at-rest floor (AC1) and the key rule (AC10).
-27. **The verification header is never forwarded to destinations.** Whatever header name the member
-    chooses is stripped from the outbound header set, in addition to ADR-008's existing fixed strip
-    list. *(ADR-008's list is a constant and cannot anticipate a member-chosen name. Without this
-    criterion, a proxy owner who enables verification would broadcast their own secret to every
-    destination on every event — which is worse than not having the feature.)*
+    success response to an unverified sender would make verification decorative.)* This covers
+    every way verification can fail under either scheme, including a `standard-webhooks` request
+    whose timestamp falls outside the replay window (AC53) and one whose required headers are
+    absent or malformed.
+26. **(Amendment A — revised.) Verification secrets are stored, never generated by us, and are
+    write-only once saved.** The **upstream provider issues the secret**; the product holds it in
+    order to verify against it, and **#10 generates no inbound secret and offers no
+    generate-a-token affordance**. After saving, the value is never redisplayed to any role. The
+    surface shows that a secret is **set**, when it last changed, and whether a rotation overlap is
+    running (AC29); under `shared-secret` the header **name** remains visible, because the sender
+    has to be configured to match it. The secret carries the at-rest floor (AC1) and the key rule
+    (AC10).
+27. **(Amendment A — revised.) Verification headers are never forwarded to destinations.** Under
+    `shared-secret`, whatever header name the member chooses is stripped from the outbound header
+    set. Under `standard-webhooks`, the specification's three request headers are stripped. Both
+    are in addition to ADR-008's existing fixed strip list. *(ADR-008's list is a constant and
+    cannot anticipate a member-chosen name. Without this criterion, a proxy owner who enables
+    verification would broadcast their own secret — or an inbound signature that a destination
+    would then try and fail to verify against **our** signing secret — to every destination on
+    every event.)*
 28. **Configuring verification is gated by the existing proxy update permission**, including the
     Member ownership rule (Q-02-01, ADR-009 Amendment A2.2). No new permission. *(Same treatment
     PRD-06 gave retry-policy configuration: this is proxy configuration.)*
-29. **Rotation is immediate and single-valued.** Replacing the secret takes effect at once and the
-    previous value stops being accepted. **#10 supports no overlap window and no second accepted
-    secret**, so a rotation requires the sender to be updated at the same time or requests will be
-    rejected in between. **This cost is stated rather than discovered** — see § Out of Scope.
+29. **(Amendment A — replaces AC29 outright.) A verification secret may be rotated with a bounded
+    overlap: two secrets are honoured, the older for a fixed 24 hours.** This governs **both
+    directions** — the inbound verification secret under either scheme, and the destination signing
+    secret (AC58), rotate under this one rule. **The destination credential (AC33) is deliberately
+    not covered**: it is presented rather than verified or computed, a request carries exactly one
+    credential value, and there is nothing on the wire for an overlap to mean. Replacing a
+    destination credential remains immediate and single-valued.
+    - **At most two secrets are ever held for one purpose.** Saving a replacement makes it the
+      current secret and demotes the existing one to the **previous** secret. A further replacement
+      inside the overlap demotes the new one in turn and **the oldest is discarded immediately** —
+      there is no third slot. *(This is also the remedy for a compromised secret: replacing twice
+      removes it at once.)*
+    - **The overlap is 24 hours from the moment the replacement is saved, fixed and not
+      configurable.** Ruled by the Product Manager on the Owner's instruction that the expiry be
+      stated; grounds in `## Amendment A` § *The rotation-expiry ruling*. At expiry the previous
+      secret **stops being honoured and is erased**, not merely ignored.
+    - **A member may end an overlap early** with an explicit action that stops the previous secret
+      being honoured immediately. Without it, the only way to kill a leaked secret before 24 hours
+      is a second rotation, which is a correct but non-obvious remedy.
+    - **Inbound, either secret verifies.** A request that verifies against the current **or** the
+      previous secret is accepted while the overlap runs; which one it matched has no other effect.
+    - **Outbound, both are presented.** A signed dispatch carries a signature under the current
+      secret **and** one under the previous secret while the overlap runs (AC58). The Standard
+      Webhooks specification carries a space-delimited list of signatures for exactly this reason,
+      so this asks nothing of the receiver beyond the specification it already implements.
+    - **The previous secret is a secret.** It carries the at-rest floor (AC1), the key rule (AC10),
+      AC11's fail-loudly rule, and is never redisplayed.
 
-### Outbound destination authentication — **SEVERABLE, Owner-gated (Q-10-01)**
+**The two schemes, defined. (AC51–AC53 added — Amendment A. Placed here rather than at the end of
+the document; see the numbering note above.)**
 
-> **These ten criteria stand or fall together.** They rest on the Project Owner ratifying the
+51. **`shared-secret` — a secret in a member-named header.** The member configures a **header
+    name** and the **secret value** their sender will send. A request is verified when the named
+    header is present and its value matches the current or previous secret (AC29) exactly.
+    Comparison is exact and constant-time. Nothing is computed over the body. *(This is the whole of
+    what AC23 said before Amendment A, kept as one of the two schemes because a sender that signs
+    nothing still needs a way to authenticate, and because the product cannot require every upstream
+    provider to implement a specification.)*
+52. **`standard-webhooks` — the published Standard Webhooks specification, implemented as
+    specified.** The specification at `standardwebhooks.com` is the **normative source**; #10
+    defines no variant of it and the product invents no part of it. Binding properties, stated so a
+    Reviewer can verify them against the specification rather than against an implementation:
+    - The request carries the specification's three headers — **`webhook-id`**,
+      **`webhook-timestamp`** and **`webhook-signature`**. A request missing or malforming any of
+      them fails verification (AC25).
+    - **`webhook-signature` carries a space-delimited list of signatures**, and verification
+      **succeeds if any entry in the list verifies**. The product loops the list; it never reads
+      only the first entry.
+    - Each signature is **HMAC-SHA256**, **base64-encoded** — not hex — over the signed content the
+      specification defines, which concatenates the message id, the timestamp and the body as
+      **`<id>.<timestamp>.<body>`**.
+    - **Verification runs over the raw request body exactly as received**, before capture, parsing,
+      normalisation or any pipeline step. **This is why #8 and #9 have no bearing on it** — see
+      § V2, where a previous ruling's reasoning to the contrary is corrected.
+    - Signature comparison is constant-time.
+53. **`standard-webhooks` enforces the specification's timestamp and replay window.** A request
+    whose `webhook-timestamp` falls outside the tolerance the specification sets is rejected under
+    AC25. **The tolerance is the specification's, not the product's**: it is **not member-
+    configurable**, and #10 does not invent a value of its own. At the time of writing the
+    specification's reference verifiers use **five minutes** either side; if the specification
+    states a different or a non-normative value at implementation time, **the specification wins and
+    the product adopts what it states**. Replay-window enforcement was ruled out at MVP before
+    Amendment A and is now required, because it arrives with the scheme rather than as separate
+    work.
+
+### Outbound destination authentication — **APPROVED (Q-10-01, Project Owner, 2026-08-27)**
+
+> **These ten criteria were written as a severable block** pending the Owner's ruling on the
 > roadmap change recorded in `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md`.
-> If the Owner declines, AC30–AC39 are struck as a block, the capability becomes its own roadmap
-> item, and **no other criterion in this PRD is affected** — nothing above or below depends on
-> them.
+> **The Owner approved the merge on 2026-08-27, the question document is RESOLVED, and the
+> severability is withdrawn.** AC30–AC39 stand as written and are now ordinary criteria of this
+> PRD. They remain **independent of § Outbound request signing (AC54–AC64)**: one authenticates
+> this service to a destination, the other lets a destination verify this service, and a destination
+> may have neither, either or both (AC54).
 
 30. **A destination may carry an optional credential.** It is configured as a **header name** plus
     a **secret value**, both member-supplied. The header name defaults to `Authorization`. The
@@ -370,6 +511,63 @@ is ever redisplayed (AC26, AC33); and that obfuscation shows nothing about a val
     and remains one after this feature ships** — the feature gives members somewhere better to put
     a secret; it does not move the ones already there.
 
+### Outbound request signing — **AC54–AC64, added by Amendment A (Project Owner ruling, 2026-08-27)**
+
+> **The reverse direction of AC30–AC39, and the row the Owner identified as missing.** AC30–AC39
+> let this service authenticate itself against a destination's own scheme. These criteria let a
+> destination verify that a dispatch came from this service. The two are independent throughout.
+
+54. **A destination may be configured so that this service signs its dispatches.** Signing is
+    **per destination**, optional, and **off by default**. It is **independent of AC30–AC39**: a
+    destination may have neither a credential nor signing, either one, or both, and enabling one
+    says nothing about the other.
+55. **Signing uses the `standard-webhooks` scheme, the same one AC52 defines for inbound.** Same
+    specification, same three headers, same signed content, same HMAC-SHA256 and base64 encoding.
+    **One implementation serves both directions** — that is the reason this scheme was chosen for
+    inbound, and #10 must not grow a second, outbound-only construction.
+56. **The product generates the signing secret. A member cannot supply one.** This is the **only
+    secret in this feature the product owns**, and therefore the only one that can be
+    **regenerated** — every other secret in #10 is issued by somebody else and can only be replaced
+    with what they issued (AC26, AC30). Generation is the only way a signing secret comes into
+    existence.
+57. **The signing secret is displayed exactly once, at generation, and is write-only thereafter.**
+    The one-time display exists because the member must configure their receiver with the value and
+    no one else can tell them what it is. After that screen the value is **never redisplayed to any
+    role**, including the team Owner; the surface shows set / not set, when it was generated, and
+    whether a rotation overlap is running. The secret is **encrypted at rest** to the at-rest floor
+    (AC1), under the key rule (AC10), and AC11's fail-loudly rule applies. *(This is the single
+    deliberate exception to "no secret in this feature is ever displayed after it is saved", and it
+    is stated as an exception rather than left to be discovered in the design.)*
+58. **Regeneration rotates under AC29.** The previous signing secret is held for the same fixed
+    24-hour overlap, and **every dispatch in the interim carries a signature under both secrets** in
+    the specification's signature list. A member may end the overlap early (AC29), and the newly
+    generated secret is subject to AC57's one-time display exactly as the first one was.
+59. **The signature is computed over the exact bytes dispatched, and signing changes nothing but
+    the headers.** The request body a destination receives is **byte-identical** to what it would
+    have received unsigned — signing adds headers and alters nothing else. This composes with AC17:
+    obfuscation never changes dispatched bytes, so it never changes a signature either.
+60. **A dispatch is signed on every attempt — the original, every retry, and every replay** — and
+    the identity headers say which is which. **`webhook-id` identifies the delivery**, so a receiver
+    that deduplicates on it sees a retry of the same delivery as the same message, and the
+    at-least-once behaviour #4 and #6 guarantee (AC7) becomes something a receiver can actually
+    handle. **`webhook-timestamp` is the time of that attempt**, not of the original — otherwise a
+    retry that arrives hours later would fall outside its receiver's replay window and be correctly
+    rejected. A **replay** is new work under PRD-06 and therefore carries a **new** `webhook-id`.
+61. **The signing secret appears nowhere but its one-time display and the signature computation.**
+    Not in a queued job's arguments, not in a delivery-attempt record, not in analytics, not in a
+    failure record, not in a log line, and not in any payload view. **The signature itself is not a
+    secret and may be recorded**; the secret that produced it may not.
+62. **The signing secret is configuration, not payload content.** Retention does not erase it,
+    expiry does not clear it, and a cleaned event has no bearing on it. *(Same reasoning as AC36:
+    applying the 30-day pass here would silently stop a destination trusting us.)*
+63. **Existing destinations are unaffected.** A destination without signing produces a
+    **byte-identical** outbound request to today's. No migration, no backfill, no secret generated
+    for anyone who did not ask for one, no proxy opted in.
+64. **The signing headers take precedence over any forwarded inbound header of the same name.** A
+    proxy whose own ingest is verified under `standard-webhooks` receives those three header names
+    inbound; AC27 already strips them, and this criterion states the resolution so that no
+    combination of settings can let an inbound signature reach a destination as though it were ours.
+
 ### Header policy — discharging #3's acknowledgement
 
 40. **The header at-rest exposure #3 deferred to #10 is already closed, and #10 re-states rather
@@ -383,16 +581,22 @@ is ever redisplayed (AC26, AC33); and that obfuscation shows nothing about a val
     headers — `Authorization` foremost — are obfuscated. *(This is what remains of "sensitive-header
     policy" once storage is already solved and nothing is displayed: a standing constraint on the
     next item, not a screen built now.)*
-43. **Inbound header forwarding is unchanged except for the two rules this PRD adds** — AC27's
-    strip of the verification header, and AC38's credential precedence. ADR-008's existing policy
-    and its fixed strip list are otherwise untouched.
+43. **(Amendment A — revised.) Inbound header forwarding is unchanged except for the three rules
+    this PRD adds** — AC27's strip of the verification headers under either scheme, AC38's
+    credential precedence, and AC64's signing-header precedence. ADR-008's existing policy and its
+    fixed strip list are otherwise untouched.
 
 ### Scope boundaries
 
-44. **No key rotation or re-encryption tooling.** PRD-05 § Out of Scope assigns it to #10; #10
-    **defers it**, and states the cost rather than hiding it: AC10 widens the key-lifecycle surface
-    from three columns to five, and the binding `APP_PREVIOUS_KEYS` guard is what prevents data
-    loss in the absence of tooling. **No key rotation may be performed until that tooling exists.**
+44. **(Amendment A — revised.) No **application-key** rotation or re-encryption tooling.** PRD-05
+    § Out of Scope assigns it to #10; #10 **defers it**, and states the cost rather than hiding it:
+    AC10 widens the key-lifecycle surface from three columns to every secret this feature
+    introduces — the inbound verification secret, the destination credential, the destination
+    signing secret, and any of those currently held as a rotation overlap — and the binding
+    `APP_PREVIOUS_KEYS` guard is what prevents data loss in the absence of tooling. **No
+    application-key rotation may be performed until that tooling exists.** *(AC29's secret rotation
+    is a different thing entirely and **is** in scope; this criterion defers only the encryption
+    key.)*
     *(Grounds: the tooling is operational, has no user-facing requirement behind it, and no
     rotation is scheduled. It remains ADR-010's accepted FUTURE task.)*
 45. **No per-team or per-plan key policy.** One application key, as today. *(Grounds: V5
@@ -413,7 +617,14 @@ is ever redisplayed (AC26, AC33); and that obfuscation shows nothing about a val
     when it resumes.
 49. **No obfuscation of anything but stored payload content.** Not the ingest URL, not destination
     URLs, not delivery-attempt error summaries, not analytics figures, not team or member data.
-50. **No verification standard beyond AC23** — see § V2 for what was ruled out and why.
+50. **(Amendment A — revised.) The verification scheme list is closed at two, and stays closed
+    until an Owner decision opens it.** `standard-webhooks` (AC52) and `shared-secret` (AC51) are
+    the whole of MVP. **Vendor-specific schemes are explicitly not in MVP and are named so they are
+    not re-argued: `github`, `stripe`, `slack`, and any other per-vendor construction.** Each is
+    added only when a real integration needs it, and **each is a Project Owner decision at that
+    time** — not a design choice, not a Product Manager call, and not something a later item may
+    absorb quietly. *(Grounds in § V2: the header name is the easy part; the variable that makes
+    each vendor a separate piece of work is how the signed string is constructed.)*
 
 ## Roadmap Open Question V2 — settled here
 
@@ -425,49 +636,77 @@ is ever redisplayed (AC26, AC33); and that obfuscation shows nothing about a val
 **Vision Open Question 2, verbatim:** "Webhook verification-token standards — which standards to
 support at MVP (existing standards to be reviewed)."
 
-### Ruling — one scheme: a shared secret in a member-named header. No third-party signature standards at MVP.
+### Ruling — two named schemes: `standard-webhooks` and `shared-secret`. A closed list, not free-form configuration.
 
-Settled by the Product Manager as the Owner's proxy, rendered into **AC23–AC29**. **Approving this
-PRD ratifies it**, in the same way Owner approval of PRD-05 ratified V4, V5 and V6 and Owner
-approval of PRD-11 ratified D-11-4..7. It is called out in the Status block because it is a
-security-shaped decision and should be approved deliberately rather than absorbed.
+**Ruled by the Project Owner, 2026-08-27, overturning and replacing the Product Manager's earlier
+ruling.** Rendered into **AC23–AC29** and **AC51–AC53**. Approving this PRD ratifies the
+replacement. It stays called out in the Status block because it is a security-shaped decision and
+should be approved deliberately rather than absorbed.
 
-**The grounds, in order of weight.**
+**The superseded ruling is recorded below rather than deleted**, per
+`docs/standards/documentation.md` (retain history; never rewrite a ruling silently), because one of
+its grounds was **factually wrong** and a later reader who found only the conclusion would not know
+which parts to distrust.
 
-1. **Both approved documents say "token", and both say "MVP".** The roadmap: "incoming webhooks
-   can be verified with a **token** at an **MVP level**." The vision: "support incoming webhook
-   verification **tokens** at an **MVP level**." A shared secret in a header is a token. An HMAC
-   signature is not — it is a computation over the body with its own canonicalisation, timestamp
-   tolerance and replay window. Reading "which standards" as licence to implement signature
-   standards reads past the word both documents actually chose.
-2. **"Which standards" has no bounded answer, and that is the trap.** Stripe's `Stripe-Signature`,
-   GitHub's `X-Hub-Signature-256`, Slack's `v0=` scheme and Standard Webhooks are four different
-   verification algorithms with four different header formats and four different tolerance rules.
-   Supporting "standards" plurally is a per-vendor programme that grows for as long as the product
-   has customers, and **nothing in the vision or the roadmap commits to any specific vendor** —
-   Stripe appears only as an example of multi-event-type ingestion, never as an integration
-   requirement. Picking a subset now would be inventing a requirement the Owner did not state.
-3. **The unguessable ingest URL is already the first factor, so the second factor does not have to
-   carry everything.** ADR-006 settled ingest-URL generation and security. AC23 adds an
-   independent secret that an attacker who has learned a URL still does not have. That is a real
-   increase in assurance, and it is the increase the roadmap line asks for.
-4. **The composition that would make signatures specifiable does not exist yet.** A body signature
-   must be computed over exact bytes. #9 (normalisation) has not started and #8 (mapping) is
-   deferred with no implementation, so there is no canonical representation to sign against and no
-   way to test one. Specifying signature verification now would be specifying against a system
-   that is not there.
+#### The Owner's grounds
 
-**What is explicitly ruled OUT at MVP, by name, so it is not re-argued:** vendor signature
-standards (Stripe, GitHub, Slack, Standard Webhooks/Svix, or any other); HMAC verification of any
-kind; timestamp or replay-window enforcement; IP allow-listing; mutual TLS; and multiple
-simultaneously-accepted secrets (AC29). **None of these is rejected on merit** — each is a
-reasonable later item, and AC23's shape forecloses none of them, because a scheme selector can be
-added to a proxy that today has exactly one scheme.
+1. **Standard Webhooks is a published specification, not a per-vendor programme.**
+   `standardwebhooks.com` defines `Webhook-Id`, `Webhook-Timestamp` and `Webhook-Signature`, the
+   last carrying a space-delimited list of HMAC-SHA256 signatures. Implementing it is **one** piece
+   of bounded work against a written specification, which is a different kind of commitment from
+   "support signature standards" open-endedly.
+2. **The unbounded-work objection was accepted, and answered by closing the list rather than by
+   refusing signatures.** The superseded ruling's ground 2 was correct that supporting each
+   vendor's construction has no end. The Owner's resolution is a **closed, named scheme list**
+   (AC23, AC50): the member selects a scheme, they do not describe one. **The header *name* is the
+   easy part; the variable that matters is how the signed string is constructed**, and those
+   genuinely differ — GitHub signs the raw body, Stripe signs `<timestamp>.<body>`, Slack signs
+   `v0:<timestamp>:<body>`, and Standard Webhooks signs `<id>.<timestamp>.<body>` in base64 rather
+   than hex. That is why each vendor scheme is separate work and an Owner decision each time
+   (AC50), and why two named schemes are not the thin end of four.
+3. **A shared secret is still needed, so it stays.** Not every upstream provider implements a
+   specification, and the product cannot require them to. `shared-secret` (AC51) is what the
+   superseded ruling delivered, retained as one of the two.
+4. **Timestamp and replay-window handling arrive with the scheme.** They were previously ruled out
+   as separate work; under `standard-webhooks` they are part of what is being implemented, not an
+   addition to it (AC53).
 
-**If the Owner wants a signature standard at MVP, this is the moment to say so.** It is a
-materially larger feature, it would need its own question document naming which standard and for
-which senders, and it would need #9's canonical representation to be settled first. I am not
-recommending it.
+#### Correction — the superseded ruling's ground 4 was wrong
+
+**It should not have carried weight, and it is corrected here rather than left standing.**
+
+That ground argued that signature verification could not be specified because #9 has not defined a
+canonical JSON representation and #8 is deferred, so "there is no canonical representation to sign
+against". **That is not how inbound signature verification works.** It runs on the **raw request
+body exactly as received, at ingest, before any mapping or normalisation** — which is what every
+provider that signs its webhooks does, and what **ADR-010's raw capture already makes available**.
+#8 and #9 operate downstream of that point and are **irrelevant to it**. AC52 states the property
+directly, and **AC48 is unaffected and now holds more strongly**: #10 still depends on neither item.
+
+The other three superseded grounds are not withdrawn on their facts — the roadmap and vision do say
+"token" and "MVP", supporting standards plurally is genuinely unbounded, and the ingest URL is
+genuinely the first factor. They were **outweighed**, which is the Owner's call to make: a published
+specification satisfies "MVP level" without becoming a programme, and ground 2's real concern is
+answered by closing the list.
+
+#### The superseded ruling, quoted so the record is complete
+
+> **Ruling — one scheme: a shared secret in a member-named header. No third-party signature
+> standards at MVP.** *(Product Manager as the Owner's proxy, 2026-08-27 — **OVERTURNED by the
+> Project Owner the same day**.)* Its ruled-out list named vendor signature standards, HMAC
+> verification of any kind, timestamp or replay-window enforcement, IP allow-listing, mutual TLS,
+> and multiple simultaneously-accepted secrets. **Four of those six are now in scope**:
+> Standard Webhooks (AC52), HMAC verification under it, replay-window enforcement (AC53), and two
+> simultaneously-honoured secrets (AC29).
+
+#### What remains ruled OUT at MVP, by name, so it is not re-argued
+
+**Vendor-specific schemes — `github`, `stripe`, `slack`, and any other per-vendor construction**
+(AC50); **IP allow-listing**; **mutual TLS**; **member-composed or free-form verification
+configuration** of any kind — no member-defined signed string, digest, encoding or header set
+beyond `shared-secret`'s one header name (AC23). **None is rejected on merit**, and AC23's scheme
+selector is exactly the seam a third scheme would use — which is why adding one is cheap in
+structure and still an Owner decision in scope.
 
 ## D2 — Payload content in queue and failed-job infrastructure
 
@@ -541,21 +780,28 @@ coincidence**; whether it warrants a test is the Principal Engineer's call at Q-
 ## Consequences for approved documents
 
 Recorded so nothing is narrowed silently — the rule PRD-05 Amendment A was written under. **Neither
-document is edited by this PRD.** Both changes take effect only if the Owner approves it.
+document is edited by this PRD.** **Both were put to the Project Owner on 2026-08-27 and
+ACCEPTED AS RECORDED** — that is, accepted in this form, here, without a formal amendment to the
+document being narrowed.
 
-- **PRD-06 AC25 is narrowed.** AC25 says activating the reveal "exposes the **full raw payload**".
-  Under **AC18**, it exposes the full payload **with sensitive values obfuscated**. This is the
-  intended reading — PRD-06 AC22 explicitly reserved all field-level handling to #10, and PRD-06
-  § Out of Scope calls its own mask "presentation, not policy" — but the words "full raw payload"
-  will be read literally by a Reviewer, so the narrowing is named here. **PRD-06 stays Approved and
-  is not reopened**; if the Owner prefers this recorded as a PRD-06 amendment instead, that is the
-  Owner's call at this gate.
-- **ADR-008's "No header is added" ceases to be true**, but only if AC30–AC39 survive the Owner
-  gate. The `DeliveryUnit::outboundHeaders()` docblock states plainly that the outbound set is the
-  inbound set minus a strip list, with no header added. AC30 adds one. **Recording the reversal on
-  the ADR is the Principal Engineer's**, per `docs/standards/documentation.md` — amend or supersede
-  is their call, not mine. AC27's strip of the verification header extends the same list and is the
-  same kind of change.
+- **PRD-06 AC25 is narrowed — ACCEPTED as a recorded narrowing (Project Owner, 2026-08-27).**
+  AC25 says activating the reveal "exposes the **full raw payload**". Under **AC18**, it exposes the
+  full payload **with sensitive values obfuscated**. This is the intended reading — PRD-06 AC22
+  explicitly reserved all field-level handling to #10, and PRD-06 § Out of Scope calls its own mask
+  "presentation, not policy" — but the words "full raw payload" will be read literally by a
+  Reviewer, so the narrowing is named here. **The Owner ruled that this record is sufficient and
+  that a formal PRD-06 amendment is not wanted. PRD-06 stays Approved, is not reopened, and is not
+  edited.** A Reviewer reading PRD-06 AC25 literally against the built surface should be directed
+  here.
+- **ADR-008's "No header is added" ceases to be true — ACKNOWLEDGED (Project Owner, 2026-08-27).**
+  The `DeliveryUnit::outboundHeaders()` docblock states plainly that the outbound set is the inbound
+  set minus a strip list, with no header added. **AC30 adds one, and Amendment A's AC55 adds
+  more** — the signing headers — so the reversal is now larger than it was when this section was
+  first written, and it is no longer conditional on anything: AC30–AC39 are approved. **Recording
+  the reversal on the ADR remains the Principal Engineer's**, per
+  `docs/standards/documentation.md` — amend or supersede is their call, not mine, and the Owner
+  left it there. AC27's strip of the verification headers and AC64's precedence rule extend the same
+  list and are the same kind of change.
 - **Nothing else is disturbed.** ADR-006 (ingest URL), ADR-014 (payload columns and the cleaned
   signal), ADR-017 (the read surface and fetch-on-reveal), ADR-020 (by-reference delivery),
   PRD-05's retention contract and PRD-02's permission model are all relied on unchanged. #10 adds
@@ -564,14 +810,24 @@ document is edited by this PRD.** Both changes take effect only if the Owner app
 ## Out of Scope
 Each names where it goes, or why nothing owns it yet.
 
-- **HMAC / signature-based inbound verification, vendor standards, timestamp and replay-window
-  enforcement, IP allow-listing, mutual TLS** — ruled out at MVP by § V2. A later item, needing
-  #9's canonical representation first.
-- **Multiple simultaneously-accepted verification secrets / a rotation overlap window** — AC29.
-  The cost is stated there: a rotation is a synchronised change with the sender.
-- **Outbound request signing (HMAC over the dispatched body)** — not at MVP even if AC30–AC39
-  survive; Q-10-01 sub-question 1 settles the credential as a static secret. Its natural home is
-  after #8, so a signature can be computed over the mapped bytes.
+- **Vendor-specific inbound schemes — `github`, `stripe`, `slack`, any other per-vendor
+  construction — plus IP allow-listing, mutual TLS, and any free-form or member-composed
+  verification configuration** — AC50, § V2. Each vendor scheme is added only when a real
+  integration needs it, and each is an Owner decision at that time.
+  *(**Changed by Amendment A.** Signature-based inbound verification, HMAC, and timestamp /
+  replay-window enforcement were previously listed here and are now **in scope** under AC52 and
+  AC53.)*
+- **A rotation overlap longer or shorter than 24 hours, or a member-configurable one** — AC29
+  fixes it. **The overlap itself is in scope**, replacing the earlier no-overlap ruling whose cost
+  was a synchronised cutover with the sender.
+  *(**Changed by Amendment A.**)*
+- **Outbound request signing under any scheme other than `standard-webhooks`** — AC55. The scheme
+  is fixed to the one AC52 already implements, so one implementation serves both directions.
+  *(**Changed by Amendment A.** Outbound signing as such was previously out of scope entirely and
+  is now AC54–AC64. Q-10-01 sub-question 1 settled the **credential** as a static secret and that
+  still stands — signing is the other, independent capability.)*
+- **A member-supplied signing secret** — AC56. The product generates it, and generation is the only
+  way one exists.
 - **Value-pattern secret detection** (card checksums, entropy tests, key-shaped strings) — AC14.
   A different feature with a false-positive problem #10 does not take on.
 - **Partial disclosure of an obfuscated value** ("last four digits") — AC16. Considered; it leaks,
@@ -590,17 +846,14 @@ Each names where it goes, or why nothing owns it yet.
 - **Throughput, latency or overhead targets** — AC47; V8 deferred.
 
 ## Open Questions
-Question IDs Q-10-0x. **One is escalated to the Project Owner and gates approval of one section;
-one is technical and gates technical design only, not requirement approval.**
+Question IDs Q-10-0x. **One is RESOLVED; one is technical and gates technical design only, not
+requirement approval.**
 
-- **Q-10-01 (Project Owner — scope) — ANSWERED by the Product Manager and ESCALATED, 2026-08-27.
-  Gates § Outbound destination authentication (AC30–AC39) only.** Doc:
-  `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md`. Does outbound
-  destination authentication belong in #10? **Ruling: merging it changes the roadmap rather than
-  interpreting it, so it is the Owner's call, not the Product Manager's.** The merge is
-  **recommended**, and all four sub-questions are settled conditionally (AC30–AC39) so the Owner
-  approves or strikes something concrete. **The ruling point is this PRD's approval gate.** If
-  struck, AC30–AC39 go as a block and nothing else in this PRD changes.
+- **~~Q-10-01 (Project Owner — scope)~~ — RESOLVED, 2026-08-27. The Owner APPROVED the merge.**
+  Doc: `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md`. Outbound destination
+  authentication belongs in #10; **AC30–AC39 stand as written and are no longer severable**; all
+  four sub-questions are settled as the Product Manager answered them. Nothing about this question
+  remains open.
 - **Q-10-02 (Principal Engineer — technical) — OPEN, raised by this PRD. Non-blocking for
   requirement approval; gates technical design.** Doc:
   `docs/questions/prd-10-q-10-02-at-rest-payload-copy-inventory.md`. Two items: **(i)** the
@@ -612,8 +865,13 @@ one is technical and gates technical design only, not requirement approval.**
   surface from the job body, and #10 does not assume ADR-020 closed it. If either finding
   contradicts a criterion here, that returns to the Product Manager as a requirement question, not
   a silent design change.
-- **V2 — SETTLED in this PRD** (§ Roadmap Open Question V2), not escalated. Owner approval
-  ratifies it.
+- **V2 — SETTLED in this PRD** (§ Roadmap Open Question V2), **by the Project Owner directly**,
+  2026-08-27, overturning the Product Manager's earlier proxy ruling. Owner approval of this PRD
+  ratifies the replacement.
+- **No question document is raised for outbound request signing.** The Owner ruled it in directly,
+  including its scheme, its ownership of the secret, its one-time display and its rotation, so
+  there is nothing left to ask. It is a roadmap widening of the same class Q-10-01 carried, and it
+  is ratified at this PRD's approval gate rather than by a separate document.
 - **D2 — DISCHARGED in this PRD** (§ D2), except item 3, which is routed to Q-10-02 because it is
   a Principal Engineer deliverable by D2's own words.
 
@@ -638,22 +896,129 @@ one is technical and gates technical design only, not requirement approval.**
   § Impact — what closed D2's instance) · `docs/architecture/adr-008-inbound-header-forwarding-policy.md`
   (the strip list AC27 and AC38 touch) · `docs/architecture/adr-006-ingest-url-generation-security.md`
   (the first factor AC23's secret is second to) · `docs/architecture/adr-010-raw-payload-capture.md`
+  (raw capture — **the raw bytes AC52's inbound signature verification runs over**) and its
   Amendment B (the binding `APP_PREVIOUS_KEYS` rule AC10 widens) ·
+  **the Standard Webhooks specification, `standardwebhooks.com`** — the normative source for AC52,
+  AC53 and AC55; #10 defines no variant of it ·
   `database/migrations/2026_07_30_000002_create_destinations_table.php` and
   `docs/plans/plan-08-payload-mapping.md` line 419 (the `destinations.url` exposure, AC39) ·
   `docs/standards/documentation.md`.
-- **Outputs:** this PRD ·
-  `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md` (**Answered and
-  ESCALATED**, 2026-08-27) · `docs/questions/prd-10-q-10-02-at-rest-payload-copy-inventory.md`
+- **Outputs:** this PRD, including **`## Amendment A`** ·
+  `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md` (**RESOLVED**, Owner
+  approved, 2026-08-27) · `docs/questions/prd-10-q-10-02-at-rest-payload-copy-inventory.md`
   (**OPEN**, Principal Engineer).
 - **Dependencies:** **#5 (Done)** — the stored payloads #10 protects, and the retention contract
   AC2 and AC36 compose with. **#3 (Done)** — capture, and the user-defined response **this PRD's
   AC25** forbids serving to an unverified sender. **#6 (Done)** — the read surface AC18 narrows. **#2 (Done)** — the permission model AC28
   and AC33 reuse. **#4 (Done) as amended by ADR-020** — the by-reference dispatch that closed D2's
   instance. **#10 does not depend on #8, #9, #12, #13 or #14, and must not pre-empt them.**
-- **Outstanding Questions:** **Q-10-01** — Owner, gates AC30–AC39 only, ruled at this approval
-  gate. **Q-10-02** — Principal Engineer, technical, non-blocking for requirement approval.
+- **Outstanding Questions:** **Q-10-02** only — Principal Engineer, technical, non-blocking for
+  requirement approval. **Q-10-01 is RESOLVED** (Owner approved, 2026-08-27).
 - **Next Agent:** **Designer.** `## UX Direction` is present, so under the mechanical routing rule
   a PM-approved `design-10` is a prerequisite for Technical Design — no exceptions. **The Designer
-  must not start before the Project Owner has approved this PRD**, because Q-10-01's outcome
-  decides whether there are two secret-entry surfaces or one.
+  must not start before the Project Owner has approved this PRD as amended**, because Amendment A
+  changes the surfaces materially: a scheme selector (AC23), a rotation overlap that has to read as
+  a period rather than an event (AC29), and a one-time secret display that is the single exception
+  to the write-only rule (AC57).
+
+## Amendment A — Project Owner rulings, 2026-08-27
+
+Three rulings the Project Owner made directly in a review session, recorded here rather than
+re-derived. The PRD was **Draft** when this amendment was written and remains Draft: **the document
+as amended is what goes to the approval gate**, as one approval. Recorded per
+`docs/standards/documentation.md` — amend in place, retain history, never rewrite a ruling silently.
+
+### Ruling 1 — Q-10-01 is APPROVED. The outbound block is no longer severable.
+
+AC30–AC39 stand exactly as written. `docs/questions/prd-10-q-10-01-outbound-destination-authentication.md`
+is **RESOLVED** with the Owner's ratification recorded in it. Every trace of the severability
+framing is removed from this document: the Status block, the acceptance-criteria preamble, the
+AC30 section heading and its preamble, the boundary table, the Users and User Stories lists, the
+UX Direction, and the Handoff. **No criterion changed** — only the condition on them.
+
+### Ruling 2 — the two narrowings are ACCEPTED as recorded.
+
+- **PRD-06 AC25.** The narrowing stands **as a recorded narrowing in § Consequences for approved
+  documents**. The Owner does not want a formal PRD-06 amendment. PRD-06 stays Approved and is not
+  edited.
+- **ADR-008.** The reversal is acknowledged. **Recording it on the ADR remains the Principal
+  Engineer's call** — the Owner left that where this PRD already put it.
+
+### Ruling 3 — the V2 ruling is OVERTURNED and replaced.
+
+The Owner rejected the shared-secret-only scheme. § *Roadmap Open Question V2* now carries the
+replacement, the Owner's grounds, the **correction of the superseded ruling's factually wrong
+ground 4**, and the superseded ruling quoted so the record stays complete. In summary:
+
+| | Before Amendment A | After |
+|---|---|---|
+| Inbound schemes | One: a shared secret in a member-named header | **Two, closed and named: `standard-webhooks`, `shared-secret`** (AC23, AC51, AC52) |
+| Signature verification | Ruled out at MVP | **In, under the published specification** (AC52) |
+| Timestamp / replay window | Ruled out at MVP | **Required — it arrives with the scheme** (AC53) |
+| Vendor schemes (`github`, `stripe`, `slack`) | Ruled out with everything else | **Explicitly not in MVP, added only when a real integration needs one, an Owner decision each time** (AC50) |
+| Who issues an inbound secret | Not stated; an earlier suggestion that the product could generate a token for a custom sender | **Stored, never generated by us. The suggestion was withdrawn by the Owner as not a real pattern** (AC26) |
+| Secret rotation | AC29: immediate, single-valued, no overlap, synchronised cutover with the sender | **AC29 replaced: two secrets, the older honoured for a bounded overlap, both directions** |
+| Outbound signing | Out of scope | **In: AC54–AC64** |
+
+**Why a closed list rather than free-form configuration.** The Owner accepted the superseded
+ruling's ground 2 — that supporting each vendor's construction is unbounded — and answered it by
+closing the list rather than by refusing signatures. **The header *name* is the easy part; the
+variable that matters is how the signed string is constructed**, and those differ per vendor:
+GitHub signs the raw body, Stripe signs `<timestamp>.<body>`, Slack signs `v0:<timestamp>:<body>`,
+Standard Webhooks signs `<id>.<timestamp>.<body>` and encodes base64 rather than hex.
+
+### The rotation-expiry ruling — Product Manager, on the Owner's instruction that an expiry be stated
+
+The Owner ruled that two secrets may be held with the older expiring, and left the **form** of the
+expiry to the Product Manager with one requirement: it must be stated. **Ruled: a fixed 24-hour
+overlap, not member-configurable, with an explicit end-it-now action** (AC29). The three candidates
+and why this one:
+
+- **Fixed window — chosen.** One rule, one testable number, no new configuration field, no new
+  validation range, and identical in both directions. A member rotating a secret needs a period long
+  enough to update the other side without a scheduled cutover; a day is that, and it is short enough
+  that a replaced secret does not linger.
+- **Member-set — rejected.** It buys flexibility nobody asked for and costs a field, a range, a
+  design surface, and a class of member error (a 90-day overlap is a secret that was never really
+  replaced). No stated requirement wants it. AC29's shape does not foreclose it if one ever appears.
+- **Until-first-use — rejected on correctness, not on cost.** Inbound it is actively wrong: an
+  upstream provider rolling a secret across its own fleet will send under the new secret from one
+  sender while others still use the old one, so first use of the new secret does not mean the old
+  one is finished. Outbound it means nothing at all, because a signed dispatch carries both
+  signatures and we cannot see which one the receiver used.
+- **The end-it-now action is included** because without it the only way to kill a leaked secret
+  inside the window is to rotate a second time and let the two-slot rule discard the oldest — a
+  correct remedy, but one no member will find under pressure.
+
+### What changed in this PRD
+
+| Section | Change |
+|---|---|
+| Status block | Severability framing removed; Q-10-01 recorded APPROVED; the three remaining Owner-gated items restated |
+| § Feature | Item 3 rewritten to two schemes; item 4 de-severed; **item 5 added** (outbound signing) |
+| § Definitions | **Verification scheme**, **Destination signing secret** and **Rotation overlap** added; **Verification secret** rewritten (stored, never generated by us) |
+| § Problem | **Gap 5 added** — a destination has no way to tell a dispatch came from us |
+| § What earlier items delivered | Outbound-authentication row de-severed; **outbound-signing row added**; V2 row updated |
+| § Goals, § Users, § User Stories | Severable qualifiers removed; closed-list, signing, one-time-display and rotation goals and stories added |
+| § UX Direction | Two priorities added (**the one-time display**, **scheme choice framed by what the sender does**); the rejection-debugging priority extended for the new failure modes; rotation added as a period to be made legible; the "not the Designer's to decide" list extended |
+| AC preamble | Severability paragraph replaced by the placement-and-renumbering note |
+| **AC10, AC11** | Extended to the signing secret and to overlap-held secrets |
+| **AC23** | **Revised** — scheme selector over a closed two-value list |
+| **AC25** | **Extended** — the reject-before-capture rule is stated to cover every way either scheme can fail, including a stale timestamp and a malformed header set. Its substance is unchanged |
+| **AC26** | **Revised** — secrets are stored, never generated by us |
+| **AC27** | **Revised** — covers the specification's three headers as well as a member-named one |
+| **AC29** | **Replaced outright** — bounded rotation overlap, both directions |
+| **AC43** | **Revised** — three header rules, not two |
+| **AC44** | **Revised** — scoped to the *application key*, so it is not confused with AC29's secret rotation; the "three columns to five" count replaced by naming the secrets |
+| **AC50** | **Revised** — the closed list, with the vendor schemes named as out and as an Owner decision each time |
+| **AC51–AC53 (new)** | The two schemes defined, and the replay window |
+| **AC54–AC64 (new)** | Outbound request signing |
+| § V2 | Rewritten: the Owner's ruling, the grounds, the ground-4 correction, the superseded ruling quoted |
+| § Consequences | Both items recorded as Owner-accepted; the ADR-008 item no longer conditional and now larger |
+| § Out of Scope | Four bullets rewritten, each flagging what Amendment A moved into scope |
+| § Open Questions, § Handoff | Q-10-01 struck through as RESOLVED; the specification added as an input; the Designer's blocking reason restated |
+| **AC count** | **50 → 64** |
+
+**Not changed, and deliberately so:** AC1–AC9, AC12–AC22, AC24, AC28, AC30–AC42, AC45–AC49, § D2 in
+full including its inventory snapshot, and Q-10-02, which remains open to the Principal Engineer and
+non-blocking for requirement approval.
