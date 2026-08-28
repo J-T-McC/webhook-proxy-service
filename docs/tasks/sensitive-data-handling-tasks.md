@@ -6,7 +6,9 @@
   Engineer self-certified, and all four Owner-approval flags ruled by the Project Owner,
   2026-08-27: flag 1, the `proxy_secrets` table plus six columns, approved exactly as enumerated
   (the fixed-column alternative not taken); flag 2, ADR-021, approved as the recommendation; flag 3,
-  ADR-022, approved; flag 4, ADR-024, approved)
+  ADR-022, approved; flag 4, ADR-024, approved) **plus `## Revision A`** (2026-08-27, Principal
+  Engineer, no Owner gate — technical ruling 15, the `destinations.*.remove_credential` transport,
+  answering `Q-10-05`; purely additive, no existing ruling/gate/milestone/ADR reopened)
 - **PRD:** `docs/product/prd-10-sensitive-data-handling.md` (Approved, Project Owner, 2026-08-27; 64
   acceptance criteria, `## Amendment A` **and** `## Amendment B` both ratified whole, nothing
   renumbered — Amendment B re-grains outbound signing to the proxy and settles AC29's cap of two)
@@ -18,7 +20,8 @@
   Principal Engineer) · `docs/questions/prd-10-q-10-03-credential-removal-and-secret-field-primitive.md`
   (**RESOLVED**, Designer) · `docs/questions/prd-10-q-10-04-proxy-level-signing-grain-and-live-secret-cap.md`
   (**RESOLVED**, PRD-10 `## Amendment B`) · `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`
-  (**OPEN**, raised by this task plan, directed to the Principal Engineer, blocks **T31 only**)
+  (**RESOLVED**, Principal Engineer, 2026-08-27 — a sibling boolean, `destinations.*.remove_credential`,
+  recorded as `plan-10` § *Revision A*, technical ruling 15; T31 is unblocked)
 - **Approved by:** Task Planner (task-plan gate; no further Owner approval required at this stage —
   the Reviewer catches drift against the plan/PRD-10/design-10 at review time)
 
@@ -42,20 +45,20 @@
 > the signing surface) is broken down at **T43**, as a dedicated task, exactly as the amendment gate's
 > "What this approval unblocks" section requires before M8b is task-planned.
 >
-> **One task is blocked on an open question this task plan raises.** `docs/design/design-10-…`'s
-> amendment-gate correction **B3** requires Screen 3's new **Remove credential** control to reach the
-> server as a signal distinguishable from an ordinary blank Replace field, and explicitly leaves the
-> transport to the Principal Engineer — a decision no approved `plan-10` text makes, because the
-> control did not exist when the plan was certified. Deciding a wire shape here would be inventing an
-> interface the plan does not name, which is outside this role's authority (`CLAUDE.md`; the
-> task-planner skill's "no pseudo-code beyond the plan" rule). Raised as
-> `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`, directed to the
-> Principal Engineer, and it blocks **T31 only** — every other task, including the rest of M7 and all
-> of M8a/M8b/M9, is unaffected and proceeds regardless of when or how it is answered.
+> **The one task this document had blocked on an open question is now unblocked.**
+> `docs/design/design-10-…`'s amendment-gate correction **B3** required Screen 3's new **Remove
+> credential** control to reach the server as a signal distinguishable from an ordinary blank Replace
+> field, and explicitly left the transport to the Principal Engineer — a decision no approved
+> `plan-10` text made at the time, because the control did not exist when the plan was certified.
+> Raised as `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`,
+> directed to the Principal Engineer, blocking **T31 only**. **RESOLVED, 2026-08-27**: a sibling
+> boolean per destination row, `destinations.*.remove_credential` — `credential_secret` keeps exactly
+> one meaning ("a new value, or absent"), never a second, sentinel one. Recorded as `plan-10` §
+> *Revision A*, technical ruling 15. T31 below is written to that ruling.
 >
 > Every task must leave `composer lint` (Pint) and `composer types:check` (PHPStan level 7) green,
 > and `./vendor/bin/sail test` green with its own tests included (`CLAUDE.md`,
-> `docs/standards/planning.md`). Frontend tasks (T9, T12, T23, T24, T30, T31 once unblocked, T33, T41, T42, T43)
+> `docs/standards/planning.md`). Frontend tasks (T9, T12, T23, T24, T30, T31, T33, T41, T42, T43)
 > additionally require `pnpm lint:check`, `pnpm types:check` and `pnpm format:check` green, plus the
 > manual-verification steps named on the task (no frontend test harness exists — backlog **T31** on
 > `docs/tasks/walking-skeleton-tasks.md`, a different T31 than this document's own; see the note on
@@ -103,8 +106,8 @@
 > 4. **The destination credential is unchanged and stays per destination** (AC31, AC33; untouched by
 >    either amendment). No task in this list adds an overlap, a "previous" state, or any rotation
 >    language to the credential surface — T26, T29, T30, T31 build a single-valued, immediately-replaced
->    secret with no such state, and T31's Remove-credential control (once its transport is answered)
->    stays inside that same immediate, non-rotating model.
+>    secret with no such state, and T31's Remove-credential control (ruling 15's
+>    `destinations.*.remove_credential` boolean) stays inside that same immediate, non-rotating model.
 > 5. **`SecretStore` is the single reader and writer of `proxy_secrets`** (`plan-10` Technical ruling
 >    14). No task outside T14/T15 issues a query against that table directly; `InboundVerifier` (T18),
 >    the signing endpoints (T37) and the resolver (T27/T36) all go through `SecretStore`.
@@ -850,36 +853,69 @@
   production build: default-expand rule; Replace flow; save-time semantics; row removal.
 - **Completion notes:** _pending_
 
-## T31 — Screen 3: Remove credential control (Q-10-03 item 1; correction B3) — **blocked on `docs/questions/prd-10-q-10-05-…`**
-- **Description:** **Blocked.** `design-10`'s amendment gate requires a **Remove credential** control
-  beside Replace on Screen 3's expanded disclosure, carried to the server as a signal distinguishable
-  end to end from an ordinary blank Replace field (correction B3) — never collapsible into the "leave
-  unchanged" semantics T29/T30 already build. The wire shape for that signal is not specified by
-  `plan-10` (the control postdates the plan's certification) and is explicitly assigned to the
-  Principal Engineer by the design spec, not to this task's author. Raised as
-  `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`. **Do not start
-  this task until that question is answered** — implementing a guessed transport risks an interface no
-  Reviewer can check against an approved artifact.
-  Once answered, this task is: add the **Remove credential** ghost button beside Replace
-  (`aria-label="Remove credential for {url}"`); clicking it resets the row to unset in-session (header
-  name back to `Authorization`, secret status back to unset); the row's post-save state after a saved
-  removal reads identically to "Existing, no credential" (the round-trip completes, not merely
-  stages); wire the answered transport through `StoreProxyRequest`/`UpdateProxyRequest` and
-  `ProxyController`'s persistence step.
-- **Dependencies:** T30; **and** `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md` (Answer)
-- **Files:** `resources/js/components/DestinationRows.vue`, `app/Http/Requests/StoreProxyRequest.php`,
+## T31 — Screen 3: Remove credential control (Q-10-03 item 1; correction B3; `plan-10` § Revision A, technical ruling 15)
+- **Description:** **Unblocked** — `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`
+  is RESOLVED (Principal Engineer, 2026-08-27), recorded as `plan-10` § *Revision A*, technical ruling
+  15. `design-10`'s amendment gate requires a **Remove credential** control beside Replace on Screen
+  3's expanded disclosure, carried to the server as a signal distinguishable end to end from an
+  ordinary blank Replace field (correction B3) — never collapsible into the "leave unchanged"
+  semantics T29/T30 already build. **The ruled transport is a sibling boolean per destination row,
+  `destinations.*.remove_credential`** — a real JSON boolean, `sometimes`/`boolean`, submitted
+  alongside the row's `id`/`url`/`http_method`/`credential_header_name`/`credential_secret`. Absent or
+  `false` means no removal; `true` means "clear this destination's credential on save."
+  `credential_secret` **keeps exactly one meaning and gains no second one** — a new value, or absent
+  meaning leave unchanged; ruling 15 exists precisely to prevent a sentinel value on that field from
+  ever meaning anything else (the reserved-sentinel alternative was rejected on failure direction: a
+  lost boolean keeps the credential, harmlessly costing a second click, whereas a collapsed
+  absent-versus-empty distinction turns every abandoned Replace into a silent removal — and
+  `ProxyController::destinationRows()`'s existing `isset()` normalisation would have silently killed
+  the sentinel, since `isset()` is `false` for an explicit `null`).
+  Concretely: add the **Remove credential** ghost button beside Replace
+  (`aria-label="Remove credential for {url}"`); clicking it resets the row to the unconfigured
+  in-session presentation (header name back to `Authorization`, secret status back to unset, a blank
+  Secret input); `ProxyForm.vue`'s submit `transform()` sends `remove_credential: true` for that row
+  unless the member has since typed a new secret into the now-blank field, in which case `transform()`
+  sends `remove_credential: false` — typing into an unconfigured row has always meant "set this
+  secret," so the row's later act supersedes the staged removal, and this is the states table read
+  forwards rather than a new decision. `destinations.*.credential_secret` gains
+  `prohibited_if:destinations.*.remove_credential,true` on both `StoreProxyRequest` and
+  `UpdateProxyRequest` — a deterministic 422 for a malformed request that sends both, which this
+  application's own UI can never produce given the `transform()` rule above. `ProxyController`'s
+  reconciliation step, for a submitted row with `remove_credential: true` that reconciles to an
+  existing destination by `id`, writes NULL to **all three** credential columns —
+  `credential_header_name`, `credential_secret`, `credential_set_at` — together, so a row can never
+  come to rest holding a header name with no secret; the result is byte-identical to a destination
+  that never had a credential. A row with no `id` (created this session) has nothing to remove, so the
+  flag is a no-op there; the rule is declared on both requests regardless, since `ProxyForm.vue` is one
+  component serving Create and Edit. `ProxyController::destinationRows()` reads the flag positively —
+  `($row['remove_credential'] ?? false) === true` — so presence-versus-absence is never load-bearing on
+  this key the way it would have been for the rejected sentinel shape.
+- **Dependencies:** T30
+- **Files:** `resources/js/components/DestinationRows.vue`, `resources/js/pages/proxies/ProxyForm.vue`,
+  `resources/js/types/proxies.ts`, `app/Http/Requests/StoreProxyRequest.php`,
   `app/Http/Requests/UpdateProxyRequest.php`, `app/Http/Controllers/ProxyController.php`
 - **Acceptance Criteria:**
-  - Clicking Remove credential and leaving a Replace field blank are never indistinguishable to the
-    server, under the answered transport.
-  - A saved removal round-trips to an "unconfigured row" state indistinguishable from a destination
-    that never had a credential.
+  - **The distinguishability pair, asserted in one test so the two cases can never be collapsed
+    independently later:** an update carrying a present-but-empty `credential_secret` and no
+    `remove_credential` leaves the stored credential byte-identical; an update carrying
+    `remove_credential: true` for the **same row on the same route** nulls it — same route, same row,
+    different outcome, both assertions in one test.
+  - A saved removal leaves `credential_header_name`, `credential_secret` and `credential_set_at` all
+    NULL, asserted with a raw query, indistinguishable from a destination that never had a credential.
+  - An update carrying both `remove_credential: true` and a non-empty `credential_secret` is a 422 and
+    changes nothing on the row.
+  - `remove_credential: true` on a row with no `id` is a no-op: the row is created with NULL credential
+    columns and no error.
+  - Clicking Remove credential in-session, then typing a new secret into the now-unconfigured row
+    before saving, persists the **new** secret rather than removing the credential (the `transform()`
+    supersession rule).
   - No confirmation dialog is added (nothing stored is exposed; the credential can always be
     re-entered).
-- **Testing:** `tests/Feature/Proxies/CredentialRemovalTest.php` (new) — the distinguishability
-  assertion (a request that touches Replace-then-leaves-blank vs. one that clicks Remove, asserted to
-  produce different server-side outcomes), the post-save round-trip state. Manual verification of the
-  UI control per `design-10` Screen 3's states table, including the added post-save row.
+- **Testing:** `tests/Feature/Proxies/CredentialRemovalTest.php` (new) — the five items above, one test
+  method each, per `plan-10` § *Revision A*'s added § *Test strategy* items (grouped with the existing
+  destination-credential tests). Manual verification of the UI control per `design-10` Screen 3's
+  states table, including the added post-save row and the Remove-then-retype supersession case, against
+  a production build.
 - **Completion notes:** _pending_
 
 ## T32 — `security` prop: the `destinations` map (AC30, AC33; plan Technical ruling 4)
@@ -1259,8 +1295,7 @@
   available (`QUEUE_CONNECTION=redis`, Horizon), a spot check of one signed dispatch and one verified
   ingest through the real async path is recommended given this document's delivery-path caveat, though
   not required by any AC below (AC47 — no numeric or environment target).
-- **Dependencies:** T9, T12, T23, T24, T30, T31 (if answered by then — otherwise its absence is
-  recorded, not treated as a blocker for the rest), T33, T41, T42, T43, T44, T45, T46, T47, T48
+- **Dependencies:** T9, T12, T23, T24, T30, T31, T33, T41, T42, T43, T44, T45, T46, T47, T48
 - **Files:** none; verification-only
 - **Acceptance Criteria:**
   - Every Implementation Note (1–23) holds against the finished code, checked by inspection of the
@@ -1285,14 +1320,16 @@
   `docs/architecture/adr-023-outbound-request-contract.md`,
   `docs/architecture/adr-024-field-obfuscation-and-revealed-payload-envelope.md` (all Accepted);
   `docs/questions/prd-10-q-10-02-…` (RESOLVED), `prd-10-q-10-03-…` (RESOLVED), `prd-10-q-10-04-…`
-  (RESOLVED); `docs/standards/planning.md`; `docs/tasks/analytics-tasks.md` (the most recent prior task
+  (RESOLVED), `prd-10-q-10-05-…` (RESOLVED, Principal Engineer — see `plan-10` § *Revision A*);
+  `docs/standards/planning.md`; `docs/tasks/analytics-tasks.md` (the most recent prior task
   plan, whose house format this document follows).
 - **Outputs:** this task plan; `docs/questions/prd-10-q-10-05-destination-credential-removal-signal-transport.md`
-  (raised here, OPEN, directed to the Principal Engineer, blocks T31 only).
+  (raised here, **RESOLVED** by the Principal Engineer, recorded as `plan-10` § *Revision A*, technical
+  ruling 15 — T31 built to it).
 - **Dependencies:** none new — no Composer package, no pnpm package, no stack change
   (`docs/stack/stack.md` untouched).
-- **Outstanding Questions:** `Q-10-05` (this document's own), blocking **T31 only**. No other task in
-  this plan is blocked on anything outside this document.
+- **Outstanding Questions:** none. `Q-10-05` is RESOLVED; no task in this plan is blocked on anything
+  outside this document.
 - **Next Agent:** Senior Developer, starting at **T1**. M2 (T4–T6) and M3 (T7) may be worked in
   parallel with M1 if convenient — both are pure and dependency-free — but every task is listed in a
   dependency-respecting order and no task depends on a later one.
