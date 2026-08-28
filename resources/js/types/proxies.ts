@@ -28,6 +28,20 @@ export interface ProxySecurity {
         secret_changed_at: string | null;
         overlap_expires_at: string | null;
     };
+    /**
+     * Outbound signing status (T38; mirrors `ProxySecurityResource`'s
+     * `signing` key exactly) — one object on the shared prop, never a value
+     * and never a per-destination field (PRD-10 `## Amendment B` ruling 1:
+     * signing is proxy-level, shared by every destination). `enabled` plays
+     * `verification.secret_set`'s presence-only role; a proxy that was
+     * enabled and then disabled reads identically to one that was never
+     * enabled (`SecretStore::disable()` deletes every row).
+     */
+    signing: {
+        enabled: boolean;
+        generated_at: string | null;
+        overlap_expires_at: string | null;
+    };
     destinations: Record<
         number,
         {

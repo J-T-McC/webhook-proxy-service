@@ -3,6 +3,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AlertError from '@/components/AlertError.vue';
 import CopyField from '@/components/CopyField.vue';
+import ProxySigningDialog from '@/components/ProxySigningDialog.vue';
 import TrendChart from '@/components/TrendChart.vue';
 import {
     AlertDialog,
@@ -331,6 +332,48 @@ function endVerificationOverlap(): void {
             },
             onFinish: () => {
                 verificationOverlapBusy.value = false;
+            },
+        },
+    );
+}
+
+// Signing card — Screen 4b (AC54, AC57, AC63; Flows G, I). Proxy-wide status
+// only, driven entirely by `security.signing` (T38); the mutating actions
+// (Enable/Manage signing, End overlap now) are `canUpdate`-gated, the status
+// itself always renders (same convention as the Verification card above).
+const signingOverlapStatus = computed(() => {
+    const expiresAt = props.security.signing.overlap_expires_at;
+
+    return expiresAt ? formatTimestamp(expiresAt) : null;
+});
+const signingGeneratedStatus = computed(() =>
+    props.security.signing.generated_at
+        ? `Enabled — generated ${formatTimestamp(props.security.signing.generated_at)}`
+        : null,
+);
+
+const signingDialogOpen = ref(false);
+const signingOverlapBusy = ref(false);
+const signingOverlapError = ref<string | null>(null);
+
+function endSigningOverlap(): void {
+    signingOverlapBusy.value = true;
+    signingOverlapError.value = null;
+
+    router.delete(
+        proxyRoutes.signing.overlap.destroy({
+            current_team: teamSlug.value,
+            proxy: props.proxy.id,
+        }).url,
+        {
+            preserveScroll: true,
+            only: ['security'],
+            onError: () => {
+                signingOverlapError.value =
+                    'Could not end the rotation overlap. Try again.';
+            },
+            onFinish: () => {
+                signingOverlapBusy.value = false;
             },
         },
     );
@@ -924,6 +967,85 @@ function confirmDeleteProxy(): void {
             </template>
         </Card>
 
+        <!-- Signing card (Screen 4b; AC54, AC57, AC63; Flows G, I) — the
+             proxy-wide outbound signing status. No per-destination badge
+             anywhere (Amendment B ruling 1) and no trust-domain warning
+             (ruling 2b) — this card states the proxy-wide fact once, where
+             the setting lives. -->
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Signing</h2>
+            <p class="text-sm text-muted-foreground">
+                Whether this proxy signs its dispatches so every destination it
+                sends to can verify the request really came from this proxy.
+            </p>
+
+            <template v-if="!props.security.signing.enabled">
+                <p class="text-sm text-muted-foreground">
+                    This proxy does not sign its dispatches yet.
+                </p>
+                <Button
+                    v-if="canUpdate"
+                    variant="outline"
+                    class="w-fit"
+                    @click="signingDialogOpen = true"
+                >
+                    Enable signing
+                </Button>
+            </template>
+
+            <template v-else>
+                <dl class="flex flex-col gap-3">
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                    >
+                        <dt class="text-sm text-muted-foreground">Status</dt>
+                        <dd class="text-sm">{{ signingGeneratedStatus }}</dd>
+                    </div>
+                </dl>
+
+                <!-- Rotation status always renders for anyone who can view
+                     this proxy; only the mutating actions are canUpdate-gated
+                     (same convention as the Verification card above). -->
+                <template v-if="signingOverlapStatus">
+                    <p class="text-sm">
+                        A rotation is in progress — your previous secret is
+                        still honoured until {{ signingOverlapStatus }}.
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <Button
+                            v-if="canUpdate"
+                            variant="outline"
+                            :disabled="signingOverlapBusy"
+                            @click="endSigningOverlap"
+                        >
+                            <Spinner v-if="signingOverlapBusy" />
+                            End overlap now
+                        </Button>
+                        <Button
+                            v-if="canUpdate"
+                            variant="ghost"
+                            @click="signingDialogOpen = true"
+                        >
+                            Manage signing
+                        </Button>
+                    </div>
+                    <AlertError
+                        v-if="signingOverlapError"
+                        :errors="[signingOverlapError]"
+                        title="Could not end the rotation overlap"
+                    />
+                </template>
+                <Button
+                    v-else-if="canUpdate"
+                    variant="ghost"
+                    class="w-fit"
+                    @click="signingDialogOpen = true"
+                >
+                    Manage signing
+                </Button>
+            </template>
+        </Card>
+
         <!-- Retry policy card -->
         <Card class="gap-4 p-6">
             <h2 class="text-base font-semibold">Retry policy</h2>
@@ -954,6 +1076,16 @@ function confirmDeleteProxy(): void {
             </p>
         </Card>
     </div>
+
+    <!-- Manage proxy signing dialog (Screen 6; Flows G, H, I) -->
+    <ProxySigningDialog
+        :open="signingDialogOpen"
+        :team-slug="teamSlug"
+        :proxy-id="props.proxy.id"
+        :proxy-name="props.proxy.name"
+        :signing="props.security.signing"
+        @update:open="(value) => (signingDialogOpen = value)"
+    />
 
     <!-- Delete proxy confirmation -->
     <AlertDialog
