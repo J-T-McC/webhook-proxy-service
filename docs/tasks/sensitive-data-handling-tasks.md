@@ -3722,7 +3722,50 @@ Flows A–C and folds in T44.
     old input, for both `Store` and `Update`.
 - **Testing:** `tests/Feature/Proxies/OldInputScrubTest.php` (new) — asserts session-flashed input after
   a failed validation contains no credential secret, for both `Store` and `Update`.
-- **Completion notes:** _pending_
+- **Completion notes:** Added a `failedValidation()` override to both `StoreProxyRequest` and
+  `UpdateProxyRequest` that walks the submitted `destinations` array and `unset()`s each row's
+  `credential_secret` before calling `parent::failedValidation()`.
+
+  **A real gap surfaced while writing the first test, corrected before commit rather than shipped and
+  found in review:** the plan's own rationale ("`merge()` rewrites the request's own input bag, so the
+  scrubbed value is what the exception handler reads and flashes") does not hold. `FormRequestServiceProvider`
+  builds the validated `FormRequest` via `Request::createFrom($app['request'], $request)` — the FormRequest
+  is a *copy* initialized from the container-bound `request` singleton, never the same object. Laravel's
+  exception handler builds the redirect-with-input response from the container-bound singleton
+  (`Illuminate\Foundation\Http\Kernel::handle()` binds `app->instance('request', $request)` once, and that
+  same instance flows through `render()`/`convertValidationExceptionToResponse()`), which a FormRequest's
+  own `$this->merge()` never touches. Verified by reading `FormRequestServiceProvider::boot()`,
+  `Request::createFrom()`, and `Kernel::handle()` in vendor — no test exists to lean on for this, since
+  no prior task in this feature has scrubbed old input at all. The fix resolves the container-bound
+  `request` via `$this->container->make('request')` (the container is already set on `$this` by the time
+  `failedValidation()` runs, per `FormRequestServiceProvider`'s `resolving()`-before-`afterResolving()`
+  callback order) and merges the same scrubbed `destinations` array into it when it is a distinct object
+  from `$this`. Both instances are scrubbed — the FormRequest's own bag as defence-in-depth for any other
+  reader of `$this->input()`, the container-bound singleton because it is what actually gets flashed.
+
+  An initial `?->`/`instanceof Request` guard around the container-bound lookup was removed after
+  `composer types:check` flagged both as vacuous — PHPStan resolves `FormRequest::$container` and
+  `Container::make('request')` precisely enough from vendor docblocks/service-container aliasing that
+  neither check can ever be false. Replaced with a plain `$this->container->make('request')` call and an
+  identity check (`$bound !== $this`).
+
+  `tests/Feature/Proxies/OldInputScrubTest.php` (new): one test per request class, each posting/putting
+  a payload that fails validation on `name` while carrying a full `destinations` row (`url`,
+  `http_method`, `credential_header_name`, `credential_secret`), then reading `session('_old_input')`
+  directly and asserting `credential_secret` is absent from the flashed `destinations.0` row while `url`
+  survives, plus a `assertStringNotContainsString` sweep of the whole serialized flash for the literal
+  secret value.
+
+  Gates: `composer lint`, `composer types:check` both green (0 errors after the guard-clause fix above).
+  Full suite, `./vendor/bin/sail test --parallel` — **1006/1006 passing, 4765 assertions**: +2 tests
+  (`OldInputScrubTest`'s Store/Update cases) and +12 assertions (6 each) over the 1004/4753 baseline.
+  No frontend file touched; `pnpm` gates not run.
+
+  Folded in one of the three stale-docblock corrections flagged as out of scope by T52–T54: none of
+  them land naturally in this task's own files (`ProxySecret.php`, `DestinationResource.php`,
+  `ProxySigningOverlapController.php` are untouched by T45–T48's Files lists), so all three are
+  corrected together in one small `docs` commit after T48 instead — see that commit's message for
+  detail.
 
 ## T46 — Capture-failure report wrap: no interpolated SQL (R5; plan Technical ruling 8)
 - **Description:** `QueryException::formatMessage()` interpolates bindings into the exception message.

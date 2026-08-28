@@ -6,6 +6,7 @@ use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -97,5 +98,42 @@ class UpdateProxyRequest extends FormRequest
             // load-bearing on this key.
             'destinations.*.remove_credential' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /**
+     * Scrub `destinations.*.credential_secret` before the validation exception
+     * propagates (R4; plan Technical ruling 7). `bootstrap/app.php`'s `dontFlash`
+     * list flashes old input via `Arr::except($request->input(), $this->dontFlash)`,
+     * and `Arr::forget()` (what `Arr::except()` uses under the hood) has no
+     * wildcard support — it cannot reach a key nested under a numeric array index.
+     *
+     * The instance validated here (`$this`) is a *copy*: the `FormRequestServiceProvider`
+     * builds it via `Request::createFrom($app['request'], $this)`, so it is never the
+     * same object as the container-bound `request` singleton the exception handler
+     * reads when it builds the redirect-with-input response. Scrubbing `$this` alone
+     * is therefore a no-op for flashing — both the FormRequest's own bag and the
+     * container-bound request must be scrubbed.
+     */
+    protected function failedValidation(Validator $validator)
+    {
+        $destinations = $this->input('destinations');
+
+        if (is_array($destinations)) {
+            foreach ($destinations as $key => $destination) {
+                if (is_array($destination) && array_key_exists('credential_secret', $destination)) {
+                    unset($destinations[$key]['credential_secret']);
+                }
+            }
+
+            $this->merge(['destinations' => $destinations]);
+
+            $bound = $this->container->make('request');
+
+            if ($bound !== $this) {
+                $bound->merge(['destinations' => $destinations]);
+            }
+        }
+
+        parent::failedValidation($validator);
     }
 }
