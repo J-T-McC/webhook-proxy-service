@@ -2401,7 +2401,90 @@
   against a production build: the `Esc`/overlay suppression in state 2 specifically (this is the one
   behaviour in the whole feature most likely to regress silently, since it is a *removal* of default
   `Dialog` behaviour); the full state sequence 1→2→3→5.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. As T41's own completion notes flagged, the prior session's wip commit
+  (`13d0b6c`) already implemented `ProxySigningDialog.vue` states 1, 2, 3, 4 and 5 in full, wired to
+  T37's endpoints. This task verified states 1/2/3/5 against T42's own Acceptance Criteria and
+  `design-10` Screen 6/Flows G and I rather than rebuilding — state 4 (T43's) was left untouched, as
+  instructed.
+
+  **Verified already correct, no change needed:** the state 1 → Enable signing → state 2 (one-time
+  reveal) → Done → state 3 sequence — `generate('enable')` calls T37's `store` endpoint via `fetch`
+  (the `PayloadViewer.vue`-established escape hatch for this app's one other non-Inertia JSON
+  endpoint) and sets `revealedSecret`; the `watch(() => props.open, …)` resets `revealedSecret` to
+  `null` on every close, so the secret is never re-displayed on a later open (AC57) and **Done**
+  (`handleDone`) simply closes the dialog — `design-10` Flow G step 4 confirms this is the intended
+  shape ("the dialog's next open shows the ordinary enabled status"), not a same-session state-2-to-3
+  transition without a close in between. In state 2, `Esc` and overlay-click are both refused by
+  `suppressDismissalDuringReveal` (bound to `@escape-key-down`/`@pointer-down-outside` on
+  `DialogContent`) plus the outermost `handleOpenChange` guard; `show-close-button` is `false` so the
+  corner `X` is gone too; a `watch(state, …)` focuses `doneButtonRef` via `nextTick` the moment state
+  becomes `'reveal'`; **Done** is the sole button rendered in the footer for that state, so Reka UI's
+  own focus trap keeps Tab/Shift+Tab inside the dialog with Done the only exit — this is the
+  overturned flagged design call 4, correctly implemented as the *overturned* version (suppression
+  applies only to this one sub-state, not the whole dialog). State 3 → Disable signing → state 5:
+  `handleDisable` calls `router.delete` against T37's `destroy` endpoint with `only: ['security']`,
+  sets `everDisabledThisSession` on success, and closes the dialog; state 5 (`not-enabled` +
+  `everDisabledThisSession`) renders the "Enabling again generates a new secret — your previous one
+  is never shown or reused" line, present exactly when the task's AC requires it. Regenerating from
+  state 3 calls the same `store` endpoint via `generate('regenerate')`, which always returns a freshly
+  generated secret from the server (T37's own contract) and overwrites `revealedSecret`, so state 2 is
+  re-entered with a genuinely new value, never the one shown before.
+
+  **Fixed — unchecked partial reload (audit finding 1).** `router.reload({ only: ['security'] })` at
+  the end of `generate()` was fire-and-forget with no `onError`. Added an `onError` callback that sets
+  `requestError`, surfaced through the same `AlertError` this component already uses for every other
+  request failure (`handleDisable`, `handleEndOverlap` already follow this convention; matched it here
+  rather than inventing a new one, per the task's own instruction). Message: "Signing secret generated,
+  but this proxy's status could not be refreshed. Close and reopen this dialog to see the current
+  status." — deliberately distinct from the enable/regenerate action-failure strings, since the
+  generate action itself succeeded; only the background status refresh failed. `AlertError` renders
+  outside the per-state `template` blocks, so it surfaces even while state 2 (reveal) is still showing.
+
+  **Fixed — missing `canUpdate` gate on Screen 6's own actions (audit finding 2).** Added a
+  `canUpdate: boolean` prop to `ProxySigningDialog.vue` and gated all four state-changing actions with
+  `v-if="props.canUpdate"`: **Enable signing** (state `not-enabled`), **Disable signing** and
+  **Regenerate signing secret** (state `enabled`/`overlap`, in the `v-else` footer branch), and **End
+  overlap now** (state `overlap`, T43's state — only the permission guard was touched here, not the
+  disclosure copy or any other content of that state, per the instruction to leave state 4 alone).
+  `resources/js/pages/proxies/Show.vue` now passes `:can-update="canUpdate"` (the same computed the
+  page's other mutating controls already use) to the dialog. Confirmed via `Show.vue:986-1044` that
+  every trigger opening this dialog was already itself `canUpdate`-gated, so there is no live exposure
+  today — this closes the gap `design-10` § Interactions names explicitly rather than fixing an active
+  bug.
+
+  **Added — Screen 6 state 3's ordinary-branch disclosure**, per the design amendment landed under T42
+  (commit `f7cf54a`, self-certified by the Designer under PRD-10 AC29 ruling 2a's delegated wording
+  authority). Rendered the approved copy verbatim as a second `p`, help styling
+  (`text-sm text-muted-foreground`), in the `enabled` state's template, directly below the "Enabled —
+  generated {date}." status line and above where `DialogFooter` renders — i.e., in front of the member
+  before **Regenerate signing secret** is reachable. Confirmed verbatim in the production bundle
+  (`grep` against `public/build/assets/Show-*.js` after `pnpm build`) rather than trusting the source
+  alone, since Prettier's line-rewrap of the template text could in principle have altered wording;
+  Vue's default whitespace-condense collapses the wrapped source lines back to the single approved
+  sentence, confirmed by the built-output grep.
+
+  **Testing.** No frontend test harness (confirmed: no `vitest`/`jest` in `package.json`, no
+  `.test.*` files under `resources/js`). A live browser pass was not attempted: `public/hot` exists on
+  disk and a `vite` dev-server process was already running under another PID at task start — killing a
+  dev server another concurrent session might own was judged riskier than the verification value of a
+  live pass, and the task explicitly permits falling back to a code trace rather than sinking budget
+  into login-flow debugging. Fell back to: the code trace above against each Acceptance Criterion, and
+  a grep of the actual `pnpm build` output (`public/build/assets/Show-*.js`) to confirm the new
+  disclosure copy renders verbatim rather than only checking the source template. The full Flow G/I
+  browser walkthrough remains T44's, as the task plan already places it there.
+
+  **What T43 needs to know:** state 4's disclosure copy and its `End overlap now` button are otherwise
+  untouched by this task — the only change inside that `v-else-if="state === 'overlap'"` block is the
+  new `v-if="props.canUpdate"` on the `End overlap now` `Button`, which does not affect the button's
+  existing behaviour for any member who already holds `canUpdate` (the only population that could
+  reach that state's button today, since every dialog-opening trigger is itself gated). T43 does not
+  need to add its own `canUpdate` gate to state 4 — this task already added it.
+
+  Gates: `composer lint`, `composer types:check`, `pnpm types:check`, `pnpm lint:check` all green.
+  `pnpm format:check` initially flagged the new lines in `ProxySigningDialog.vue` (line-wrap only, no
+  wording change) — fixed with `pnpm exec prettier --write`, then green. `pnpm build` green (output
+  bundle grepped as above). Full suite (`./vendor/bin/sail test --parallel`) — 1063/1063 passing,
+  matching the pre-existing baseline exactly (no backend code touched by this task).
 
 ## T43 — Screen 6 state 4 and Flow H step 2: the AC29 ruling-2a disclosure on the signing surface (correction B2) — **required before M8b is considered complete**
 - **Description:** `design-10`'s amendment-gate correction **B2**, called out explicitly because it was

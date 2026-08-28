@@ -1084,6 +1084,7 @@ function confirmDeleteProxy(): void {
         :proxy-id="props.proxy.id"
         :proxy-name="props.proxy.name"
         :signing="props.security.signing"
+        :can-update="canUpdate"
         @update:open="(value) => (signingDialogOpen = value)"
     />
 

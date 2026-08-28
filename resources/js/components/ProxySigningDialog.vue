@@ -39,6 +39,17 @@ const props = defineProps<{
     proxyId: number;
     proxyName: string;
     signing: ProxySecurity['signing'];
+    /**
+     * design-10 § Interactions, "Permission gating on the Show page" — every
+     * state-changing action inside this dialog (Enable signing, Regenerate
+     * signing secret, Disable signing, End overlap now) is gated on the same
+     * `canUpdate` computed `Show.vue` already uses for its other mutating
+     * controls. Every trigger that opens this dialog is itself
+     * `canUpdate`-gated already, so this guard has no live exposure today —
+     * it closes the gap for the dialog's own actions regardless of how it
+     * is reached.
+     */
+    canUpdate: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -167,7 +178,18 @@ async function generate(action: 'enable' | 'regenerate'): Promise<void> {
         // separate Inertia prop (`security`, T38) this JSON response never
         // carries — refresh it in the background so the dialog's next
         // non-reveal render (after Done) already reflects the new status.
-        router.reload({ only: ['security'] });
+        // An unhandled failure here would leave `props.signing` stale for
+        // the life of the page — e.g. `overlap_expires_at` staying `null`
+        // after a successful regenerate — so a failed refresh is surfaced
+        // the same way every other request failure in this dialog is
+        // (`requestError` + `AlertError`), rather than discarded silently.
+        router.reload({
+            only: ['security'],
+            onError: () => {
+                requestError.value =
+                    "Signing secret generated, but this proxy's status could not be refreshed. Close and reopen this dialog to see the current status.";
+            },
+        });
     } catch {
         requestError.value =
             action === 'enable'
@@ -293,6 +315,18 @@ function handleEndOverlap(): void {
                             : ''
                     }}.
                 </p>
+                <!-- design-10 `## Amendment — Screen 6 state 3's ordinary-branch
+                     disclosure` (2026-08-28) — the ordinary (no overlap yet)
+                     demote-not-discard copy, connecting Regenerate signing
+                     secret to End overlap now before the member ever clicks
+                     Regenerate. Rendered verbatim per that amendment. -->
+                <p class="text-sm text-muted-foreground">
+                    Regenerating keeps your current secret working for the next
+                    24 hours, for every destination this proxy has, so you don't
+                    need a coordinated cutover. To stop it early — for example
+                    if it's been leaked — use End overlap now, which appears
+                    here and on the Signing card once you regenerate.
+                </p>
             </template>
 
             <template v-else-if="state === 'overlap'">
@@ -314,6 +348,7 @@ function handleEndOverlap(): void {
                     }}.
                 </p>
                 <Button
+                    v-if="props.canUpdate"
                     variant="outline"
                     class="w-fit"
                     :disabled="busy"
@@ -360,7 +395,11 @@ function handleEndOverlap(): void {
                     </DialogClose>
 
                     <template v-if="state === 'not-enabled'">
-                        <Button :disabled="busy" @click="generate('enable')">
+                        <Button
+                            v-if="props.canUpdate"
+                            :disabled="busy"
+                            @click="generate('enable')"
+                        >
                             <Spinner v-if="pendingAction === 'enable'" />
                             Enable signing
                         </Button>
@@ -368,6 +407,7 @@ function handleEndOverlap(): void {
 
                     <template v-else>
                         <Button
+                            v-if="props.canUpdate"
                             variant="ghost"
                             :disabled="busy"
                             @click="handleDisable"
@@ -376,6 +416,7 @@ function handleEndOverlap(): void {
                             Disable signing
                         </Button>
                         <Button
+                            v-if="props.canUpdate"
                             variant="secondary"
                             :disabled="busy"
                             @click="generate('regenerate')"
