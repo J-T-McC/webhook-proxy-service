@@ -6,10 +6,6 @@ use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
-use App\Enums\SecretPurpose;
-use App\Enums\VerificationScheme;
-use App\Models\Proxy;
-use App\Services\SecretStore;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -68,32 +64,6 @@ class UpdateProxyRequest extends FormRequest
             // (ProxyController::sensitiveFieldAdditions()).
             'sensitive_fields' => ['nullable', 'array', 'max:100'],
             'sensitive_fields.*' => ['string', 'max:128', 'regex:/\S/'],
-            // Inbound verification (AC23, AC24, AC26; plan-10 §Validation). A
-            // `null`/absent scheme means "not required" (AC24) — the frontend
-            // normalises its "none" Select sentinel to absence before submit.
-            'verification_scheme' => ['nullable', Rule::enum(VerificationScheme::class)],
-            // Only `shared-secret` names a header the sender must use;
-            // `standard-webhooks` fixes its own three header names, so a
-            // submitted header name under that scheme is rejected outright
-            // (`prohibited_unless`) rather than silently ignored.
-            'verification_header_name' => [
-                'required_if:verification_scheme,shared-secret',
-                'prohibited_unless:verification_scheme,shared-secret',
-                'string',
-                'max:128',
-                'regex:/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/',
-            ],
-            // Write-only (AC26): absent means "leave unchanged" — required
-            // only when a scheme is selected AND this proxy has no live
-            // verification secret yet (a first-time scheme selection).
-            'verification_secret' => [
-                'nullable',
-                'string',
-                'min:8',
-                'max:1024',
-                Rule::requiredIf(fn (): bool => VerificationScheme::tryFrom((string) $this->input('verification_scheme')) !== null
-                    && ! $this->proxyHasLiveVerificationSecret()),
-            ],
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.id' => ['sometimes', 'nullable', 'integer'],
             'destinations.*.url' => ['required', 'string', 'url:https'],
@@ -101,7 +71,6 @@ class UpdateProxyRequest extends FormRequest
             // Per-destination credential (AC30, AC33; plan-10 §Validation, T29).
             // The header name defaults to `Authorization` on the form, not here
             // (the schema allows it to be absent whenever no secret is present).
-            // Reuses the same HTTP field-name pattern as `verification_header_name`.
             'destinations.*.credential_header_name' => [
                 'required_with:destinations.*.credential_secret',
                 'string',
@@ -111,9 +80,9 @@ class UpdateProxyRequest extends FormRequest
             // Write-only (AC33): absent/empty means "leave unchanged" — a
             // present, non-empty value replaces the stored credential
             // immediately, reconciled by the row's existing `id`-based
-            // matching in the controller. No `min` length constraint (unlike
-            // `verification_secret`'s `min:8`), so an empty string can reach
-            // the controller and must be treated the same as absent there.
+            // matching in the controller. No `min` length constraint, so an
+            // empty string can reach the controller and must be treated the
+            // same as absent there.
             // `prohibited_if` makes sending both this and `remove_credential: true`
             // a deterministic 422 (T31, plan-10 Revision A, ruling 15) — this
             // application's own UI can never produce that combination (see
@@ -128,24 +97,5 @@ class UpdateProxyRequest extends FormRequest
             // load-bearing on this key.
             'destinations.*.remove_credential' => ['sometimes', 'boolean'],
         ];
-    }
-
-    /**
-     * Whether the proxy this request is updating already has a live
-     * `verification` secret (T14/`SecretStore::liveFor()` — the single
-     * reader of `proxy_secrets`, plan-10 Technical ruling 14). Governs
-     * `verification_secret`'s write-only "required only on first-time
-     * selection" rule above; an absent field on an already-configured proxy
-     * means "leave unchanged" (AC26).
-     */
-    private function proxyHasLiveVerificationSecret(): bool
-    {
-        $proxy = $this->route('proxy');
-
-        if (! $proxy instanceof Proxy) {
-            return false;
-        }
-
-        return app(SecretStore::class)->liveFor($proxy, SecretPurpose::Verification) !== [];
     }
 }

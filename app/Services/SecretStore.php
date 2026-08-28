@@ -171,8 +171,8 @@ class SecretStore
 
     /**
      * Disable this purpose entirely: delete every row, current and
-     * superseded (ADR-021 Decision 5 — used for signing; verification's
-     * "not required" leaves its dormant secret alone and never calls this).
+     * superseded (ADR-021 Decision 5) — used for disabling signing, the
+     * only call site (`ProxySigningController::destroy()`).
      */
     public function disable(Proxy $proxy, SecretPurpose $purpose): void
     {

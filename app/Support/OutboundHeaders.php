@@ -6,33 +6,29 @@ use App\Pipeline\DeliveryUnit;
 
 /**
  * **The only place an outbound header set is built** (plan-10 Implementation
- * Note 3; AC17, AC27, AC30, AC38, AC54, AC55, AC58-AC60, AC64). Composes, in
- * order (ADR-023 Decision 1): (1) the inbound set minus ADR-008's constant
- * strip (`DeliveryUnit::forwardHeaders()`), (2) minus this proxy's own
- * verification header name(s) (AC27), (3) the destination's credential
+ * Note 3; AC17, AC30, AC38, AC54, AC55, AC58-AC60, AC64). Composes, in order
+ * (ADR-023 Decision 1): (1) the inbound set minus ADR-008's constant strip
+ * (`DeliveryUnit::forwardHeaders()`), (2) the destination's credential
  * header sent verbatim with no scheme prefix added (AC30) plus the proxy's
  * Standard Webhooks signing headers (T34; one `v1,<sig>` entry per live
- * signing secret, AC58) when the proxy has a live `signing` secret set, (4)
+ * signing secret, AC58) when the proxy has a live `signing` secret set, (3)
  * displacing any forwarded header whose lowercased name collides with an
- * added one (AC38, AC64, R9), (5) merge.
+ * added one (AC38, AC64, R9), (4) merge.
  *
  * `DeliveryUnit::STRIPPED_HEADERS` is deliberately untouched by this class
  * (plan-10 Implementation Note 4) — it is the fixed ADR-008 list, unrelated
- * to the verification/credential/signing names this class adds or strips;
- * adding the three `webhook-*` names to it would strip them from every
- * destination, including an unsigned proxy's, breaking AC63 (ADR-023
- * Decision 5).
+ * to the credential/signing names this class adds; adding the three
+ * `webhook-*` names to it would strip them from every destination, including
+ * an unsigned proxy's, breaking AC63 (ADR-023 Decision 5).
  *
- * A destination with no credential, on a proxy with no verification and no
- * signing secret configured, produces a result byte-identical to
+ * A destination with no credential, on a proxy with no signing secret
+ * configured, produces a result byte-identical to
  * `DeliveryUnit::forwardHeaders()` alone (AC37, AC63) — nothing here changes
- * behaviour unless a credential, a verification scheme, or a signing secret
- * is actually configured.
+ * behaviour unless a credential or a signing secret is actually configured.
  */
 final class OutboundHeaders
 {
     /**
-     * @param  list<string>  $verificationHeaderNames  this proxy's own verification header name(s) to strip — empty when verification is not required (AC43: nothing strips a `webhook-signature` a sender happened to send when there is no verification configured to strip it for)
      * @param  list<string>  $signingSecrets  the proxy's live `signing`-purpose secret set (T36's
      *                                        `SecretStore::liveFor()`, current first, at most two —
      *                                        AC29's cap) — empty when signing is not enabled, in
@@ -41,7 +37,6 @@ final class OutboundHeaders
      */
     public static function build(
         DeliveryUnit $unit,
-        array $verificationHeaderNames,
         ?string $credentialHeaderName,
         ?string $credentialValue,
         array $signingSecrets = [],
@@ -56,8 +51,7 @@ final class OutboundHeaders
             $added = [...$added, ...self::signingHeaders($unit, $signingSecrets)];
         }
 
-        $headers = self::withoutNames($unit->forwardHeaders(), $verificationHeaderNames);
-        $headers = self::withoutNames($headers, array_keys($added));
+        $headers = self::withoutNames($unit->forwardHeaders(), array_keys($added));
 
         return [...$headers, ...$added];
     }

@@ -6,7 +6,6 @@ use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
-use App\Enums\VerificationScheme;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -64,37 +63,12 @@ class StoreProxyRequest extends FormRequest
             // (ProxyController::sensitiveFieldAdditions()).
             'sensitive_fields' => ['nullable', 'array', 'max:100'],
             'sensitive_fields.*' => ['string', 'max:128', 'regex:/\S/'],
-            // Inbound verification (AC23, AC24, AC26; plan-10 §Validation). A
-            // `null`/absent scheme means "not required" (AC24) — the frontend
-            // normalises its "none" Select sentinel to absence before submit.
-            'verification_scheme' => ['nullable', Rule::enum(VerificationScheme::class)],
-            // Only `shared-secret` names a header the sender must use;
-            // `standard-webhooks` fixes its own three header names, so a
-            // submitted header name under that scheme is rejected outright
-            // (`prohibited_unless`) rather than silently ignored.
-            'verification_header_name' => [
-                'required_if:verification_scheme,shared-secret',
-                'prohibited_unless:verification_scheme,shared-secret',
-                'string',
-                'max:128',
-                'regex:/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/',
-            ],
-            // Write-only (AC26): a create has no proxy yet, so no live secret
-            // can already exist — required whenever a scheme is selected.
-            'verification_secret' => [
-                'nullable',
-                'string',
-                'min:8',
-                'max:1024',
-                Rule::requiredIf(fn (): bool => VerificationScheme::tryFrom((string) $this->input('verification_scheme')) !== null),
-            ],
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.url' => ['required', 'string', 'url:https'],
             'destinations.*.http_method' => ['required', Rule::enum(HttpMethod::class)],
             // Per-destination credential (AC30, AC33; plan-10 §Validation, T29).
             // The header name defaults to `Authorization` on the form, not here
             // (the schema allows it to be absent whenever no secret is present).
-            // Reuses the same HTTP field-name pattern as `verification_header_name`.
             'destinations.*.credential_header_name' => [
                 'required_with:destinations.*.credential_secret',
                 'string',

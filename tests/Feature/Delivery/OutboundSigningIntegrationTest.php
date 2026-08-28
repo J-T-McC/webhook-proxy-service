@@ -8,7 +8,6 @@ use App\Actions\RetryDelivery;
 use App\Enums\AttemptStatus;
 use App\Enums\DeliveryStatus;
 use App\Enums\SecretPurpose;
-use App\Enums\VerificationScheme;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
@@ -422,19 +421,16 @@ class OutboundSigningIntegrationTest extends TestCase
         ));
     }
 
-    public function test_r3_a_retry_against_a_soft_deleted_proxy_still_resolves_still_strips_verification_and_still_signs(): void
+    public function test_r3_a_retry_against_a_soft_deleted_proxy_still_resolves_and_still_signs(): void
     {
-        $proxy = Proxy::factory()->create([
-            'verification_scheme' => VerificationScheme::SharedSecret,
-            'verification_header_name' => 'X-Sender-Signature',
-        ]);
+        $proxy = Proxy::factory()->create();
         $destination = Destination::factory()->for($proxy)->createQuietly();
         app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'whsec_secret');
 
         $event = WebhookEvent::factory()->createQuietly([
             'proxy_id' => $proxy->id,
             'team_id' => $proxy->team_id,
-            'headers' => ['X-Sender-Signature' => ['sender-value'], 'Content-Type' => ['application/json']],
+            'headers' => ['Content-Type' => ['application/json']],
             'body' => '{"a":1}',
         ]);
         $delivery = Delivery::factory()->create([
@@ -453,10 +449,6 @@ class OutboundSigningIntegrationTest extends TestCase
         Http::assertSentCount(1);
         $request = Http::recorded()[0][0];
 
-        $this->assertFalse(
-            $request->hasHeader('X-Sender-Signature'),
-            "AC27: the proxy's own verification header is stripped outbound even after soft-delete.",
-        );
         $this->assertTrue($request->hasHeader('webhook-signature'), 'The proxy still signs after being soft-deleted.');
         $this->assertTrue(StandardWebhooks::verify(
             $request->header('webhook-id')[0],

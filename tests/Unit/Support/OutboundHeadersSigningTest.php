@@ -46,7 +46,7 @@ class OutboundHeadersSigningTest extends TestCase
         $destination = Destination::factory()->create();
         $otherDestination = Destination::factory()->create();
 
-        $idFor = fn (DeliveryUnit $unit): string => OutboundHeaders::build($unit, [], null, null, ['whsec_secret'])['webhook-id'];
+        $idFor = fn (DeliveryUnit $unit): string => OutboundHeaders::build($unit, null, null, ['whsec_secret'])['webhook-id'];
 
         $attempt1 = $this->unit(destination: $destination, dispatchUuid: 'dispatch-a');
         $retry = $this->unit(destination: $destination, dispatchUuid: 'dispatch-a');
@@ -65,10 +65,10 @@ class OutboundHeadersSigningTest extends TestCase
         $unit = $this->unit();
 
         Carbon::setTestNow(Carbon::createFromTimestamp(1_700_000_000));
-        $original = OutboundHeaders::build($unit, [], null, null, ['whsec_secret'])['webhook-timestamp'];
+        $original = OutboundHeaders::build($unit, null, null, ['whsec_secret'])['webhook-timestamp'];
 
         Carbon::setTestNow(Carbon::createFromTimestamp(1_700_000_600));
-        $retry = OutboundHeaders::build($unit, [], null, null, ['whsec_secret'])['webhook-timestamp'];
+        $retry = OutboundHeaders::build($unit, null, null, ['whsec_secret'])['webhook-timestamp'];
 
         Carbon::setTestNow();
 
@@ -81,7 +81,7 @@ class OutboundHeadersSigningTest extends TestCase
     {
         $unit = $this->unit(payload: '{"exact":"bytes"}');
 
-        $overlap = OutboundHeaders::build($unit, [], null, null, ['whsec_current', 'whsec_superseded']);
+        $overlap = OutboundHeaders::build($unit, null, null, ['whsec_current', 'whsec_superseded']);
         $entries = explode(' ', $overlap['webhook-signature']);
 
         $this->assertCount(2, $entries);
@@ -100,7 +100,7 @@ class OutboundHeadersSigningTest extends TestCase
             ['whsec_superseded'],
         ));
 
-        $afterExpiry = OutboundHeaders::build($unit, [], null, null, ['whsec_current']);
+        $afterExpiry = OutboundHeaders::build($unit, null, null, ['whsec_current']);
 
         $this->assertCount(1, explode(' ', $afterExpiry['webhook-signature']));
     }
@@ -111,8 +111,8 @@ class OutboundHeadersSigningTest extends TestCase
         $payload = '{"exact":"bytes"}';
         $unit = $this->unit(payload: $payload);
 
-        $signed = OutboundHeaders::build($unit, [], null, null, ['whsec_secret']);
-        $unsigned = OutboundHeaders::build($unit, [], null, null, []);
+        $signed = OutboundHeaders::build($unit, null, null, ['whsec_secret']);
+        $unsigned = OutboundHeaders::build($unit, null, null, []);
 
         $this->assertTrue(StandardWebhooks::verify(
             $signed['webhook-id'],
@@ -138,7 +138,7 @@ class OutboundHeadersSigningTest extends TestCase
             'webhook-signature' => ['v1,forged'],
         ]);
 
-        $result = OutboundHeaders::build($unit, [], null, null, ['whsec_secret']);
+        $result = OutboundHeaders::build($unit, null, null, ['whsec_secret']);
 
         $this->assertNotSame('msg_forged', $result['webhook-id']);
         $this->assertNotSame('1', $result['webhook-timestamp']);

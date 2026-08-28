@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Enums\SecretPurpose;
-use App\Enums\VerificationScheme;
 use App\Exceptions\SecretUnavailableException;
 use App\Models\Delivery;
 use App\Models\Proxy;
@@ -30,9 +29,9 @@ use App\Pipeline\DeliveryUnit;
  *
  * Also loads the proxy `withTrashed()` (T27, R3; a plain `belongsTo` on a
  * `SoftDeletes` model resolves `null` for a soft-deleted proxy, which PHPStan
- * cannot see) so a retry against a soft-deleted proxy still resolves — and
- * carries that proxy's own verification header name(s) on the resulting unit
- * for `OutboundHeaders`' strip step (T26) at send time.
+ * cannot see) so a retry against a soft-deleted proxy still resolves — the
+ * proxy's live signing set below is what this load is now sufficient for
+ * alone (ADR-026 Decision 3).
  *
  * Also carries `$delivery->dispatch_uuid` (T34; ADR-023 Decision 3) — with
  * the destination's id, the ingredients `OutboundHeaders` derives
@@ -81,32 +80,10 @@ class DeliveryUnitResolver
             payload: $this->payloads->dispatchedBytesFor($event),
             deliveryId: $delivery->id,
             attemptNumber: $attemptNumber,
-            verificationHeaderNames: $this->verificationHeaderNamesFor($proxy),
             dispatchUuid: $delivery->dispatch_uuid,
             signingSecrets: $signingSecrets,
             signingSecretsUnavailable: $signingSecretsUnavailable,
         );
-    }
-
-    /**
-     * This proxy's own inbound verification header name(s), to be stripped
-     * outbound (AC27) — the member-named header under `shared-secret`, the
-     * three fixed Standard Webhooks headers under `standard-webhooks`, or
-     * none when verification is not required (AC43: nothing strips a
-     * `webhook-signature` a sender happened to send when there is no
-     * verification configuration to strip it for).
-     *
-     * @return list<string>
-     */
-    private function verificationHeaderNamesFor(Proxy $proxy): array
-    {
-        return match ($proxy->verification_scheme) {
-            null => [],
-            VerificationScheme::SharedSecret => $proxy->verification_header_name !== null
-                ? [$proxy->verification_header_name]
-                : [],
-            VerificationScheme::StandardWebhooks => ['webhook-id', 'webhook-timestamp', 'webhook-signature'],
-        };
     }
 
     /**

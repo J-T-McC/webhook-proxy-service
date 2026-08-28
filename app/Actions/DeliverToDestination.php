@@ -199,9 +199,9 @@ class DeliverToDestination
      *
      * The outbound header set is built here, through `OutboundHeaders` (T26,
      * T34) — the one build point (plan-10 § Architecture C) — so the
-     * credential, verification strip and signing headers apply identically
-     * to attempt 1 (`asJob()`), every retry (`RetryDelivery`), and every
-     * replay, all of which funnel into this same method.
+     * credential and signing headers apply identically to attempt 1
+     * (`asJob()`), every retry (`RetryDelivery`), and every replay, all of
+     * which funnel into this same method.
      * `$unit->destination->credential_secret` decrypts via the model's
      * `encrypted` cast at read time here, in the send path, never earlier;
      * `$unit->signingSecrets` (T36) is already resolved by the time this
@@ -229,7 +229,6 @@ class DeliverToDestination
 
             $headers = OutboundHeaders::build(
                 $unit,
-                $unit->verificationHeaderNames,
                 $unit->destination->credential_header_name,
                 $unit->destination->credential_secret,
                 $unit->signingSecrets,

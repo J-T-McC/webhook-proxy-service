@@ -247,7 +247,7 @@ class ProxyEventPayloadControllerTest extends TestCase
         (new ProxySecret([
             'team_id' => $proxy->team_id,
             'proxy_id' => $proxy->id,
-            'purpose' => SecretPurpose::Verification,
+            'purpose' => SecretPurpose::Signing,
             'value' => 'this-is-a-live-secret-value',
             'is_current' => true,
         ]))->save();

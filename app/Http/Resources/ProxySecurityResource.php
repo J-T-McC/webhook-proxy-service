@@ -12,15 +12,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * The `security` prop (plan-10 §API, Technical ruling 3) — status only,
- * never a value, never a length (AC20, AC26, AC28). A sibling prop on
+ * never a value, never a length (AC20, AC33). A sibling prop on
  * `ProxyController::show()`/`edit()`, never a key on `ProxyResource` (which
  * also serves `index()`, unaffected by this feature) and never rendered on
  * `create()` (no proxy exists yet to have a status).
  *
- * The `verification` sub-object is built at T22; `destinations` (T32; AC30,
- * AC33; plan-10 Technical ruling 4); `signing` (T38; AC54, AC57, AC58; plan-10
- * Technical ruling 4) here — status only, one object on the shared prop, never
- * a per-destination field, since Amendment B re-grains signing to the proxy.
+ * `destinations` (T32; AC30, AC33; plan-10 Technical ruling 4); `signing`
+ * (T38; AC54, AC57, AC58; plan-10 Technical ruling 4) here — status only, one
+ * object on the shared prop, never a per-destination field, since Amendment B
+ * re-grains signing to the proxy.
  *
  * `#[PreserveKeys]` is load-bearing, not decorative: `destinations`' keys
  * are destination ids — all-numeric — and `JsonResource`'s own
@@ -51,28 +51,14 @@ class ProxySecurityResource extends JsonResource
         // inline-resolve convention rather than a constructor dependency,
         // since JsonResource collections are instantiated by the framework.
         $store = app(SecretStore::class);
-        $verificationStatus = $store->statusFor($this->resource, SecretPurpose::Verification);
         $signingStatus = $store->statusFor($this->resource, SecretPurpose::Signing);
 
         return [
-            'verification' => [
-                // null when verification is not required (AC24) — the
-                // closed two-case scheme, never a third value (AC50).
-                'scheme' => $this->verification_scheme?->value,
-                // Visible only meaningfully under shared-secret, but always
-                // present here; the client renders it only for that scheme.
-                'header_name' => $this->verification_header_name,
-                // Presence only — never the secret's value or length.
-                'secret_set' => $verificationStatus !== null,
-                'secret_changed_at' => $verificationStatus?->changedAt,
-                'overlap_expires_at' => $verificationStatus?->overlapExpiresAt,
-            ],
             // T38 — status only, one object on the shared prop (no per-destination
-            // signing flag exists under Amendment B). `enabled` mirrors
-            // `verification.secret_set`'s own presence-only convention; a proxy
-            // that was enabled and then disabled (`SecretStore::disable()` deletes
-            // every row, ADR-021 Decision 5) reads identically to one that was
-            // never enabled — both have no live `signing` row.
+            // signing flag exists under Amendment B). `enabled` is presence-only;
+            // a proxy that was enabled and then disabled (`SecretStore::disable()`
+            // deletes every row, ADR-021 Decision 5) reads identically to one that
+            // was never enabled — both have no live `signing` row.
             'signing' => [
                 'enabled' => $signingStatus !== null,
                 'generated_at' => $signingStatus?->changedAt,

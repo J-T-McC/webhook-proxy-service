@@ -49,16 +49,11 @@ final class DeliveryUnit
     /**
      * @param  array<string, list<string|null>>  $headers  inbound headers
      * @param  int  $deliveryId  the `deliveries` row this attempt belongs to (ADR-015 Decision 1)
-     * @param  list<string>  $verificationHeaderNames  the resolved proxy's own verification
-     *                                                 header name(s) (T27; plan-10 § Architecture C) —
-     *                                                 empty when verification is not required.
-     *                                                 Defaulted to `[]` rather than made required so
-     *                                                 every pre-#10 construction site (delivery-path
-     *                                                 tests unrelated to #10) stays valid unchanged.
      * @param  string  $dispatchUuid  the owning `Delivery`'s natural-key half (T34; ADR-023 Decision
      *                                3) — with {@see self::$destination}'s id, derives `webhook-id`
-     *                                without a new column. Defaulted to `''` for the same
-     *                                pre-#10-construction-site reason as `$verificationHeaderNames`.
+     *                                without a new column. Defaulted to `''` so every pre-#10
+     *                                construction site (delivery-path tests unrelated to #10) stays
+     *                                valid unchanged.
      * @param  list<string>  $signingSecrets  the proxy's live `signing`-purpose secret set (T36) —
      *                                        current first, at most two (AC29's cap); empty when
      *                                        signing is not enabled, in which case `OutboundHeaders`
@@ -81,7 +76,6 @@ final class DeliveryUnit
         public readonly string $payload,
         public readonly int $deliveryId,
         public readonly int $attemptNumber,
-        public readonly array $verificationHeaderNames = [],
         public readonly string $dispatchUuid = '',
         public readonly array $signingSecrets = [],
         public readonly ?SecretUnavailableException $signingSecretsUnavailable = null,

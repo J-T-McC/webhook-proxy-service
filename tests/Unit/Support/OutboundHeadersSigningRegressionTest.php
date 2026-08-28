@@ -49,7 +49,7 @@ class OutboundHeadersSigningRegressionTest extends TestCase
         ];
         $unit = $this->unit($headers);
 
-        $result = OutboundHeaders::build($unit, [], null, null, []);
+        $result = OutboundHeaders::build($unit, null, null, []);
 
         // No webhook-* header added.
         $this->assertArrayNotHasKey('webhook-id', $result);
@@ -72,7 +72,7 @@ class OutboundHeadersSigningRegressionTest extends TestCase
         // layer: once disabled, SecretStore::liveFor() returns an empty set (T14) —
         // the same input a proxy that never enabled signing produces, so a
         // previously-signing proxy dispatches byte-identically once disabled.
-        $result = OutboundHeaders::build($unit, [], null, null, []);
+        $result = OutboundHeaders::build($unit, null, null, []);
 
         $this->assertArrayNotHasKey('webhook-id', $result);
         $this->assertArrayNotHasKey('webhook-timestamp', $result);

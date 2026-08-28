@@ -83,7 +83,7 @@ class EncryptedColumnSurfaceTest extends TestCase
         (new ProxySecret([
             'team_id' => $team->id,
             'proxy_id' => $proxy->id,
-            'purpose' => SecretPurpose::Verification,
+            'purpose' => SecretPurpose::Signing,
             'value' => $plaintext,
             'is_current' => true,
         ]))->save();

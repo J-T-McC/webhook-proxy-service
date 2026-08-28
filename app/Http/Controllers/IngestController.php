@@ -6,16 +6,12 @@ use App\Actions\AdvanceProxyFifoQueue;
 use App\Actions\ProcessIngestedWebhook;
 use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
-use App\Enums\VerificationResult;
-use App\Exceptions\SecretUnavailableException;
 use App\Models\FifoDispatch;
 use App\Models\Proxy;
-use App\Services\InboundVerifier;
 use App\Services\ResponseResolver;
 use App\Services\WebhookEventCapture;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
@@ -31,17 +27,9 @@ use Throwable;
  */
 class IngestController extends Controller
 {
-    /**
-     * The fixed, non-configurable, non-disclosing 401 body for a failed
-     * verification (ADR-022 Decision 5) — names no scheme, no header, no
-     * reason.
-     */
-    private const VERIFICATION_FAILED_BODY = 'Webhook verification failed.';
-
     public function __construct(
         private ResponseResolver $responseResolver,
         private WebhookEventCapture $capture,
-        private InboundVerifier $verifier,
     ) {}
 
     public function __invoke(Request $request, string $token): Response
@@ -59,36 +47,12 @@ class IngestController extends Controller
         // Read the raw request facts up front and mint the single ingest_id — the one
         // correlator shared by the capture row and the fan-out delivery_attempts
         // (ADR-003). Do not introduce a second key. `$rawBody` is read exactly ONCE
-        // here and reused by both the verifier below and `WebhookEventCapture`
-        // (ADR-022 Decision 4) — no second `$request->getContent()` call anywhere.
+        // here and reused by `WebhookEventCapture` — no second `$request->getContent()`
+        // call anywhere.
         $ingestId = (string) Str::uuid();
         $method = $request->method();
         $headers = $request->headers->all();
         $rawBody = $request->getContent();
-
-        // ADR-022 Decision 1: the verification gate, between token resolution and
-        // the capture transaction. `NotRequired`/`Verified` continue unchanged;
-        // `Failed` returns 401 before any `webhook_events` row exists (AC25); an
-        // undecryptable secret returns 500, never a 401 and never the proxy's
-        // configured 2xx (AC11) — both return before capture.
-        try {
-            $result = $this->verifier->verify($proxy, $request, $rawBody);
-        } catch (SecretUnavailableException $e) {
-            report($e);
-            abort(Response::HTTP_INTERNAL_SERVER_ERROR);
-        }
-
-        if ($result === VerificationResult::Failed) {
-            Log::info('ingest.verification_failed', [
-                'team_id' => $proxy->team_id,
-                'proxy_id' => $proxy->id,
-                'scheme' => $proxy->verification_scheme?->value,
-                'reason' => $this->verifier->reasonFor($proxy, $request, $rawBody),
-            ]);
-
-            return response(self::VERIFICATION_FAILED_BODY, Response::HTTP_UNAUTHORIZED)
-                ->header('Content-Type', 'text/plain');
-        }
 
         $isFifo = $proxy->processing_mode === ProcessingMode::Fifo;
 

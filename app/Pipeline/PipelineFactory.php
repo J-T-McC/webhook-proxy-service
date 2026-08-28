@@ -26,7 +26,6 @@ class PipelineFactory
 
         // ---- ENHANCED-ONLY front stages (LATER ITEMS — NOT built at #1) ----
         if ($proxy->mode === ProxyMode::Enhanced) {
-            // $steps[] = VerifyStep::make();            // #10 — verification token (front)
             // $steps[] = NormalizeStep::make();         // #9  — any format -> JSON
             // CaptureRawStep — SUPERSEDED for raw capture by IngestController +
             // WebhookEventCapture (ADR-010): raw capture is a synchronous pre-dispatch

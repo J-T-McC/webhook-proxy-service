@@ -55,13 +55,13 @@ class SecretStoreTest extends TestCase
     {
         $proxy = $this->makeProxy();
 
-        $this->store->replace($proxy, SecretPurpose::Verification, 'secret-one');
-        $this->store->replace($proxy, SecretPurpose::Verification, 'secret-two');
-        $this->store->replace($proxy, SecretPurpose::Verification, 'secret-three');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'secret-one');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'secret-two');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'secret-three');
 
         $this->assertCount(2, ProxySecret::query()
             ->where('proxy_id', $proxy->id)
-            ->where('purpose', SecretPurpose::Verification)
+            ->where('purpose', SecretPurpose::Signing)
             ->get());
     }
 
@@ -80,20 +80,20 @@ class SecretStoreTest extends TestCase
     {
         $proxy = $this->makeProxy();
 
-        $this->store->replace($proxy, SecretPurpose::Verification, 'first');
-        $this->assertInvariantHolds($proxy, SecretPurpose::Verification);
+        $this->store->replace($proxy, SecretPurpose::Signing, 'first');
+        $this->assertInvariantHolds($proxy, SecretPurpose::Signing);
 
-        $this->store->replace($proxy, SecretPurpose::Verification, 'second');
-        $this->assertInvariantHolds($proxy, SecretPurpose::Verification);
-
-        $this->store->generate($proxy, SecretPurpose::Signing);
+        $this->store->replace($proxy, SecretPurpose::Signing, 'second');
         $this->assertInvariantHolds($proxy, SecretPurpose::Signing);
 
         $this->store->generate($proxy, SecretPurpose::Signing);
         $this->assertInvariantHolds($proxy, SecretPurpose::Signing);
 
-        $this->store->endOverlap($proxy, SecretPurpose::Verification);
-        $this->assertInvariantHolds($proxy, SecretPurpose::Verification);
+        $this->store->generate($proxy, SecretPurpose::Signing);
+        $this->assertInvariantHolds($proxy, SecretPurpose::Signing);
+
+        $this->store->endOverlap($proxy, SecretPurpose::Signing);
+        $this->assertInvariantHolds($proxy, SecretPurpose::Signing);
 
         $this->store->disable($proxy, SecretPurpose::Signing);
         $this->assertInvariantHolds($proxy, SecretPurpose::Signing);
@@ -103,21 +103,21 @@ class SecretStoreTest extends TestCase
     {
         $proxy = $this->makeProxy();
 
-        $this->store->replace($proxy, SecretPurpose::Verification, 'old-secret');
-        $this->store->replace($proxy, SecretPurpose::Verification, 'new-secret');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'old-secret');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'new-secret');
 
-        $live = $this->store->liveFor($proxy, SecretPurpose::Verification);
+        $live = $this->store->liveFor($proxy, SecretPurpose::Signing);
         $this->assertSame(['new-secret', 'old-secret'], $live);
 
         // Push the superseded row's expiry into the past directly — no
         // sweeper, no job, run at all. Liveness is a property of the data.
         ProxySecret::query()
             ->where('proxy_id', $proxy->id)
-            ->where('purpose', SecretPurpose::Verification)
+            ->where('purpose', SecretPurpose::Signing)
             ->whereNull('is_current')
             ->update(['expires_at' => now()->subMinute()]);
 
-        $liveAfterExpiry = $this->store->liveFor($proxy, SecretPurpose::Verification);
+        $liveAfterExpiry = $this->store->liveFor($proxy, SecretPurpose::Signing);
         $this->assertSame(['new-secret'], $liveAfterExpiry);
     }
 
@@ -125,17 +125,17 @@ class SecretStoreTest extends TestCase
     {
         $proxy = $this->makeProxy();
 
-        $this->store->replace($proxy, SecretPurpose::Verification, 'oldest');
-        $this->store->replace($proxy, SecretPurpose::Verification, 'middle');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'oldest');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'middle');
         // Middle is now superseded, with a 24h-out expiry — still "running".
-        $this->store->replace($proxy, SecretPurpose::Verification, 'newest');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'newest');
 
-        $values = $this->store->liveFor($proxy, SecretPurpose::Verification);
+        $values = $this->store->liveFor($proxy, SecretPurpose::Signing);
         $this->assertSame(['newest', 'middle'], $values);
         $this->assertNotContains('oldest', $values);
         $this->assertCount(2, ProxySecret::query()
             ->where('proxy_id', $proxy->id)
-            ->where('purpose', SecretPurpose::Verification)
+            ->where('purpose', SecretPurpose::Signing)
             ->get());
     }
 
@@ -143,37 +143,37 @@ class SecretStoreTest extends TestCase
     {
         $proxy = $this->makeProxy();
 
-        $this->store->replace($proxy, SecretPurpose::Verification, 'old-secret');
-        $this->store->replace($proxy, SecretPurpose::Verification, 'new-secret');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'old-secret');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'new-secret');
 
-        $this->store->endOverlap($proxy, SecretPurpose::Verification);
-        $this->assertSame(['new-secret'], $this->store->liveFor($proxy, SecretPurpose::Verification));
+        $this->store->endOverlap($proxy, SecretPurpose::Signing);
+        $this->assertSame(['new-secret'], $this->store->liveFor($proxy, SecretPurpose::Signing));
 
         // Calling again with no overlap running is a no-op, no error.
-        $this->store->endOverlap($proxy, SecretPurpose::Verification);
-        $this->assertSame(['new-secret'], $this->store->liveFor($proxy, SecretPurpose::Verification));
+        $this->store->endOverlap($proxy, SecretPurpose::Signing);
+        $this->assertSame(['new-secret'], $this->store->liveFor($proxy, SecretPurpose::Signing));
 
         // Calling when no overlap has ever run for this proxy/purpose is
         // also a no-op, no error.
         $otherProxy = $this->makeProxy();
-        $this->store->endOverlap($otherProxy, SecretPurpose::Verification);
-        $this->assertSame([], $this->store->liveFor($otherProxy, SecretPurpose::Verification));
+        $this->store->endOverlap($otherProxy, SecretPurpose::Signing);
+        $this->assertSame([], $this->store->liveFor($otherProxy, SecretPurpose::Signing));
     }
 
     public function test_a_row_that_cannot_be_decrypted_throws_rather_than_being_silently_excluded(): void
     {
         $proxy = $this->makeProxy();
 
-        $this->store->replace($proxy, SecretPurpose::Verification, 'a-fine-secret');
+        $this->store->replace($proxy, SecretPurpose::Signing, 'a-fine-secret');
 
         DB::table('proxy_secrets')
             ->where('proxy_id', $proxy->id)
-            ->where('purpose', SecretPurpose::Verification->value)
+            ->where('purpose', SecretPurpose::Signing->value)
             ->update(['value' => 'not-valid-ciphertext']);
 
         $this->expectException(SecretUnavailableException::class);
 
-        $this->store->liveFor($proxy, SecretPurpose::Verification);
+        $this->store->liveFor($proxy, SecretPurpose::Signing);
     }
 
     public function test_disable_deletes_every_row_and_a_subsequent_generate_never_repeats_the_disabled_value(): void
@@ -201,12 +201,12 @@ class SecretStoreTest extends TestCase
         $proxy = $this->makeProxy();
 
         for ($i = 0; $i < 10; $i++) {
-            $this->store->replace($proxy, SecretPurpose::Verification, "secret-{$i}");
+            $this->store->replace($proxy, SecretPurpose::Signing, "secret-{$i}");
         }
 
         $this->assertCount(2, ProxySecret::query()
             ->where('proxy_id', $proxy->id)
-            ->where('purpose', SecretPurpose::Verification)
+            ->where('purpose', SecretPurpose::Signing)
             ->get());
     }
 }

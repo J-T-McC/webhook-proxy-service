@@ -3060,7 +3060,112 @@ rows until T54 deletes them.
   - `composer lint`, `composer types:check`, `./vendor/bin/sail test --parallel` all green.
 - **Testing:** covered entirely by the deleted/edited test files enumerated in the Description; no new
   test file required by this task (T54 adds the migration-specific one).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Deleted the eight production classes/directory and the seven
+  verification-only test files exactly as enumerated (`app/Verification/` now gone entirely).
+  `IngestController`: removed the `InboundVerifier` constructor dependency, the
+  `SecretUnavailableException` try/catch with its `report()`/`abort(500)`, the
+  `VerificationResult::Failed` 401 branch, the `ingest.verification_failed` log line, and the
+  `VERIFICATION_FAILED_BODY` constant. The single `$request->getContent()` read stays exactly where
+  it was, still passed to `WebhookEventCapture` unchanged; the capture-failure `report($e)`/
+  `try`/`catch (Throwable)` block is untouched. `PipelineFactory.php`'s reserved `VerifyStep` comment
+  is gone. `OutboundHeaders::build()` no longer takes a verification header-names argument — every
+  call site (`DeliverToDestination`, both `OutboundHeadersSigningTest`/
+  `OutboundHeadersSigningRegressionTest`, `OutboundHeadersTest`) updated to the new four/five-argument
+  signature; the AC37 byte-identical baseline and the credential/signing composition are otherwise
+  unchanged. `DeliveryUnitResolver` lost `verificationHeaderNamesFor()` and the `VerificationScheme`
+  import; the `withTrashed()` proxy load stays, now justified by the live signing set alone.
+  `DeliveryUnit` lost the `$verificationHeaderNames` constructor property; `STRIPPED_HEADERS` itself
+  is byte-for-byte untouched (confirmed via `DeliveryUnitTest`, unmodified and still green — that's
+  T55's file). `DeliverToDestination::send()` no longer passes a verification argument.
+  `Proxy` lost the `verification_scheme` cast, both `@property` lines, both `#[Fillable]` entries and
+  the `VerificationScheme` import; `secrets()` unchanged. `StoreProxyRequest`/`UpdateProxyRequest` lost
+  the three verification rules and the `VerificationScheme` import; `UpdateProxyRequest` also lost
+  `proxyHasLiveVerificationSecret()` and its `SecretStore`/`SecretPurpose` imports. `ProxyController`
+  lost both `SecretStore::replace(…, SecretPurpose::Verification, …)` calls, the two persisted
+  verification columns in `update()`, both `standardWebhooksTolerance` props, and — once those were
+  gone — the `SecretStore` constructor dependency and the `SecretStore`/`SecretPurpose`/
+  `StandardWebhooks` imports; `DeliveryStatistics` untouched. `ProxySecurityResource` lost the entire
+  `verification` sub-object and the `$verificationStatus` lookup; `signing`/`destinations`/
+  `#[PreserveKeys]` untouched. `routes/web.php` lost the `proxies.verification.overlap.destroy` route
+  and its controller import; the three signing routes still resolve.
+
+  **The three traps, confirmed held:** `app/Services/SecretStore.php` — touched nowhere except
+  `disable()`'s docblock, rewritten to state signing's own semantics directly ("used for disabling
+  signing, the only call site") rather than contrasting it with verification's now-gone retention
+  rule; the method itself, and every other method, is byte-for-byte unchanged.
+  `app/Support/StandardWebhooks.php` — not touched at all; `verify()`, `parseEntries()` and
+  `TOLERANCE_SECONDS` all present, still exercised as the receiver-side oracle by
+  `OutboundHeadersSigningTest` and `OutboundSigningIntegrationTest`. `app/Enums/SecretPurpose.php` —
+  not touched; both cases still exist, and every fixture that used to construct a `verification`-
+  purpose `ProxySecret` was retargeted to `Signing` rather than the case being removed here.
+
+  **Ten surviving test files edited, per the enumerated list:** `IngestControllerTest.php` — removed
+  the four AC25 negatives, the AC11 500 case, and the log-payload assertion (6 tests); the
+  `verifiedProxyWithSharedSecret()` helper went with its last caller. The body-read-once test survives,
+  re-pointed at a plain token-only proxy via the existing `proxyWithToken()` helper.
+  `DeliveryUnitResolverTest.php` — removed the two pure-verification tests
+  (`test_standard_webhooks_scheme_carries_all_three_fixed_header_names`,
+  `test_no_verification_configured_carries_no_header_names`); retargeted the soft-deleted-proxy
+  regression (T27/R3) to prove the `withTrashed()` load's now-sole justification — the proxy's live
+  signing set survives a retry against a soft-deleted proxy — rather than the verification header
+  names it used to carry. `OutboundHeadersTest.php` — removed the two scheme-strip tests and the AC43
+  no-op-strip test; added one test proving a sender-sent `webhook-signature` header still forwards
+  unchanged now that nothing strips it for a verification reason; AC37's baseline renamed to drop the
+  "no verification" clause from its own name since there is no other kind now. Every remaining
+  `OutboundHeaders::build()` call site in the file (and in the two signing test files sharing the
+  class) updated to the new signature. `ProxySecurityResourceTest.php` — removed the three
+  verification-sub-object tests outright (no replacement: the class docblock and file-level comment
+  narrowed to describe only what the resource now emits); retargeted
+  `test_the_response_never_contains_the_secret_value` to a `Signing`-purpose secret, keeping its
+  unique coverage (it checks both `show()` and `edit()`, where the neighbouring signing-specific
+  no-leak test only checks `show()`). `SecretStoreTest.php`, `ProxySecretTest.php`,
+  `ExpireProxySecretsTest.php`, `PurgeExpiredProxySecretsTest.php`,
+  `ProxyEventPayloadControllerTest.php` — every `SecretPurpose::Verification` fixture retargeted to
+  `SecretPurpose::Signing`; `SecretStoreTest`'s one test that exercised `replace()`/`generate()`/
+  `endOverlap()`/`disable()` across two purposes in one method now exercises the same four operations
+  against a single purpose, which is behaviourally equivalent since `SecretStore` is fully
+  purpose-parameterised with no branch on purpose (`generate()` itself just calls `replace()` with a
+  random value). `OutboundSigningIntegrationTest.php` — removed the AC27 strip fixture and assertion
+  from the R3 soft-deleted-proxy test, keeping its still-relevant half (still resolves, still signs);
+  renamed accordingly.
+
+  **One gap in ADR-026 Decision 2's own "exhaustive" enumeration, found and closed rather than
+  escalated** (mechanical, identical in kind to the five already-authorized retargets above, not a
+  scope or requirements question): `tests/Unit/Models/EncryptedColumnSurfaceTest.php` — not named in
+  either ADR-026's or this task's file lists — constructs a `ProxySecret` with
+  `'purpose' => SecretPurpose::Verification` as its plaintext-not-logged fixture. Left unretargeted, it
+  would have compiled and passed through this task (the enum case still exists) and then broken at
+  **T54**, the moment the case is removed. Retargeted to `SecretPurpose::Signing`, the same fix as its
+  five siblings and for the identical reason — the property under test (no plaintext secret value
+  reaches the query log) is purpose-agnostic. `Proxy.php`'s docblock precedent ("The proxy's rotating
+  secrets (signing)") and `ProxySecurityResource.php`'s docblock/AC-citation trims for the same
+  now-gone sub-object follow the same "close the reference now rather than leave it dangling for
+  T49" logic as T52's `DestinationRows.vue` comment fix, and are similarly out of the enumerated file
+  list but load-bearing for not leaving a reader looking for something that no longer exists.
+
+  **Left untouched, deliberately, despite naming "verification" in a comment**, because ADR-026
+  Decision 3 names each of these as explicitly unaffected and neither is in either enumerated edit
+  list: `app/Http/Resources/DestinationResource.php`'s "unlike verification/signing status" comparison
+  (still accurate — `signing` status is still `SecretStore`-derived, which is the actual point being
+  made) and `app/Http/Controllers/ProxySigningOverlapController.php`'s docblock naming
+  `ProxyVerificationOverlapController` as the class this one's shape was modelled on (a historical
+  precedent note, not a live reference — the class it names is gone, but ADR-022, which introduced it,
+  is only superseded, not deleted, so the precedent remains legible). Flagging both for **T49**'s sweep
+  rather than editing them now, since neither is in this task's file list and both remain individually
+  defensible as written.
+
+  **Test count**: 1063 → 998, a drop of 65, fully accounted for: 52 tests in the seven deleted
+  verification-only files (6 + 6 + 6 + 2 + 19 + 9 + 4, counted directly against the pre-deletion
+  files at `HEAD`) plus a net 13 removed from the five surviving files with cases pruned
+  (`IngestControllerTest.php` −6; `DeliveryUnitResolverTest.php` −2, net, after retargeting one
+  survivor; `OutboundHeadersTest.php` −2, net, after adding one forwarding-unchanged replacement;
+  `ProxySecurityResourceTest.php` −3; `OutboundSigningIntegrationTest.php` unchanged, one rename only).
+  52 + 13 = 65.
+
+  Gates: `composer lint`, `composer types:check` both green (no PHPStan regressions from the removed
+  `SecretStore`/`SecretPurpose`/`InboundVerifier` dependency injections). Full suite
+  `./vendor/bin/sail test --parallel` — 998/998 passing, 4728 assertions. Frontend gates not
+  re-run for this task (no `resources/js` file touched by T53).
 
 ## T54 — Migration: drop `proxies.verification_scheme`/`verification_header_name`, delete every `verification`-purpose secret, and remove `SecretPurpose::Verification` (ADR-026 Decision 4, and the ordering constraint of Decision 2 § *What stays*)
 - **Description:** One new migration, `database/migrations/2026_08_28_000001_remove_inbound_verification.php`,

@@ -7,7 +7,6 @@ use App\Concerns\HasCreator;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
-use App\Enums\VerificationScheme;
 use App\Services\IngestTokenService;
 use Database\Factories\ProxyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -32,8 +31,6 @@ use Illuminate\Support\Carbon;
  * @property string|null $response_body
  * @property string $ingest_token_hash
  * @property string $ingest_token
- * @property VerificationScheme|null $verification_scheme
- * @property string|null $verification_header_name
  * @property list<string>|null $sensitive_fields
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -54,8 +51,6 @@ use Illuminate\Support\Carbon;
     'retry_backoff_strategy',
     'response_status',
     'response_body',
-    'verification_scheme',
-    'verification_header_name',
     'sensitive_fields',
 ])]
 class Proxy extends Model
@@ -107,10 +102,10 @@ class Proxy extends Model
     }
 
     /**
-     * The proxy's rotating secrets (verification, signing). `SecretStore` is
-     * the single reader and writer of this relation's underlying table
-     * (plan-10 Technical ruling 14) — nothing else queries `proxy_secrets`
-     * directly, and this relation is never eager-loaded onto a resource.
+     * The proxy's rotating secrets (signing). `SecretStore` is the single
+     * reader and writer of this relation's underlying table (plan-10
+     * Technical ruling 14) — nothing else queries `proxy_secrets` directly,
+     * and this relation is never eager-loaded onto a resource.
      *
      * @return HasMany<ProxySecret, $this>
      */
@@ -166,7 +161,6 @@ class Proxy extends Model
             'retry_backoff_strategy' => RetryBackoffStrategy::class,
             'response_status' => 'integer',
             'ingest_token' => 'encrypted',
-            'verification_scheme' => VerificationScheme::class,
             'sensitive_fields' => 'array',
         ];
     }

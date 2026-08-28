@@ -28,7 +28,7 @@ class ExpireProxySecretsTest extends TestCase
         $secret = new ProxySecret([
             'team_id' => $proxy->team_id,
             'proxy_id' => $proxy->id,
-            'purpose' => SecretPurpose::Verification,
+            'purpose' => SecretPurpose::Signing,
             'value' => 'superseded-value',
             'is_current' => null,
             'expires_at' => $expiresAt,
@@ -43,7 +43,7 @@ class ExpireProxySecretsTest extends TestCase
         $proxy = $this->makeProxy();
         $secret = $this->makeSupersededSecret($proxy, now()->subMinute());
 
-        app(ExpireProxySecrets::class)->handle($proxy->id, SecretPurpose::Verification->value);
+        app(ExpireProxySecrets::class)->handle($proxy->id, SecretPurpose::Signing->value);
 
         $this->assertNull(ProxySecret::query()->find($secret->id));
     }
@@ -53,7 +53,7 @@ class ExpireProxySecretsTest extends TestCase
         $proxy = $this->makeProxy();
         $secret = $this->makeSupersededSecret($proxy, now()->addHours(24));
 
-        app(ExpireProxySecrets::class)->handle($proxy->id, SecretPurpose::Verification->value);
+        app(ExpireProxySecrets::class)->handle($proxy->id, SecretPurpose::Signing->value);
 
         $this->assertNotNull(ProxySecret::query()->find($secret->id));
     }
@@ -64,7 +64,7 @@ class ExpireProxySecretsTest extends TestCase
 
         // No row at all for this (proxy, purpose) — a further rotation or the
         // sweeper already removed it.
-        app(ExpireProxySecrets::class)->handle($proxy->id, SecretPurpose::Verification->value);
+        app(ExpireProxySecrets::class)->handle($proxy->id, SecretPurpose::Signing->value);
 
         $this->assertCount(0, ProxySecret::query()->where('proxy_id', $proxy->id)->get());
     }

@@ -41,14 +41,14 @@ class PurgeExpiredProxySecretsTest extends TestCase
         $team = Team::factory()->createQuietly();
         $proxy = Proxy::factory()->state(['team_id' => $team->id])->createQuietly();
 
-        app(SecretStore::class)->replace($proxy, SecretPurpose::Verification, 'old-secret');
-        app(SecretStore::class)->replace($proxy, SecretPurpose::Verification, 'new-secret');
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'old-secret');
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'new-secret');
 
         ExpireProxySecrets::assertPushed(1);
 
         $superseded = ProxySecret::query()
             ->where('proxy_id', $proxy->id)
-            ->where('purpose', SecretPurpose::Verification)
+            ->where('purpose', SecretPurpose::Signing)
             ->whereNull('is_current')
             ->firstOrFail();
 
@@ -63,7 +63,7 @@ class PurgeExpiredProxySecretsTest extends TestCase
         // The current secret is untouched.
         $this->assertNotNull(ProxySecret::query()
             ->where('proxy_id', $proxy->id)
-            ->where('purpose', SecretPurpose::Verification)
+            ->where('purpose', SecretPurpose::Signing)
             ->where('is_current', true)
             ->first());
     }

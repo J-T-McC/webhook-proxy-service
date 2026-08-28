@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Data\ProxyPermissions;
 use App\Enums\AnalyticsWindow;
 use App\Enums\ProxyMode;
-use App\Enums\SecretPurpose;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
 use App\Http\Resources\ProxyFormResource;
@@ -15,9 +14,7 @@ use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\DeliveryStatistics;
 use App\Services\IngestTokenService;
-use App\Services\SecretStore;
 use App\Support\SensitiveFields;
-use App\Support\StandardWebhooks;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,7 +27,6 @@ class ProxyController extends Controller
 {
     public function __construct(
         private DeliveryStatistics $statistics,
-        private SecretStore $secretStore,
     ) {}
 
     /**
@@ -66,12 +62,11 @@ class ProxyController extends Controller
         $this->authorize('create', Proxy::class);
 
         // Single-sourced from SensitiveFields::DEFAULTS (T4), never a hand-typed
-        // copy — create() renders no ProxyResource at all, so this and the
-        // Standard Webhooks tolerance are page props on both create() and
-        // edit() rather than resource keys (plan-10 Technical ruling 3).
+        // copy — create() renders no ProxyResource at all, so this is a page
+        // prop on both create() and edit() rather than a resource key
+        // (plan-10 Technical ruling 3).
         return Inertia::render('proxies/Create', [
             'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
-            'standardWebhooksTolerance' => StandardWebhooks::TOLERANCE_SECONDS,
         ]);
     }
 
@@ -117,15 +112,6 @@ class ProxyController extends Controller
             ));
             $tokens->assignTo($proxy);
             $proxy->save();
-
-            // Write-only (AC26): only a present, non-empty `verification_secret`
-            // rotates the live secret through `SecretStore` (T14) — the single
-            // writer of `proxy_secrets` (plan-10 Technical ruling 14). A create
-            // has no prior secret, so this is always the first rotation when a
-            // scheme was selected (T20's validation already requires it then).
-            if (($data['verification_secret'] ?? null) !== null) {
-                $this->secretStore->replace($proxy, SecretPurpose::Verification, $data['verification_secret']);
-            }
 
             foreach ($this->destinationRows($data) as $destination) {
                 $proxy->destinations()->create([
@@ -176,8 +162,8 @@ class ProxyController extends Controller
             'permissions' => $this->proxyPermissions($request),
             'statistics' => $this->statistics->forProxy($proxy, $window),
             'destinations' => $this->statistics->destinationBreakdown($proxy, $window),
-            // Status-only verification/signing/credential state (plan-10
-            // Technical ruling 3) — a sibling prop, never a ProxyResource key.
+            // Status-only signing/credential state (plan-10 Technical ruling
+            // 3) — a sibling prop, never a ProxyResource key.
             'security' => ProxySecurityResource::make($proxy),
         ]);
     }
@@ -195,11 +181,9 @@ class ProxyController extends Controller
         return Inertia::render('proxies/Edit', [
             'proxy' => ProxyFormResource::make($proxy->loadMissing('destinations')),
             'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
-            'standardWebhooksTolerance' => StandardWebhooks::TOLERANCE_SECONDS,
-            // Same sibling prop as show() (plan-10 Technical ruling 3) — the
-            // Verification section (T23) needs it for the write-only
-            // set/unset/overlap states; create() renders no proxy resource
-            // at all, so it never gets this prop.
+            // Same sibling prop as show() (plan-10 Technical ruling 3) —
+            // create() renders no proxy resource at all, so it never gets
+            // this prop.
             'security' => ProxySecurityResource::make($proxy),
         ]);
     }
@@ -237,27 +221,11 @@ class ProxyController extends Controller
                 'response_status' => $data['response_status'] ?? null,
                 'response_body' => $data['response_body'] ?? null,
                 'sensitive_fields' => $this->sensitiveFieldAdditions($data),
-                // Inbound verification (AC23, AC24, AC26; T20). An omitted/
-                // explicit-null scheme means "not required" and, per plan-10
-                // §Architecture B, deliberately does NOT clear a dormant
-                // secret — `SecretStore::disable()` is never called for the
-                // verification purpose from here (that method is reserved
-                // for signing's different on/off semantics).
-                'verification_scheme' => $data['verification_scheme'] ?? null,
-                'verification_header_name' => $data['verification_header_name'] ?? null,
                 ...($data['mode'] === ProxyMode::Enhanced->value ? [
                     'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
                     'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
                 ] : []),
             ]);
-
-            // Write-only (AC26): only a present, non-empty `verification_secret`
-            // rotates the live secret through `SecretStore` (T14) — absent
-            // means "leave unchanged" (T20's validation already forbids an
-            // empty string from reaching here via `min:8`).
-            if (($data['verification_secret'] ?? null) !== null) {
-                $this->secretStore->replace($proxy, SecretPurpose::Verification, $data['verification_secret']);
-            }
 
             $keptIds = [];
 

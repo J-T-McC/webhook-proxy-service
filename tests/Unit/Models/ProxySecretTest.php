@@ -25,7 +25,7 @@ class ProxySecretTest extends TestCase
         $secret = new ProxySecret([
             'team_id' => $proxy->team_id,
             'proxy_id' => $proxy->id,
-            'purpose' => SecretPurpose::Verification,
+            'purpose' => SecretPurpose::Signing,
             'value' => 'plaintext-secret',
             'is_current' => true,
         ]);
@@ -44,7 +44,7 @@ class ProxySecretTest extends TestCase
         $secret = new ProxySecret([
             'team_id' => $proxy->team_id,
             'proxy_id' => $proxy->id,
-            'purpose' => SecretPurpose::Verification,
+            'purpose' => SecretPurpose::Signing,
             'value' => 'plaintext-secret',
             'is_current' => true,
         ]);
@@ -63,7 +63,7 @@ class ProxySecretTest extends TestCase
         (new ProxySecret([
             'team_id' => $proxy->team_id,
             'proxy_id' => $proxy->id,
-            'purpose' => SecretPurpose::Verification,
+            'purpose' => SecretPurpose::Signing,
             'value' => 'plaintext-secret',
             'is_current' => true,
         ]))->save();
@@ -79,7 +79,7 @@ class ProxySecretTest extends TestCase
         $current = new ProxySecret([
             'team_id' => $proxy->team_id,
             'proxy_id' => $proxy->id,
-            'purpose' => SecretPurpose::Verification,
+            'purpose' => SecretPurpose::Signing,
             'value' => 'current-value',
             'is_current' => true,
         ]);
