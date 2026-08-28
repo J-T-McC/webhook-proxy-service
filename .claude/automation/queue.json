@@ -143,7 +143,7 @@
       "title": "Item #10 sensitive data handling: Designer, then Technical Design, Task Planning, Implementation and Review",
       "kind": "feature",
       "role": "task-planner",
-      "state": "awaiting_merge",
+      "state": "ready",
       "eligible": true,
       "source": "docs/product/prd-10-sensitive-data-handling.md",
       "acceptance": "Each phase produces its artifact and passes its own gate. Stop at the open pull request; do not merge.",
