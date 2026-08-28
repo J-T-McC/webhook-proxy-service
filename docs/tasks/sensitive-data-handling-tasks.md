@@ -1521,7 +1521,37 @@
   - A new destination row added this session persists its credential exactly like an existing row's
     replacement.
 - **Testing:** `tests/Feature/Proxies/CredentialValidationTest.php` (new) — one case per bullet.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `destinations.*.credential_header_name`
+  (`required_with:destinations.*.credential_secret`, string, max:128, the same HTTP field-name regex
+  `verification_header_name` already uses) and `destinations.*.credential_secret` (`nullable`, string,
+  max:1024 — no `min` length, unlike `verification_secret`'s `min:8`, exactly as this task specifies)
+  added to both `StoreProxyRequest` and `UpdateProxyRequest`. `Destination`'s `#[Fillable]` list gains
+  `credential_secret` (it already had `credential_header_name`/`credential_set_at` from T2) — without
+  it, mass-assigning the secret would throw a `MassAssignmentException`.
+
+  `ProxyController::destinationRows()` normalises the two new fields the same `isset()`-then-type-check
+  way as `url`/`http_method`, to `''` when absent/non-string. New private
+  `destinationCredentialAttributes(array $row): array` is the single write-only decision point: `[]`
+  (a no-op — Eloquent's `update()` only touches passed keys, so omission is how "leave unchanged" is
+  achieved, the same idiom `verification_secret` already uses) whenever `credential_secret === ''`;
+  otherwise all three columns together (`credential_header_name` defaulted to `Authorization` only as
+  a defensive fallback, `credential_secret`, `credential_set_at` = `now()`). Wired into `store()`'s
+  create array, and both branches of `update()`'s reconciliation (existing-row replace, new-row create)
+  — a new destination row persists its credential through the exact same helper as an existing row's
+  replacement, satisfying the task's third bullet structurally rather than by a separate code path.
+
+  PHPStan required the docblock's `credential_set_at` type to read `\Carbon\CarbonImmutable`, not
+  `Illuminate\Support\Carbon` — this project's `now()` returns `CarbonImmutable` (the same gotcha
+  recorded from the T20-T25 batch); not a deviation, just the accurate return type of `now()` here.
+
+  Four tests, one per bullet: header-name-without-secret passes validation and persists no credential;
+  secret-without-header-name 422s; an empty `credential_secret` against an already-configured
+  destination leaves the header name, secret and `credential_set_at` all byte-for-byte unchanged; and a
+  brand-new row added this session persists its credential through the same path as a replacement.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "ProxyStoreTest|ProxyUpdateTest|ProxyRequestValidationTest|SensitiveFieldsPersistenceTest|CredentialValidationTest"`
+  all green (78 tests, 253 assertions); full-suite run deferred to the end of this batch (T26-T33).
 
 ## T30 — Screen 3: `DestinationRows.vue` Credential disclosure (AC30, AC33; Flow F; plan § Architecture E)
 - **Description:** Each destination row gains a `Collapsible` — trigger label "Add credential" /

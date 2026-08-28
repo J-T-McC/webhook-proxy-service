@@ -26,7 +26,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Proxy $proxy
  */
-#[Fillable(['proxy_id', 'team_id', 'url', 'http_method', 'credential_header_name', 'credential_set_at'])]
+#[Fillable(['proxy_id', 'team_id', 'url', 'http_method', 'credential_header_name', 'credential_secret', 'credential_set_at'])]
 class Destination extends Model
 {
     /** @use HasFactory<DestinationFactory> */

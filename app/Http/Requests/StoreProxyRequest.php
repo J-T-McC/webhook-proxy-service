@@ -91,6 +91,19 @@ class StoreProxyRequest extends FormRequest
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.url' => ['required', 'string', 'url:https'],
             'destinations.*.http_method' => ['required', Rule::enum(HttpMethod::class)],
+            // Per-destination credential (AC30, AC33; plan-10 §Validation, T29).
+            // The header name defaults to `Authorization` on the form, not here
+            // (the schema allows it to be absent whenever no secret is present).
+            // Reuses the same HTTP field-name pattern as `verification_header_name`.
+            'destinations.*.credential_header_name' => [
+                'required_with:destinations.*.credential_secret',
+                'string',
+                'max:128',
+                'regex:/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/',
+            ],
+            // Write-only (AC33): nullable/absent means "no credential configured"
+            // on a create — there is nothing yet to leave unchanged.
+            'destinations.*.credential_secret' => ['nullable', 'string', 'max:1024'],
         ];
     }
 }

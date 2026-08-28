@@ -18,6 +18,7 @@ use App\Services\IngestTokenService;
 use App\Services\SecretStore;
 use App\Support\SensitiveFields;
 use App\Support\StandardWebhooks;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -131,6 +132,7 @@ class ProxyController extends Controller
                     'team_id' => $proxy->team_id,
                     'url' => $destination['url'],
                     'http_method' => $destination['http_method'],
+                    ...$this->destinationCredentialAttributes($destination),
                 ]);
             }
 
@@ -265,7 +267,11 @@ class ProxyController extends Controller
                     : null;
 
                 if ($existing !== null) {
-                    $existing->update(['url' => $row['url'], 'http_method' => $row['http_method']]);
+                    $existing->update([
+                        'url' => $row['url'],
+                        'http_method' => $row['http_method'],
+                        ...$this->destinationCredentialAttributes($row),
+                    ]);
                     $keptIds[] = $existing->id;
 
                     continue;
@@ -275,6 +281,7 @@ class ProxyController extends Controller
                     'team_id' => $proxy->team_id,
                     'url' => $row['url'],
                     'http_method' => $row['http_method'],
+                    ...$this->destinationCredentialAttributes($row),
                 ]);
                 $keptIds[] = $created->id;
             }
@@ -384,7 +391,7 @@ class ProxyController extends Controller
      * Normalise the validated destinations payload into typed rows.
      *
      * @param  array<string, mixed>  $data
-     * @return list<array{id: int|null, url: string, http_method: string}>
+     * @return list<array{id: int|null, url: string, http_method: string, credential_header_name: string, credential_secret: string}>
      */
     private function destinationRows(array $data): array
     {
@@ -398,9 +405,43 @@ class ProxyController extends Controller
                 'id' => isset($row['id']) && is_numeric($row['id']) ? (int) $row['id'] : null,
                 'url' => isset($row['url']) && is_string($row['url']) ? $row['url'] : '',
                 'http_method' => isset($row['http_method']) && is_string($row['http_method']) ? $row['http_method'] : '',
+                // Write-only (AC33, T29): present-but-empty is normalised here
+                // to the same '' the "leave unchanged"/"nothing configured"
+                // branch of destinationCredentialAttributes() checks for —
+                // isset() is deliberately used (not array_key_exists()), so a
+                // submitted explicit null also normalises to ''.
+                'credential_header_name' => isset($row['credential_header_name']) && is_string($row['credential_header_name']) ? $row['credential_header_name'] : '',
+                'credential_secret' => isset($row['credential_secret']) && is_string($row['credential_secret']) ? $row['credential_secret'] : '',
             ];
         }
 
         return $normalised;
+    }
+
+    /**
+     * The mass-assignable credential attributes for one destination row
+     * (AC30, AC33; T29) — `[]` (a no-op, preserving whatever is already
+     * stored) whenever no non-empty `credential_secret` was submitted for
+     * this row, matching binding constraint 8: a present-but-empty secret
+     * field never clears a stored secret. A non-empty secret always sets
+     * `credential_set_at` to the moment of this save, and defaults the
+     * header name to `Authorization` only as a defensive fallback — the
+     * form itself always supplies a header name once a secret is present
+     * (T29's own `required_with` validation rule).
+     *
+     * @param  array{credential_header_name: string, credential_secret: string}  $row
+     * @return array{credential_header_name?: string, credential_secret?: string, credential_set_at?: CarbonImmutable}
+     */
+    private function destinationCredentialAttributes(array $row): array
+    {
+        if ($row['credential_secret'] === '') {
+            return [];
+        }
+
+        return [
+            'credential_header_name' => $row['credential_header_name'] !== '' ? $row['credential_header_name'] : 'Authorization',
+            'credential_secret' => $row['credential_secret'],
+            'credential_set_at' => now(),
+        ];
     }
 }
