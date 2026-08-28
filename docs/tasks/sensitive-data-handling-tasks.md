@@ -288,7 +288,10 @@
     **are**.
 - **Testing:** `tests/Unit/Support/SensitiveFieldsTest.php` (new) — the count, the no-collision sweep,
   the normalisation-equality cases, the explicit inclusion/exclusion list.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Support\SensitiveFields::DEFAULTS` is the 23-name list from
+  ADR-024 Decision 5, verbatim (8 password + 7 token + 8 credit-card names); `normalise()` lowercases
+  and strips everything but `a`-`z`/`0`-`9`. `composer lint`, `composer types:check` and
+  `./vendor/bin/sail test --parallel` all green.
 
 ## T5 — `App\Services\SensitiveFieldMatcher` (AC13, AC14; plan § Services & Actions)
 - **Description:** Effective list = `SensitiveFields::DEFAULTS` ∪ a proxy's own additions (from
