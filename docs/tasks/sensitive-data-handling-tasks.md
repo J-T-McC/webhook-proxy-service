@@ -224,7 +224,21 @@
   ciphertext assertion, the `$hidden` assertion on both `toArray()`/`toJson()`, and the `live()` scope
   fixture. `Proxy`/`Destination` factory updates as needed for the new nullable columns (no required
   fixture change — every new column is nullable).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `ProxySecret` (encrypted `value` cast, `$hidden = ['value']`, a
+  `scopeLive()` local scope implementing "current, or superseded-but-not-yet-expired") and
+  `App\Enums\SecretPurpose` added. `Proxy` gains a `secrets(): HasMany` relation, a `sensitive_fields`
+  array cast, and `#[Fillable]` entries for `verification_header_name`/`sensitive_fields`; `Destination`
+  gains `credential_secret` (encrypted) and `credential_set_at` (datetime) casts and `#[Fillable]`
+  entries for `credential_header_name`/`credential_set_at`. Both models' `@property`/`@property-read`
+  docblocks updated. No `Proxy`/`Destination` factory changes were needed — every new column is
+  nullable, matching the task's own note.
+
+  Per the task's explicit either/or: deferred `verification_scheme`'s cast (and its `#[Fillable]` entry)
+  to T16, where `App\Enums\VerificationScheme` is created — referencing that not-yet-existing class here
+  would have broken this task's own suite. `proxies.verification_scheme` stays an uncast raw string
+  column until then; noted inline in `Proxy::casts()`.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --parallel` all green.
 
 ## T3 — Schema and encryption-surface regression tests (plan § Test strategy "Encryption at rest and the closed store set")
 - **Description:** No production code. Pins the two guarantees that must survive every later task in
