@@ -423,12 +423,26 @@ Amendment — re-grained to the proxy; see `## Amendment`.)*
    secret** and **Disable signing**.
 2. Clicking **Regenerate signing secret** immediately generates a new one (same
    AC56 rule — there is no "type a replacement" path for this secret, ever) and
-   transitions to the same one-time reveal state Flow G step 3 describes. The
-   previous secret is demoted, not discarded: both are honoured **outbound**, for
-   every destination this proxy has, for the same fixed 24 hours (AC58) — every
-   dispatch in that window, to every one of the proxy's destinations, carries a
-   signature under both, per the specification's own space-delimited list, asking
-   nothing extra of any receiver.
+   transitions to the same one-time reveal state Flow G step 3 describes. What
+   happens to the *previously* current secret depends on whether an overlap is
+   already running for this proxy's signing secret — the same branch Flow B
+   step 2 makes for the inbound direction, because AC29's added bullet (ruling
+   2a) binds "a replacement **or a regeneration**" alike:
+   - **No overlap currently running (the ordinary case):** the previous secret
+     is demoted, not discarded — both are honoured **outbound**, for every
+     destination this proxy has, for the same fixed 24 hours (AC58); every
+     dispatch in that window, to every one of the proxy's destinations,
+     carries a signature under both, per the specification's own
+     space-delimited list, asking nothing extra of any receiver.
+   - **An overlap is already running (this proxy already has a previous
+     signing secret being honoured) — *(Amendment — added; B2.)*:** Screen 6
+     state 4 states this **before** the member clicks **Regenerate signing
+     secret** (see Screen 6, state 4, for the exact copy) — clicking it
+     discards the currently-honoured previous secret immediately, for
+     **every destination of this proxy**, rather than letting its 24 hours
+     finish out. No confirmation step is added; the disclosure is the
+     requirement, not a ceremony in front of a single-click action (§
+     Interactions).
 3. Once acknowledged (**Done**), the dialog's default state and the Signing card
    both show the rotation line exactly as Screen 4 does for the inbound
    direction: **"A rotation is in progress — your previous secret is still
@@ -505,8 +519,15 @@ v-if scheme === 'shared-secret':
 v-if scheme === 'standard-webhooks':
   Label "Secret value" for="verification_secret"
   [write-only field — see States below]
-  p (help) "The signing secret your sender issued you for this integration.
-     This product never generates it for you — paste the value they gave you."
+  p (help) "The secret your sender issued you for this integration. This
+     product never generates it for you — paste the value they gave you."
+     (Amendment — reworded from "The signing secret …"; NB1. Under the
+     pre-amendment grain this sat a page away from anything else called a
+     signing secret; it now sits one card away from Screen 4b's Signing
+     card, where "signing secret" means the product's own, so the inbound
+     copy drops the word to remove the collision. The specification's own
+     term for this value is unaffected — this is member-facing copy, not
+     the scheme's vocabulary.)
   div (static, always visible under this scheme)
     p "Your sender must send these three headers on every request:"
     ul
@@ -695,6 +716,19 @@ form already has, not an immediate action, and no confirmation dialog is added
 re-entered — the same standard `docs/standards/design.md` sets for every other
 non-destructive action in this spec).
 
+**Removal is an explicit signal, never an empty field** *(Amendment — added;
+B3)*. § Interactions rules that "a present-but-empty secret field must not
+submit as 'clear the secret'" — that rule protects a member who opens Replace,
+changes their mind, and leaves the field blank; it must not be read backwards
+as also covering **Remove credential**, which is a distinct, deliberate control
+the member chooses on its own, not a blank field arrived at by inaction.
+**Clicking Remove credential and leaving a Replace field blank must never be
+indistinguishable to the form**, however the two are eventually carried to the
+server — that transport is the Principal Engineer's call, not specified here;
+what this spec fixes is that the two states have to stay distinguishable
+end to end, because collapsing them would silently turn every abandoned
+Replace into an unintended removal.
+
 **Default expand state.** A row whose destination already has a credential set
 opens **expanded** by default (the member's most likely reason to open this row
 is to check or replace it); an unconfigured row opens **collapsed**, keeping a
@@ -716,7 +750,8 @@ next dispatch — there's no transition period.").
 | Existing, no credential | "Add credential" | same as above |
 | Existing, credential set | "Credential: set" (expanded by default) | Header name (editable), "Credential set — changed {date}" + Replace + Remove credential |
 | Replace clicked | "Credential: set" | Header name (pre-filled), blank Secret value |
-| Remove credential clicked | "Add credential" | Header name resets to default (Authorization), blank Secret value — same as an unconfigured row |
+| Remove credential clicked (in-session, before save) | "Add credential" | Header name resets to default (Authorization), blank Secret value — same as an unconfigured row |
+| **Removal saved** *(Amendment — added; B3)* | "Add credential" | Header name (Authorization), blank Secret value — indistinguishable from "Existing, no credential" once the save round-trips; the removal is complete, not merely staged |
 
 **Removing a row** removes its Credential block with it — no separate prompt,
 identical to how removing a row already discards its URL/method silently.
@@ -990,11 +1025,22 @@ Dialog
    p "A rotation is in progress — your previous secret is still honoured until
       Aug 21, 2026, 10:03 AM."
    Button variant="outline" "End overlap now"
+   p (help, same paragraph group as the footer actions) "Regenerating again now
+      will stop that previous secret being honoured immediately, for every
+      destination this proxy has — its 24 hours will not finish out."
    ```
-   Footer: **Regenerate signing secret** + **Disable signing** + **Close**
-   (regenerating again while an overlap is already running is allowed — AC29's
-   two-slot rule discards the oldest immediately, which **is** the documented
-   remedy for a compromised secret discovered mid-overlap).
+   Footer: **Regenerate signing secret** + **Disable signing** + **Close**.
+   **The added help line is member-facing copy, not designer commentary**
+   *(Amendment — added; B2)*: it renders as part of this state, so it is in
+   front of the member **before** they click **Regenerate signing secret**,
+   satisfying AC29's added bullet (ruling 2a) for the signing surface exactly
+   as Screen 1's C5 note already does for the inbound one. Regenerating again
+   while an overlap is already running is still allowed — AC29's two-slot rule
+   discards the oldest immediately, which **is** the documented remedy for a
+   compromised secret discovered mid-overlap — and this line is what makes
+   that consequence said rather than merely true. **No confirmation step is
+   added**: the disclosure satisfies the requirement, and § Interactions'
+   single-click rule for Enable / Regenerate / Disable is unchanged.
 
 5. **Disabled (re-visited after Flow I):** identical to state 1, with one line
    added: *"Enabling again generates a new secret — your previous one is never
@@ -1124,7 +1170,7 @@ reveal-mechanism note into Q-06-03 rather than asserting a mechanism itself.
 | Role | Component | Status |
 |---|---|---|
 | Verification scheme select | `Select`/`SelectTrigger`/`SelectContent`/`SelectItem`/`SelectValue` | Reused, unchanged shape |
-| Verification/credential/signing secret entry | `Input type="password"` | **New usage** — no prior `type="password"` precedent in this app; standard semantic choice, no new primitive |
+| Verification/credential/signing secret entry | `Input type="password"` | **Deliberate choice, not want of a precedent** *(Amendment — corrected; B1)*: `PasswordInput.vue` exists and wraps `Input` with a show/hide toggle, so a precedent for masked entry is available. Plain `Input type="password"` is used anyway, so every secret in this feature keeps one write-only idiom — type it, save it, see that it is *set*, never see it again — rather than a reveal toggle on this field sitting oddly beside the inert `[Hidden]` token elsewhere in this feature. No new primitive either way |
 | Write-only status + Replace | plain text + `Button variant="ghost"` | Reused primitives, new small pattern (first use, repeated at Screens 1, 3) |
 | Sensitive-field default/addition badges | `Badge` (`secondary` no-×, `outline` with ×) | Reused, unchanged variant set |
 | Sensitive-field add control | `Input` + `Button` | Reused, same add-row idiom as `DestinationRows.vue` |
@@ -1713,7 +1759,7 @@ documentation.md` (retain history; never rewrite a ruling silently).
 | Screen 6 | Renamed **Manage proxy signing dialog** (from "Manage destination signing dialog"); `DialogTitle` and `DialogDescription` re-scoped to the proxy; all five states unchanged in shape, including flagged design call 4's ruling that **Done** is the sole keyboard-reachable exit from the one-time reveal, which binds unchanged at the new scope; copy referring to "your destination's receiver" pluralised to "every destination's receiver" |
 | § Components | Two rows updated (dialog shell renamed; the destination status badge row narrowed to Credential only) and one row added (the Signing card) |
 | § Accessibility | The "Replace buttons" bullet extended to cover the new **Remove credential** button (Q-10-03 item 1) |
-| § Interactions | The "End overlap now" bullet's screen list extended to include Screen 4b |
+| § Accessibility | The "End overlap now" actions bullet's screen list extended to include Screen 4b — Screens 4, 4b, 6 *(Amendment — corrected; B4, this row was misattributed to § Interactions)* |
 | § Open Questions | Item 3's resolved-log entry annotated to note the `Signed` badge's removal; the storage-lifecycle note's "a destination's disabled signing secret" corrected to "a proxy's" |
 | § Handoff | Inputs, Outstanding Questions and Next Agent all updated — Q-10-02, Q-10-04 and Q-10-03 recorded RESOLVED, ADR-021/ADR-023 added as inputs, and the Next Agent note states this amendment awaits Product Manager re-approval |
 | Header block (Status, PRD, Approved by/date) | Rewritten to distinguish the original gate's approval (retained, unrewritten) from this amendment (written, unapproved) |
