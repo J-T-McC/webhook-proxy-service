@@ -977,7 +977,39 @@
 - **Testing:** extends `tests/Feature/Ingest/IngestControllerTest.php` — the four AC25 cases, the AC11
   500 case, the log-payload assertion, a body-read-once assertion (e.g. via a request stream that
   errors on a second read, or a spy).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `IngestController` gains the one step the description names, in order:
+  read `$rawBody` once (unchanged read point), `InboundVerifier::verify($proxy, $request, $rawBody)`
+  wrapped in a `try`/`catch (SecretUnavailableException)` → `report()` + `abort(500)`; `Failed` → 401
+  with the fixed body `'Webhook verification failed.'` (a private class constant,
+  `VERIFICATION_FAILED_BODY`, `text/plain`) plus the `ingest.verification_failed` info log
+  (`team_id`, `proxy_id`, `scheme` from `$proxy->verification_scheme?->value`, and
+  `InboundVerifier::reasonFor()`'s reason code), returned before the capture transaction;
+  `NotRequired`/`Verified` fall through to the existing capture path completely unchanged. The same
+  `$rawBody` local variable already flowed to both the verifier and `WebhookEventCapture::capture()`
+  from the existing single read point — no second `$request->getContent()` call was needed to satisfy
+  ADR-022 Decision 4, since the controller already read the body once before this task and this task
+  adds no second read.
+
+  **Body-read-once was proven at the controller level, not the full HTTP pipeline**, and the completion
+  notes record why: `EnforceIngestBodyLimit` (pre-existing, `routes/ingest.php`) legitimately calls
+  `$request->getContent()` itself when `Content-Length` is absent, which would confound a whole-stack
+  read count unrelated to this task's own guarantee. `test_the_raw_body_is_read_exactly_once_by_the_controller`
+  therefore resolves `IngestController` from the container and invokes `__invoke()` directly against a
+  `CountingContentRequest` (a small `Illuminate\Http\Request` subclass local to the test file,
+  incrementing a counter on every `getContent()` call), bypassing route middleware entirely — isolating
+  the assertion to the one guarantee this task actually owns.
+
+  All four AC25 negatives, the AC11 500 case (via the same corrupted-ciphertext technique used in T14/
+  T18's suites), the exact log-payload assertion (`Log::spy()` +
+  `Log::shouldHaveReceived('info')->once()->withArgs(...)`, the pattern already established by
+  `DeliverToDestinationTest`), and a FIFO-specific case (rejection creates no `fifo_dispatches` row
+  either) are all covered as new methods on the existing `tests/Feature/Ingest/IngestControllerTest.php`
+  — extended rather than duplicated, per this task's own Testing line.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter IngestControllerTest`
+  green (22 tests, 74 assertions, up from the pre-existing 15). **Full suite run at the close of this
+  batch (T13-T19): `./vendor/bin/sail test --parallel` green at 973/973** (up from 931 at the T7-T12
+  batch boundary — 42 new tests across T13-T19).
 
 ## T20 — Verification validation rules (AC23, AC24, AC26; plan § Validation)
 - **Description:** On `StoreProxyRequest`/`UpdateProxyRequest`: `verification_scheme` —

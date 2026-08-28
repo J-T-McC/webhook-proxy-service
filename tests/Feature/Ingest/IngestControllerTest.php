@@ -6,14 +6,21 @@ use App\Actions\AdvanceProxyFifoQueue;
 use App\Actions\ProcessIngestedWebhook;
 use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
+use App\Enums\SecretPurpose;
+use App\Enums\VerificationScheme;
+use App\Http\Controllers\IngestController;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
+use App\Services\SecretStore;
 use App\Services\WebhookEventCapture;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Mockery\MockInterface;
 use Tests\TestCase;
@@ -39,6 +46,25 @@ class IngestControllerTest extends TestCase
     private function ingestUrl(string $token, string $scheme = 'https'): string
     {
         return $scheme.'://localhost/ingest/'.$token;
+    }
+
+    /**
+     * A proxy requiring `shared-secret` verification, with a live secret and
+     * a distinctive configured response — so a test can assert a rejection
+     * never returns it (AC25).
+     */
+    private function verifiedProxyWithSharedSecret(string $secret): Proxy
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'verification_scheme' => VerificationScheme::SharedSecret,
+            'verification_header_name' => 'x-webhook-secret',
+            'response_status' => 200,
+            'response_body' => 'this-is-the-configured-response',
+        ]);
+        Destination::factory()->for($proxy)->createQuietly();
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Verification, $secret);
+
+        return $proxy;
     }
 
     public function test_valid_token_returns_202(): void
@@ -245,5 +271,170 @@ class IngestControllerTest extends TestCase
         $this->assertSame(0, WebhookEvent::count());
         $this->assertSame(0, FifoDispatch::count());
         Queue::assertNothingPushed();
+    }
+
+    // T19 — the verification gate (AC8, AC11, AC25; ADR-022 Decisions 4, 5).
+
+    public function test_a_failed_verification_returns_401_and_creates_nothing(): void
+    {
+        $proxy = $this->verifiedProxyWithSharedSecret('correct-secret');
+
+        $response = $this->post(
+            $this->ingestUrl($proxy->ingest_token),
+            ['hello' => 'world'],
+            ['x-webhook-secret' => 'wrong-secret'],
+        );
+
+        $response->assertStatus(401);
+        $this->assertSame('Webhook verification failed.', $response->getContent());
+        $this->assertNotSame('this-is-the-configured-response', $response->getContent());
+
+        $this->assertSame(0, WebhookEvent::count());
+        $this->assertSame(0, DeliveryAttempt::count());
+        $this->assertSame(0, FifoDispatch::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_a_missing_verification_header_returns_401_and_creates_nothing(): void
+    {
+        $proxy = $this->verifiedProxyWithSharedSecret('correct-secret');
+
+        $response = $this->post($this->ingestUrl($proxy->ingest_token), ['hello' => 'world']);
+
+        $response->assertStatus(401);
+        $this->assertSame(0, WebhookEvent::count());
+        $this->assertSame(0, DeliveryAttempt::count());
+        $this->assertSame(0, FifoDispatch::count());
+    }
+
+    public function test_a_wrong_verification_header_name_returns_401_and_creates_nothing(): void
+    {
+        $proxy = $this->verifiedProxyWithSharedSecret('correct-secret');
+
+        $response = $this->post(
+            $this->ingestUrl($proxy->ingest_token),
+            ['hello' => 'world'],
+            ['x-some-other-header' => 'correct-secret'],
+        );
+
+        $response->assertStatus(401);
+        $this->assertSame(0, WebhookEvent::count());
+        $this->assertSame(0, DeliveryAttempt::count());
+        $this->assertSame(0, FifoDispatch::count());
+    }
+
+    public function test_a_fifo_proxy_rejects_a_failed_verification_before_the_ordering_row(): void
+    {
+        $proxy = Proxy::factory()->createQuietly([
+            'processing_mode' => ProcessingMode::Fifo,
+            'verification_scheme' => VerificationScheme::SharedSecret,
+            'verification_header_name' => 'x-webhook-secret',
+        ]);
+        Destination::factory()->for($proxy)->createQuietly();
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Verification, 'correct-secret');
+
+        $this->post(
+            $this->ingestUrl($proxy->ingest_token),
+            ['hello' => 'world'],
+            ['x-webhook-secret' => 'wrong-secret'],
+        )->assertStatus(401);
+
+        $this->assertSame(0, WebhookEvent::count());
+        $this->assertSame(0, FifoDispatch::count());
+    }
+
+    public function test_ac11_an_undecryptable_verification_secret_returns_500_never_401_or_the_configured_response(): void
+    {
+        $proxy = $this->verifiedProxyWithSharedSecret('correct-secret');
+
+        DB::table('proxy_secrets')
+            ->where('proxy_id', $proxy->id)
+            ->update(['value' => 'not-valid-ciphertext']);
+
+        $response = $this->post(
+            $this->ingestUrl($proxy->ingest_token),
+            ['hello' => 'world'],
+            ['x-webhook-secret' => 'correct-secret'],
+        );
+
+        $response->assertStatus(500);
+        $this->assertNotSame(401, $response->getStatusCode());
+        $this->assertNotSame(200, $response->getStatusCode());
+
+        $this->assertSame(0, WebhookEvent::count());
+        $this->assertSame(0, DeliveryAttempt::count());
+        $this->assertSame(0, FifoDispatch::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_a_rejection_logs_exactly_team_id_proxy_id_scheme_and_a_reason_code_never_a_value(): void
+    {
+        Log::spy();
+
+        $proxy = $this->verifiedProxyWithSharedSecret('correct-secret');
+
+        $this->post(
+            $this->ingestUrl($proxy->ingest_token),
+            ['hello' => 'world'],
+            ['x-webhook-secret' => 'wrong-secret'],
+        )->assertStatus(401);
+
+        Log::shouldHaveReceived('info')->once()->withArgs(
+            fn (string $message, array $context) => $message === 'ingest.verification_failed'
+                && $context === [
+                    'team_id' => $proxy->team_id,
+                    'proxy_id' => $proxy->id,
+                    'scheme' => 'shared-secret',
+                    'reason' => 'secret_mismatch',
+                ],
+        );
+    }
+
+    /**
+     * Bypasses the route/middleware stack and invokes the controller
+     * directly — `EnforceIngestBodyLimit` legitimately reads
+     * `$request->getContent()` itself when `Content-Length` is absent, which
+     * would confound a whole-pipeline read count. This isolates the
+     * assertion to `IngestController`'s own body handling (ADR-022 Decision
+     * 4): the same `$rawBody` string reaches both the verifier and
+     * `WebhookEventCapture`, via exactly one `getContent()` call.
+     */
+    public function test_the_raw_body_is_read_exactly_once_by_the_controller(): void
+    {
+        $proxy = $this->verifiedProxyWithSharedSecret('correct-secret');
+
+        $request = CountingContentRequest::create(
+            $this->ingestUrl($proxy->ingest_token),
+            'POST',
+            server: ['HTTP_X_WEBHOOK_SECRET' => 'correct-secret'],
+            content: '{"hello":"world"}',
+        );
+
+        $response = app(IngestController::class)($request, $proxy->ingest_token);
+
+        // The helper's proxy is configured to respond 200/"this-is-the-configured-response".
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame(1, $request->getContentCalls);
+        $this->assertSame(1, WebhookEvent::count());
+    }
+}
+
+/**
+ * A `Request` subclass that counts calls to `getContent()`, used only by
+ * {@see IngestControllerTest::test_the_raw_body_is_read_exactly_once_by_the_controller()}
+ * to prove `IngestController` reads the raw body exactly once.
+ */
+class CountingContentRequest extends Request
+{
+    public int $getContentCalls = 0;
+
+    public function getContent(bool $asResource = false): string
+    {
+        $this->getContentCalls++;
+
+        /** @var string $content */
+        $content = parent::getContent($asResource);
+
+        return $content;
     }
 }
