@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Services;
 
+use App\Enums\SecretPurpose;
 use App\Enums\VerificationScheme;
 use App\Models\Delivery;
 use App\Models\Destination;
@@ -9,6 +10,7 @@ use App\Models\DispatchedPayload;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use App\Services\DeliveryUnitResolver;
+use App\Services\SecretStore;
 use Tests\TestCase;
 
 /**
@@ -205,5 +207,116 @@ class DeliveryUnitResolverTest extends TestCase
 
         $this->assertNotNull($unit);
         $this->assertSame([], $unit->verificationHeaderNames);
+    }
+
+    // --- T36: the proxy's live signing set --------------------------------
+
+    public function test_a_proxy_with_signing_off_carries_no_signing_secrets(): void
+    {
+        $destination = Destination::factory()->createQuietly();
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $destination->proxy_id,
+            'team_id' => $destination->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $destination->team_id,
+            'proxy_id' => $destination->proxy_id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+
+        $unit = app(DeliveryUnitResolver::class)->resolve($delivery, 1);
+
+        $this->assertNotNull($unit);
+        $this->assertSame([], $unit->signingSecrets);
+        $this->assertNull($unit->signingSecretsUnavailable);
+    }
+
+    public function test_a_proxy_with_signing_on_and_no_overlap_carries_exactly_one_secret(): void
+    {
+        $proxy = Proxy::factory()->create();
+        $destination = Destination::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'whsec_current');
+
+        $unit = app(DeliveryUnitResolver::class)->resolve($delivery, 1);
+
+        $this->assertNotNull($unit);
+        $this->assertSame(['whsec_current'], $unit->signingSecrets);
+        $this->assertNull($unit->signingSecretsUnavailable);
+    }
+
+    public function test_a_proxy_with_signing_on_and_an_overlap_running_carries_both_secrets_current_first(): void
+    {
+        $proxy = Proxy::factory()->create();
+        $destination = Destination::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+        $store = app(SecretStore::class);
+        $store->replace($proxy, SecretPurpose::Signing, 'whsec_superseded');
+        $store->replace($proxy, SecretPurpose::Signing, 'whsec_current');
+
+        $unit = app(DeliveryUnitResolver::class)->resolve($delivery, 1);
+
+        $this->assertNotNull($unit);
+        $this->assertSame(['whsec_current', 'whsec_superseded'], $unit->signingSecrets);
+        $this->assertNull($unit->signingSecretsUnavailable);
+    }
+
+    /**
+     * AC54: enabling signing on a proxy signs dispatches to EVERY destination
+     * of that proxy, including one added AFTER signing was enabled — no
+     * per-row lookup, no per-row state. Proven here at the resolver level: a
+     * destination created after the secret already exists resolves the same
+     * live signing set as one that predates it.
+     */
+    public function test_a_destination_added_after_signing_was_enabled_still_resolves_the_same_signing_set(): void
+    {
+        $proxy = Proxy::factory()->create();
+        app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'whsec_current');
+
+        // Created after the secret already exists.
+        $lateDestination = Destination::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $lateDestination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+
+        $unit = app(DeliveryUnitResolver::class)->resolve($delivery, 1);
+
+        $this->assertNotNull($unit);
+        $this->assertSame(['whsec_current'], $unit->signingSecrets);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Pipeline;
 
+use App\Exceptions\SecretUnavailableException;
 use App\Models\Destination;
 
 /**
@@ -62,6 +63,13 @@ final class DeliveryUnit
      *                                        current first, at most two (AC29's cap); empty when
      *                                        signing is not enabled, in which case `OutboundHeaders`
      *                                        (T34) adds no signing headers at all (AC63).
+     * @param  SecretUnavailableException|null  $signingSecretsUnavailable  set instead of
+     *                                                                      `$signingSecrets` throwing out of `DeliveryUnitResolver::resolve()`
+     *                                                                      (T36) when the proxy's signing secret cannot be
+     *                                                                      decrypted — carried here so the failure surfaces inside
+     *                                                                      `DeliverToDestination::send()` instead (T39, AC11's
+     *                                                                      all-or-none rule), after the `DeliveryAttempt` row
+     *                                                                      already exists.
      */
     public function __construct(
         public readonly string $ingestId,
@@ -76,6 +84,7 @@ final class DeliveryUnit
         public readonly array $verificationHeaderNames = [],
         public readonly string $dispatchUuid = '',
         public readonly array $signingSecrets = [],
+        public readonly ?SecretUnavailableException $signingSecretsUnavailable = null,
     ) {}
 
     /**

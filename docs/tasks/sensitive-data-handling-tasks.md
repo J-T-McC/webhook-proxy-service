@@ -1970,7 +1970,36 @@
     added **after** signing was enabled — no per-row lookup, no per-row state (AC54).
 - **Testing:** extends `tests/Unit/Services/DeliveryUnitResolverTest.php` — the three signing-state
   cases, the destination-added-afterward case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `DeliveryUnitResolver` gains a `SecretStore` constructor dependency and
+  calls `SecretStore::liveFor($proxy, SecretPurpose::Signing)` once per resolve, on the proxy already
+  loaded `withTrashed()` (T27) — no second query, no per-row lookup, so every destination of a
+  signing-enabled proxy (including one added afterward) resolves the identical live set (AC54).
+
+  **Necessary supporting plumbing, not a deviation, decided within this Senior Developer's own
+  discretion (naming/private-helper decisions the plan leaves open):** `SecretStore::liveFor()` can
+  throw `SecretUnavailableException` (T14's fail-loud contract). `resolve()` runs inside `asJob()`
+  and `RetryDelivery::handle()`, **before** `DeliverToDestination::handle()` creates the
+  `DeliveryAttempt` row — an uncaught throw here would leave AC11's required per-destination Failed
+  record, with its value-free `error_summary`, permanently unwritten (the job would simply vanish into
+  `failed_jobs`, no delivery-path record of what happened). So this task's own new private
+  `signingSecretsFor()` catches the exception and defers it onto the resolved `DeliveryUnit`
+  (`signingSecretsUnavailable: ?SecretUnavailableException`, a new `DeliveryUnit` field alongside
+  `signingSecrets`) rather than letting it propagate — `resolve()` itself never throws for a signing
+  decrypt failure. This task's own Acceptance Criteria doesn't exercise the failure path at all (that's
+  explicitly T39's), so nothing here contradicts it; T39 is the task that checks
+  `$unit->signingSecretsUnavailable` inside `DeliverToDestination::send()`'s own failure handling and
+  pins the resulting all-or-none behaviour — until T39 lands, this deferred field is carried but never
+  read, which is itself the gap T39's own task text anticipates finding.
+
+  Four new tests, alongside the existing suite (all still green): the three signing-state cases (off —
+  `[]`, no `signingSecretsUnavailable`; on, no overlap — one secret; on, overlap running — two secrets,
+  current first, matching `SecretStore::replace()`'s own ordering) and the destination-added-after-signing-was-enabled
+  case (AC54), resolving the identical live set as a destination that predates the secret.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
+  "DeliveryUnitResolverTest|OutboundHeadersTest|OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|DeliverToDestinationTest|RetryDeliveryTest|SecretStoreTest"`
+  (57 tests, 190 assertions — confirming no regression) all green; full-suite run deferred to the end of
+  this batch (T34-T40).
 
 ## T37 — Proxy-scoped signing endpoints (AC56, AC57, AC58; plan § API, Technical ruling 5)
 - **Description:** `POST proxies/{proxy}/signing` (`ProxySigningController@store`) — always generates a
