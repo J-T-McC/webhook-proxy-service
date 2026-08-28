@@ -51,7 +51,7 @@
       "title": "Upgrade league/commonmark to 2.9.0 to clear six denial-of-service advisories",
       "kind": "chore",
       "role": "senior-developer",
-      "state": "ready",
+      "state": "in_progress",
       "eligible": true,
       "source": "docs/status.md \u00a7 Backlog follow-ups",
       "acceptance": "composer audit reports no advisories against league/commonmark; full suite green; no other package's constraint changed.",
