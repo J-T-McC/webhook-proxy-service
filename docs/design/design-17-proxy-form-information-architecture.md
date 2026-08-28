@@ -17,8 +17,47 @@
   proposal is written against the form as it will exist once #10 ships, not only
   against what `main` runs today, because restructuring the form twice in quick
   succession is exactly the outcome the Owner's brief asks this proposal to avoid.
-- **PRD:** none. Requirement-level questions this proposal surfaces are routed to the
-  Product Manager under `## Open Questions`, not answered here.
+- **PRD:** none for the base restructuring. **`docs/product/prd-16-configurable-
+  inbound-verification.md` (Draft, awaiting Project Owner approval) is a stated
+  dependency for the Inbound container's internal shape** — see `## Revision —
+  reworked against PRD-16` below. Requirement-level questions this proposal
+  surfaces are routed to the Product Manager under `## Open Questions`, not
+  answered here.
+
+## Revision note (2026-08-28, same day)
+
+This proposal originally designed the Inbound container's Verification control
+against PRD-10's closed two-scheme list — a `Checkbox` gating a two-item `Select`
+("Standard Webhooks" / "Custom header"). **A Draft PRD, PRD-16, has since reversed
+PRD-10's closed scheme list in favor of a template model** (a signed-string built
+from tokens, plus chosen axes; presets are saved templates, not a second code
+path). Because PRD-16 changes what sits *inside* the Inbound container rather than
+whether the container exists, this document is revised **in place** rather than
+left stale: `## Grouping proposal`'s five containers, the `## Copy rewrite pass`
+sections for Details/Delivery/Sensitive fields/Destinations, and the form-wide
+rule in `## Rule: form copy vs. tooltip vs. cut` are **unchanged** by this
+revision. What changed is `## The Inbound control` (renamed from "The
+Verification control") and everything downstream of it. **PRD-16 is Draft, not
+approved** — every design decision below that depends on it is provisional in the
+same way, and is stated as such rather than asserted as settled. If the Project
+Owner declines PRD-16, this revision's Inbound-container design reopens along with
+it, and the original Checkbox-plus-two-item-Select shape (preserved nowhere else
+but in this proposal's prior committed revision, `acc3325`) is the fallback.
+
+**Second revision, same day: `docs/architecture/prd-16-template-model-feasibility.md`
+(Principal Engineer, Study — informational, not a decision).** Its worked examples
+replace this document's placeholder provider names with real ones and real field
+counts (`## The Inbound control` § The container, concretely), and it surfaces two
+findings this role owns rather than the Principal Engineer — a coverage-honesty
+gap and a safety-rule bypass — addressed in the new `## Coverage honesty, the
+tolerance clock, and the literal-timestamp trap` section below. **The Project
+Owner has added a Principal Engineer technical sign-off as an extra gate on this
+specific design**, on top of the ordinary Product Manager design gate, because
+the requirements underneath are still forming (PRD-16 Draft, Q-16-01 open). This
+document is written for that reader too: `## The Inbound control` § Axis
+extensibility check exists specifically so a technical reviewer can confirm every
+axis the feasibility study names has a place on this form without re-deriving it
+from the field tables.
 
 ## Overview
 
@@ -31,12 +70,16 @@ the system (arrival → inbound gate/acknowledgement → delivery mechanics → 
 handling → destinations), and rewrites the copy inside each container against a
 stated rule for what stays on the form, what moves to a tooltip, and what is cut
 outright. It resolves, rather than sidesteps, the one control the Owner's brief
-flags as broken: the Verification scheme picker, whose three-way `Select` is
-replaced with a plain on/off control that gates a much shorter scheme choice, with
-the tension between "plain on/off" and "two schemes that verify differently" stated
-explicitly rather than designed away. The container structure is built to hold
-Roadmap item #16 (configurable inbound verification) without another restructuring
-once that item lands.
+flags as broken: the Verification picker, whose current three-way `Select` is
+replaced with a plain on/off `Checkbox` gating a provider/template picker built to
+PRD-16's (Draft) template model. The tension the Owner's brief opened between
+"plain on/off" and "a choice that hides real differences underneath" turned out to
+soften once PRD-16 is read — see `## The Inbound control` for the full account of
+what changed and what a Draft status still leaves open. The container structure is
+built to hold Roadmap item #16 without another restructuring once that item lands,
+and this revision is the first proof of that claim: the same five containers this
+proposal opened with absorb PRD-16's much larger field set without moving out of
+the Inbound card.
 
 ## The problem, restated from the brief
 
@@ -51,10 +94,13 @@ Five criticisms, each traced to a decision below:
    rewrite pass` (Verification row) and `## The Verification control`.
 5. **"My sender already implements Standard Webhooks" means nothing; the Owner wants
    a plain on/off that still maps to the existing column, with a header field
-   pre-filled from the specification default, editable** → `## The Verification
-   control` — the sharpest single item in this brief, addressed at length because a
-   plain on/off cannot, by itself, represent a choice between two schemes that verify
-   differently, and PRD-10 approved exactly two.
+   pre-filled from the specification default, editable** → `## The Inbound control`
+   — originally the sharpest item in this brief, because a plain on/off cannot, by
+   itself, represent a choice between two schemes that verify differently, and
+   PRD-10 approved exactly two. **Largely resolved by PRD-16 (Draft)**, which
+   replaces "two schemes" with "one template model plus two legacy holdouts" —
+   see that section for the resolution and what still depends on the PRD being
+   approved.
 
 ## Grouping proposal
 
@@ -71,7 +117,7 @@ like afterward, and finally where it is sent.
 | # | Container | Fields | Why this grouping |
 |---|---|---|---|
 | 1 | **Details** | Name | Identity. No conditionality, always relevant, always first — unchanged from today. |
-| 2 | **Inbound** | Verification (scheme + secret + header), Response (status code + body) | Both concern the *synchronous* exchange with the sender only: whether the request is accepted, and what is written back immediately. Per `ADR-004` (upstream-response decoupling), the response is sent "independently of whether delivery to your destinations succeeds" — it has nothing to do with delivery mechanics, and today's placement (between Retry policy and Sensitive fields) obscures that. Verification precedes Response within the container because gating happens before a response is even composed. |
+| 2 | **Inbound** | Verification (on/off, provider/template picker, secret, and — under PRD-16 (Draft) — the template/axis fields and proving surface), Response (status code + body) | Both concern the *synchronous* exchange with the sender only: whether the request is accepted, and what is written back immediately. Per `ADR-004` (upstream-response decoupling), the response is sent "independently of whether delivery to your destinations succeeds" — it has nothing to do with delivery mechanics, and today's placement (between Retry policy and Sensitive fields) obscures that. Verification precedes Response within the container because gating happens before a response is even composed. **PRD-16 (Draft) grows what "Verification" contains substantially — see `## The Inbound control` — but not which container it sits in.** |
 | 3 | **Delivery** | Mode, Processing, Retry policy (Enhanced only) | Everything governing how this proxy hands events to its destinations asynchronously — ordering, retry attempts, backoff. None of it affects the synchronous exchange above. |
 | 4 | **Sensitive fields** | Sensitive fields list (defaults + additions) | A distinct concern from both of the above: what the *stored and replayed* payload looks like when a member views it later. Not about arrival, not about delivery — about data handling after the fact. |
 | 5 | **Destinations** | URL, Method, Credential (per row) | Unchanged position — the form's last section today and in `design-10`, and it stays last: "where it goes," the final pipeline stage, is the natural close. |
@@ -111,17 +157,29 @@ becomes a tooltip or nothing.
 
 ### Inbound — Webhook secret (was "Verification")
 
-| Field | Current | Proposed on-form | Tooltip |
+**This subsection is rewritten against PRD-16 (Draft).** The prior revision's
+two-item scheme `Select` is superseded by a provider/template picker — see `## The
+Inbound control` for the full design and reasoning. The row-by-row copy table
+below reflects that shape; rows unaffected by PRD-16 (the checkbox, the legend,
+the section help) are unchanged from the prior revision and are repeated here so
+this table stays a complete, standalone reference.
+
+| Field | Current (shipped `design-10` shape) | Proposed on-form | Tooltip |
 |---|---|---|---|
-| Section legend | "Verification" | **"Webhook secret"** — the Owner's own suggested label, and the short, recognizable term the brief asks for. | — |
-| Section help | *"Require an incoming request to prove it's really from your sender before anything is captured. Off by default — existing proxies are unaffected."* | **Cut entirely.** This is the Owner's own worked example: the "off by default" clause is dead weight once the control is a checkbox that visibly starts unchecked, and "prove it's really from your sender" restates what "Webhook secret" already says to a developer. | *"Rejected before capture — no event is stored for a request that fails this check."* This is the one fact worth keeping: it is not obvious from the control, and it is the answer to a real support question ("why didn't my request show up?"), so it goes on demand rather than nowhere. |
-| Enable control | `Select` with three items: "Not required (default)" / "My sender already implements Standard Webhooks" / "My sender sends a shared secret in a header" | **`Checkbox` + Label "Require on incoming requests."** Plain on/off, no sentence to parse. See `## The Verification control` for the full resolution of what happens to the two schemes underneath. | — |
-| Scheme (shown only when the checkbox is checked) | (the same `Select`, items above) | **`Select`, two items: "Standard Webhooks" / "Custom header."** Short, recognizable terms — "Standard Webhooks" is a name developers who use it already know on sight; "Custom header" says what the mechanism is without narrating it. | — |
-| Standard Webhooks — Secret value help | *"The secret your sender issued you for this integration. This product never generates it for you — paste the value they gave you."* | **"Paste the secret your sender issued — not generated here."** One line; kept on-form (not tooltip) because it heads off a real wrong action (looking for a Generate button). | — |
-| Standard Webhooks — "what your sender must send" block | Full paragraph plus a bulleted list plus a closing tolerance sentence | **Kept, tightened**: "Sender must send:" then the three header names and the HMAC description exactly as today (`webhook-id`, `webhook-timestamp`, `webhook-signature — one or more HMAC-SHA256 signatures, base64-encoded, space-delimited`), then one line, "Requests older than {tolerance} are rejected." This block is not decorative — `design-10` names it as the intended compensation for AC46 ("a member's own inspection is the debugging path"), so it stays visible rather than moving to a tooltip; only the surrounding sentences are trimmed. | — |
-| Custom header (`shared-secret`) — Header name | Label "Header name"; placeholder `X-Signature` (a hint, not a value); help *"The header your sender sends the secret in. Case-sensitive as your sender configures it."* | Label **"Header"**; the field is **pre-filled with an actual default value, `X-Signature`**, not just a placeholder — the member keeps it or edits it. Help trimmed to **"Case-sensitive."** | *"The header your sender sends the secret in."* — the definitional half of the old help line, kept on demand. |
-| Custom header — Secret value help | *"The exact value your sender will send in that header."* | **Cut.** "Secret" next to a header-name field the member just filled in needs no further explanation. | — |
-| Replace (editing a set secret) | "Secret set — changed {date}" + Replace, with the 24-hour-overlap disclosure appearing once Replace is clicked (`design-10` C5 / Amendment ruling 2a) | **Unchanged.** This is a state disclosure with real operational consequences (a secret's active window), not descriptive prose — it stays exactly as `design-10` specifies it, full sentences, both branches (no overlap running / overlap already running). | — |
+| Section legend | "Verification" | **"Webhook secret"** — the Owner's own suggested label, and the short, recognizable term the brief asks for. Unchanged by PRD-16. | — |
+| Section help | *"Require an incoming request to prove it's really from your sender before anything is captured. Off by default — existing proxies are unaffected."* | **Cut entirely.** The Owner's own worked example: "off by default" is dead weight once the control visibly starts unchecked. Unchanged by PRD-16. | *"Rejected before capture — no event is stored for a request that fails this check."* |
+| Enable control | `Select` with three items: "Not required (default)" / "My sender already implements Standard Webhooks" / "My sender sends a shared secret in a header" | **`Checkbox` + Label "Require on incoming requests."** Unchanged by PRD-16 — see `## The Inbound control`, Q1. | — |
+| Provider (shown only when the checkbox is checked) | *(did not exist — PRD-16 adds this axis of choice)* | **`Select` "Provider"**: **GitHub**, **Stripe**, **Slack** (AC5's floor; more per Q-16-02), a divider, **Standard Webhooks**, **Shared secret only**, a divider, **Custom**. No default selection — placeholder "Choose a provider," never silently decided (PRD-16 AC37). | — |
+| Sample request | *(did not exist)* | **`Textarea` "Sample request from your provider"**, placed directly under the Provider `Select` (rendered as soon as the checkbox is on, before a provider is even chosen — see `## The Inbound control` § UX Direction point 1) — a single paste target for the real request's headers and body. Help: **"Paste one real request. Used to check your configuration below — never stored, never dispatched (PRD-16 AC29)."** Kept on-form, not a tooltip: the retention promise is exactly the fact a careful developer would otherwise hesitate to paste a real request without. | — |
+| Provider suggestion (only when a sample is pasted and no provider is chosen yet) | *(did not exist)* | A dismissible inline note under the Sample field: **"This looks like {Provider} — use the {Provider} preset?"** with **Use** / **Dismiss**. Never auto-applies (PRD-16 AC37) — see `## The Inbound control` § point 7. | — |
+| Template (rendered once a provider — including Custom — is chosen) | *(did not exist)* | Label **"Signed string"**; `Input` (monospace), pre-filled from the chosen preset (or, for Custom, pre-filled with the minimum valid template, `{body}`) — never blank. Help: **"{body}, {timestamp} and {id} are replaced with values from the request; everything else is sent as-is."** | *"The exact bytes your provider's HMAC ran over. Must include {body} — a scheme that doesn't sign the body isn't verifying anything (PRD-16 AC22)."* — the "why" for the one rule worth explaining, per PRD-16 UX Direction point 4's own instruction that `{body}`'s reason "is the feature." |
+| Header (rendered once a provider is chosen, except Standard Webhooks) | *(did not exist as an axis for Standard Webhooks; existed only for the old `shared-secret`)* | Label **"Header"**; pre-filled from the preset (e.g. GitHub's `X-Hub-Signature-256`, Stripe's `Stripe-Signature` — exact shipped values are the Principal Engineer feasibility study's, not fixed here), editable. For **Shared secret only**, unchanged from today: pre-filled `X-Signature`, editable. | — |
+| Secret value | Write-only, shared shape (`design-10`) | **Unchanged shape** — `Input type="password"`, Unset/Set states exactly as `design-10` specifies, reused for every provider/preset/Custom/Standard Webhooks/Shared secret only alike. Help trimmed to **"Paste the secret your provider issued — not generated here."** | — |
+| Signing details (Algorithm, Encoding, Extraction shape + prefix/part, Timestamp source + header/part, Id source + header/part, Tolerance) | *(did not exist)* | `Collapsible` **"Signing details"** wrapping the six PRD-16 axes (AC15–AC20), pre-filled from the preset. **Default expand state:** open when Provider = Custom, collapsed when Provider = a named preset — reusing `design-10`'s own reasoning for the destination Credential's default-expand rule ("open by default only when set… unconfigured opens collapsed"), read here as "open when there's nothing pre-filled to trust yet, collapsed when there is." Editing any value inside relabels the Provider `Select`'s display to **"Custom (from {Preset})"** (PRD-16 AC8), computed, not a separate control the member sets. | Tolerance's help stays on-form (not tooltip) per PRD-16 AC20: **"A larger tolerance weakens replay protection."** — decision-relevant, not background. |
+| Signed-string preview | *(did not exist)* | Read-only block, rendered once a sample is pasted **and** a provider/template is chosen, live-updating on every edit: the template with its tokens substituted from the pasted sample, directly beside the signature value the sample's own header actually carried. No label needed beyond **"Computed"** / **"Received"** — this is PRD-16 UX Direction point 2's substitution-teaching device, adopted literally. | — |
+| Proof status | *(did not exist)* | Inline status line beneath the preview, three states — **Not yet checked** (neutral); **Proven — verified against your sample just now** (success, PRD-10-style status-line treatment); **Failed — {stage}** (error, expandable — see `## The Inbound control` § point 6). Phrased as a guarantee, not a gate, per UX Direction point 5 — see that section for the exact copy reasoning. | — |
+| Standard Webhooks — "what your sender must send" block | Full paragraph plus a bulleted list plus a closing tolerance sentence | **Unchanged from the prior revision**: "Sender must send:" then the three fixed header names, tightened. Standard Webhooks renders **none** of the Template/Header/Signing-details/preview/proof fields above — see `## The Inbound control` § Q2 for why. | — |
+| Replace (editing a set secret, any provider) | "Secret set — changed {date}" + Replace, with the 24-hour-overlap disclosure appearing once Replace is clicked (`design-10` C5 / Amendment ruling 2a) | **Unchanged.** A state disclosure with real operational consequences, not descriptive prose — full sentences, both branches, exactly as `design-10` specifies. | — |
 
 ### Inbound — Response
 
@@ -189,100 +247,248 @@ restated each time:
    background-only to say gets no tooltip at all (Name, the Sensitive-fields Add
    input, the Destinations URL/Method fields carry none in this proposal).
 
-## The Verification control — resolving on/off vs. two schemes
+## The Inbound control — from two schemes to a template model (revised against PRD-16, Draft)
 
-**Where this stands today.** `design-10` (approved) specifies a single `Select`
-with three items: `none` ("Not required," the default), `standard-webhooks` ("My
-sender already implements Standard Webhooks"), and `shared-secret` ("My sender
-sends a shared secret in a header"). `ADR-022` fixes this as a **closed two-case
-scheme registry** — the two non-`none` values verify a request in genuinely
-different ways: Standard Webhooks computes an HMAC over a fixed structure and
-requires three fixed header names (`webhook-id`, `webhook-timestamp`,
-`webhook-signature`) with no per-proxy configuration of any of them; the shared
-secret scheme checks one member-named header against one member-supplied value,
-with no timestamp, no HMAC construction the member configures, nothing fixed by
-an external spec. These are not two presentations of one idea — they are two
-different verification mechanisms, and PRD-10 approved both.
+*(This section replaces "The Verification control," this proposal's original
+title, which resolved the Owner's brief against PRD-10 alone. That resolution is
+kept below, condensed, because `docs/standards/documentation.md`'s house rule —
+named explicitly in PRD-16 itself — is to retain history rather than rewrite a
+ruling silently; the live conclusions are the ones in § Q1/Q2 resolved.)*
 
-**What the Owner asked for.** A plain on/off, still mapped to the existing
-column, and — quoting the brief — "when it is on the member sees a header field
-pre-filled with the specification's default header name, which they can keep or
-edit."
+### Where this stood before this revision
 
-**The tension, stated plainly.** A single on/off cannot, by itself, represent a
-choice between two mechanisms that verify differently. Something has to carry
-*which* scheme applies once the toggle is on — either that choice stays visible
-in some short form, or the product silently decides it, and silently deciding
-between two different cryptographic verification methods is not a call this
-proposal is positioned to make. Separately, "a header field pre-filled with the
-specification's default header name" describes a field that **only one of the two
-schemes has**: Standard Webhooks' three headers are fixed by the external
-specification and are not a per-proxy setting today (`ADR-022`) — there is no
-single "header field" for that scheme to pre-fill. The shared-secret scheme *does*
-have exactly one configurable header field, but it has no specification default —
-it is arbitrary, chosen by whatever the sender happens to send, and today's field
-carries only a placeholder hint (`X-Signature`), never an actual value.
+`design-10` (approved) specifies a single `Select` with three items: `none`
+("Not required," the default), `standard-webhooks` ("My sender already implements
+Standard Webhooks"), and `shared-secret` ("My sender sends a shared secret in a
+header"). `ADR-022` fixed this as a **closed two-case scheme registry** — two
+mechanisms that verify differently, with nothing between them. The Owner asked for
+"a plain on/off… and when it is on the member sees a header field pre-filled with
+the specification's default header name, which they can keep or edit." The
+original tension: a single on/off cannot represent a choice between two
+mechanisms that differ, and "a header field pre-filled with the specification's
+default" describes a field only one of the two schemes actually has. This
+proposal's original resolution kept the checkbox as a literal on/off and kept the
+scheme choice underneath it, shortened to two words each, with the pre-filled
+header behavior applied only to the shared-secret scheme. That resolution is
+superseded below, not because it was wrong against PRD-10, but because PRD-16
+changes the thing it was reasoning about.
 
-**What this proposal does.** Two moves, kept deliberately separate so each can be
-judged on its own:
-- **The on/off is real and literal.** A `Checkbox` — "Require on incoming
-  requests" — replaces the `Select`'s `none` state. Checked/unchecked is exactly
-  the boolean the Owner asked for, and it maps to the same underlying column
-  `design-10` already specified: unchecked submits the same "not required"
-  sentinel the `Select`'s `none` item submits today (no data-model change; see
-  `## Consequences`). This directly answers complaint 5's "plain on/off."
-- **The scheme choice is kept, but shortened to two words each, and only shown
-  once the toggle is on.** "Standard Webhooks" / "Custom header" replace the two
-  full-sentence `Select` items. This is not the same complaint as "off by
-  default" being dead weight — the scheme names are load-bearing information, not
-  restated obviousness — but it does answer complaint 5's actual target, which
-  the Owner named directly: *the phrasing* ("this doesn't mean anything to
-  anyone"), not the existence of a choice. "Standard Webhooks" is, by the Owner's
-  own suggestion elsewhere in the brief, exactly the kind of short label a
-  developer recognizes on sight.
-- **The "pre-filled, editable header" behavior is applied to the scheme that
-  actually has a single configurable header — Custom header (`shared-secret`)** —
-  by upgrading its field from a placeholder hint to a real default value
-  (`X-Signature`), which the member keeps or edits, literally satisfying the
-  Owner's description for that scheme. Standard Webhooks' three fixed headers are
-  left exactly as `ADR-022`/`design-10` approved them: named, static text, not an
-  input.
+### What PRD-16 changes
 
-**What is a design decision here and what is not.** The Checkbox-plus-shortened-
-Select shape above is this proposal's design judgment, and is offered as the
-recommended default. But two things go beyond what a design spec can settle
-unilaterally, named in `## Open Questions` rather than decided here: whether the
-Owner's "plain on/off" was meant to remove the scheme choice from the member
-entirely (which would mean the product picks a single scheme on its own, or the
-two schemes get merged into one — either is a real requirement change against
-`ADR-022`'s closed registry, not a copy or layout change); and whether "pre-filled
-header, editable" was meant to extend to Standard Webhooks' fixed headers, which
-would be a functional change to a specification-fixed value, not something this
-proposal invents on its own authority.
+PRD-16 (Draft) reverses PRD-10 AC50's closed scheme list. In its place: a
+**template scheme** — a signed-string template built from three closed tokens
+(`{body}`, `{timestamp}`, `{id}`) plus literal characters, together with seven
+chosen axes (algorithm, encoding, header name, extraction shape, timestamp
+source, id source, tolerance). **A preset (GitHub, Stripe, Slack, …) is a saved
+template scheme — data, not a second code path (AC6).** Critically for this
+container, PRD-16 keeps `shared-secret` and `standard-webhooks` standing
+**exactly as PRD-10 shipped them, unmigrated** (AC44, AC45) — they are not
+folded into the template model, they sit beside it. So the real shape a member
+chooses from, once verification is on, is no longer "two schemes." It is: **a
+provider (a preset, or Custom, all one template mechanism) — or one of two
+untouched legacy options (Standard Webhooks, Shared secret only).**
 
-## Where item #16 lands
+### Q1 — resolved against PRD-16 (Draft)
 
-Item #16 (configurable inbound verification, in Product Manager drafting) adds a
-preset picker, a custom signed-string template built from tokens, an
-algorithm/encoding choice, a signature header name, a signature-extraction rule,
-a timestamp source, a tolerance, and a paste-a-real-request test gate. All of it
-is inbound-gate configuration — it belongs inside the **Inbound → Webhook secret**
-fieldset this proposal already creates, as a third scheme alongside (or
-replacing/generalizing) "Custom header," not as a new top-level card. Concretely,
-the container this proposal proposes already has:
-- a single on/off gate (the `Checkbox`) that #16's whole feature sits behind,
-  unchanged;
-- a `Select` for "which scheme," which #16 can extend with a third item (a
-  preset, or "Custom") without restructuring anything above it;
-- an established pattern, already used twice on this same form (Standard
-  Webhooks' static header block; the shared-secret header field), for rendering
-  scheme-conditional fields underneath the `Select` — #16's template builder,
-  algorithm/encoding choice, extraction rule, timestamp source, and tolerance
-  input all render the same way, conditional on the same `Select`, inside the
-  same fieldset.
-This is stated as a placement observation, not a design for #16 itself — #16's own
-fields, states, and the paste-a-real-request test gate are #16's design spec to
-write once its PRD is approved. Nothing here invents any of #16's requirements.
+> *Original question: does the Owner's "plain on/off" mean removing the scheme
+> choice from the member entirely, or only fixing the mechanics of a checkbox
+> replacing the `Select`'s `none` item?*
+
+**Resolved: the checkbox stands, unchanged, exactly as this proposal's prior
+revision designed it.** There is still a choice underneath it — PRD-16 does not
+remove the need to say *which* provider or scheme applies, and could not:
+`shared-secret` and `standard-webhooks` still verify differently from a template
+scheme and from each other (AC44, AC45), and different presets still resolve to
+different templates. What PRD-16 removes is the part of the original tension that
+made the choice feel like it was hiding something: under the closed two-scheme
+model, picking "Standard Webhooks" versus "Custom header" was a choice between
+two opaque, hand-written mechanisms a member had to already understand. Under the
+template model, picking "GitHub" or "Stripe" is closer to what a plain on/off
+*feels* like from the member's side — recognizing a name, not evaluating a
+mechanism — even though a real, meaningful choice still happens underneath. **The
+choice is preserved; what changes is that most members now make it by
+recognizing their provider's name, not by reading a sentence about how
+verification works.** This is a Draft-PRD-dependent resolution: if PRD-16 is
+declined, Q1 reopens exactly as originally stated.
+
+### Q2 — resolved against PRD-16 (Draft), with the Standard Webhooks residual named explicitly
+
+> *Original question: does "a header field pre-filled with the specification's
+> default header name, editable" apply only to the shared-secret scheme, or was
+> it meant to extend to Standard Webhooks' fixed headers?*
+
+**Resolved, in two parts, because the coordinator's brief is right that one part
+survives and one does not.**
+
+- **For every template scheme — every preset and Custom alike — header names are
+  now genuinely a configured, editable axis, pre-filled with sensible defaults.**
+  PRD-16 AC17 makes the signature header name a member-supplied axis for every
+  template scheme, and AC5 requires each preset to fill every axis including it.
+  This is exactly what the Owner described, generalized from "the one scheme that
+  happened to have a header field" to "every scheme in the new model" — the
+  `## Copy rewrite pass` table above renders this as the **Header** field,
+  pre-filled per preset, always editable.
+- **Standard Webhooks is the one case that survives unchanged, and PRD-16 says so
+  by name (AC45): it is kept as its own scheme, not folded into the template
+  model, specifically because outbound signing (PRD-10 AC54–AC64) is defined
+  against that same specification and folding it in would drag outbound signing
+  with it.** Its three headers (`webhook-id`, `webhook-timestamp`,
+  `webhook-signature`) remain fixed by the external specification, not a
+  per-proxy setting, and this proposal does **not** give it an editable Header
+  field. **How this proposal handles the resulting asymmetry**, since the
+  coordinator asked directly: Standard Webhooks stays listed in the same
+  **Provider** `Select` as the template-model presets — to a member deciding
+  "what does my provider look like," it belongs in the same list, the same way it
+  did conceptually before — but selecting it renders **none** of the
+  Template/Header/Signing-details/preview/proof fields the other items render. It
+  falls straight to the same static "what your sender must send" block and
+  Secret field `design-10` already ships, unchanged. **Fewer fields for an
+  already-fully-specified scheme is not an inconsistency to smooth over — a
+  scheme with nothing left to configure should show nothing left to configure.**
+  The one thing worth flagging rather than asserting as obviously fine: a member
+  who has just filled in a Header field for a GitHub or Stripe preset and then
+  switches Provider to Standard Webhooks watches that field disappear. This
+  proposal reads that as acceptable (the two are genuinely different amounts of
+  configuration, and the static block replacing it says what's fixed instead), but
+  it is exactly the kind of live-usability call the Principal Engineer's
+  forthcoming feasibility study — which will show the real field count per
+  provider — is positioned to sanity-check once it lands.
+
+This resolution, like Q1, rests on PRD-16 being approved as Draft. If the Owner
+declines it, `standard-webhooks` and `shared-secret` return to being the *only*
+two options, Q2 reopens in its original form, and this container's Provider
+picker collapses back to this proposal's prior committed shape.
+
+### The container, concretely
+
+The full field-by-field shape is in `## Copy rewrite pass` → *Inbound — Webhook
+secret*; summarized here as a state machine:
+
+```
+Checkbox unchecked → nothing else renders. (unchanged)
+
+Checkbox checked →
+  Sample request Textarea (always rendered first — see next section, point 1)
+  Provider Select: GitHub | Stripe | Slack | [more, Q-16-02] | — | Standard Webhooks | Shared secret only | — | Custom
+
+  Provider = (a preset, or Custom) →
+    Signed string Template Input (pre-filled, never blank)
+    Header Input (pre-filled from preset)
+    Secret value (write-only, shared shape)
+    Collapsible "Signing details" (Algorithm, Encoding, Extraction, Timestamp
+      source, Id source, Tolerance) — open if Custom, collapsed if a preset
+    [if Sample pasted] Signed-string preview (Computed vs. Received)
+    Proof status (Not yet checked | Proven | Failed — {stage})
+
+  Provider = Standard Webhooks →
+    Secret value (write-only, shared shape)
+    Static "what your sender must send" block (unchanged from design-10)
+    [no Template, Header, Signing details, preview, or proof — AC45]
+
+  Provider = Shared secret only →
+    Header Input (pre-filled X-Signature, editable — unchanged from design-10)
+    Secret value (write-only, shared shape)
+    [no Template, Signing details, preview, or proof — AC44]
+```
+
+No field here is new *machinery* beyond what `## Copy rewrite pass` already
+specifies — this is a state diagram of the same fields, included so the
+container's shape is checkable at a glance rather than only recoverable by
+reading every table row.
+
+## Custom-template entry UX — responding to PRD-16's UX Direction
+
+PRD-16 names the custom-template experience as "the open problem in this feature"
+and sets nine points of direction rather than layout. Each is answered below —
+agree, disagree, or refine — because PRD-16 itself says this is design authority,
+not requirements: "Screens, states, components and copy belong to the Designer."
+
+1. **"The real request is the centre of the form, not a test at the end."**
+   **Agree, adopted literally, refined toward *first field*.** The Sample request
+   `Textarea` renders immediately below the Provider `Select` — before a provider
+   is even chosen, not after — because a pasted sample can *drive* the provider
+   suggestion (point 7) rather than only checking a choice already made. This is
+   a stronger reading than "don't gate it at the end": it makes the sample the
+   thing that can shortcut the provider choice, not merely accompany it.
+2. **"Show the member the string that will be signed, filled in from their
+   sample" — vocabulary taught by substitution, not a legend.** **Agree, adopted
+   literally.** The Signed-string preview block (Computed / Received) is exactly
+   this, rendered live on every template or axis edit once a sample exists. No
+   separate token-vocabulary legend is added anywhere on this form — the preview
+   is the only explanation the three tokens get, matching the direction's own
+   instruction that the list is short enough not to need one.
+3. **"Nobody should start from an empty field… editing a near preset is the
+   preferred path into custom."** **Agree, refined.** This proposal keeps an
+   explicit **Custom** item in the Provider list — PRD-16 explicitly leaves this
+   choice open ("whether 'custom' is a separate option… is the Designer's call")
+   — for the member whose provider matches nothing, because an always-visible,
+   named entrance is easier to find than "discover that editing any field on a
+   preset quietly becomes custom." But **Custom is never blank**: it pre-fills
+   the same minimum valid scaffold every truly-from-scratch case needs — template
+   `{body}`, HMAC-SHA256, hex, bare extraction, no timestamp/id source — which is
+   itself "the simplest preset," not a distinct empty state. Editing *any*
+   preset's fields reaches the same place by the other door (AC8), and both
+   doors are implemented identically underneath: there is exactly one editor,
+   entered either by name (Custom) or by consequence (touching a preset's
+   values).
+4. **"A malformed template fails at the field, before saving, and names the rule
+   it broke."** **Agree, adopted literally.** The Template `Input`'s error state
+   uses the existing `InputError` pattern, but with the four rule-specific
+   messages PRD-16 names rather than a generic failure — missing `{body}`
+   (AC22, with the tooltip carrying *why*, per this direction point's own
+   instruction), an unrecognized token, `{timestamp}` with no timestamp source,
+   `{id}` with no id source (AC14). Each is a distinct, sayable string, not one
+   shared "Invalid template."
+5. **"The safety rules must read as what the product guarantees, not obstacles."**
+   **Agree, adopted in copy.** The Proof status line's **Not yet checked** state
+   is phrased forward — *"Not yet checked against a real request — paste one
+   above to prove this"* — never *"Cannot enable."* The enable/save mechanics
+   this status gates are Q-16-01(b), the Principal Engineer's open question about
+   how proving composes with PRD-10 AC26's write-only secrets; this proposal
+   designs the status line's states and copy, not the save-time gate itself,
+   which depends on that answer.
+6. **"A failed proof is a diagnosis, not a verdict."** **Agree, adopted
+   literally.** The **Failed — {stage}** state expands to name which of PRD-16
+   AC28's five stages failed (header absent, extraction failed, timestamp
+   absent/out of tolerance, id absent, signature mismatch), and may show the
+   computed signed string beside the received signature — never the secret, per
+   AC28's own closing rule. This reuses the same "Computed / Received" framing
+   the live preview already establishes, so a failure state is a variant of a
+   pattern the member has already seen succeed, not a new visual language.
+7. **"The product may suggest, but must never decide."** **Agree, adopted
+   literally.** The provider-suggestion note (`## Copy rewrite pass`) requires an
+   explicit **Use** click; dismissing it or ignoring it leaves the Provider
+   `Select` exactly as it was. No suggestion pre-fills the `Select`'s value on
+   its own.
+8. **"A preset must not read as a certification."** **Agree, adopted in copy.**
+   No field or state on this container claims a preset is current or guaranteed
+   — the Signing-details `Collapsible`'s collapsed state for a fresh preset is a
+   density choice (§ above), not a trust signal, and the same Proof status line
+   every Custom scheme gets is required of a preset selection too: selecting
+   GitHub does not itself mark anything Proven.
+9. **"Readable months later by someone who did not write it."** **Agree in
+   principle, out of this proposal's immediate scope.** Everything AC43 requires
+   be readable (provider/preset name, derivation, template, every resolved axis,
+   last-proof date) is **non-secret** — unlike the secret field, nothing here
+   needs a write-only collapsed state, so Edit already shows all of it inline by
+   construction, satisfying the *form's* half of this requirement for free. A
+   dedicated read-only summary on the proxy **Show** page (`design-10` Screen 4's
+   Verification card, or its PRD-16-era successor) is the natural place for the
+   "did not write it" reader who never opens Edit at all, but that card is out of
+   this proposal's stated scope (`resources/js/pages/proxies/ProxyForm.vue` and
+   its siblings only) and belongs to the full `design-16` once PRD-16 is
+   approved — noted under `## Open Questions` rather than designed here.
+
+**Where the forthcoming Principal Engineer feasibility study fits.** Its worked
+examples (GitHub, Stripe, Slack, Shopify, and others, with real header names and
+signed strings) will state concretely how many fields a member fills per
+provider — which is the number this container's "collapsed Signing details by
+default for a preset" design is a bet on staying small. Nothing in this revision
+is built to require re-architecture if that number comes back larger than
+expected: the `Collapsible` already exists as the pressure valve, and its
+default-open state for Custom already covers the "this needs everything visible"
+case. This is noted rather than re-litigated because the study does not exist
+yet.
 
 ## Screens & States
 
@@ -298,8 +504,10 @@ Card "Inbound"
   fieldset "Webhook secret"
     Checkbox "Require on incoming requests" [i]
     [v-if checked]
-      Select "Scheme" — Standard Webhooks | Custom header
-      [scheme-conditional fields, per ## Copy rewrite pass]
+      Textarea "Sample request from your provider"
+      [suggestion note, if a sample is pasted and no Provider chosen]
+      Select "Provider" — GitHub | Stripe | Slack | … | Standard Webhooks | Shared secret only | Custom
+      [provider-conditional fields — see ## The Inbound control § The container, concretely]
   fieldset "Response"
     Status code
     Body
@@ -326,17 +534,23 @@ Card "Destinations"
 Actions: Submit, Cancel  (unchanged, outside all Cards, at the form's end)
 ```
 
-**States.** Every field's default/empty/loading/error/success states are exactly
-those already specified — `design-10` for Verification, Sensitive fields, and
-Credential; `design-07` for Mode and the downgrade disclosure; `design-06` for
-Retry policy; the current shipped behavior for Name, Processing, Response, and
-Destinations. **No field gains or loses a state in this proposal** — every change
-here is layout (which container a field sits in) and copy (what its label/help
-says), never the state machine behind it. The one net-new interactive element is
-the Verification `Checkbox` itself, whose states are exactly a standard checkbox's
-(unchecked/checked/disabled-while-`form.processing`, `aria-invalid` unused since
-it has no validation of its own — the `Select` beneath it keeps its existing
-"none selected yet" and error states unchanged).
+**States.** Every field's default/empty/loading/error/success states outside the
+Webhook secret fieldset are exactly those already specified — `design-10` for
+Sensitive fields and Credential; `design-07` for Mode and the downgrade
+disclosure; `design-06` for Retry policy; the current shipped behavior for Name,
+Processing, Response, and Destinations. **No field outside Webhook secret gains
+or loses a state in this proposal.** Inside Webhook secret, this revision adds
+real new states beyond the prior revision's checkbox-only addition, all detailed
+in `## The Inbound control` § The container, concretely and § Custom-template
+entry UX: the Sample `Textarea`'s empty/pasted states, the dismissible provider
+suggestion, the Template `Input`'s four rule-named error states, the
+Signing-details `Collapsible`'s open/collapsed default (conditional on Provider),
+the live preview's "no sample yet" (not rendered) versus "rendered, live" states,
+and the Proof status line's three states (Not yet checked / Proven / Failed —
+{stage}). None of these is a new *kind* of state this app hasn't shown before
+(text input, error, collapsible, live-computed read-only text, and a status line
+are all reused patterns) — what's new is that they compose into one fieldset for
+the first time.
 
 ## Components
 
@@ -345,26 +559,50 @@ it has no validation of its own — the `Select` beneath it keeps its existing
 | Card sections | `Card` (×5, was ×1) | Reused, same primitive, more instances. |
 | Card/fieldset headings | plain `h2`/`legend`, `text-base font-semibold` (h2) or existing `legend` weight | Reuses the exact pattern `proxies/Show.vue` already uses for its own stacked cards — no new heading component. |
 | Verification on/off | `Checkbox` (`ui/checkbox`) | **New usage** — this primitive exists and is generated, but today is only used for row-selection in `teams/Index.vue`/`Edit.vue`. Using it as a standalone settings toggle is a new usage pattern for this app, flagged per `docs/standards/design.md`'s "new components are flagged in the spec" convention (it is not a new *component*, only a new *use* of an existing one). No `Switch` primitive exists in this codebase and this proposal does not introduce one — `Checkbox` + `Label` is the existing accessible on/off idiom already generated here. |
-| Verification scheme | `Select`/`SelectTrigger`/`SelectContent`/`SelectItem`/`SelectValue` | Unchanged primitive, shorter item labels, fewer items (two instead of three — `none` is now the `Checkbox`'s unchecked state, not a list item). |
+| Provider picker | `Select`/`SelectTrigger`/`SelectContent`/`SelectItem`/`SelectValue` | Reused primitive. **A plain `Select` is proposed rather than a searchable combobox** — no `Command`/`Combobox`/`Popover` primitive exists in this codebase today, and AC5's floor (GitHub, Stripe, Slack) plus Q-16-02's still-open "how many more" is a small enough list for a scrollable `Select` to stay usable, matching this app's "reuse before inventing" standard. **Flagged, not decided:** if the Principal Engineer's feasibility study or Q-16-02's answer implies a long provider list, a searchable combobox becomes a real candidate and would be a genuinely new primitive — left for a later revision once that count is known, not designed speculatively here. |
+| Sample request | `Textarea` | **New usage for this app in a settings form** — no existing primitive-level `Textarea` component was found reused elsewhere on this form; the shadcn-vue/Reka UI `Textarea` generator is the same class of primitive as every other `ui/*` wrapper here (flagged per `docs/standards/design.md`'s "new components are flagged" convention — a new *generated wrapper*, not a hand-rolled control). |
+| Signed-string preview, Proof status | plain read-only text, `text-sm`/`font-mono` where the computed/received strings render, `aria-live="polite"` on the Proof status line | No new primitive — reuses this app's existing "live async feedback needs `aria-live`" convention (`docs/standards/design.md` → Screen-reader requirements, the same rule the Ingest URL `CopyField`'s "Copied" feedback already follows). |
+| Signing details | `Collapsible`/`CollapsibleTrigger`/`CollapsibleContent` | Reused verbatim from `design-10`'s destination Credential subsection — same primitive, same default-expand reasoning, applied to a new field group. |
 | Tooltips | `Tooltip`/`TooltipTrigger`/`TooltipContent`/`TooltipProvider` (`ui/tooltip`) | **New usage for this purpose.** The primitive is generated and already imported (`AppHeader.vue`, `SidebarMenuButton.vue`) for icon-button affordances, but this proposal is the first place it carries explanatory field copy. Trigger is an `Info` icon (`@lucide/vue`, already imported in `ProxyForm.vue` for the downgrade `Alert`) inside a small, keyboard-focusable button — never a bare hover-only element (see `## Accessibility`). |
-| Everything else | unchanged | `Input`, `InputError`, `Alert`/`AlertTitle`/`AlertDescription`, `Collapsible`, `Badge`, `Button` — all reused exactly as `design-10`/`design-07`/current `ProxyForm.vue` already specify them. |
+| Everything else | unchanged | `Input`, `InputError`, `Alert`/`AlertTitle`/`AlertDescription`, `Checkbox`, `Badge`, `Button` — all reused exactly as `design-10`/`design-07`/current `ProxyForm.vue` already specify them. |
 
 ## Interactions
 
 - **Verification checkbox toggling off** clears the in-session `verification_scheme`
-  and any in-session, unsaved scheme-conditional field values — the same "hidden
-  field can never carry a stale value into submit" rule `ProxyForm.vue` already
-  applies to the Retry-policy fieldset on a Mode change, and `design-10` already
-  applies to a scheme change. No new discard rule is introduced; this is the
-  existing rule, applied to one more control.
+  (or its PRD-16 equivalent), the Sample `Textarea`, and any in-session, unsaved
+  provider-conditional field values — the same "hidden field can never carry a
+  stale value into submit" rule `ProxyForm.vue` already applies to the
+  Retry-policy fieldset on a Mode change, and `design-10` already applies to a
+  scheme change. No new discard rule is introduced; this is the existing rule,
+  applied to one more control and a larger field set underneath it.
 - **Toggling the checkbox back on** does not restore a prior in-session choice —
-  the `Select` opens with no scheme selected (placeholder, not a default), the
-  same "never silently pick a scheme for the member" stance `design-10`'s AC23
-  already establishes for the initial state.
+  the Provider `Select` opens with no provider selected (placeholder, not a
+  default), the same "never silently pick a scheme for the member" stance
+  `design-10`'s AC23 already establishes and PRD-16 AC37 restates for the wider
+  model.
+- **Selecting a Provider** (a preset, Standard Webhooks, Shared secret only, or
+  Custom) pre-fills that provider's fields per `## The Inbound control` § The
+  container, concretely, and discards any in-session values from a previously
+  selected provider — the same discard rule as above, applied on every Provider
+  change, not only on the checkbox.
+- **Editing any pre-filled Template or Signing-details value** (for a preset,
+  never for Custom, which starts editable) relabels the Provider `Select`'s
+  display to "Custom (from {Preset})" per PRD-16 AC8 — a computed display state,
+  not a separate action the member takes.
+- **Pasting into the Sample `Textarea`** triggers, in order: the provider
+  suggestion note (if no Provider is chosen yet and the pasted sample resembles a
+  known preset); and, once a Provider is also chosen, the live Signed-string
+  preview and an automatic proof check against the current Template/axis values.
+  Every subsequent edit to the Template, Header, or any Signing-details value
+  re-runs the preview and the proof check — "continuously," per PRD-16 UX
+  Direction point 1, not only on an explicit "Test" click. **A live re-check on
+  every keystroke versus a debounced/on-blur re-check is left to the Principal
+  Engineer's plan** — this is a performance/mechanism detail, not a UX one, and
+  is noted rather than specified here.
 - Every other interaction (destination row add/remove/focus, secret Replace/
   Remove-credential flows, badge add/remove) is **unchanged** — this proposal
   moves fields between containers and shortens their copy; it does not touch a
-  single piece of `useForm()` state-transition logic.
+  single piece of `useForm()` state-transition logic outside Webhook secret.
 
 ## Accessibility
 
@@ -393,10 +631,25 @@ it has no validation of its own — the `Select` beneath it keeps its existing
   against a `title`-only attribute (N1), applied here to the same failure mode in
   a new location.
 - Meets **WCAG 2.1 AA** per `docs/standards/design.md`'s baseline — every
-  primitive used here (`Card`, `Checkbox`, `Select`, `Tooltip`, `fieldset`) is an
-  already-vetted Reka UI primitive or plain semantic HTML, composed the same way
-  this app already composes them; nothing here introduces a new interaction
-  pattern needing separate a11y validation.
+  primitive used here (`Card`, `Checkbox`, `Select`, `Tooltip`, `Textarea`,
+  `Collapsible`, `fieldset`) is an already-vetted Reka UI primitive or plain
+  semantic HTML, composed the same way this app already composes them; nothing
+  here introduces a new interaction pattern needing separate a11y validation.
+- **The Sample request `Textarea`** carries a programmatically associated
+  `Label` ("Sample request from your provider") and `aria-describedby` pointing
+  at its retention-promise help text, the same wiring every other field on this
+  form already has.
+- **The Signed-string preview and Proof status are live-updating, non-visual-only
+  feedback** — both use `aria-live="polite"` regions (the Proof status
+  transition from Not yet checked → Proven/Failed is exactly the kind of
+  async-feedback update `docs/standards/design.md` already requires an
+  `aria-live` region for, citing the `CopyField` "Copied" precedent) so a
+  screen-reader user is told the result without having to re-poll the field.
+  Colour is never the sole carrier of Proven versus Failed — both pair with text.
+- **The Signing-details `Collapsible` trigger** states its own open/closed
+  state via the same `ChevronDown`/`ChevronRight` + text-label pattern
+  `design-10`'s Credential subsection already established, satisfying the same
+  accessibility bar without inventing a second disclosure idiom.
 
 ## Responsive Behavior
 
@@ -434,34 +687,55 @@ state tables already cover this) rather than a form with sections missing.
 
 ## Open Questions
 
-1. **To the Product Manager: does the Owner's "plain on/off" for Verification mean
-   only the mechanics addressed here (a real checkbox replacing the `none` Select
-   item), or does it mean the member should never be asked to choose between the
-   two schemes at all?** This proposal keeps the scheme choice, shortened to two
-   words, because PRD-10/`ADR-022` approved two schemes that verify differently
-   and nothing in this commission authorizes merging or auto-selecting between
-   them. If the Owner's intent was the latter, that is a functional change against
-   an Accepted ADR and needs its own ruling before any design spec reflects it.
-2. **To the Product Manager: does "a header field pre-filled with the
-   specification's default header name, editable" apply only to the Custom-header
-   scheme (as this proposal reads it), or was it meant to make Standard Webhooks'
-   three fixed headers editable too?** `ADR-022` fixes those three header names to
-   the external specification with no per-proxy configuration; making them
-   editable would be a real functional change, and is exactly the kind of
-   generalization item #16 (configurable inbound verification) is already being
-   scoped to handle deliberately, rather than something this proposal should
-   invent piecemeal against #10's approved, closed registry.
+1. ~~**To the Product Manager: does the Owner's "plain on/off" for Verification
+   mean only the mechanics addressed here, or does it mean the member should
+   never be asked to choose between the two schemes at all?**~~ **RESOLVED
+   against PRD-16 (Draft) — see `## The Inbound control` § Q1.** The checkbox
+   stands; PRD-16's template model changes what the underlying choice feels like
+   to make (recognizing a provider's name) without removing it. **This
+   resolution rests on PRD-16 being approved. If the Project Owner declines
+   PRD-16, this question reopens in its original PRD-10-only form.**
+2. ~~**To the Product Manager: does "a header field pre-filled with the
+   specification's default header name, editable" apply only to the
+   Custom-header scheme, or was it meant to make Standard Webhooks' three fixed
+   headers editable too?**~~ **RESOLVED against PRD-16 (Draft) — see `## The
+   Inbound control` § Q2.** Header names become a genuinely editable, per-preset
+   axis for every template scheme under PRD-16 AC17. Standard Webhooks is the
+   one named exception (PRD-16 AC45 keeps it its own scheme, outside the
+   template model, because outbound signing is defined against that same
+   specification) and its headers stay fixed and non-editable, as `design-10`
+   already ships them. **This resolution likewise rests on PRD-16's approval and
+   reopens with it if declined.**
 3. **To the Product Manager: should renaming the form's "Verification" legend to
    "Webhook secret" also rename the proxy Show page's "Verification" card
-   (`design-10` Screen 4)?** Leaving the form saying "Webhook secret" while the
-   Show page still says "Verification" would reintroduce exactly the kind of
-   inconsistency this brief is trying to remove. This proposal does not touch
-   Screen 4 (out of its stated scope), but the naming decision, if accepted,
-   should be applied consistently by whoever amends `design-10`.
+   (`design-10` Screen 4)?** Unchanged by this revision — still open. Leaving the
+   form saying "Webhook secret" while the Show page still says "Verification"
+   would reintroduce exactly the kind of inconsistency this brief is trying to
+   remove. This proposal does not touch Screen 4 (out of its stated scope), but
+   the naming decision, if accepted, should be applied consistently by whoever
+   amends `design-10`.
+4. **New, to the Product Manager: PRD-16 UX Direction point 9 (readable months
+   later) is answered for the create/edit form here, but the dedicated read-only
+   summary on the proxy Show page is out of this proposal's stated scope.** Is a
+   Show-page update to the Verification/Signing cards part of the same `design-16`
+   effort PRD-16 routes to next, or a separate follow-on? Not blocking this
+   proposal, since the form itself satisfies AC43's readability requirement on
+   its own (nothing PRD-16 adds is write-only except the secret) — raised so the
+   Show-page work isn't silently assumed to be included here.
 
-No item here is a Principal Engineer feasibility doubt — every control proposed
-reuses an existing, already-shipped primitive (`Checkbox`, `Select`, `Tooltip`,
-`fieldset`), and no data model, API, or dispatch-time behavior changes.
+**One item for the Principal Engineer, not the Product Manager, raised as an Open
+Question rather than resolved here per this role's escalation rule:** the
+Signing-details `Collapsible`'s collapsed-by-default state for a preset is a
+density bet that the Principal Engineer's forthcoming feasibility study (worked
+examples with real field counts) can confirm or overturn once it lands — see
+`## The Inbound control`'s closing note. This is not a feasibility *doubt* about
+whether the design works technically; it is a request that the study's findings
+be checked against this specific layout call once available.
+
+Every other control proposed reuses an existing, already-shipped primitive
+(`Checkbox`, `Select`, `Tooltip`, `Collapsible`, `fieldset`) or a newly-flagged
+but unremarkable one (`Textarea`), and no data model, API, or dispatch-time
+behavior changes are proposed by this document.
 
 ## Consequences
 
@@ -470,16 +744,36 @@ artifacts describe the current shape of fields this proposal regroups and
 rewrites, and would need amending to stay accurate. None of them is edited by this
 document; this is a list for whoever the Owner directs to carry the amendment:
 
-- **`design-10-sensitive-data-handling.md`** — the largest single amendment.
-  Screen 1's Verification section: legend text, the `Select`'s item count and
-  labels (three items with sentence-length labels → a `Checkbox` plus a two-item
-  `Select`), the "off by default" help sentence (cut), the Custom-header field's
-  placeholder-to-default-value change, and the section's placement (moves from a
-  standalone section into the new Inbound card, alongside Response). Screen 2's
-  help copy (trimmed). Screen 3's help copy (left as-is per this proposal, but
-  its container — now a card wrapping the existing `DestinationRows.vue`
-  `fieldset` — should be confirmed). If Open Question 3 is ruled in favor of
-  consistency, Screen 4's "Verification" card title on the Show page as well.
+- **`design-10-sensitive-data-handling.md`** — the largest single amendment, and
+  larger after this revision than before it. Screen 1's Verification section:
+  legend text, the "off by default" help sentence (cut), and its placement
+  (moves from a standalone section into the new Inbound card, alongside
+  Response) are unchanged from the prior revision. **Superseded further by this
+  revision**: the `Select`'s item shape is no longer "three items → a Checkbox
+  plus a two-item Select" but "a Checkbox plus a Provider Select carrying
+  presets, Standard Webhooks, Shared secret only, and Custom" — which in turn
+  depends on PRD-16's own not-yet-written `design-16` for the presets' actual
+  data (names, header defaults, template values) rather than being fully
+  specified by this proposal alone. Screen 2's help copy (trimmed). Screen 3's
+  help copy (left as-is per this proposal, but its container — now a card
+  wrapping the existing `DestinationRows.vue` `fieldset` — should be confirmed).
+  If Open Question 3 is ruled in favor of consistency, Screen 4's "Verification"
+  card title on the Show page as well.
+- **`prd-10-sensitive-data-handling.md` and `ADR-022`** — not edited by this
+  design proposal, but named because `## The Inbound control` now designs
+  against a container shape that assumes PRD-16's reversal of PRD-10 AC50 is
+  approved. If PRD-16 is declined, this proposal's Webhook secret container
+  reverts to this document's prior committed shape (`acc3325`), which depended
+  only on PRD-10/`ADR-022` as they stand today.
+- **`design-16` (not yet written — PRD-16 is still Draft)** — once PRD-16 is
+  approved and a full `design-16` is commissioned, this proposal's `## The
+  Inbound control` and `## Custom-template entry UX` sections are offered as a
+  starting container, not a substitute for that spec: `design-16` still owns
+  the complete flows, every state (including error/loading states this proposal
+  does not enumerate in full — e.g. what the proof check's in-flight state looks
+  like), and the presets' actual shipped data. This proposal deliberately stops
+  short of writing that spec, consistent with PRD-16's own routing ("Next Agent:
+  Designer" — after the Owner approves the PRD, not before).
 - **`design-07-enhanced-mode-toggle.md`** — Mode's help copy (trimmed) and the
   downgrade disclosure's container (moves from a standalone position into the new
   Delivery card; its own copy is unchanged).
