@@ -9,8 +9,17 @@
   — `plan-10` builds it to the Owner's ruling now, and only the frontend milestone waits.
 - **Priority:** High for item 1 (an Owner ruling contradicts two approved documents, and the
   contradiction is currently only recorded in a plan and three ADRs). Medium for item 2.
-- **Status:** Open
+- **Status:** **RESOLVED — Product Manager, 2026-08-27.** Both items answered, and rendered into
+  `docs/product/prd-10-sensitive-data-handling.md` **`## Amendment B`**. **Item 1:** the Project
+  Owner's ruling is recorded as requirements — outbound signing is **per proxy**; AC54 rewritten,
+  AC58/AC63 revised, AC60 confirmed, § Definitions renames the term to **proxy signing secret**.
+  **Item 2:** **AC29's cap of two stands** — ruled by the Product Manager as requirements author,
+  re-worded rather than re-policied, with one bullet added. **One thing is deliberately still open,
+  and it is not a question to anybody here:** `## Amendment B` itself **awaits Project Owner
+  approval**, as any PRD change does. The Designer's revision waits on that approval; **M8a and
+  every other milestone do not** — `plan-10` is already written to the ruling. See § Answer.
 - **Raised:** 2026-08-27
+- **Resolved:** 2026-08-27
 
 ## Question
 
@@ -179,4 +188,148 @@ requirement or an artefact.
 
 ## Answer
 
-*(Unanswered.)*
+**Product Manager, 2026-08-27.** Rendered into `docs/product/prd-10-sensitive-data-handling.md`
+**`## Amendment B`**, which is the authoritative text; this is the answer and the reasoning, not a
+second copy of the criteria.
+
+### Item 1 — the grain. Recorded as the Owner's ruling, not re-decided.
+
+**PRD-10 is amended so the approved text and the ruling agree. Outbound signing is per proxy.** The
+amendment does what this document asked for and follows its table, with three departures worth
+naming.
+
+1. **The term is renamed, not only re-grained.** § Definitions' **Destination signing secret**
+   becomes **Proxy signing secret**. This document called the old name "now misleading" and it is
+   right; leaving it would have left every later reader deriving the grain from a criterion body
+   instead of from the vocabulary the PRD says every criterion uses exactly. **AC10, AC11 and AC44
+   change only because of the rename.** The rename is mine, not the Owner's.
+2. **AC54 carries the trust-domain consequence in the criterion itself**, not only in the amendment
+   prose. Your § Item 1 said "PRD-10 should say so either way, because a Reviewer will ask" — this
+   is that. What it does **not** do is claim the Owner weighed it, because the Owner did not say so
+   and inventing that record would be worse than leaving the question visible. `## Amendment B`
+   § *The trade-off in ruling 1* puts it in front of the Owner at the amendment's own approval gate
+   and states plainly that wanting per-destination isolation reverses the ruling rather than
+   adjusting it.
+3. **AC11's signing clause changed more than a noun.** Per destination it read as one destination
+   failing; at proxy grain an undecryptable signing secret means the proxy dispatches to **none** of
+   its destinations. That is the correct reading of fail-loudly under the new grain and it matches
+   `plan-10` § *Architecture H* and ADR-021 Decision 7, but it is a behavioural widening rather than
+   a wording change, so it is called out rather than folded in.
+
+**Everything else in your table is applied as you wrote it**, including the three "unchanged" rows
+that are easiest to get wrong: **AC55** (one implementation, both directions), **AC57** (displayed
+exactly once — only the screen it lives on moves), and **AC60**, which is now *explicitly confirmed*
+in the criterion rather than left silent: the secret is the proxy's, the message identity stays per
+delivery, and two destinations of one dispatch still receive different `webhook-id`s signed with the
+same key. **AC30–AC39 are untouched and stay per destination.**
+
+### Item 2 — RULED: AC29's cap of two stands. This one is mine, and it is not what the storage permits.
+
+**The cap of two is re-affirmed for both purposes, at proxy grain. AC29 is re-worded, not
+re-policied.** Full grounds are in `## Amendment B` ruling 2; the five that carry it, in short:
+
+1. **The Owner's words are already satisfied by two.** Two live secrets *are* "multiple" in the
+   header, and "until one or more expires" is true of a two-member set. The "1, 2, 3.." sentence
+   answered a **storage** question — ADR-021 records it as ruling A on exactly that basis — and a
+   capability of the store is not a policy about how many secrets a member gets. Reading it as one
+   would be inferring a requirement the Owner did not state, which is the thing this document is
+   itself careful not to do.
+2. **The approved requirement set is written to two outside AC29, and was approved whole.** UX
+   Direction point 8: "the member must be able to see that **two secrets** are currently honoured and
+   when the **older** one stops being honoured." Uncapping turns that into a list of unknown length
+   with an expiry each — a materially different screen, with nothing asking for it.
+3. **Uncapping removes a stated remedy.** AC29 names "replacing twice removes it at once" as the
+   remedy for a compromised secret. Under N, a second rotation does not remove it; it lives out its
+   own 24 hours and **End overlap now** becomes the only remedy. Two remedies to one, for the exact
+   failure the criterion exists to handle.
+4. **Item 1 strengthens the case rather than weakening it.** At proxy grain the signature list goes
+   to every destination on every dispatch, and each extra live secret is another key that can forge
+   traffic to the whole fan-out for a full 24 hours. Two is a bounded header and a bounded exposure.
+5. **The asymmetry favours the cap.** Your own § Item 2 and `plan-10` Technical ruling 14 record that
+   raising it later costs one line of the write path and no schema, consumer, read-path test or
+   member-facing state. Lowering it later takes away behaviour members have relied on.
+
+**The argument for uncapping is real and is answered rather than dismissed.** A member told at T0
+that the previous secret works until T0+24, who rotates again at T1 inside that window, has that
+promise broken early — for every destination of the proxy at once, under item 1's grain. **That is
+why AC29 gains a bullet rather than why the cap falls:** the surface that begins a replacement or a
+regeneration while an overlap is running must state that the oldest secret stops being honoured
+immediately, before the save. One conditional line of copy against a screen, a wider exposure window
+and a lost remedy.
+
+**Your two flagged clauses.** Both were written for exactly two and both are kept, because the cap is
+kept — "demotes the existing one to the **previous** secret" (singular) and "a further replacement
+inside the overlap … the oldest is discarded immediately" now read naturally rather than merely
+being not-wrong. What did change is the leading sentence: **"at most two secrets *exist* for one
+purpose on one proxy at any instant"**, with *exist* distinguished from *are honoured*, plus an
+explicit statement that this is a requirement about behaviour and dictates no storage shape. That is
+your own resolution — *the storage model is general and the behaviour is narrow* — stated in the
+requirement rather than only in the plan, so nobody has to reconstruct it from `SecretStore`.
+
+**So `SecretStore`'s cap is a requirement, not an artefact**, and the test pinning it (`plan-10`
+§ *Test strategy*, R7 — three consecutive rotations leave exactly two rows) is testing AC29 and can
+say so. **Nothing in `plan-10`, ADR-021 or ADR-023 needs to change for item 2**; #10 ships two
+because two is the requirement, not because the amendment had not landed.
+
+### AC33 is not touched, and this is the explicit statement of that
+
+**AC29's exclusion of the destination credential stands exactly as approved.** The credential is
+still per destination (AC31), still outside the rotation overlap, still replaced immediately and
+single-valued, and every ground AC29 gives for excluding it — presented rather than verified or
+computed, one credential value per request, nothing on the wire for an overlap to mean — survives
+the grain ruling untouched, because none of them depends on where the *signing* secret lives.
+**Neither ruling above reaches AC33.** `design-10` Screen 5's `Credential` badge and Screen 3's
+credential surface are unaffected for the same reason.
+
+### Two further calls I made, flagged so the Owner can strike either
+
+- **A member-facing warning about the shared trust domain is not required** (`## Amendment B` ruling
+  2b). No stated requirement asks for one; the control now lives on the proxy, so its scope is
+  legible from where it sits. Flagged rather than absorbed because it is security-shaped.
+- **The AC29 bullet added by ruling 2a touches the inbound verification surface too**, not only the
+  signing surface this document is about — see the Designer note below.
+
+### What the Designer now has to amend — your list, plus three things it did not name
+
+**Everything in § *What the Designer needs, afterwards* stands and is adopted.** The Designer works
+from that list; it is not restated here. Three additions, found while amending:
+
+1. **§ Overview** (the prose walkthrough) describes "The existing Destinations table gains two small
+   status badges (Credential, Signed) and a **Manage signing** action that opens a dedicated dialog"
+   and calls it "the *only* place in this feature a secret is ever shown". Stale in the same way
+   Screens 5 and 6 are.
+2. **§ Decisions carried forward from the UX Direction** restates "The **destination** signing secret
+   is displayed exactly once" and "the rotation overlap … in both directions it applies to — the
+   verification secret and the **destination** signing secret". These restate PRD-10's UX Direction,
+   which Amendment B revises, so they move with it.
+3. **§ Scope boundaries**' AC11 bullet names "destination signing secret" three times and now also
+   describes a *narrower* failure than AC11 as amended: an undecryptable signing secret fails
+   dispatch to **every** destination of the proxy, not one.
+
+**And one obligation that is genuinely new rather than stale**, because it comes from ruling 2a
+rather than from the grain: **Flow B step 2 / Screen 1 — the inbound verification rotation surface —
+needs the second-rotation statement.** Its C5 help line today states the 24-hour promise and says
+nothing about a further rotation discarding the oldest secret. This is a small addition to a surface
+your list correctly left alone, and it is the one place where Amendment B reaches past signing.
+**Sequencing it is not mine**: the addition is additive copy, so whether M6 waits for it or it lands
+with the same design revision is the Principal Engineer's and the Task Planner's call.
+
+**Unchanged from your list, restated only because they are the two easiest to lose:** Screen 5's
+**`Credential`** badge stays (the credential is still per destination), and flagged design call 4's
+ruling — the one-time reveal suppresses `Esc` and overlay dismissal, **Done** the sole
+keyboard-reachable exit — binds wherever the reveal now lands. **`design-10`'s historical approval
+record is not to be rewritten**, per the standing rule `design-11`'s gate set, which your document
+already cites.
+
+### What this answer does not do
+
+- **It does not approve anything.** `## Amendment B` awaits the Project Owner, like any PRD change.
+  This answer is the Product Manager's ruling on requirements; it is not the Owner's consent to them.
+- **It does not edit `plan-10`, ADR-021, ADR-022, ADR-023, ADR-024 or `design-10`.** All are
+  approved or Accepted, and `plan-10` is already written to ruling 1. **Nothing in the amended
+  requirements needs anything `plan-10` does not already support** — checked against § *Architecture
+  C*, § *Data Model*, § *API*, Technical rulings 13 and 14 and § *Test strategy*, including the
+  ruling-B test line and R7's three-rotations-two-rows assertion, which now pins AC29 directly.
+- **It does not renumber anything.** `Q-10-01`, this document, `docs/status.md`, `plan-10` and four
+  ADRs cite these AC numbers; the count is still 64 and no criterion moved.
+- **It does not reopen `## Amendment A`**, its history, or the V2 ruling.
