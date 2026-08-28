@@ -933,7 +933,24 @@
     class's to hide).
 - **Testing:** `tests/Unit/Services/InboundVerifierTest.php` (new) — the zero-query not-required case,
   the verified/failed case per scheme, the propagated-exception case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Enums\VerificationResult` is a plain (unbacked) three-case enum —
+  `NotRequired`, `Verified`, `Failed` — filed under `app/Enums/` per this task's own Files line, never
+  carrying a reason. `InboundVerifier::verify()` checks `$proxy->verification_scheme !== null` before
+  any `SecretStore` call, matching AC24's query-count requirement exactly; otherwise fetches the live
+  verification set once and dispatches to the matching T17 scheme handler.
+
+  **One method beyond this task's own literal Acceptance Criteria, needed by T19 and flagged in T17's
+  completion notes as coming here:** `InboundVerifier::reasonFor(Proxy, Request, string): string`,
+  called only by `IngestController` after `verify()` has already returned `Failed`. It re-establishes
+  the scheme (throwing `LogicException` if called for a `NotRequired` proxy or if the request would
+  actually verify — both programmer-error guards, never reachable from `IngestController`'s own
+  correct call order) and delegates to the matching scheme's `reasonFor()` (T17) for the specific
+  ADR-022 Decision 5 code. This is a second, independent `SecretStore::liveFor()` read rather than a
+  cached one — deliberately stateless, so `InboundVerifier` carries nothing between the two calls — and
+  only ever executes on the rejection path, never the common case.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter InboundVerifierTest`
+  green (6 tests, 7 assertions); full-suite run deferred to the end of this batch.
 
 ## T19 — `IngestController` integration: the verification gate, 401/500 shapes, reason-code log (AC8, AC11, AC25; plan § Architecture A, H; Technical ruling 12; ADR-022 Decisions 4, 5)
 - **Description:** `IngestController` gains exactly one step between proxy resolution and the capture
