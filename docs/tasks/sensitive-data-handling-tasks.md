@@ -2512,7 +2512,82 @@
   regenerate, ordinary copy, confirmed), then rotate again while the first overlap is still running
   (state 4, discard copy, confirmed) — both branches exercised in one fixture proxy, against a
   production build.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Verified against `ProxySigningDialog.vue` as it now stands, rather than
+  rebuilt — both audit findings that preceded this task have already been closed by prior commits, and
+  this task's own review confirmed each of its four Acceptance Criteria independently rather than
+  taking that on trust.
+
+  **AC1 — state 4's discard disclosure.** Present, inherited unchanged from the prior session's wip
+  commit `13d0b6c` and untouched by T42 (T42's own completion notes record that the only edit inside
+  `v-else-if="state === 'overlap'"` was the `canUpdate` gate on **End overlap now** — the disclosure
+  paragraph itself was not touched). Renders as the final `p` in that template block (lines 367–371),
+  therefore before `DialogFooter`'s **Regenerate signing secret** button, reading verbatim: "Regenerating
+  again now will stop that previous secret being honoured immediately, for every destination this proxy
+  has — its 24 hours will not finish out." Matches `design-10` Screen 6 state 4's quoted copy
+  (correction B2) word for word, names every-destination scope as required. Verified, not written here.
+
+  **AC2 — state 3's ordinary-branch copy, and that it is not the discard copy.** This was the audit's
+  one finding against the inherited implementation: state 3 (`enabled`) carried no member-facing
+  disclosure at all pre-amendment. Closed by two commits ahead of this task: `f7cf54a` amended
+  `design-10` to add the approved wording under the Designer's AC29-ruling-2a wording delegation, and
+  T42's `15ee641` rendered it as the second `p` in `v-else-if="state === 'enabled'"` (lines 318–329),
+  reading verbatim: "Regenerating keeps your current secret working for the next 24 hours, for every
+  destination this proxy has, so you don't need a coordinated cutover. To stop it early — for example if
+  it's been leaked — use End overlap now, which appears here and on the Signing card once you
+  regenerate." Matches `design-10`'s `## Amendment — Screen 6 state 3's ordinary-branch disclosure`
+  "exact copy" block word for word — the demote-not-discard framing, no mention of immediate loss.
+
+  **Branch exclusivity, checked at both the source and the compiled level** — this is AC2's specific
+  failure mode named by the task ("the two states/copies must not be swapped or merged") and was
+  checked directly rather than inferred: `state` (lines 69–79) is a single `computed<DialogState>`
+  returning exactly one of four string values, driven by `props.signing.enabled` and
+  `props.signing.overlap_expires_at` — an overlap already running always yields `'overlap'`, never
+  `'enabled'`, and the two are therefore never simultaneously true by construction. The template
+  renders the two disclosures in separate `v-else-if="state === 'enabled'"` /
+  `v-else-if="state === 'overlap'"` blocks in the same chain as the other two states, so Vue renders at
+  most one of the four. Confirmed this holds in the actual `pnpm build` output, not just in source:
+  grepped `public/build/assets/Show-*.js` for both exact phrases — each string ("Regenerating keeps your
+  current…" / "Regenerating again now will stop…") appears **exactly once** in the whole bundle, sitting
+  inside the compiled ternary's `key:2` (`enabled`) and `key:3` (`overlap`) branches respectively, one
+  `?…:` apart in the same `O.value===` chain — i.e. mutually exclusive by the compiled output's own
+  structure, not merely by convention in the source.
+
+  **AC3 — no confirmation step.** Both states' **Regenerate signing secret** button is the same
+  `Button` in the shared `v-else` footer branch (lines 408–427, template lines 397–427) — a plain
+  `@click="generate('regenerate')"`, no `AlertDialog` or intermediate step anywhere in the file, for
+  either state 3 or state 4.
+
+  **AC4 — present on both surfaces.** Confirmed independently rather than trusting T23's own
+  completion notes: `ProxyForm.vue:628–660` carries the identical two-branch shape for the inbound
+  verification secret (Flow B step 2) — an `initialVerificationOverlapExpiresAt`-gated `v-if`/`v-else`
+  pair reading, for the overlap-running branch, "You already have a previous secret from your last
+  rotation, still honoured until {timestamp}. Saving a new secret now stops that previous secret being
+  honoured immediately — its 24 hours do not finish out." and for the ordinary branch, "Your current
+  secret keeps working for 24 hours after you save this…". Same shape, same disclosure requirement,
+  present on both the inbound (T23) and signing (this task) surfaces — satisfied by the two tasks
+  together, per this task's own fourth Acceptance Criterion.
+
+  **Nothing required fixing.** All four Acceptance Criteria held on inspection; this task's only
+  change is these completion notes.
+
+  **Testing.** No frontend test harness (confirmed as in T23/T42: no `vitest`/`jest` in
+  `package.json`, no `.test.*` files under `resources/js`). A live two-branch browser pass (rotate
+  once for the state 3 ordinary copy, again mid-overlap for the state 4 discard copy, per this task's
+  own Testing line) was not attempted: `public/hot` is still present on disk and the same `vite`
+  dev-server process observed by T42 is still running under a PID that may belong to another session —
+  disturbing it was judged out of scope per this task's own instruction not to sink into environment
+  wrangling. Fell back to the code trace and compiled-bundle grep above. `pnpm build` itself does not
+  require the dev server down (it writes to `public/build/` independently of `public/hot`), so the
+  bundle grep is against a genuine production build, even though a live browser pass against it was
+  not attempted. The live two-branch walkthrough remains owed at **T44**, which already scopes the full
+  Flow H browser pass (both overlap branches, end overlap now) against a production build with
+  `public/hot` confirmed absent.
+
+  Gates: `composer lint`, `composer types:check`, `pnpm types:check`, `pnpm lint:check`,
+  `pnpm format:check` all green — no source changes were needed, so this is confirmation, not a
+  before/after fix. `pnpm build` green; `public/build/assets/Show-*.js` grepped as described above.
+  Full suite (`./vendor/bin/sail test --parallel`) — 1063/1063 passing, 4939 assertions, matching the
+  pre-existing baseline exactly (no backend code touched by this task).
 
 ## T44 — Manual verification: `design-10` Flows G, H, I against a production build
 - **Description:** The signing surface's own full walkthrough, now that M8b is built end to end —
