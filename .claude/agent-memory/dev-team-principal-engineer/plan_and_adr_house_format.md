@@ -262,6 +262,36 @@ the change costs before the merge (nothing) and after (a breaking change), why n
 it (no wire version negotiation, no notification surface, no record of who is affected), and that
 **the sequencing is part of what the Owner is approving** — not a scheduling note appended to it.
 
+**Full supersession of an Accepted ADR, on an Owner ruling that withdraws a whole capability**
+(ADR-026 retiring ADR-022's inbound verification, and reducing the strip list ADR-025 had ruled hours
+earlier). Distinct from partial supersession in several ways worth reusing. **Supersede by name and
+keep the file** — the retired ADR gets a `SUPERSEDED IN FULL by …` sub-bullet under its Status line
+saying "keeps its file, its Accepted status and its full text as the record of what was built and
+why". **Then check what cites it**: ADR-023 said the signature construction "is stated once, in
+ADR-022 Decision 4, and is not restated here", so retiring ADR-022 would orphan outbound signing's
+own signed-content definition — the fix is a `CARRIED FORWARD into ADR-NNN Decision N, which is now
+its normative record` pointer on that decision, a full restatement in the new ADR, and a
+re-pointing bullet on the citing ADR. **Where a new decision *contains* an earlier one rather than
+reversing it, say so in those words** ("its outcome is contained rather than reversed") and
+supersede only its **boundary** and its **safety argument** — ADR-025's "the per-proxy strip is what
+makes this safe" became void while its five-name removal stood, and that premise correction is the
+one a Reviewer most needs. **Confirm the surviving decisions explicitly**: a reader of a
+partly-superseded ADR needs "Decisions 2 and 3 stand, whole and operative" as a sentence, and where
+a superseded neighbour makes a surviving decision's argument *stronger*, say that too.
+**Rule what stays at the level of the method, not the class**, with a table of member → what depends
+on it, when a shared service is purpose-parameterised and a grep-driven removal would gut it.
+**Rule the migration on "rows are not schema"**: an in-place edit of an unmerged migration converges
+no database that already ran it, and cannot express a data deletion at all, so a new migration wins
+even on an unmerged branch; reject expand-and-contract by name when nothing reads the columns
+concurrently; and write `down()` **honest rather than symmetric** — enumerate what it restores (a
+shape) and what it cannot (the values, the secrets, the code), because a symmetric-looking `down()`
+invites somebody to believe a rollback recovers configuration. **Say that discarded work was correct
+when it was built** — naming completed tasks as built-and-removed rather than as gaps is what lets
+the Reviewer read the diff as a deletion rather than an omission. And when the Owner's ruling names
+the gated thing in its own words ("Columns, code, etc."), record `Owner-approval flags (✋): none
+outstanding`, quote the phrase, and enumerate precisely what "columns" resolved to plus an
+"explicitly *not* in the change set" list — the gate is discharged, not skipped.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
