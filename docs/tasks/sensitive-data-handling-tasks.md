@@ -2308,7 +2308,72 @@
     is required).
 - **Testing:** no frontend test harness — **manual verification** (folded into T43/T44's Flow G/H/I
   pass), plus a direct check here that all three states render against a fixture `security` prop.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Resumed from a prior session's uncommitted, unreviewed work
+  (`13d0b6c wip(item-10): T41 Signing card, incomplete`) rather than building from scratch — read
+  that diff cold against this task's own Acceptance Criteria, `design-10` Screen 4b, Flow G and Flow I,
+  and PRD-10 `## Amendment B` ruling 2b before trusting any of it. The wip commit had already added the
+  "Signing" `Card` to `proxies/Show.vue`, placed immediately after the Verification card and before the
+  Retry policy card, matching Screen 4b's stated placement. All three states are driven entirely off
+  `props.security.signing` (T38), mirroring the Verification card's own established shape one card down:
+  **not enabled** (`!signing.enabled`) — the plain statement plus a `canUpdate`-gated **Enable signing**
+  button that opens `ProxySigningDialog.vue`; **enabled, no overlap** (`signing.enabled &&
+  !signing.overlap_expires_at`) — a `dl` "Status" / "Enabled — generated {date}" line (via the
+  `signingGeneratedStatus` computed) plus a `canUpdate`-gated ghost **Manage signing** button;
+  **enabled, overlap running** (`signing.overlap_expires_at` set) — the rotation-in-progress line
+  (always rendered, status not control) plus `canUpdate`-gated **End overlap now** and **Manage
+  signing** buttons, `End overlap now` wired to `proxyRoutes.signing.overlap.destroy` via
+  `router.delete(..., { only: ['security'] })` with a `Spinner`/`AlertError` pair, the same
+  `endVerificationOverlap` pattern the Verification card already established one card up. No
+  per-destination `Signed` badge anywhere (T33's Destinations table is untouched by this task), no
+  trust-domain warning (ruling 2b), and no new decryptability indicator on failure — the card renders
+  only its last-known static enabled/overlap state, exactly as Screen 4b specifies; AC11's re-grained
+  failure still surfaces solely through the existing delivery-attempt treatment.
+
+  Traced every Acceptance Criteria bullet against the existing code rather than re-deriving it: the
+  three `v-if`/`v-else-if` branches on `signing.enabled` / `signing.overlap_expires_at` cover exactly
+  the three states with no gap or overlap; clicking **Enable signing** only sets `signingDialogOpen =
+  true` — it does not itself drive the dialog into its reveal sub-state, because doing so is
+  `ProxySigningDialog.vue`'s own internal state machine (T42's file, not this task's) — `design-10`
+  Flow G step 2 (open the dialog) and step 3 (the dialog's own **Enable signing** action, inside the
+  dialog, generates the secret and reveals it) are two different components' responsibilities, and
+  T42's own Acceptance Criteria ("State 1 → Enable signing → state 2 … in sequence") independently
+  confirms this reading — T41's AC bullet folding "step 2–3" together describes the flow's overall
+  directness as experienced from the card, not a literal same-click jump past dialog state 1; disabling
+  (via the dialog's `handleDisable`, T42's file) triggers a `router.delete(..., { only: ['security'] })`
+  reload, and the card's own not-enabled branch carries no reference to any prior configuration — no
+  local state on the card leaks a "previously enabled" fact onto its face, only the dialog's own
+  session-scoped `everDisabledThisSession` flag does that, and only inside the dialog; grepped the whole
+  card block for trust-domain/warning language and found none.
+
+  The wip commit's `ProxySigningDialog.vue` (T42's nominal file) already implements states 1, 2, 3, 4
+  and 5 in full — including the T43 AC29-ruling-2a disclosure copy on state 4 and the flagged-design-call-4
+  `Esc`/overlay-suppression on the reveal sub-state — reaching well past T41's own scope. Left entirely
+  as-is per this task's own instruction: not extended, not trimmed back to a T41-only subset, not
+  rebuilt. **T42 should treat that component as already largely done and verify it against its own
+  Acceptance Criteria rather than re-implementing states 1/2/3/5 from zero** — T43 similarly for state 4.
+  Confirmed both `resources/js/types/proxies.ts` (the `signing` sub-object shape) and the dialog itself
+  needed no change for T41's own Acceptance Criteria to hold; both files are untouched by this task's
+  commit — the type shape is T38's, and every dialog behaviour this card's three states depend on
+  (opening/closing, the disable reload) was already correct.
+
+  **No frontend test harness exists** (confirmed: no `vitest`/`jest` in `package.json`, no `.test.*`
+  files under `resources/js`) — the "direct check" this task's own Testing line calls for is the manual
+  trace above, run against `pnpm run build` output (`public/hot` absent) rather than a fixture
+  object in isolation, since this app has no component-mounting harness to feed one to. A full
+  authenticated-browser walkthrough (login, three seeded proxies at the three states) was started but
+  abandoned once it became a login-flow-debugging exercise rather than a check of this task's own
+  scope — the fuller pass belongs to T43/T44 as the task's own Testing line already says, and this
+  task's rendering logic is a handful of straightforward `v-if` branches on a well-typed prop already
+  covered by `pnpm run types:check` (zero errors). Two proxies seeded via `sail tinker`
+  (`SecretStore::generate()`, once for no-overlap and twice for overlap-running) toward that browser
+  pass and one not-enabled control were deleted again immediately once the approach was dropped —
+  nothing left behind.
+
+  `pnpm run types:check`, `pnpm run lint:check`, `pnpm run format:check` and `pnpm run build` all green
+  (no code changes were needed beyond what the wip commit already had — this task's own work was
+  reading it against spec, verifying, and recording). `composer lint`, `composer types:check` and the
+  full suite (`./vendor/bin/sail test --parallel`) all green — 1063/1063 passing, matching the
+  pre-existing baseline exactly (no regression, and no new backend code in this task to add tests for).
 
 ## T42 — Screen 6: Manage proxy signing dialog, states 1/2/3/5 (AC54, AC56, AC57, AC63; Flows G, I; flagged design call 4)
 - **Description:** New `Dialog`, scoped to the proxy, modelled on `ReplayDialog.vue`'s shape. **State
