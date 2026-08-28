@@ -49,6 +49,9 @@ export interface ProxyListItem {
      */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
+    /** This proxy's own AC13 additions to the fixed AC12 default list — never
+     * the default list itself (T10/T12). */
+    sensitive_fields: string[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
 }
@@ -84,6 +87,9 @@ export interface ProxyDetail {
      */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
+    /** This proxy's own AC13 additions to the fixed AC12 default list — never
+     * the default list itself (T10/T12). */
+    sensitive_fields: string[];
     destinations: ProxyDestination[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
@@ -111,6 +117,9 @@ export interface ProxyFormProxy {
     /** Raw persisted values, regardless of mode (Amendment A) — never null-suppressed. */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
+    /** This proxy's own AC13 additions to the fixed AC12 default list — never
+     * the default list itself (T10/T12). */
+    sensitive_fields: string[];
     destinations: DestinationRow[];
 }
 

@@ -637,7 +637,48 @@
   production build: the full default list renders and wraps correctly at 360px; add/remove works
   in-session; saving persists additions and a fresh view of an existing payload reflects the new list
   with no migration (AC19, cross-checked against T9's rendering).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New "Sensitive fields" `fieldset`/`legend` section added to
+  `ProxyForm.vue`, placed after Response body and before Destinations exactly as Screen 2 specifies:
+  "Always hidden" renders one `Badge` (`secondary`, no ×) per literal entry in the
+  `defaultSensitiveFieldNames` prop; "Also hidden for this proxy" renders `form.sensitive_fields` as
+  removable `Badge`s (`outline`, a plain inert-free `<button>` × with an `aria-label`), an Add
+  input/button, Enter-to-add, silent no-op on a blank or already-present entry, and no bordered empty
+  box when there are no additions (matching the Response-card precedent). No enable/disable-obfuscation
+  control exists anywhere (N4). `addSensitiveField()`/`removeSensitiveField()` are plain array
+  mutations on `form.sensitive_fields`, mirroring `form.destinations`' existing in-session-only
+  semantics — nothing is sent to the server until the form saves.
+
+  **Necessary supporting plumbing, not scope creep:** `ProxyResource` gained a `sensitive_fields` key
+  (`$this->sensitive_fields ?? []`) alongside the existing `response_body`/retry keys it already
+  exposes for the shared Create/Edit form — without it, `ProxyFormResource` (which extends
+  `ProxyResource`, the Edit form's sole data source) would have had no way to pre-fill a proxy's
+  existing additions, and design-10 Flow D step 1 states the additions render on Edit as well as
+  Create. `sensitive_fields` is a plain per-proxy configuration column, not "security status" —
+  Technical ruling 3's sibling-`security`-prop rule is scoped to verification/signing status, which
+  this isn't — so it follows the same `ProxyResource` convention as `response_body`/`retry_*` rather
+  than a new prop. `ProxyFormProxy`/`ProxyDetail`/`ProxyListItem` (TypeScript) and `Create.vue`/
+  `Edit.vue` updated to carry it through; `Create.vue`/`Edit.vue` also now accept and forward the
+  `defaultSensitiveFieldNames` page prop from T11.
+
+  **Manual verification performed** (own local Sail dev environment, own seeded data, deleted
+  immediately after — same recipe as T9): confirmed `public/hot` absent and ran `pnpm run build`
+  first. On a proxy seeded with one addition (`ssn_last4`):
+  - The Edit form rendered exactly 23 "Always hidden" badges, in the exact order and spelling of
+    `SensitiveFields::DEFAULTS` (asserted programmatically via Playwright, not just visually).
+  - `ssn_last4` pre-filled as a removable "Also hidden for this proxy" badge on page load.
+  - Typing `api_secret_key` and pressing Enter appended a new removable badge and cleared the input;
+    clicking `ssn_last4`'s × removed only that badge.
+  - Saving and reloading the Edit page showed the change persisted (`api_secret_key` present,
+    `ssn_last4` gone) — confirming the full-replace persistence path from T10.
+  - **AC19 cross-check against T9:** seeded a fresh event on the same proxy with an
+    `api_secret_key` field and revealed its payload — it rendered as `[Hidden]` with the "addition"
+    C3 description, with no migration or backfill involved, exactly as AC19 requires.
+  - Screenshots taken in both light and dark mode; the section (legend, help text, badge wrapping,
+    Add row) is legible and correctly styled in both.
+
+  `pnpm run format:check`, `pnpm run lint:check`, `pnpm run types:check` and `pnpm run build` all
+  green. `composer lint`, `composer types:check` and `./vendor/bin/sail test --parallel` green (931
+  tests, 4374 assertions) — the full suite, run at the close of this batch (T7–T12).
 
 ---
 

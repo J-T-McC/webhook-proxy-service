@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { Link, useForm } from '@inertiajs/vue3';
-import { Info } from '@lucide/vue';
+import { Info, X } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
 import DestinationRows from '@/components/DestinationRows.vue';
 import InputError from '@/components/InputError.vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,9 @@ const props = defineProps<{
     action: string;
     submitLabel: string;
     cancelHref: string;
+    /** The fixed AC12 default list (T11) — rendered literally, one badge per
+     * entry, never summarised (Screen 2, correction C4). */
+    defaultSensitiveFieldNames: string[];
     initial: {
         name: string;
         mode: ProxyMode;
@@ -50,6 +54,8 @@ const props = defineProps<{
         responseBody: string | null;
         retryAttemptLimit: number | null;
         retryBackoffStrategy: RetryBackoffStrategy | null;
+        /** This proxy's own AC13 additions — never the default list. */
+        sensitiveFields: string[];
         destinations: DestinationRow[];
     };
 }>();
@@ -67,6 +73,7 @@ const form = useForm({
     response_body: props.initial.responseBody ?? '',
     retry_attempt_limit: props.initial.retryAttemptLimit?.toString() ?? '',
     retry_backoff_strategy: props.initial.retryBackoffStrategy ?? '',
+    sensitive_fields: [...props.initial.sensitiveFields],
     destinations: props.initial.destinations.map((row) => ({ ...row })),
 });
 
@@ -165,6 +172,42 @@ watch(selectedStatus, (status) => {
         form.response_body = '';
     }
 });
+
+// Sensitive fields — Screen 2 (AC12, AC13, AC19, C4, N4). No enable/disable
+// control exists anywhere here: obfuscation is always on (N4).
+const sensitiveFieldInput = ref('');
+
+function addSensitiveField(): void {
+    const name = sensitiveFieldInput.value.trim();
+
+    if (name === '') {
+        return;
+    }
+
+    // A duplicate-of-an-existing-addition entry is a silent no-op — no
+    // error toast, matching this app's low-ceremony treatment (Screen 2
+    // "Duplicate/empty entry" state). A name that also happens to match a
+    // default is still accepted here (harmless — AC12/AC13 never conflict);
+    // the server is the authority on de-duplication by normalised form.
+    if (
+        form.sensitive_fields.some(
+            (existing) => existing.trim().toLowerCase() === name.toLowerCase(),
+        )
+    ) {
+        sensitiveFieldInput.value = '';
+
+        return;
+    }
+
+    form.sensitive_fields = [...form.sensitive_fields, name];
+    sensitiveFieldInput.value = '';
+}
+
+function removeSensitiveField(index: number): void {
+    const next = [...form.sensitive_fields];
+    next.splice(index, 1);
+    form.sensitive_fields = next;
+}
 
 const formEl = ref<HTMLFormElement | null>(null);
 
@@ -503,6 +546,89 @@ function submit(): void {
                     <InputError :message="form.errors.response_body" />
                 </span>
             </div>
+
+            <!-- Sensitive fields (Screen 2; AC12, AC13, AC19, C4, N4) -->
+            <fieldset class="grid gap-4">
+                <legend class="text-sm font-medium">Sensitive fields</legend>
+                <p class="text-sm text-muted-foreground">
+                    Values in these fields are hidden wherever this proxy's
+                    stored payloads are shown. This never changes what's stored
+                    or what's delivered — see a payload's Reveal to check.
+                </p>
+
+                <div class="grid gap-2">
+                    <p class="text-sm font-medium">Always hidden</p>
+                    <div class="flex flex-wrap gap-2">
+                        <Badge
+                            v-for="name in defaultSensitiveFieldNames"
+                            :key="name"
+                            variant="secondary"
+                        >
+                            {{ name }}
+                        </Badge>
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                        Case and separators don't matter — password, Password
+                        and pass_word are all this same name.
+                    </p>
+                </div>
+
+                <div class="grid gap-2">
+                    <p class="text-sm font-medium">
+                        Also hidden for this proxy
+                    </p>
+                    <div
+                        v-if="form.sensitive_fields.length > 0"
+                        class="flex flex-wrap gap-2"
+                    >
+                        <Badge
+                            v-for="(name, index) in form.sensitive_fields"
+                            :key="`${name}-${index}`"
+                            variant="outline"
+                            class="gap-1 pr-1.5"
+                        >
+                            {{ name }}
+                            <button
+                                type="button"
+                                class="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                :aria-label="`Remove ${name}`"
+                                :disabled="form.processing"
+                                @click="removeSensitiveField(index)"
+                            >
+                                <X class="size-3" />
+                            </button>
+                        </Badge>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <div class="grid flex-1 gap-1">
+                            <Label for="sensitive-field-add" class="sr-only">
+                                Add field name
+                            </Label>
+                            <Input
+                                id="sensitive-field-add"
+                                v-model="sensitiveFieldInput"
+                                type="text"
+                                placeholder="e.g. ssn_last4"
+                                :disabled="form.processing"
+                                aria-describedby="sensitive-fields-error"
+                                @keydown.enter.prevent="addSensitiveField"
+                            />
+                        </div>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            :disabled="form.processing"
+                            @click="addSensitiveField"
+                        >
+                            Add
+                        </Button>
+                    </div>
+                    <span id="sensitive-fields-error">
+                        <InputError :message="form.errors.sensitive_fields" />
+                    </span>
+                </div>
+            </fieldset>
 
             <!-- Destinations -->
             <DestinationRows

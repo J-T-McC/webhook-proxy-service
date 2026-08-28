@@ -43,6 +43,11 @@ class ProxyResource extends JsonResource
             // them; the index doesn't render them but the shape stays consistent.
             'response_status' => $this->response_status,
             'response_body' => $this->response_body,
+            // This proxy's own AC13 additions to the fixed AC12 default list
+            // (T10/T12) — never the default list itself, which is code, not
+            // data, and is served separately as the `defaultSensitiveFieldNames`
+            // page prop (T11). `?? []` covers a pre-feature/never-saved row.
+            'sensitive_fields' => $this->sensitive_fields ?? [],
             // Per-proxy retry policy override in force (AC2, AC20, AC14(b);
             // ADR-018 Decision 4). Resolved through RetryPolicy's mode gate, NOT
             // the raw columns: an Enhanced proxy emits its column values, a

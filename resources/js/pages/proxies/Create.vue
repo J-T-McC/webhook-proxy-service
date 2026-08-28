@@ -5,6 +5,12 @@ import ProxyForm from '@/pages/proxies/ProxyForm.vue';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
 
+const props = defineProps<{
+    /** The fixed AC12 default list, single-sourced from
+     * `SensitiveFields::DEFAULTS` (T11) — rendered literally, never summarised. */
+    defaultSensitiveFieldNames: string[];
+}>();
+
 const page = usePage();
 const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
 
@@ -37,6 +43,7 @@ defineOptions({
             :action="proxyRoutes.store(teamSlug).url"
             submit-label="Create proxy"
             :cancel-href="proxyRoutes.index(teamSlug).url"
+            :default-sensitive-field-names="props.defaultSensitiveFieldNames"
             :initial="{
                 name: '',
                 mode: 'simple',
@@ -45,6 +52,7 @@ defineOptions({
                 responseBody: null,
                 retryAttemptLimit: null,
                 retryBackoffStrategy: null,
+                sensitiveFields: [],
                 destinations: [{ url: '', http_method: 'POST' }],
             }"
         />
