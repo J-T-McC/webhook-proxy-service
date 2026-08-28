@@ -51,11 +51,13 @@
       "title": "Upgrade league/commonmark to 2.9.0 to clear six denial-of-service advisories",
       "kind": "chore",
       "role": "senior-developer",
-      "state": "in_progress",
+      "state": "awaiting_merge",
       "eligible": true,
       "source": "docs/status.md \u00a7 Backlog follow-ups",
       "acceptance": "composer audit reports no advisories against league/commonmark; full suite green; no other package's constraint changed.",
-      "note": "Arrives through laravel/framework, which already allows ^2.8.1, so no framework change is needed. This is a transitive upgrade within an existing constraint, not a new dependency, so it does not need the Owner's new-dependency gate. If the upgrade turns out to require a framework bump, that IS a stack change: stop and escalate."
+      "note": "Arrives through laravel/framework, which already allows ^2.8.1, so no framework change is needed. This is a transitive upgrade within an existing constraint, not a new dependency, so it does not need the Owner's new-dependency gate. If the upgrade turns out to require a framework bump, that IS a stack change: stop and escalate. Resolved to 2.10.0 rather than the 2.9.0 named here \u2014 Composer picked the newest release satisfying laravel/framework's existing ^2.8.1, and the acceptance criterion is the advisories clearing, not a specific version.",
+      "consecutive_failures": 0,
+      "pull_request": 24
     },
     {
       "id": "fu-stack-sqlite",
