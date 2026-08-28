@@ -17,6 +17,11 @@
   primitive question is settled (plain `Input type="password"` stands, on a corrected
   ground). **Where the amendment and the original spec body conflict, the amendment
   governs**, the same rule the original approval record set for its own corrections.
+  **`## Amendment — Screen 6 state 3's ordinary-branch disclosure` (2026-08-28, below,
+  at the very end of this document) adds member-facing copy to Screen 6 state 3 and a
+  matching Flow H step 2 cross-reference — purely additive, self-certified by the
+  Designer under the wording authority PRD-10 AC29 ruling 2a delegates; it reopens
+  nothing already approved.**
 - **Author:** Designer
 - **PRD:** `docs/product/prd-10-sensitive-data-handling.md` (**APPROVED** by the
   Project Owner, 2026-08-27, as amended — `## Amendment A` **and** `## Amendment B`,
@@ -428,12 +433,16 @@ Amendment — re-grained to the proxy; see `## Amendment`.)*
    already running for this proxy's signing secret — the same branch Flow B
    step 2 makes for the inbound direction, because AC29's added bullet (ruling
    2a) binds "a replacement **or a regeneration**" alike:
-   - **No overlap currently running (the ordinary case):** the previous secret
-     is demoted, not discarded — both are honoured **outbound**, for every
-     destination this proxy has, for the same fixed 24 hours (AC58); every
-     dispatch in that window, to every one of the proxy's destinations,
-     carries a signature under both, per the specification's own
-     space-delimited list, asking nothing extra of any receiver.
+   - **No overlap currently running (the ordinary case) — *(Amendment — the
+     copy citation added; see `## Amendment — Screen 6 state 3's ordinary-branch
+     disclosure` at the end of this document.)*:** Screen 6 state 3 states this
+     **before** the member clicks **Regenerate signing secret** (see Screen 6,
+     state 3, for the exact copy) — the previous secret is demoted, not
+     discarded — both are honoured **outbound**, for every destination this
+     proxy has, for the same fixed 24 hours (AC58); every dispatch in that
+     window, to every one of the proxy's destinations, carries a signature
+     under both, per the specification's own space-delimited list, asking
+     nothing extra of any receiver.
    - **An overlap is already running (this proxy already has a previous
      signing secret being honoured) — *(Amendment — added; B2.)*:** Screen 6
      state 4 states this **before** the member clicks **Regenerate signing
@@ -1014,9 +1023,26 @@ Dialog
 3. **Enabled, no overlap:**
    ```
    p "Enabled — generated Aug 20, 2026."
+   p (help, same paragraph group as the footer actions) "Regenerating keeps your current
+      secret working for the next 24 hours, for every destination this proxy has, so you
+      don't need a coordinated cutover. To stop it early — for example if it's been
+      leaked — use End overlap now, which appears here and on the Signing card once you
+      regenerate."
    ```
    Footer: **Regenerate signing secret** (secondary) + **Disable signing**
    (`variant="ghost"`) + **Close**.
+   **The added help line is member-facing copy, not designer commentary**
+   *(Amendment — added; see `## Amendment — Screen 6 state 3's ordinary-branch
+   disclosure` at the end of this document)*: it renders as part of this state, so
+   it is in front of the member **before** they click **Regenerate signing secret**,
+   the same ordinary-case branch Flow B step 2 states for the inbound surface,
+   scaled to the signing surface's proxy-wide fan-out. It connects this step to
+   **End overlap now** exactly as Flow B step 4 credits Screen 1's C5 note with
+   connecting Replace to End overlap now on the inbound surface — without this
+   line, a member regenerating for the first time had no way to know that action
+   existed. **No confirmation step is added**: the disclosure satisfies the
+   requirement, and § Interactions' single-click rule for Enable / Regenerate /
+   Disable is unchanged.
 
 4. **Enabled, overlap running** (after a Regenerate, until 24 hours pass or
    ended early):
@@ -2015,3 +2041,97 @@ because it adds member-facing copy and a flow branch that a task has to carry; t
 corrections do not gate M8b. B3 concerns Screen 3, which belongs to M7's territory, and `plan-10`
 already treats the removal affordance as additive, so the Principal Engineer decides where it
 lands. Nothing here reopens `plan-10`, PRD-10, or any ADR.
+
+## Amendment — Screen 6 state 3's ordinary-branch disclosure (2026-08-28)
+
+**What this settles.** An audit of task **T43**'s inherited implementation found that Screen 6
+state 3 (the "enabled, no overlap" state a member sees before clicking **Regenerate signing
+secret**) carried no member-facing copy at all — only the "Enabled — generated {date}." status
+line. Correction **B2** (`## Approval record — amendment gate (2026-08-27)`) required member-facing
+copy on Screen 6 state **4** — the branch where an overlap is already running — and it named only
+that branch, because that is the branch PRD-10 AC29 ruling 2a's letter binds ("the surface that
+begins a replacement or a regeneration **while a previous secret is still honoured**"). B2 did not
+ask for the ordinary branch, and this design spec never added it: Flow H step 2's first bullet
+described the ordinary case in behavioural prose only (what happens outbound), never as quoted
+member-facing copy, unlike Flow B step 2's ordinary bullet on the inbound surface, which is quoted
+copy throughout.
+
+**The gap, and why it is a real one rather than a scope question.** Flow B step 4 states in terms
+that Screen 1's step-2 ordinary-case copy is what connects a member's two available actions on the
+inbound surface: "A compromised current secret is two steps, now connected by this copy: Replace it
+here, then End overlap now on Show — without step 2's line, a member had no way to know the second
+step existed." The same two-step shape exists on the signing surface — **Regenerate signing
+secret**, then **End overlap now** — and until this amendment, nothing connected them there. A
+member regenerating their signing secret for the first time was told nothing about the 24-hour
+overlap starting or about **End overlap now** existing at all, which is the exact defect Flow B's
+own reasoning describes for the surface it was written about. Task **T43**'s own Acceptance
+Criteria already anticipated this: its second bullet reads "State 3 → Regenerate (no overlap yet)
+shows the **ordinary** demote-not-discard copy, not the discard one" — a requirement the approved
+spec gave the developer no wording to satisfy.
+
+**Ruling: outcome 1 — Screen 6 state 3 gains the ordinary-case copy.** Screen 6 deliberately
+carrying no ordinary branch (outcome 2) is rejected: it would leave T43's own AC2 uncloseable
+exactly as the audit found, and it would leave the signing surface without the connective copy Flow
+B's own approved reasoning treats as necessary on the inbound surface it was written for. The
+signing surface's copy is scaled to what B2 already established for its discard branch — proxy-wide,
+"for every destination this proxy has" — because the overlap this copy describes has no per-row
+version to fall back on, unlike the inbound one Flow B step 2 was written about.
+
+**Decision authority.** Wording is the Designer's under PRD-10 AC29 ruling 2a ("Wording and
+placement are the Designer's"), which binds "a replacement or a regeneration" alike and is not
+limited to the discard branch. This amendment adds no requirement, changes no acceptance criterion,
+and reopens no ruling; it completes a disclosure the PRD, the amendment-gate correction, and T43's
+own Acceptance Criteria already required, using authority already delegated to this role. It is
+therefore landed the same way `plan-10`'s **Revision A** landed technical ruling 15 — purely
+additive, self-contained under the role's own delegated authority, with no new Product Manager or
+Project Owner ruling sought and none required.
+
+**Date:** 2026-08-28.
+
+**Author of this amendment:** Designer, in response to an audit finding on T43's inherited
+implementation.
+
+**Status of this amendment: self-certified by the Designer under the wording authority PRD-10 AC29
+ruling 2a delegates.** It does not reopen `## Amendment — outbound signing re-grained to the proxy`,
+its amendment gate, or either of the two design gates recorded in this document; both stand exactly
+as written. If a downstream reviewer or the Product Manager wants this copy re-checked against the
+PRD, that is additional scrutiny the amendment invites, not a gate it requires to take effect —
+correction B2 already required this state to carry a disclosure, and this amendment supplies the
+half of it B2's own text did not name.
+
+### The exact copy, and where it renders
+
+Screen 6 state 3's block now reads, in full:
+
+```
+p "Enabled — generated Aug 20, 2026."
+p (help, same paragraph group as the footer actions) "Regenerating keeps your current
+   secret working for the next 24 hours, for every destination this proxy has, so you
+   don't need a coordinated cutover. To stop it early — for example if it's been
+   leaked — use End overlap now, which appears here and on the Signing card once you
+   regenerate."
+```
+
+The new line is a second `p`, in the same help-paragraph group as the footer actions that state 4's
+existing disclosure already uses — directly below the "Enabled — generated {date}." status line and
+above `DialogFooter`, so it renders before the member can reach **Regenerate signing secret**.
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| Screen 6, state 3 | **Added**: the ordinary-case help line above, in the same paragraph-group position state 4's existing disclosure already established |
+| Flow H, step 2, first bullet | **Added**: a cross-reference to Screen 6 state 3's exact copy, mirroring how the second bullet already cross-references Screen 6 state 4 — the flow and the screen now agree, matching Flow B step 2's two-branch shape on the inbound surface |
+
+**Not changed, and deliberately so:** Screen 6 state 4 and its existing discard-disclosure copy
+(unchanged, still the copy correction B2 required); Flow H steps 1, 3 and 4; Flow I; every other
+screen, flow and state in this document; PRD-10; `plan-10`; and both prior approval records, which
+remain history and are not rewritten.
+
+### For the Task Planner
+
+**T43's AC2** — "State 3 → Regenerate (no overlap yet) shows the ordinary demote-not-discard copy,
+not the discard one — the two states/copies must not be swapped or merged" — already anticipated
+this copy and needs no wording change: the copy AC2 requires now exists, verbatim, at Screen 6 state
+3 above. **No Task Planner correction is required.** T43's own completion notes are still `_pending_`
+and should be closed against the copy this amendment adds, not against different wording.
