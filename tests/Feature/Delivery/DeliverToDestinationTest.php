@@ -509,4 +509,72 @@ class DeliverToDestinationTest extends TestCase
                 && $context === ['ingest_id' => $event->ingest_id],
         );
     }
+
+    // --- T28: send() composes the outbound header set through OutboundHeaders ---
+
+    /**
+     * AC17, AC30, AC32 — the credential is present on attempt 1, on a retry
+     * (same delivery, attempt 2), and on a replay (a fresh delivery, attempt
+     * 1 again), and absent on another destination of the same proxy that has
+     * no credential of its own. `credential_secret`/`credential_header_name`
+     * are set by direct attribute assignment rather than mass assignment —
+     * `Destination`'s `#[Fillable]` list gains `credential_secret` at T29,
+     * one task after this one; a direct property set + `save()` bypasses the
+     * mass-assignment guard entirely and proves nothing about T29's own
+     * persistence path, which is exercised separately by its own tests.
+     */
+    public function test_the_credential_is_present_on_attempt_1_a_retry_and_a_replay_and_absent_on_an_uncredentialed_destination(): void
+    {
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $credentialed = Destination::factory()->createQuietly();
+        $credentialed->credential_header_name = 'X-Api-Key';
+        $credentialed->credential_secret = 'secret-value';
+        $credentialed->credential_set_at = now();
+        $credentialed->save();
+
+        $uncredentialed = Destination::factory()->createQuietly([
+            'proxy_id' => $credentialed->proxy_id,
+            'team_id' => $credentialed->team_id,
+        ]);
+
+        $delivery = $this->deliveryFor($credentialed);
+        DeliverToDestination::run($this->unit($credentialed, deliveryId: $delivery->id, attemptNumber: 1));
+        DeliverToDestination::run($this->unit($credentialed, deliveryId: $delivery->id, attemptNumber: 2));
+
+        $replayDelivery = $this->deliveryFor($credentialed);
+        DeliverToDestination::run($this->unit($credentialed, deliveryId: $replayDelivery->id, attemptNumber: 1));
+
+        $uncredentialedDelivery = $this->deliveryFor($uncredentialed);
+        DeliverToDestination::run($this->unit($uncredentialed, deliveryId: $uncredentialedDelivery->id, attemptNumber: 1));
+
+        $recorded = Http::recorded();
+        $this->assertCount(4, $recorded);
+
+        [$attempt1] = $recorded[0];
+        [$retry] = $recorded[1];
+        [$replay] = $recorded[2];
+        [$noCredential] = $recorded[3];
+
+        $this->assertTrue($attempt1->hasHeader('X-Api-Key', 'secret-value'));
+        $this->assertTrue($retry->hasHeader('X-Api-Key', 'secret-value'));
+        $this->assertTrue($replay->hasHeader('X-Api-Key', 'secret-value'));
+        $this->assertFalse($noCredential->hasHeader('X-Api-Key'));
+    }
+
+    /**
+     * The request body is unchanged by this task — composes with T26's AC37
+     * regression: an uncredentialed destination's dispatched bytes are
+     * identical to before this task.
+     */
+    public function test_the_request_body_is_unchanged_for_an_uncredentialed_destination(): void
+    {
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->createQuietly();
+
+        DeliverToDestination::run($this->unit($destination, payload: '{"exact":"bytes"}'));
+
+        Http::assertSent(fn ($request): bool => $request->body() === '{"exact":"bytes"}');
+    }
 }

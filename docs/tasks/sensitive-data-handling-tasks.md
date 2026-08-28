@@ -1483,7 +1483,27 @@
     with T26's AC37 regression).
 - **Testing:** extends `tests/Feature/Delivery/DeliverToDestinationTest.php` — the attempt-1/retry/
   replay credential-presence case, the cross-destination absence case.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `DeliverToDestination::send()` now builds the outbound header set through
+  `OutboundHeaders::build($unit, $unit->verificationHeaderNames, $unit->destination->credential_header_name,
+  $unit->destination->credential_secret)` before dispatching — `credential_secret` decrypts through the
+  model's `encrypted` cast at this read, in the send path, never earlier. Both `asJob()` (attempt 1) and
+  `RetryDelivery` (attempts 2..N) funnel into this same `send()` call unchanged, so the credential and
+  verification strip apply identically to every attempt and every replay with no separate code path.
+
+  Two new tests: one exercises attempt 1, a retry (same delivery, attempt 2), a replay (a fresh delivery,
+  attempt 1 again) and a second, uncredentialed destination on the same proxy in one test, asserting via
+  `Http::recorded()` (order-preserving) that the credential header is present on the first three requests
+  and absent on the fourth; the second pins that an uncredentialed destination's dispatched body bytes are
+  unchanged (composes with T26's AC37 regression).
+
+  **Delivery-path caveat, stated per the task list's own instruction:** `QUEUE_CONNECTION=sync` runs
+  `DeliverToDestination::run()` inline under this suite, so this is strong evidence the *logic* --
+  `OutboundHeaders` called correctly, with the correct arguments, on every code path that reaches
+  `send()` -- is correct, but it exercises none of Horizon's real async/queued dispatch. No claim of
+  having exercised the async path is made.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter DeliverToDestinationTest`
+  (20 tests, 84 assertions) green; full-suite run deferred to the end of this batch (T26-T33).
 
 ## T29 — Credential validation and persistence (AC30, AC33; plan § Validation)
 - **Description:** `destinations.*.credential_header_name` — `required_with:destinations.*.credential_secret`,

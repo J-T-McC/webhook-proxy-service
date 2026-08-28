@@ -15,6 +15,7 @@ use App\Models\FifoDispatch;
 use App\Pipeline\DeliveryUnit;
 use App\Services\DeliveryUnitResolver;
 use App\Services\RetryPolicy;
+use App\Support\OutboundHeaders;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -195,13 +196,28 @@ class DeliverToDestination
     /**
      * Perform the outbound send, settle the given attempt row in place, and
      * transition the parent delivery row accordingly.
+     *
+     * The outbound header set is built here, through `OutboundHeaders` (T26)
+     * — the one build point (plan-10 § Architecture C) — so the credential
+     * and verification strip apply identically to attempt 1 (`asJob()`),
+     * every retry (`RetryDelivery`), and every replay, all of which funnel
+     * into this same method. `$unit->destination->credential_secret` decrypts
+     * via the model's `encrypted` cast at read time here, in the send path,
+     * never earlier.
      */
     private function send(DeliveryUnit $unit, DeliveryAttempt $attempt): void
     {
         $startedAt = now();
 
         try {
-            $response = Http::withHeaders($unit->forwardHeaders())
+            $headers = OutboundHeaders::build(
+                $unit,
+                $unit->verificationHeaderNames,
+                $unit->destination->credential_header_name,
+                $unit->destination->credential_secret,
+            );
+
+            $response = Http::withHeaders($headers)
                 ->timeout(self::TIMEOUT_SECONDS)
                 ->send($unit->method, $unit->destination->url, ['body' => $unit->payload]);
 
