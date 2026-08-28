@@ -137,6 +137,6 @@ class SigningAllOrNoneFailureTest extends TestCase
 
         $this->assertSame(3, DeliveryAttempt::where('status', AttemptStatus::Succeeded)->count());
         Http::assertSentCount(3);
-        Http::assertSent(fn ($request): bool => $request->hasHeader('webhook-signature'));
+        Http::assertSent(fn ($request): bool => $request->hasHeader('WebhookProxy-Signature'));
     }
 }

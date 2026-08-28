@@ -56,10 +56,10 @@ class OutboundSigningIntegrationTest extends TestCase
         $proxy = Proxy::factory()->createQuietly();
         Destination::factory()->for($proxy)->createQuietly();
 
-        // Signing off: no webhook-signature anywhere.
+        // Signing off: no WebhookProxy-Signature anywhere.
         $this->postJson($this->ingestUrl($proxy), ['a' => 1])->assertStatus(202);
 
-        Http::assertSent(fn ($request): bool => ! $request->hasHeader('webhook-signature'));
+        Http::assertSent(fn ($request): bool => ! $request->hasHeader('WebhookProxy-Signature'));
 
         app(SecretStore::class)->generate($proxy, SecretPurpose::Signing);
 
@@ -73,7 +73,7 @@ class OutboundSigningIntegrationTest extends TestCase
         $recorded = Http::recorded();
         $this->assertCount(2, $recorded, 'One request per destination.');
         foreach ($recorded as [$request]) {
-            $this->assertTrue($request->hasHeader('webhook-signature'));
+            $this->assertTrue($request->hasHeader('WebhookProxy-Signature'));
         }
     }
 
@@ -103,10 +103,10 @@ class OutboundSigningIntegrationTest extends TestCase
         $this->assertSame($signedRequest->body(), $plainRequest->body());
 
         $this->assertTrue(StandardWebhooks::verify(
-            $signedRequest->header('webhook-id')[0],
-            (int) $signedRequest->header('webhook-timestamp')[0],
+            $signedRequest->header('WebhookProxy-Id')[0],
+            (int) $signedRequest->header('WebhookProxy-Timestamp')[0],
             $signedRequest->body(),
-            $signedRequest->header('webhook-signature')[0],
+            $signedRequest->header('WebhookProxy-Signature')[0],
             ['whsec_verify_me'],
         ));
     }
@@ -153,15 +153,15 @@ class OutboundSigningIntegrationTest extends TestCase
         $this->postJson($this->ingestUrl($proxy), ['overlap' => true])->assertStatus(202);
 
         $overlapRequest = Http::recorded()[0][0];
-        $entries = explode(' ', $overlapRequest->header('webhook-signature')[0]);
+        $entries = explode(' ', $overlapRequest->header('WebhookProxy-Signature')[0]);
         $this->assertCount(2, $entries);
 
         foreach (['whsec_current', 'whsec_superseded'] as $secret) {
             $this->assertTrue(StandardWebhooks::verify(
-                $overlapRequest->header('webhook-id')[0],
-                (int) $overlapRequest->header('webhook-timestamp')[0],
+                $overlapRequest->header('WebhookProxy-Id')[0],
+                (int) $overlapRequest->header('WebhookProxy-Timestamp')[0],
                 $overlapRequest->body(),
-                $overlapRequest->header('webhook-signature')[0],
+                $overlapRequest->header('WebhookProxy-Signature')[0],
                 [$secret],
             ));
         }
@@ -177,7 +177,7 @@ class OutboundSigningIntegrationTest extends TestCase
         $this->postJson($this->ingestUrl($proxy), ['overlap' => false])->assertStatus(202);
 
         $afterExpiryRequest = Http::recorded()[0][0];
-        $this->assertCount(1, explode(' ', $afterExpiryRequest->header('webhook-signature')[0]));
+        $this->assertCount(1, explode(' ', $afterExpiryRequest->header('WebhookProxy-Signature')[0]));
     }
 
     public function test_ac60_webhook_id_is_identical_on_a_retry_different_on_a_replay_and_different_per_destination(): void
@@ -202,15 +202,15 @@ class OutboundSigningIntegrationTest extends TestCase
         $bRequests = collect(Http::recorded())->filter(fn ($pair): bool => str_contains($pair[0]->url(), 'b.test'))->values();
 
         $this->assertCount(2, $aRequests, 'attempt 1 (failed) + the retry.');
-        $attempt1Id = $aRequests[0][0]->header('webhook-id')[0];
-        $retryId = $aRequests[1][0]->header('webhook-id')[0];
+        $attempt1Id = $aRequests[0][0]->header('WebhookProxy-Id')[0];
+        $retryId = $aRequests[1][0]->header('WebhookProxy-Id')[0];
         $this->assertSame($attempt1Id, $retryId);
 
-        $bId = $bRequests[0][0]->header('webhook-id')[0];
+        $bId = $bRequests[0][0]->header('WebhookProxy-Id')[0];
         $this->assertNotSame(
             $attempt1Id,
             $bId,
-            'Different destinations of the same dispatch get different webhook-ids despite the shared signing key (AC60).',
+            'Different destinations of the same dispatch get different WebhookProxy-Ids despite the shared signing key (AC60).',
         );
 
         $event = WebhookEvent::query()->where('proxy_id', $proxy->id)->firstOrFail();
@@ -225,9 +225,9 @@ class OutboundSigningIntegrationTest extends TestCase
 
         $aRequestsAfterReplay = collect(Http::recorded())->filter(fn ($pair): bool => str_contains($pair[0]->url(), 'a.test'))->values();
         $this->assertCount(3, $aRequestsAfterReplay);
-        $replayId = $aRequestsAfterReplay[2][0]->header('webhook-id')[0];
+        $replayId = $aRequestsAfterReplay[2][0]->header('WebhookProxy-Id')[0];
 
-        $this->assertNotSame($attempt1Id, $replayId, 'A replay mints a fresh dispatch_uuid, so its webhook-id is new.');
+        $this->assertNotSame($attempt1Id, $replayId, 'A replay mints a fresh dispatch_uuid, so its WebhookProxy-Id is new.');
     }
 
     public function test_adr021_decision5_disabling_deletes_every_row_and_re_enabling_signs_with_a_different_secret(): void
@@ -256,17 +256,17 @@ class OutboundSigningIntegrationTest extends TestCase
 
         $request = Http::recorded()[0][0];
         $this->assertTrue(StandardWebhooks::verify(
-            $request->header('webhook-id')[0],
-            (int) $request->header('webhook-timestamp')[0],
+            $request->header('WebhookProxy-Id')[0],
+            (int) $request->header('WebhookProxy-Timestamp')[0],
             $request->body(),
-            $request->header('webhook-signature')[0],
+            $request->header('WebhookProxy-Signature')[0],
             [$newSecret],
         ));
         $this->assertFalse(StandardWebhooks::verify(
-            $request->header('webhook-id')[0],
-            (int) $request->header('webhook-timestamp')[0],
+            $request->header('WebhookProxy-Id')[0],
+            (int) $request->header('WebhookProxy-Timestamp')[0],
             $request->body(),
-            $request->header('webhook-signature')[0],
+            $request->header('WebhookProxy-Signature')[0],
             [$originalSecret],
         ), 'The disabled secret must never verify a post-re-enable dispatch.');
     }
@@ -402,21 +402,21 @@ class OutboundSigningIntegrationTest extends TestCase
         app(SecretStore::class)->replace($proxy, SecretPurpose::Signing, 'whsec_real_secret');
 
         $this->withHeaders([
-            'webhook-id' => 'forged-id',
-            'webhook-timestamp' => '1',
-            'webhook-signature' => 'v1,forged',
+            'WebhookProxy-Id' => 'forged-id',
+            'WebhookProxy-Timestamp' => '1',
+            'WebhookProxy-Signature' => 'v1,forged',
         ])->postJson($this->ingestUrl($proxy), ['x' => 1])->assertStatus(202);
 
         $request = Http::recorded()[0][0];
 
-        $this->assertNotSame('forged-id', $request->header('webhook-id')[0]);
-        $this->assertNotSame('1', $request->header('webhook-timestamp')[0]);
-        $this->assertNotSame('v1,forged', $request->header('webhook-signature')[0]);
+        $this->assertNotSame('forged-id', $request->header('WebhookProxy-Id')[0]);
+        $this->assertNotSame('1', $request->header('WebhookProxy-Timestamp')[0]);
+        $this->assertNotSame('v1,forged', $request->header('WebhookProxy-Signature')[0]);
         $this->assertTrue(StandardWebhooks::verify(
-            $request->header('webhook-id')[0],
-            (int) $request->header('webhook-timestamp')[0],
+            $request->header('WebhookProxy-Id')[0],
+            (int) $request->header('WebhookProxy-Timestamp')[0],
             $request->body(),
-            $request->header('webhook-signature')[0],
+            $request->header('WebhookProxy-Signature')[0],
             ['whsec_real_secret'],
         ));
     }
@@ -449,12 +449,12 @@ class OutboundSigningIntegrationTest extends TestCase
         Http::assertSentCount(1);
         $request = Http::recorded()[0][0];
 
-        $this->assertTrue($request->hasHeader('webhook-signature'), 'The proxy still signs after being soft-deleted.');
+        $this->assertTrue($request->hasHeader('WebhookProxy-Signature'), 'The proxy still signs after being soft-deleted.');
         $this->assertTrue(StandardWebhooks::verify(
-            $request->header('webhook-id')[0],
-            (int) $request->header('webhook-timestamp')[0],
+            $request->header('WebhookProxy-Id')[0],
+            (int) $request->header('WebhookProxy-Timestamp')[0],
             $request->body(),
-            $request->header('webhook-signature')[0],
+            $request->header('WebhookProxy-Signature')[0],
             ['whsec_secret'],
         ));
 

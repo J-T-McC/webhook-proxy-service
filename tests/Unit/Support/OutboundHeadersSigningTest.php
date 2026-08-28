@@ -46,7 +46,7 @@ class OutboundHeadersSigningTest extends TestCase
         $destination = Destination::factory()->create();
         $otherDestination = Destination::factory()->create();
 
-        $idFor = fn (DeliveryUnit $unit): string => OutboundHeaders::build($unit, null, null, ['whsec_secret'])['webhook-id'];
+        $idFor = fn (DeliveryUnit $unit): string => OutboundHeaders::build($unit, null, null, ['whsec_secret'])['WebhookProxy-Id'];
 
         $attempt1 = $this->unit(destination: $destination, dispatchUuid: 'dispatch-a');
         $retry = $this->unit(destination: $destination, dispatchUuid: 'dispatch-a');
@@ -65,10 +65,10 @@ class OutboundHeadersSigningTest extends TestCase
         $unit = $this->unit();
 
         Carbon::setTestNow(Carbon::createFromTimestamp(1_700_000_000));
-        $original = OutboundHeaders::build($unit, null, null, ['whsec_secret'])['webhook-timestamp'];
+        $original = OutboundHeaders::build($unit, null, null, ['whsec_secret'])['WebhookProxy-Timestamp'];
 
         Carbon::setTestNow(Carbon::createFromTimestamp(1_700_000_600));
-        $retry = OutboundHeaders::build($unit, null, null, ['whsec_secret'])['webhook-timestamp'];
+        $retry = OutboundHeaders::build($unit, null, null, ['whsec_secret'])['WebhookProxy-Timestamp'];
 
         Carbon::setTestNow();
 
@@ -82,27 +82,27 @@ class OutboundHeadersSigningTest extends TestCase
         $unit = $this->unit(payload: '{"exact":"bytes"}');
 
         $overlap = OutboundHeaders::build($unit, null, null, ['whsec_current', 'whsec_superseded']);
-        $entries = explode(' ', $overlap['webhook-signature']);
+        $entries = explode(' ', $overlap['WebhookProxy-Signature']);
 
         $this->assertCount(2, $entries);
         $this->assertTrue(StandardWebhooks::verify(
-            $overlap['webhook-id'],
-            (int) $overlap['webhook-timestamp'],
+            $overlap['WebhookProxy-Id'],
+            (int) $overlap['WebhookProxy-Timestamp'],
             $unit->payload,
-            $overlap['webhook-signature'],
+            $overlap['WebhookProxy-Signature'],
             ['whsec_current'],
         ));
         $this->assertTrue(StandardWebhooks::verify(
-            $overlap['webhook-id'],
-            (int) $overlap['webhook-timestamp'],
+            $overlap['WebhookProxy-Id'],
+            (int) $overlap['WebhookProxy-Timestamp'],
             $unit->payload,
-            $overlap['webhook-signature'],
+            $overlap['WebhookProxy-Signature'],
             ['whsec_superseded'],
         ));
 
         $afterExpiry = OutboundHeaders::build($unit, null, null, ['whsec_current']);
 
-        $this->assertCount(1, explode(' ', $afterExpiry['webhook-signature']));
+        $this->assertCount(1, explode(' ', $afterExpiry['WebhookProxy-Signature']));
     }
 
     #[Test]
@@ -115,10 +115,10 @@ class OutboundHeadersSigningTest extends TestCase
         $unsigned = OutboundHeaders::build($unit, null, null, []);
 
         $this->assertTrue(StandardWebhooks::verify(
-            $signed['webhook-id'],
-            (int) $signed['webhook-timestamp'],
+            $signed['WebhookProxy-Id'],
+            (int) $signed['WebhookProxy-Timestamp'],
             $unit->payload,
-            $signed['webhook-signature'],
+            $signed['WebhookProxy-Signature'],
             ['whsec_secret'],
         ));
         // Signing changes nothing but the headers (AC59) — the unit's own
@@ -133,16 +133,16 @@ class OutboundHeadersSigningTest extends TestCase
     public function an_inbound_webhook_signature_header_never_reaches_a_destination_as_the_proxys_own(): void
     {
         $unit = $this->unit(headers: [
-            'webhook-id' => ['msg_forged'],
-            'webhook-timestamp' => ['1'],
-            'webhook-signature' => ['v1,forged'],
+            'WebhookProxy-Id' => ['msg_forged'],
+            'WebhookProxy-Timestamp' => ['1'],
+            'WebhookProxy-Signature' => ['v1,forged'],
         ]);
 
         $result = OutboundHeaders::build($unit, null, null, ['whsec_secret']);
 
-        $this->assertNotSame('msg_forged', $result['webhook-id']);
-        $this->assertNotSame('1', $result['webhook-timestamp']);
-        $this->assertNotSame('v1,forged', $result['webhook-signature']);
-        $this->assertStringStartsWith('v1,', $result['webhook-signature']);
+        $this->assertNotSame('msg_forged', $result['WebhookProxy-Id']);
+        $this->assertNotSame('1', $result['WebhookProxy-Timestamp']);
+        $this->assertNotSame('v1,forged', $result['WebhookProxy-Signature']);
+        $this->assertStringStartsWith('v1,', $result['WebhookProxy-Signature']);
     }
 }

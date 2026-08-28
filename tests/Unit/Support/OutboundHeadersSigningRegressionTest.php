@@ -51,10 +51,10 @@ class OutboundHeadersSigningRegressionTest extends TestCase
 
         $result = OutboundHeaders::build($unit, null, null, []);
 
-        // No webhook-* header added.
-        $this->assertArrayNotHasKey('webhook-id', $result);
-        $this->assertArrayNotHasKey('webhook-timestamp', $result);
-        $this->assertArrayNotHasKey('webhook-signature', $result);
+        // No WebhookProxy-* header added.
+        $this->assertArrayNotHasKey('WebhookProxy-Id', $result);
+        $this->assertArrayNotHasKey('WebhookProxy-Timestamp', $result);
+        $this->assertArrayNotHasKey('WebhookProxy-Signature', $result);
 
         // Byte-identical to the T26 AC37 baseline — the same assertion, same fixture.
         $this->assertSame($unit->forwardHeaders(), $result);
@@ -74,9 +74,9 @@ class OutboundHeadersSigningRegressionTest extends TestCase
         // previously-signing proxy dispatches byte-identically once disabled.
         $result = OutboundHeaders::build($unit, null, null, []);
 
-        $this->assertArrayNotHasKey('webhook-id', $result);
-        $this->assertArrayNotHasKey('webhook-timestamp', $result);
-        $this->assertArrayNotHasKey('webhook-signature', $result);
+        $this->assertArrayNotHasKey('WebhookProxy-Id', $result);
+        $this->assertArrayNotHasKey('WebhookProxy-Timestamp', $result);
+        $this->assertArrayNotHasKey('WebhookProxy-Signature', $result);
         $this->assertSame($unit->forwardHeaders(), $result);
     }
 }

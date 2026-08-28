@@ -3445,7 +3445,52 @@ documents rather than trust a summary, this one included.
   with no notification surface available to warn them (PRD-10 AC55 ships none). Placed in M10, after
   M9's closing sweep (T49) — see T49's own amended Dependencies and its new AC bullet above, which
   re-certify the finished, renamed header set as part of the feature's actual close-out.
-- **Completion notes:** _pending_
+- **Completion notes:** Renamed `OutboundHeaders::signingHeaders()`'s three return-array keys —
+  `webhook-id`/`webhook-timestamp`/`webhook-signature` → `WebhookProxy-Id`/`WebhookProxy-Timestamp`/`WebhookProxy-Signature`
+  — and the two doc comments naming the old headers (the method's own and the class-level one, the
+  latter also updated to cite ADR-026 alongside ADR-008 for `STRIPPED_HEADERS`'s ongoing
+  non-involvement). Value format, signed content, and the `msg_{dispatch_uuid}_{destination_id}`
+  derivation are byte-for-byte unchanged — confirmed by the untouched surrounding code, not merely
+  by the task's own framing.
+
+  Updated every header-name string literal in the four named test suites
+  (`OutboundHeadersSigningTest`, `OutboundHeadersSigningRegressionTest`,
+  `SigningAllOrNoneFailureTest`, `OutboundSigningIntegrationTest`) to the new names. Two tests needed
+  more than a literal swap because their scenario was the collision Decision 2 removes, not merely
+  its name: `OutboundHeadersSigningTest::an_inbound_webhook_signature_header_never_reaches_a_destination_as_the_proxys_own`
+  and `OutboundSigningIntegrationTest::test_ac64_outbound_webhook_headers_are_the_proxys_own_even_when_the_inbound_request_carried_them`
+  each forge an *inbound* `webhook-id`/`webhook-timestamp`/`webhook-signature` trio to prove the
+  proxy's own emitted value displaces it. Renamed the forged trio to the new `WebhookProxy-*` names
+  too, matching AC64's own note that the scenario becomes "trivially satisfiable" post-rename (no
+  real sender sends `WebhookProxy-*`) — this now exercises a hypothetical spoofing attempt rather
+  than the Svix-collision case, which no longer exists. Left `OutboundHeadersTest.php` (T26,
+  untouched by this task's file list) exactly as it was: its one `webhook-signature` fixture is an
+  unrelated, sender-originated header forwarded verbatim with no signing configured, and stays
+  correct unmodified regardless of the rename.
+
+  `app/Verification/StandardWebhooksScheme.php` and `DeliveryUnitResolver`'s AC27 verification-header
+  map do not exist any more (removed at T53, per this task's own amended sequencing note) — confirmed
+  by `find`, not assumed. `DeliveryUnitResolverTest.php` (still present, unlike the three fully-deleted
+  inbound suites) was grepped and carries zero reference to `webhook-id` or any verification-header
+  concept any more; it needed no edit and was re-run as the harmless residual regression check.
+
+  **`StandardWebhooks::verify()` needed nothing.** Read the file: `verify(string $id, int $timestamp,
+  string $body, string $signatureHeaderValue, array $secrets)` takes no header names as arguments at
+  all — the caller extracts values from whatever header names it holds, and `verify()` never sees a
+  header name. `OutboundHeadersSigningTest`/`OutboundSigningIntegrationTest`'s own assertions confirm
+  it verifies correctly reading values out of the newly-named `WebhookProxy-*` headers.
+
+  Gates: `composer lint` and `composer types:check` both green. Targeted filter
+  (`OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|SigningAllOrNoneFailureTest|OutboundSigningIntegrationTest`)
+  — 19/19 passing, 108 assertions. `DeliveryUnitResolverTest` alone — 9/9 passing, 28 assertions (the
+  other three named inbound suites in the task's original filter no longer exist, per its own amended
+  note — confirmed by `find` before skipping, not merely trusted). Full suite,
+  `./vendor/bin/sail test --parallel` — **1003/1003 passing, 4749 assertions**, unchanged from the
+  T52–T54 baseline (this task edits only header-name literals in existing tests; it adds none).
+  `pnpm types:check`, `pnpm format:check`, `pnpm build` all green. `pnpm lint:check` reproduces the
+  same ~730 pre-existing `import/order`/parsing errors T52's completion notes already attributed to
+  nested `.claude/worktrees/*` checkouts left by other concurrent agent sessions — none in a file this
+  task touched (this task edits no frontend file at all).
 
 ## T51 — Provider signature headers pass through unconditionally (ADR-025 Decision 1)
 > **Status: SUPERSEDED — replaced by ADR-026 Decision A, 2026-08-28, before being built (this task was

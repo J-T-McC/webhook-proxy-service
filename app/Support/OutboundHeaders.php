@@ -16,10 +16,11 @@ use App\Pipeline\DeliveryUnit;
  * added one (AC38, AC64, R9), (4) merge.
  *
  * `DeliveryUnit::STRIPPED_HEADERS` is deliberately untouched by this class
- * (plan-10 Implementation Note 4) — it is the fixed ADR-008 list, unrelated
- * to the credential/signing names this class adds; adding the three
- * `webhook-*` names to it would strip them from every destination, including
- * an unsigned proxy's, breaking AC63 (ADR-023 Decision 5).
+ * (plan-10 Implementation Note 4) — it is the fixed ADR-008/ADR-026 list,
+ * unrelated to the credential/signing names this class adds; adding the
+ * three `WebhookProxy-*` names to it would strip them from every
+ * destination, including an unsigned proxy's, breaking AC63 (ADR-023
+ * Decision 5).
  *
  * A destination with no credential, on a proxy with no signing secret
  * configured, produces a result byte-identical to
@@ -57,14 +58,16 @@ final class OutboundHeaders
     }
 
     /**
-     * The Standard Webhooks signing headers (AC54, AC55, AC58, AC59, AC60).
-     * `webhook-id` is derived, never stored (ADR-023 Decision 3):
+     * The Standard Webhooks-format signing headers, emitted under this
+     * service's own branded names — `WebhookProxy-Id`, `WebhookProxy-Timestamp`,
+     * `WebhookProxy-Signature` (AC54, AC55, AC58, AC59, AC60; ADR-025 Decision
+     * 2). `WebhookProxy-Id` is derived, never stored (ADR-023 Decision 3):
      * `msg_{dispatch_uuid}_{destination_id}` — the delivery's own natural
      * key, stable across every retry of that delivery (same `dispatch_uuid`,
      * same destination), new on a replay (a fresh `dispatch_uuid`), and
      * different per destination of one dispatch even though the signing key
-     * is shared (AC60). `webhook-timestamp` is taken at this exact call —
-     * this attempt's own time, never the original dispatch's. `webhook-signature`
+     * is shared (AC60). `WebhookProxy-Timestamp` is taken at this exact call —
+     * this attempt's own time, never the original dispatch's. `WebhookProxy-Signature`
      * carries one `v1,<base64>` entry per live secret (AC58), each computed
      * by `StandardWebhooks::sign()` (T7) over the exact bytes about to be
      * dispatched (AC59) — `$unit->payload`, unchanged by this class.
@@ -83,9 +86,9 @@ final class OutboundHeaders
         );
 
         return [
-            'webhook-id' => $id,
-            'webhook-timestamp' => (string) $timestamp,
-            'webhook-signature' => implode(' ', $entries),
+            'WebhookProxy-Id' => $id,
+            'WebhookProxy-Timestamp' => (string) $timestamp,
+            'WebhookProxy-Signature' => implode(' ', $entries),
         ];
     }
 
