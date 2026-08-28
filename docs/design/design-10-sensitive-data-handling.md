@@ -1,15 +1,17 @@
 # Design Spec: Sensitive data handling
 
 - **Status:** **Approved at the original design gate — with ten required corrections
-  (C1–C10)** — **and now under an unapproved amendment.** The original gate's approval,
+  (C1–C10)** — **and the amendment approved at a second gate, with four further required
+  corrections (B1–B4).** The original gate's approval,
   its ten corrections, its four flagged-design-call rulings and its five non-blocking
   notes all stand and are recorded, unrewritten, at § Approval record (design gate).
   **`## Amendment` (below, at the end of this document) re-grains outbound signing from
   per destination to per proxy**, per PRD-10 `## Amendment B` (Project Owner ruling,
   2026-08-27), and adds one disclosure to the inbound rotation surface (PRD-10 `##
-  Amendment B` ruling 2a). **The amendment is written but not yet approved** — it awaits
-  the Product Manager at the same delegated design gate, exactly as the original spec
-  did. Two further items are answered in this same pass, both resolving
+  Amendment B` ruling 2a). **The amendment was approved by the Product Manager on
+  2026-08-27 with corrections B1–B4** — see § Approval record — amendment gate
+  (2026-08-27), the second, separate gate entry at the very end of this document. Two
+  further items are answered in the amendment's own pass, both resolving
   `docs/questions/prd-10-q-10-03-credential-removal-and-secret-field-primitive.md`: a
   **Remove credential** control is added to Screen 3, and the write-only secret field's
   primitive question is settled (plain `Input type="password"` stands, on a corrected
@@ -19,7 +21,10 @@
 - **PRD:** `docs/product/prd-10-sensitive-data-handling.md` (**APPROVED** by the
   Project Owner, 2026-08-27, as amended — `## Amendment A` **and** `## Amendment B`,
   both ratified whole; 64 acceptance criteria, nothing renumbered)
-- **Approved by / date:** **Product Manager, 2026-08-27, at the original gate.**
+- **Approved by / date:** **Product Manager, 2026-08-27, at the original gate — and
+  Product Manager, 2026-08-27, at the amendment gate (corrections B1–B4, § Approval
+  record — amendment gate).** The original gate's record below is unchanged and describes
+  what that gate considered.
   Verified against PRD-10's 64 acceptance criteria as they stood before Amendment B:
   every UI-bearing criterion traces to a screen, state or flow; the UX Direction is
   honoured, including all seven of its "not the Designer's to decide" rulings; **no path
@@ -1337,10 +1342,14 @@ re-grain.)*
   the screens it revises.
   **Done (original gate): approved 2026-08-27 with corrections C1–C10 — see
   § Approval record (design gate) below, which records what that gate
-  considered and is not rewritten by this amendment.** **This amendment
-  (outbound signing re-grained to the proxy, per `## Amendment B`) is
-  unapproved as of this writing — see `## Amendment` at the end of this
-  document — and awaits the Product Manager.**
+  considered and is not rewritten by this amendment.** **Done (amendment
+  gate): the amendment (outbound signing re-grained to the proxy, per
+  `## Amendment B`) was approved by the Product Manager on 2026-08-27 with
+  four required corrections, B1–B4 — see § Approval record — amendment gate
+  (2026-08-27) at the very end of this document. B1–B4 land under that
+  approval and do not come back through the gate; B2 must be applied before
+  `plan-10`'s M8b is broken down into tasks.** Next: the **Principal
+  Engineer**, whose `plan-10` is already written to this ruling.
 
 ## Approval record (design gate)
 
@@ -1675,9 +1684,11 @@ destination** — this amendment does not touch it anywhere.
 **Author of this amendment:** Designer, in response to PRD-10 `## Amendment B` and the
 Q-10-04 answer's § *What the Designer needs, afterwards*.
 
-**Status of this amendment: written, not yet approved.** It awaits the Product
-Manager at the same delegated design gate the original spec used (see Handoff,
-Next Agent). **The original approval record above (§ Approval record (design gate))
+**Status of this amendment: APPROVED by the Product Manager on 2026-08-27, with four
+required corrections (B1–B4).** It went through the same delegated design gate the
+original spec used, and that gate's ruling is recorded separately at
+**§ Approval record — amendment gate (2026-08-27)** at the end of this document.
+**The original approval record above (§ Approval record (design gate))
 is retained exactly as it was written and is not rewritten by this amendment** — it
 records what that gate considered, which was the pre-amendment, per-destination
 design, per the standing rule `design-11`'s gate set and `docs/standards/
@@ -1751,3 +1762,210 @@ in this pass — **nothing in Q-10-03 needs a Product Manager or Owner decision*
 
 `docs/questions/prd-10-q-10-03-credential-removal-and-secret-field-primitive.md` is
 marked RESOLVED accordingly.
+
+## Approval record — amendment gate (2026-08-27)
+
+**Approved by: Product Manager · 2026-08-27 · with four required corrections (B1–B4).**
+
+This is a **second, separate gate entry**, for the amendment `## Amendment — outbound signing
+re-grained to the proxy (2026-08-27)` only. **The first gate entry — § Approval record (design
+gate), with its ten corrections C1–C10, its four flagged-call rulings and its five notes — is
+history and is not rewritten by this one.** It records what that gate considered, which was the
+pre-amendment, per-destination design.
+
+The four corrections below land **under this approval**. None of them reopens a ruling, and none
+requires the amendment to come back through this gate: each is stated concretely enough for the
+Designer to apply it without me present and for a Reviewer to check it against the finished
+surface. Until they land, this record governs where it conflicts with the amendment or the spec
+body.
+
+**What was checked, and against what.** The amendment was read against PRD-10 as approved with
+`## Amendment A` and `## Amendment B` (64 acceptance criteria, nothing renumbered), against
+Amendment B's four rulings, and against `docs/plans/plan-10-sensitive-data-handling.md`, which is
+fully approved and was not reopened.
+
+### Check 1 — the proxy-grain sweep is complete
+
+Every place the spec described signing at destination grain now describes it at proxy grain, and
+the sweep reaches further than the three surfaces the ruling names.
+
+- **Screen 5** is narrowed to the `Credential` badge alone. The per-row **Signed** badge and the
+  per-row **Manage signing** action are gone, and the section states positively why a per-row badge
+  would carry no information a member could act on at the row level (AC54: no per-destination
+  enable, secret or rotation state). The `Credential` badge is untouched, which is correct — AC31
+  keeps the credential per destination.
+- **Screen 6** is re-scoped to the proxy in its title, its description and all five states, and
+  the one-time reveal's copy is pluralised to "every destination's receiver", which is the right
+  reading of AC57 under the widened loss UX Direction point 5 now names.
+- **Screen 4b** is a genuine proxy-grain sibling of the Verification card rather than a relabelled
+  row control: one card per proxy, the same three states, the same `canUpdate` gate the first gate
+  required at C2.
+- **Flows G, H and I** all open from the proxy's Signing card, and each states the fan-out
+  consequence in its own terms — Flow G that a destination added afterwards is covered with no
+  per-row step, Flow H that one rotation is one overlap for every destination, Flow I that
+  disabling stops signed dispatch to all of them at once.
+- **The three further places the Designer reports sweeping check out:** the Overview prose now
+  describes a proxy-level Signing card and says why the table carries no `Signed` badge; § Decisions
+  carried forward renames the secret and re-grains the rotation bullet while leaving the
+  credential's exclusion visibly untouched; and the § Scope boundaries AC11 bullet is extended as
+  described in Check 2 below.
+- **No stale per-destination signing language survives in the live spec.** The remaining
+  occurrences of the old grain are all in § Approval record (design gate), where they are history
+  and must stay, and in the amendment's own retained quotations of what was superseded.
+
+**Ruling 2b is followed rather than second-guessed.** Screen 4b adds no trust-domain warning and
+says so explicitly, which is what Amendment B ruled. The card's scope is legible from where the
+control lives, which is the ground the ruling gave.
+
+### Check 2 — the AC11 failure state is rendered at proxy grain
+
+**Satisfied.** AC11 as amended is a behaviour change, not a term change, and the spec renders it as
+one. The § Scope boundaries AC11 bullet and Screen 4b's failure-state paragraph both state that a
+proxy whose signing secret cannot be decrypted fails dispatch to **every** destination of that
+proxy, that no destination keeps dispatching signed traffic while another fails, and that the
+member is therefore not left to infer the fault by comparing rows one at a time. The spec is also
+right to add no new surface: C7 at the first gate ruled that AC11 surfaces through design-06's
+existing delivery-attempt error treatment, and the amendment changes the **extent** of the failure
+without inventing an indicator for it. Screen 4b's refusal to render a live decryptability
+indicator is correct — the card shows static configuration, and a card that claimed to know
+decryptability would be asserting a per-request read it does not have.
+
+**This does not contradict `plan-10`.** The plan's own AC11 verification line — "an undecryptable
+credential or signing secret fails the attempt **without sending**, and the recorded
+`error_summary` contains no part of the secret" — produces exactly the per-destination failed
+attempt entries, uniformly across the fan-out, that the spec describes a member reading.
+
+### Check 3 — the discard is stated before the save on Screen 1 / Flow B step 2
+
+**Satisfied for the inbound verification surface.** Flow B step 2 branches on whether a rotation is
+already running for this proxy's verification secret, and the second branch states, in member-facing
+copy attached to the Replace path, that saving a new secret now stops the previous secret being
+honoured immediately and that its 24 hours do not finish out. Screen 1's C5 note carries the same
+branch. That is AC29's added bullet honoured where the member commits to the rotation, not
+discovered afterwards on Show, which is what ruling 2a asked for.
+
+**It is not satisfied on the signing surface, and that is correction B2 below.** AC29's added
+bullet binds "a replacement **or a regeneration**", and regeneration is the signing word.
+
+### Check 4 — the Q-10-03 answers invent no requirement PRD-10 does not carry
+
+**Neither answer invents a requirement. Both stand.**
+
+1. **The Remove credential control on Screen 3 is an affordance for a state PRD-10 already
+   defines, not a new capability.** AC30 makes the credential **optional**; AC33 specifies a surface
+   that shows **set / not set**; AC37 describes the behaviour of a destination that has no
+   credential. "No credential" is therefore a state the approved requirements carry, and a control
+   that returns a destination to it is design detail in the Designer's own authority. It changes no
+   dispatch semantics beyond AC32 and AC37, introduces no permission (AC28 is untouched), and adds
+   no rotation, overlap or previous-value state that AC29's exclusion of the credential forbids. The
+   Designer's own ground — that the only route back was deleting the whole destination row, which
+   also discards its URL, method and delivery-attempt history — is sound, and the asymmetry it
+   removes against signing's explicit **Disable signing** is real.
+2. **`Input type="password"` over `PasswordInput.vue` is a component choice and nothing more.** It
+   asserts no requirement in either direction. Note that the ground the Designer now gives — one
+   write-only idiom across the whole feature, rather than the absence of a precedent — is the
+   honest one, and correcting a wrong ground in place while leaving the superseded claim visible as
+   history is the right handling. The consequence for § Components is correction B1.
+
+### Check 5 — nothing in the amendment contradicts `plan-10`
+
+**No contradiction found.** `plan-10` is fully approved and was not reopened.
+
+- Technical ruling 13 withholds precisely the surfaces this amendment redesigns — Screen 5's per-row
+  badge and action, Screen 6's dialog, and Flows G, H and I — and builds the backend to the
+  proxy-level ruling. The amendment lands on that boundary exactly.
+- The plan's proxy-scoped **generate / disable / end-overlap** endpoints, with `store` serving as
+  both Enable and Regenerate, match Flows G, H and I's action set with nothing left over and nothing
+  missing.
+- ADR-021 Decision 5 (disabling deletes every signing row; re-enabling generates a different
+  secret) matches Flow I step 3's rule that a previous secret is never resurfaced or reused.
+- AC29's cap of two, which Amendment B ruling 2 settles as a requirement, matches the plan's
+  Technical ruling 14 and its R7 test; Screen 6 state 4's allowance of a second regeneration inside
+  an overlap is the remedy AC29 itself names.
+- **The Remove credential control does not conflict with the plan either.** `plan-10` § Out of
+  Scope names the removal affordance, records that `design-10` designed none, and states that
+  "whatever `Q-10-03` answers is additive". This approval therefore does not force the control into
+  any milestone: **where it lands is the Principal Engineer's call**, and correction B3 exists so
+  that the requirement it has to satisfy is stated rather than inferred.
+
+### Four required corrections, returned to the Designer
+
+**(B1) § Components restates the claim the amendment itself corrected.** The row
+*"Verification/credential/signing secret entry | `Input type="password"` | **New usage** — no prior
+`type="password"` precedent in this app"* contradicts the Screen 1 ruling added in this same pass,
+which states that `PasswordInput.vue` does exist and that N3's no-precedent claim was wrong.
+`resources/js/components/PasswordInput.vue` renders `Input` with `:type="showPassword ? 'text' :
+'password'"`, so the precedent is real. Correct the row so it states the precedent exists and that
+the plain `Input type="password"` is chosen deliberately — one write-only idiom across the whole
+feature, per Screen 1 — rather than for want of a precedent. Do not restate the wrong claim
+anywhere else; N3 itself stays as written, because it is history.
+
+**(B2) AC29's ruling-2a disclosure is missing from the signing surface, where the amendment moved
+that surface.** AC29's added bullet binds "the surface that begins a replacement **or a
+regeneration** while a previous secret is still honoured", and ruling 2a says in terms that it
+applies to the signing surface as well as to the inbound one. Today Screen 6 state 4 renders the
+rotation line, then offers **Regenerate signing secret** in the footer with no member-facing
+statement that clicking it discards the currently-honoured previous secret immediately; Flow H step
+2 states only the ordinary case ("The previous secret is demoted, not discarded"), which is false
+when an overlap is already running. The spec's only acknowledgement of the discard is the
+parenthetical in Screen 6 state 4, which is prose addressed to the reader of this document, not
+copy addressed to the member, and it therefore does not satisfy the bullet. Required:
+- **Screen 6 state 4** carries member-facing copy, rendered as part of that state and therefore
+  visible **before** the member clicks **Regenerate signing secret**, stating that regenerating now
+  stops the currently-honoured previous secret being honoured immediately, that its 24 hours do not
+  finish out, and — because the grain makes this larger than it was — that this applies to every
+  destination of the proxy at once. Wording is yours; that it is said before the action commits is
+  not.
+- **Flow H step 2** branches on whether an overlap is already running, mirroring Flow B step 2's two
+  branches, so the flow and the screen agree.
+- **No confirmation step is added.** § Interactions' single-click rule for Enable / Regenerate /
+  Disable stands; AC29's bullet asks for disclosure, not ceremony. Because a signing regeneration is
+  an immediate action rather than a form save, "before the save" means before the action is invoked.
+
+**(B3) Screen 3 must state that removing a credential is an explicit signal, never an empty
+field.** § Interactions rules that "a present-but-empty secret field must not submit as 'clear the
+secret'", and the new **Remove credential** control resets the row to unset in-session and takes
+effect at save. The two rules now meet on the same field, and an implementer is left to reconcile
+them. State on Screen 3 that **Remove credential** is a distinct, explicit removal the form carries
+in its own right, and that a blank secret field never means removal under any circumstance. The
+transport for that signal is the Principal Engineer's, not yours; the requirement that the two be
+distinguishable is what this correction fixes. While landing it, add the missing **post-save** row
+to Screen 3's states table — after a saved removal the row reads as an unconfigured one (trigger
+back to "Add credential", header name back to `Authorization`) — so the table covers the removal
+round-trip and not only the pre-save state.
+
+**(B4) The amendment's § What changed table misattributes one edit.** Its § Interactions row claims
+the "End overlap now" bullet's screen list was extended to include Screen 4b. § Interactions'
+bullet carries no screen list — it reads "Neither 'End overlap now' action is gated behind a
+confirmation dialog" — and the screen-list edit landed in § Accessibility instead. Fix it in either
+direction: extend the § Interactions bullet to name Screens 4, 4b and 6 and reword "Neither" so it
+cannot be read as "there are two surfaces", or correct the change table to name § Accessibility.
+The change table is the amendment's own account of itself and is read as evidence long after this
+gate.
+
+### Three non-blocking notes
+
+- **(NB1)** Screen 1's `standard-webhooks` help copy calls the inbound secret *"The signing secret
+  your sender issued you for this integration"*. Under the old grain that phrase sat a page away
+  from anything called a signing secret; it now sits one card away from Screen 4b's **Signing**
+  card, where "signing secret" means the product's own. The copy is not wrong — it is the
+  specification's term for the sender's secret — but "the secret your sender issued you for this
+  integration" would remove the collision at no cost. Your call.
+- **(NB2)** § Open Questions still records, as not designed here, whether a proxy's disabled signing
+  secret is erased from storage or merely stops being applied. **ADR-021 Decision 5 answers it** —
+  disabling deletes every signing row — and this amendment already lists ADR-021 as an input. The
+  note remains harmless because it correctly says the difference is not user-facing; annotate it
+  when the section is next touched.
+- **(NB3)** Not the Designer's, mine: **PRD-10's Status block still carries the pre-approval bullet
+  reading "`## Amendment B` — AWAITING PROJECT OWNER APPROVAL"**, which contradicts § Amendment B's
+  own recorded approval of 2026-08-27 and the Status block's own opening line. That is a defect in
+  the PRD, not in this spec, and it is corrected there rather than here.
+
+### What this approval unblocks
+
+**M8b — the outbound signing surface — is unblocked for Task Planning**, which was the only
+milestone `plan-10` withheld pending this gate. **B2 must be applied before M8b is broken down**,
+because it adds member-facing copy and a flow branch that a task has to carry; the other three
+corrections do not gate M8b. B3 concerns Screen 3, which belongs to M7's territory, and `plan-10`
+already treats the removal affordance as additive, so the Principal Engineer decides where it
+lands. Nothing here reopens `plan-10`, PRD-10, or any ADR.
