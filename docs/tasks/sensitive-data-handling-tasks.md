@@ -1030,7 +1030,59 @@
   - A first-time scheme selection with no secret provided fails validation (secret required when none
     exists yet).
 - **Testing:** `tests/Feature/Proxies/VerificationValidationTest.php` (new) — one case per bullet.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `verification_scheme` (`nullable`, `Rule::enum(VerificationScheme::class)`),
+  `verification_header_name` (`required_if`/`prohibited_unless:verification_scheme,shared-secret`,
+  `string`, `max:128`, the HTTP field-name regex) and `verification_secret` (`nullable`, `string`,
+  `min:8`, `max:1024`) added to both `StoreProxyRequest` and `UpdateProxyRequest`. `verification_secret`
+  is additionally required via `Rule::requiredIf()`: on Store, whenever a scheme is selected (a create
+  has no proxy yet, so no live secret can already exist); on Update, only when a scheme is selected
+  **and** the proxy has no live `verification` secret yet — read through
+  `SecretStore::liveFor($proxy, SecretPurpose::Verification)` via a new private
+  `UpdateProxyRequest::proxyHasLiveVerificationSecret()` helper, keeping `SecretStore` the single
+  reader of `proxy_secrets` (Technical ruling 14) rather than a direct query.
+
+  **Necessary supporting plumbing, not scope creep:** this task's own second Acceptance Criterion
+  ("an empty `verification_secret` ... leaves the stored secret unchanged") is a persistence claim,
+  not a validation-shape one, and no other task in T20–T25 (or, by inspection, anywhere in T1–T49)
+  wires `ProxyController::store()`/`update()` to actually write `verification_scheme`/
+  `verification_header_name` or call `SecretStore::replace()` for a submitted `verification_secret`
+  — unlike the destination credential, whose validation and persistence are explicitly one task
+  (T29). Without this wiring, T20's own AC would be untestable (vacuously true, since nothing ever
+  persists) and Screen 1 (T23) would submit a fully-built form with no effect. Following the
+  precedent already set in this same document (T12's `ProxyResource` addition, T15's `SecretStore`
+  dispatch wiring — both flagged as necessary plumbing despite an incomplete Files list), added:
+  `ProxyController::store()` calls `SecretStore::replace()` after the new proxy is saved, when
+  `verification_secret` is present (`verification_scheme`/`verification_header_name` already ride
+  through unchanged via the existing `Proxy::make(array_merge($data, ...))` mass-assignment call,
+  since both are already `#[Fillable]` from T2/T16 — no code change needed there); `update()`'s
+  explicit column array gains `verification_scheme`/`verification_header_name` (mirroring the
+  existing `response_status`/`response_body` omission-vs-explicit-null idiom), and a
+  `SecretStore::replace()` call runs when `verification_secret` is present. Per plan-10
+  §Architecture B, switching `verification_scheme` back to "not required" writes the column to
+  NULL but never calls `SecretStore::disable()` for the verification purpose — the dormant secret
+  is deliberately retained (`disable()` stays reserved for signing's different on/off semantics, per
+  its own docblock) — pinned by a dedicated test.
+
+  **Confirmed by testing, not assumed:** the parenthetical on this task's second AC ("an absent
+  field, not an empty string, is what 'leave unchanged' reads as") anticipates a distinction the app
+  turns out not to need — this app's global `ConvertEmptyStringsToNull` middleware (Laravel's
+  framework default, active here) normalises a submitted `""` to `null` before validation ever runs,
+  so an empty `verification_secret` already takes the identical "absent → leave unchanged" path,
+  with no 422 and no special-case code. Verified directly (not inferred) by first writing the test
+  against the AC's literal expectation of a validation rejection, watching it fail because the
+  request actually succeeded, and correcting the test to the observed, safe behaviour rather than
+  forcing a rejection the framework doesn't produce. T23's frontend `transform()` still omits the
+  key on an untouched Replace field regardless (design-10's own stated rule), so both layers agree
+  independently.
+
+  Nine tests: the three literal AC bullets (`shared-secret` without a header, `standard-webhooks`
+  with one present, first-time selection with no secret), a valid first-time-selection persistence
+  round trip, the absent-field-leaves-unchanged case, the empty-string case (see above), a
+  replace-rotates-with-an-overlap case, the switch-to-not-required-keeps-the-dormant-secret case,
+  and a `shared-secret` round trip asserting the header name persists. `composer lint`,
+  `composer types:check` and `./vendor/bin/sail test --filter
+  "VerificationValidationTest|ProxyStoreTest|ProxyUpdateTest|ProxyRequestValidationTest|SensitiveFieldsPersistenceTest"`
+  all green (92 tests, 285 assertions); full-suite run deferred to the end of this batch (T20-T25).
 
 ## T21 — `ProxyVerificationOverlapController@destroy` (AC29; plan § API)
 - **Description:** `DELETE proxies/{proxy}/verification/overlap`, gated `update` via `ProxyPolicy`,

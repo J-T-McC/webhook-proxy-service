@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Data\ProxyPermissions;
 use App\Enums\AnalyticsWindow;
 use App\Enums\ProxyMode;
+use App\Enums\SecretPurpose;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
 use App\Http\Resources\ProxyFormResource;
@@ -13,6 +14,7 @@ use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\DeliveryStatistics;
 use App\Services\IngestTokenService;
+use App\Services\SecretStore;
 use App\Support\SensitiveFields;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +27,7 @@ class ProxyController extends Controller
 {
     public function __construct(
         private DeliveryStatistics $statistics,
+        private SecretStore $secretStore,
     ) {}
 
     /**
@@ -110,6 +113,15 @@ class ProxyController extends Controller
             ));
             $tokens->assignTo($proxy);
             $proxy->save();
+
+            // Write-only (AC26): only a present, non-empty `verification_secret`
+            // rotates the live secret through `SecretStore` (T14) — the single
+            // writer of `proxy_secrets` (plan-10 Technical ruling 14). A create
+            // has no prior secret, so this is always the first rotation when a
+            // scheme was selected (T20's validation already requires it then).
+            if (($data['verification_secret'] ?? null) !== null) {
+                $this->secretStore->replace($proxy, SecretPurpose::Verification, $data['verification_secret']);
+            }
 
             foreach ($this->destinationRows($data) as $destination) {
                 $proxy->destinations()->create([
@@ -211,11 +223,27 @@ class ProxyController extends Controller
                 'response_status' => $data['response_status'] ?? null,
                 'response_body' => $data['response_body'] ?? null,
                 'sensitive_fields' => $this->sensitiveFieldAdditions($data),
+                // Inbound verification (AC23, AC24, AC26; T20). An omitted/
+                // explicit-null scheme means "not required" and, per plan-10
+                // §Architecture B, deliberately does NOT clear a dormant
+                // secret — `SecretStore::disable()` is never called for the
+                // verification purpose from here (that method is reserved
+                // for signing's different on/off semantics).
+                'verification_scheme' => $data['verification_scheme'] ?? null,
+                'verification_header_name' => $data['verification_header_name'] ?? null,
                 ...($data['mode'] === ProxyMode::Enhanced->value ? [
                     'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
                     'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
                 ] : []),
             ]);
+
+            // Write-only (AC26): only a present, non-empty `verification_secret`
+            // rotates the live secret through `SecretStore` (T14) — absent
+            // means "leave unchanged" (T20's validation already forbids an
+            // empty string from reaching here via `min:8`).
+            if (($data['verification_secret'] ?? null) !== null) {
+                $this->secretStore->replace($proxy, SecretPurpose::Verification, $data['verification_secret']);
+            }
 
             $keptIds = [];
 
