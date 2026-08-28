@@ -1,9 +1,10 @@
 # ADR-025: Outbound header policy — provider signature pass-through, branded signing headers, and no provenance headers
 
-- **Status:** **Proposed.** Three decisions, two of which reverse or displace positions the Project
-  Owner has already ratified, so this document carries an Owner gate at
-  § *Owner-approval flags (✋)* rather than being self-certified under `CLAUDE.md`'s delegated plan
-  gate. **Decision 2 is time-critical against item #10's merge** — see § *Sequencing*.
+- **Status:** **ACCEPTED**, approved by the Project Owner on 2026-08-28. Both items at
+  § *Owner-approval flags (✋)* were put to the Owner and both were approved as ruled: Decision 1
+  unconditional rather than member-opt-in, and Decision 2 renaming all three headers before item #10
+  merges. Decision 3 carried no gate. **Decision 2 is time-critical against item #10's merge** — see
+  § *Sequencing*.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-28
 - **Feature:** cross-cutting. There is no PRD behind this ADR: it governs the outbound header set that
