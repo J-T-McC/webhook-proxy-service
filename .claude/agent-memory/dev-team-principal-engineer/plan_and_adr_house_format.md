@@ -161,6 +161,37 @@ principle and say what is missing.** Do not pick the threshold; state plainly th
 needs a number to be usable as a test, and that the number is the Owner's at the point a concrete
 case exists. Then show the refinement changes no existing entry, so the deferral costs nothing now.
 
+**An Owner ruling landing *mid-design*, after both upstream gates closed, that contradicts the
+approved PRD and design spec** (plan-10: the Owner re-grained outbound signing from per-destination
+to per-proxy after PRD-10 approval and after the design gate). The house response is **not** a
+Revision section — the plan is not yet certified, so it is written to the ruling in the first place.
+Five moves that made it checkable: a **banner at the head of every affected artifact** quoting the
+ruling verbatim and naming the question doc; **build the backend to the ruling and STOP at the
+surface**, because a displaced screen is the Designer's and is downstream of a PM amendment; **split
+the milestone** so the blocked half (`M8b`) is the only thing waiting and says what blocks it — a
+question doc, not an Owner gate; a **question document to the Product Manager enumerating exhaustively
+what goes stale**, AC by AC and screen by screen, with an "unchanged, and worth confirming explicitly"
+column for the things that only *look* affected; and name the **one substantive trade-off** the
+amendment should be ruled with in view (here: a proxy's fan-out becomes one trust domain) rather than
+letting the PM inherit it. Never edit the PRD or the design spec.
+
+**When the Owner *directs* a mechanism mid-flight, present it as a CHOICE at the gate, not as
+pre-approved** (plan-10 flag 2: the Owner asked for a secrets table instead of columns). Write the
+directed option as **RECOMMENDED** with the honest costs, enumerate the rejected alternative in full
+so a `no` is immediately buildable, and say in the flag "the alternative ruling available to the
+Owner" (plan-11 flag 1's shape). **Couple the flags explicitly** — "flag 1's change set is the
+recommended model; a `no` on flag 2 substitutes the alternative at § Data Model" — so the Owner is not
+approving a schema whose premise they may reject. Also: when a directed model **does not fit one
+member of the set**, say so and keep that member out (the non-rotating credential stayed as columns)
+rather than forcing all three in.
+
+**"The storage model is general, the behaviour is narrow" is a reusable resolution** when an Owner's
+direction implies more capability than an approved AC permits (AC29 capped live secrets at two; the
+Owner's "1, 2, 3.. relations" implied more). Write the resolution down explicitly as the resolution,
+make the *write path* enforce the AC so it stays literally true, make both *read paths* assume no
+number so raising the cap later is one line, and **route the "should the cap change?" question to the
+PM** rather than widening an approved criterion on an inferred reading.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*

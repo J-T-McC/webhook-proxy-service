@@ -1,6 +1,9 @@
 # ADR-008: Inbound header-forwarding policy to destinations (safe allowlist)
 
-- **Status:** Accepted (Project Owner, 2026-07-30)
+- **Status:** Accepted (Project Owner, 2026-07-30) — **two properties amended by ADR-023**
+  (Accepted, ratified by the Project Owner's approval of PRD-10, 2026-08-27). The decision itself —
+  the safe allowlist — stands whole and operative; see the inline pointers below and ADR-023
+  § *Positions amended*. **This is an amendment, not a supersession.**
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** walking-skeleton (Roadmap #1 / PRD-01 AC7/AC8); referenced by
@@ -45,6 +48,21 @@ remainder). At item #1, `DeliveryUnit::forwardHeaders()`:
 No signature or verification header is **added** by the proxy at #1 (that is #10 /
 V2). The stripped set is defined as a **maintained constant list** so #10 and later
 items can extend it without touching the fan-out logic.
+
+> **[P1 — AMENDED by ADR-023 (Accepted, ratified by the Project Owner's approval of
+> PRD-10, 2026-08-27). Not a supersession.]** The signing headers arriving at #10 are
+> the extension this paragraph and this ADR's Impact section already forecast. What
+> goes **beyond** the forecast is PRD-10 **AC30's destination credential** — a
+> member-named header that is neither a signature nor a verification header.
+>
+> **[P2 — AMENDED by ADR-023. Not a supersession.]** The constant list remains, and
+> its contents are unchanged. But PRD-10 **AC27** strips the proxy's own inbound
+> verification headers, and under `shared-secret` that name is member-chosen, so the
+> effective strip set is now **the constant plus a per-request set resolved from the
+> proxy**. This ADR anticipated the constant growing; it did not anticipate a dynamic
+> component. `DeliveryUnit::STRIPPED_HEADERS` is deliberately **not** extended with
+> the three `webhook-*` names — that would change what an unsigned destination
+> receives and breach PRD-10 AC63. See ADR-023 Decisions 1, 2 and 5.
 
 ## Alternatives
 - **(a) Safe allowlist — forward-all-except-stripped-sensitive-set — CHOSEN.**
