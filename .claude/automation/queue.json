@@ -90,11 +90,13 @@
       "title": "Close review-07 Nits 5-7",
       "kind": "chore",
       "role": "senior-developer",
-      "state": "ready",
+      "state": "awaiting_merge",
       "eligible": true,
       "source": "docs/reviews/review-07-enhanced-mode-toggle.md",
       "acceptance": "Each nit is either fixed with a test where one is meaningful, or recorded in the review document as deliberately not fixed, with the reason.",
-      "note": "Read the nits before assuming they are all code. If any turns out to be larger than a nit, stop and report rather than growing the change."
+      "note": "Read the nits before assuming they are all code. If any turns out to be larger than a nit, stop and report rather than growing the change.",
+      "consecutive_failures": 0,
+      "pull_request": 25
     },
     {
       "id": "gate-11-review",

@@ -122,13 +122,18 @@ const isDowngrading = computed(
     () => props.initial.mode === 'enhanced' && form.mode === 'simple',
 );
 
-// The disclosure's third bullet interpolates the system default rather than
-// hard-coding a second copy of it — the same source Show's Retry policy card
-// display helpers read from (@/data/proxyRetryBackoffStrategies), so a future
-// default change can't leave this copy stale relative to the card it
-// describes.
+// The disclosure's third bullet and the Retry policy fieldset's help text
+// both interpolate the system default rather than hard-coding a second copy
+// of it — the same source Show's Retry policy card display helpers read from
+// (@/data/proxyRetryBackoffStrategies), so a future default change can't
+// leave either copy stale relative to the card it describes.
+// `proxyRetryBackoffStrategyLabel` is title-cased for its other callers (the
+// Select item, the Show card); `defaultBackoffStrategyLower` is that same
+// value lower-cased for use mid-sentence here, matching design-07's approved
+// copy ("5 attempts, exponential").
 const defaultAttemptLimit = RETRY_DEFAULT_ATTEMPT_LIMIT;
-const defaultBackoffStrategy = proxyRetryBackoffStrategyLabel(null);
+const defaultBackoffStrategyLower =
+    proxyRetryBackoffStrategyLabel(null).toLowerCase();
 
 // Status is the closed set from PROXY_RESPONSE_STATUSES plus a "default" sentinel
 // (the unconfigured state → 202). The sentinel maps to '' so submit still sends
@@ -291,9 +296,9 @@ function submit(): void {
                                 Simple — the system default ({{
                                     defaultAttemptLimit
                                 }}
-                                attempts, {{ defaultBackoffStrategy }}) governs
-                                meanwhile. It applies again, with the same
-                                values, if you turn Enhanced back on.
+                                attempts, {{ defaultBackoffStrategyLower }})
+                                governs meanwhile. It applies again, with the
+                                same values, if you turn Enhanced back on.
                             </li>
                         </ul>
                     </AlertDescription>
@@ -346,8 +351,10 @@ function submit(): void {
                 <p class="text-sm text-muted-foreground">
                     Applies to automatic re-attempts after a failed delivery to
                     a destination. Available on Enhanced-mode proxies;
-                    Simple-mode proxies use the fixed system default (5
-                    attempts, exponential backoff).
+                    Simple-mode proxies use the fixed system default ({{
+                        defaultAttemptLimit
+                    }}
+                    attempts, {{ defaultBackoffStrategyLower }} backoff).
                 </p>
 
                 <div class="grid gap-2">

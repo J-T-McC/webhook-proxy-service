@@ -550,3 +550,56 @@ commit**. The incremental rework diff is exactly the two files M7 and T15 author
   feature). Nits 5–7 → backlog. The absent frontend test harness remains the standing item, and
   Risk 8 now names it explicitly.
 - **Next Agent:** **Project Owner** — for the approval decision on #7.
+
+## Nits 5–7 closed — Senior Developer (2026-08-27)
+
+Fast-path chore closing the backlog Nits 5–7 recorded above. No PRD/plan/task-plan work; scope is
+exactly the three nit locations, nothing else in the enhanced-mode-toggle surface. Gate set run in
+full: `composer lint` passed, `composer types:check` passed (L7, 0 errors), `./vendor/bin/sail test
+--parallel` **880 passed, 4122 assertions**, `pnpm run format:check` clean, `pnpm run lint:check`
+clean, `pnpm run build` succeeded.
+
+### Nit 5 — RESOLVED
+
+`resources/js/pages/proxies/ProxyForm.vue`'s disclosure rendered "(5 attempts, **E**xponential)" —
+`proxyRetryBackoffStrategyLabel(null)` returns the title-cased label used for the Select item and
+the Show card, which reads wrong inline in a sentence. Added `defaultBackoffStrategyLower`
+(the same call, `.toLowerCase()`'d) and pointed the disclosure's third bullet at it instead of the
+title-cased constant. The rendered string is now "(5 attempts, exponential)", matching design-07's
+approved copy and plan-07's promise verbatim. Single source preserved — no second hand-written
+copy introduced; `RETRY_DEFAULT_ATTEMPT_LIMIT` / `proxyRetryBackoffStrategyLabel` are still the
+only place either value is defined. No test added: this is a display-string casing fix with no
+branch or state to exercise: a snapshot/string assertion under `pnpm run test` proper would be
+meaningful, but no frontend test harness exists in this project (Finding 3/Risk 8's standing gap) —
+verified instead by reading the rendered template interpolation and confirming
+`.toLowerCase()` is applied at the single call site feeding both bullet 3 and the fieldset help
+text (Nit 6).
+
+### Nit 6 — RESOLVED
+
+The Retry policy fieldset's help text still hard-coded "(5 attempts, exponential backoff)" — the
+one copy of the default the disclosure (Nit 5's fix) was careful to derive instead of hand-write.
+Changed it to interpolate `defaultAttemptLimit` and `defaultBackoffStrategyLower` (the same source
+Nit 5 now shares), appending the literal word "backoff" which is this help text's own phrasing, not
+part of the shared value. A future default change (`config('retry.default_attempt_limit')` /
+`RetryPolicy`'s default strategy) can no longer leave this line stale relative to the disclosure or
+the Show-page Retry policy card. No test added, same reasoning as Nit 5 — no frontend test harness
+exists to assert rendered copy against; verified by reading the interpolation and by `pnpm run
+build`'s emitted `ProxyForm-*.js` chunk containing the derived string rather than the literal.
+
+### Nit 7 — RESOLVED
+
+`tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php`'s Index assertion indexed
+`proxies.data.0`/`.1` without pinning which proxy is which. Both fixtures are Simple-mode so the
+assertion was already correct regardless of order, but it would not have survived a fixture
+reorder (or a future third fixture) noticing the difference. Replaced the two indexed `where(...)`
+pairs with `has('proxies.data', 2)` (unchanged item count) followed by `has('proxies.data', fn
+($data) => $data->each(fn ($proxy) => $proxy->where('retry_attempt_limit', null)
+->where('retry_backoff_strategy', null)->etc()))`, using `Illuminate\Testing\Fluent\AssertableJson`'s
+`each()` (inherited by Inertia's `AssertableInertia`) to assert every element of the collection
+independent of position. This *is* a meaningful test change — it converts an assertion that
+happened to be order-independent in effect into one that is order-independent by construction, so
+the finding's stated failure mode (a fixture reorder silently going unchecked) cannot recur. Verified
+by running the file directly (`./vendor/bin/sail test --filter
+ProxyRetryFieldPresentationAcceptanceTest`): 5 passed, 76 assertions, and by the full parallel suite
+above.

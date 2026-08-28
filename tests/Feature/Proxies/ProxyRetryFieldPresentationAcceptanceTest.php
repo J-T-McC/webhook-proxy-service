@@ -62,13 +62,19 @@ class ProxyRetryFieldPresentationAcceptanceTest extends TestCase
             'mode' => ProxyMode::Simple,
         ]);
 
+        // Both entries must be null regardless of which proxy Index returns at
+        // which position, so the assertion is made over every element via
+        // `each()` rather than pinning `.0`/`.1` to a proxy — it survives a
+        // fixture (or Index ordering) reorder by construction.
         $this->actingAs($user)
             ->get(route('proxies.index', ['current_team' => $user->currentTeam->slug]))
             ->assertInertia(fn (Assert $page) => $page
-                ->where('proxies.data.0.retry_attempt_limit', null)
-                ->where('proxies.data.0.retry_backoff_strategy', null)
-                ->where('proxies.data.1.retry_attempt_limit', null)
-                ->where('proxies.data.1.retry_backoff_strategy', null));
+                ->has('proxies.data', 2)
+                ->has('proxies.data', fn (Assert $data) => $data
+                    ->each(fn (Assert $proxy) => $proxy
+                        ->where('retry_attempt_limit', null)
+                        ->where('retry_backoff_strategy', null)
+                        ->etc())));
 
         foreach ([$dormant, $neverConfigured] as $proxy) {
             $this->actingAs($user)
