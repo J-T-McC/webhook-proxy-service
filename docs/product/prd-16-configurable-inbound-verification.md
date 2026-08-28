@@ -1,6 +1,44 @@
-# PRD: Configurable inbound verification
+# PRD: Configurable inbound verification — **WITHDRAWN**
 
-- **Status:** **Draft — awaiting Project Owner approval.** Not approved, and not approvable by the
+- **Status: WITHDRAWN, 2026-08-28.** **Reason: inbound verification is removed from the product, so
+  there is nothing left for this document to configure.**
+- **Withdrawn by:** Product Manager, on the Project Owner's ruling of 2026-08-28, accepted the same
+  day as `docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+  and rendered into requirements by `docs/product/prd-10-sensitive-data-handling.md`
+  `## Amendment C`, which withdraws PRD-10 AC23–AC28 and AC50–AC53.
+- **This is not pending work.** It is not deferred, not parked, not blocked and not awaiting an
+  approval. **It was never approved and it will not be**, so it is withdrawn rather than amended:
+  every criterion below describes how a member would express a verification construction for a
+  capability the product no longer has. **Nothing in it is operative, and no part of it should be
+  implemented, designed, planned or scheduled.** The file is retained, not deleted, per
+  `docs/standards/documentation.md` — a withdrawn document keeps its file and its full text so the
+  record of what was proposed survives.
+- **Also withdrawn with it, and not by this document:** `design-17`, the proxy-form restructure on
+  branch `design/proxy-form-restructure`, which was written against this PRD and its feasibility
+  study. It is the Designer's to withdraw. The Owner-directed extra gate it carried — a Principal
+  Engineer technical sign-off on the design — **lapses with the document, and no sign-off is owed.**
+- **Retained, and explicitly NOT withdrawn:**
+  `docs/architecture/prd-16-template-model-feasibility.md`. **It keeps its filename and all
+  twenty-one of its provider findings**, which are the evidence base for ADR-025 Decision 1 and
+  ADR-026 Decision A. Its findings are about verification **constructions** — which providers'
+  signature headers a destination can verify once forwarded — and that record survives this
+  withdrawal intact. Only its original question, whether a bounded template vocabulary could express
+  those constructions, is moot. **It is the Principal Engineer's document and is not touched by this
+  withdrawal.**
+- **The numbered questions this PRD routed to the Product Manager lapse with it**, and no answer is
+  owed on any of them. **Roadmap item #16 was never added** — `docs/product/roadmap.md` still runs to
+  #15 — so nothing needs removing from the roadmap.
+- **If inbound verification is ever wanted again, this document is a starting point and not a
+  specification.** Reinstating the capability at all is a Project Owner decision, taken against the
+  position ADR-026 records: the ingest URL's token is the only authenticator on the ingest path, and
+  a second factor of any kind needs a new Owner ruling.
+
+**Everything below this line is the document as it stood when it was withdrawn. It is retained
+unedited as the record of what was proposed, and none of it is in force.**
+
+---
+
+- **Status *(pre-withdrawal, retained)*:** **Draft — awaiting Project Owner approval.** Not approved, and not approvable by the
   Product Manager. Four things in this document need the Owner specifically rather than riding along
   with an ordinary requirements sign-off:
   1. **§ The reversal — PRD-10's closed scheme list is superseded.** PRD-10 AC50 and the "the scheme
