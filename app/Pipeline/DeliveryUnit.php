@@ -48,6 +48,12 @@ final class DeliveryUnit
     /**
      * @param  array<string, list<string|null>>  $headers  inbound headers
      * @param  int  $deliveryId  the `deliveries` row this attempt belongs to (ADR-015 Decision 1)
+     * @param  list<string>  $verificationHeaderNames  the resolved proxy's own verification
+     *                                                 header name(s) (T27; plan-10 § Architecture C) —
+     *                                                 empty when verification is not required.
+     *                                                 Defaulted to `[]` rather than made required so
+     *                                                 every pre-#10 construction site (delivery-path
+     *                                                 tests unrelated to #10) stays valid unchanged.
      */
     public function __construct(
         public readonly string $ingestId,
@@ -59,6 +65,7 @@ final class DeliveryUnit
         public readonly string $payload,
         public readonly int $deliveryId,
         public readonly int $attemptNumber,
+        public readonly array $verificationHeaderNames = [],
     ) {}
 
     /**

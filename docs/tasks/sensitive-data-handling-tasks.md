@@ -1448,7 +1448,24 @@
     outbound build.
 - **Testing:** `tests/Unit/Services/DeliveryUnitResolverTest.php` (extend existing) — the soft-deleted
   proxy + retry case, an assertion that `DeliveryUnit` carries the verification header name(s).
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `DeliveryUnitResolver::resolve()` now also loads
+  `$delivery->proxy()->withTrashed()->firstOrFail()` and passes a new
+  `verificationHeaderNames` list into the resolved `DeliveryUnit` — the member-named header under
+  `shared-secret`, the three fixed `webhook-*` names under `standard-webhooks`, or `[]` when
+  verification is not required (AC43). `DeliveryUnit`'s new constructor parameter defaults to `[]`
+  rather than being made required, so every pre-#10 `DeliveryUnit` construction site across the
+  existing delivery-path test suite (unrelated to #10) stays valid unchanged — only
+  `DeliveryUnitResolver`, the single resolver, ever supplies a non-empty value.
+
+  Four new tests: the soft-deleted-proxy-plus-retry regression (asserting both that resolution still
+  succeeds and that the header names are carried), the `standard-webhooks` three-fixed-names case, and
+  the no-verification-configured empty-list case, alongside the existing suite (all still green).
+
+  `composer lint`, `composer types:check`, `./vendor/bin/sail test --filter DeliveryUnitResolverTest`
+  (7 tests, 21 assertions) and `./vendor/bin/sail test --filter "DeliveryUnitTest|DeliverToDestinationTest"`
+  (21 tests, 101 assertions, confirming the new defaulted constructor parameter didn't disturb any
+  existing `DeliveryUnit` construction site) all green; full-suite run deferred to the end of this
+  batch (T26-T33).
 
 ## T28 — `DeliverToDestination::send()` calls `OutboundHeaders` (AC17, AC30, AC32; plan § Architecture C) — **delivery path**
 - **Description:** `send()` gains the one build point: composes the outbound header set through

@@ -2,9 +2,11 @@
 
 namespace Tests\Unit\Services;
 
+use App\Enums\VerificationScheme;
 use App\Models\Delivery;
 use App\Models\Destination;
 use App\Models\DispatchedPayload;
+use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use App\Services\DeliveryUnitResolver;
 use Tests\TestCase;
@@ -122,5 +124,86 @@ class DeliveryUnitResolverTest extends TestCase
         $this->assertNotNull($unit);
         $this->assertSame($destination->id, $unit->destination->id);
         $this->assertSame(['x-signature' => ['abc123']], $unit->headers);
+    }
+
+    /**
+     * T27 (R3) — a retry against a soft-deleted proxy resolves successfully
+     * and still carries that proxy's verification header name(s) for
+     * `OutboundHeaders`' strip step, the regression this task exists to
+     * prevent (`ProcessIngestedWebhook` and `DeliverToDestination::settleDelivery()`
+     * are the existing `withTrashed()` precedents this follows).
+     */
+    public function test_a_retry_against_a_soft_deleted_proxy_resolves_successfully_and_carries_its_verification_header_names(): void
+    {
+        $proxy = Proxy::factory()->create([
+            'verification_scheme' => VerificationScheme::SharedSecret,
+            'verification_header_name' => 'X-Signature',
+        ]);
+        $destination = Destination::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+        $proxy->delete();
+
+        $unit = app(DeliveryUnitResolver::class)->resolve($delivery, 2);
+
+        $this->assertNotNull($unit);
+        $this->assertSame(['X-Signature'], $unit->verificationHeaderNames);
+    }
+
+    public function test_standard_webhooks_scheme_carries_all_three_fixed_header_names(): void
+    {
+        $proxy = Proxy::factory()->create([
+            'verification_scheme' => VerificationScheme::StandardWebhooks,
+        ]);
+        $destination = Destination::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+
+        $unit = app(DeliveryUnitResolver::class)->resolve($delivery, 1);
+
+        $this->assertNotNull($unit);
+        $this->assertSame(['webhook-id', 'webhook-timestamp', 'webhook-signature'], $unit->verificationHeaderNames);
+    }
+
+    public function test_no_verification_configured_carries_no_header_names(): void
+    {
+        $destination = Destination::factory()->createQuietly();
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $destination->proxy_id,
+            'team_id' => $destination->team_id,
+        ]);
+        $delivery = Delivery::factory()->create([
+            'team_id' => $destination->team_id,
+            'proxy_id' => $destination->proxy_id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+        ]);
+
+        $unit = app(DeliveryUnitResolver::class)->resolve($delivery, 1);
+
+        $this->assertNotNull($unit);
+        $this->assertSame([], $unit->verificationHeaderNames);
     }
 }
