@@ -176,7 +176,23 @@
   `AnalyticsIndexesTest`'s pattern), the unique-index-both-directions assertion (duplicate `is_current
   = true` fails; multiple `is_current = NULL` rows succeed), the pre-existing-index-survival list, and
   the rollback round trip.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. Added the migration exactly as enumerated — `proxy_secrets` (nine
+  columns, one partial-unique index) plus the three `proxies` and three `destinations` columns, plain
+  Blueprint throughout, `down()` a `dropIfExists` and two `dropColumn` calls. New test file covers the
+  column/type/nullability shape, both directions of the unique index, pre-existing-index survival, and
+  the rollback round trip. `composer lint`, `composer types:check` and `./vendor/bin/sail test
+  --parallel` all green.
+
+  Incidental fix required to keep the full suite green: this migration's timestamp
+  (`2026_08_27_000001`) sorts after `2026_08_26_000001_add_analytics_indexes_to_delivery_tables`, so
+  `AnalyticsIndexesTest`'s rollback test — which called `migrate:rollback --step=1` assuming its own
+  migration was always the most recently run — started rolling back this migration instead of its
+  own, failing. `--step=1` walks the last N migrations by run order, not by name, so this was a
+  latent ordering assumption that any later migration would have broken, not a defect in this
+  migration. Fixed by computing the step count needed to reach that test's own migration by name
+  (`tests/Unit/Migrations/AnalyticsIndexesTest.php`) rather than hardcoding `1`; both rolled-back
+  migrations are reapplied in the same test, so its round-trip assertions are unaffected. No
+  requirement, interface, data model or ADR'd decision changed — test-only, root-cause fix.
 
 ## T2 — `ProxySecret` model, `SecretPurpose` enum, `Proxy`/`Destination` relations and casts (plan § Services & Actions, § Data Model)
 - **Description:** `App\Models\ProxySecret` (Eloquent): `value` cast `encrypted`, **`$hidden =
