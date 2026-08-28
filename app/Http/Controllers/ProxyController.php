@@ -10,6 +10,7 @@ use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
 use App\Http\Resources\ProxyFormResource;
 use App\Http\Resources\ProxyResource;
+use App\Http\Resources\ProxySecurityResource;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\DeliveryStatistics;
@@ -171,6 +172,9 @@ class ProxyController extends Controller
             'permissions' => $this->proxyPermissions($request),
             'statistics' => $this->statistics->forProxy($proxy, $window),
             'destinations' => $this->statistics->destinationBreakdown($proxy, $window),
+            // Status-only verification/signing/credential state (plan-10
+            // Technical ruling 3) — a sibling prop, never a ProxyResource key.
+            'security' => ProxySecurityResource::make($proxy),
         ]);
     }
 
@@ -187,6 +191,11 @@ class ProxyController extends Controller
         return Inertia::render('proxies/Edit', [
             'proxy' => ProxyFormResource::make($proxy->loadMissing('destinations')),
             'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
+            // Same sibling prop as show() (plan-10 Technical ruling 3) — the
+            // Verification section (T23) needs it for the write-only
+            // set/unset/overlap states; create() renders no proxy resource
+            // at all, so it never gets this prop.
+            'security' => ProxySecurityResource::make($proxy),
         ]);
     }
 

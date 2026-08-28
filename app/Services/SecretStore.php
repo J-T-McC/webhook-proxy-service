@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Actions\ExpireProxySecrets;
+use App\Data\SecretStatus;
 use App\Enums\SecretPurpose;
 use App\Exceptions\SecretUnavailableException;
 use App\Models\Proxy;
@@ -98,6 +99,45 @@ class SecretStore
                 ->delay(now()->addHours(RotationOverlap::HOURS))
                 ->afterCommit();
         }
+    }
+
+    /**
+     * Non-secret status metadata for a `(proxy, purpose)` slot — `null` when
+     * no secret has ever been configured. Never returns a value or a length
+     * (AC26, AC57); the only fields are presence, a changed timestamp and a
+     * running overlap's expiry. Kept on `SecretStore` rather than a direct
+     * `ProxySecret` query anywhere else, so this table still has exactly one
+     * reader (plan-10 Technical ruling 14) even for its status surface
+     * (`ProxySecurityResource`, T22).
+     */
+    public function statusFor(Proxy $proxy, SecretPurpose $purpose): ?SecretStatus
+    {
+        $current = ProxySecret::query()
+            ->where('proxy_id', $proxy->id)
+            ->where('purpose', $purpose)
+            ->where('is_current', true)
+            ->first();
+
+        if ($current === null) {
+            return null;
+        }
+
+        $overlapping = ProxySecret::query()
+            ->where('proxy_id', $proxy->id)
+            ->where('purpose', $purpose)
+            ->whereNull('is_current')
+            ->where('expires_at', '>', now())
+            ->first(['expires_at']);
+
+        return new SecretStatus(
+            // `created_at` is nullable only on the model's own docblock
+            // (a defensive Eloquent convention); a row this method just
+            // selected from the database always has one — `now()` is an
+            // unreachable fallback kept only to satisfy the non-nullable
+            // DTO field without a suppression.
+            changedAt: $current->created_at ?? now(),
+            overlapExpiresAt: $overlapping?->expires_at,
+        );
     }
 
     /**

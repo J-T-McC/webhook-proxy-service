@@ -1132,7 +1132,40 @@
     value.
 - **Testing:** `tests/Feature/Proxies/ProxySecurityResourceTest.php` (new) — the shape assertion, the
   `index()`-untouched assertion, the no-value/no-length assertion.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Http\Resources\ProxySecurityResource` — status-only, `$wrap = null`
+  — builds the `verification` sub-object exactly as specified (`scheme`, `header_name`, `secret_set`,
+  `secret_changed_at`, `overlap_expires_at`), wired as a sibling `security` prop on
+  `ProxyController::show()` and `::edit()` only; `index()` and `ProxyResource` itself are both
+  untouched.
+
+  **Necessary supporting plumbing, not scope creep:** the resource needs non-secret status metadata
+  (whether a live secret exists, when it last changed, whether an overlap is running) that
+  `SecretStore`'s existing methods don't expose — `liveFor()` returns decrypted values, not metadata.
+  Rather than query `proxy_secrets` directly from the resource (a Technical-ruling-14 violation — this
+  document's own binding constraint 5 is explicit that only T14/T15 may do that), added
+  `SecretStore::statusFor(Proxy, SecretPurpose): ?SecretStatus` (new `App\Data\SecretStatus` readonly
+  DTO — `changedAt`, `overlapExpiresAt`, never a value or length) as the one new read method on the
+  single reader/writer, following the same precedent already established in this document (T15's
+  `SecretStore` touch, T20's controller-persistence wiring) for necessary plumbing a task's own Files
+  list didn't enumerate. `statusFor()` returns `null` when no secret has ever been configured for that
+  purpose; otherwise `changedAt` is the current row's `created_at` and `overlapExpiresAt` is the live
+  superseded row's `expires_at` (or `null` when no overlap is running).
+
+  **Typed against `Carbon\CarbonInterface`, not `Illuminate\Support\Carbon`:** this app's
+  `AppServiceProvider` calls `Date::use(CarbonImmutable::class)`, so every Eloquent date-cast property
+  resolves to `CarbonImmutable` at runtime, but Larastan's own inference of a model's date-cast
+  property still widens to a `CarbonImmutable|Carbon` union — `CarbonInterface` (implemented by both)
+  is what both runtime and PHPStan level 7 agree on without a suppression.
+
+  Five tests: the not-required shape (all fields null/false), a `shared-secret` proxy with a live
+  secret (full shape, header name present, `secret_set` true, a real `secret_changed_at`), a running
+  overlap carrying a non-null `overlap_expires_at`, `index()` gaining no `security` key, and a
+  response-body substring check (both `show()` and `edit()`) proving a live secret's actual value
+  never appears anywhere in either response.
+
+  `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter Proxies` all green (179
+  tests, 927 assertions — the full `tests/Feature/Proxies` directory, confirming no regression across
+  T1–T22's existing coverage); full-suite run deferred to the end of this batch (T20-T25).
 
 ## T23 — Screen 1: `ProxyForm.vue` Verification section (AC23, AC24, AC26, AC29-ruling-2a; Flows A, B; plan Implementation Notes 13–15, 20–21)
 - **Description:** New section, placed after **Processing**, before **Retry policy**. `Select` bound to
