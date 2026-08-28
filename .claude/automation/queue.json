@@ -142,12 +142,14 @@
       "id": "item-10-sensitive-data",
       "title": "Item #10 sensitive data handling: Designer, then Technical Design, Task Planning, Implementation and Review",
       "kind": "feature",
-      "role": "designer",
-      "state": "in_progress",
+      "role": "task-planner",
+      "state": "awaiting_merge",
       "eligible": true,
       "source": "docs/product/prd-10-sensitive-data-handling.md",
       "acceptance": "Each phase produces its artifact and passes its own gate. Stop at the open pull request; do not merge.",
-      "note": "PRD-10 APPROVED by the Project Owner on 2026-08-27, as amended, which unblocks this item. The Owner set eligible to true directly in the same instruction ('everything can be merged and work can continue'); the driver did not promote it. Next phase is UX Design, not implementation: PRD-10 carries a ## UX Direction section, so a PM-approved design spec is a prerequisite for Technical Design."
+      "note": "PRD-10 APPROVED by the Project Owner on 2026-08-27, as amended, which unblocks this item. The Owner set eligible to true directly in the same instruction ('everything can be merged and work can continue'); the driver did not promote it. UX Design is complete: design-10 was approved at its first gate on 2026-08-27, then amended for Amendment B and approved again at a second, dated gate the same day, with four required corrections B1-B4 all applied. Next phase is Task Planning, unblocked for the whole feature including the signing milestone M8b.",
+      "consecutive_failures": 0,
+      "pull_request": 31
     }
   ]
 }
