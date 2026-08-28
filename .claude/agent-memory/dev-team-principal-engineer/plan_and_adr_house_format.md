@@ -208,6 +208,25 @@ a collapsed absent-vs-empty distinction destroys a secret" outlives any ergonomi
 when a vendor claim cannot be verified (package not installed in the tree), **say so and make the
 argument not depend on it** rather than asserting it.
 
+**A *feasibility study* is a legitimate fourth PE artifact, and it is neither a plan nor an ADR**
+(`docs/architecture/prd-16-template-model-feasibility.md` — the Owner asked for proof a proposed model
+works *before* approving the Draft PRD). Filed in `docs/architecture/` beside the ADRs, named
+`prd-NN-<slug>-feasibility.md`, and the Status line must say in its first words that it is
+informational: not a decision, not a plan, no ADR, approves nothing, reinterprets nothing. Writing one
+is **not** planning against an unapproved PRD, and saying so explicitly in the header is what keeps it
+from reading that way. Moves that made it useful: quote the Owner's request **verbatim** up front so
+the study is checkable against what was asked; restate the model under test as a **table of axes with
+AC numbers**, then say plainly what would count as *failure*; carry a **per-item confidence marker**
+(High/Medium) with an explicit "what still needs verifying against the live source" clause, and state
+once, loudly, that illustrative values are not real test vectors — a confidently wrong example is worse
+than a marked-uncertain one; give the **negative results equal weight and their own Part**, one block
+each naming *which axis* is violated and what supporting it would cost; and give a coverage **count
+plus the caveats that stop it being over-read** (convenience sample, not weighted by traffic, "the
+misses are conspicuous") rather than a bare percentage. Every gap found is routed as a **numbered
+question to the Product Manager**, listed in the study so the Owner can see what they would be
+approving *with* — the question docs themselves are raised at handoff after approval, mirroring the
+PRD's own posture on its open questions. Close with an explicit **§ What this study does not do**.
+
 **The same `## Revision A` shape also covers an Owner ruling landing *post-review*** (plan-07, on a
 review Major routed back to the PE because a standing plan ruling forbade the fix). Differences from the
 mid-design case: a **plan** ruling is rewritten **in place** with an *(Amended YYYY-MM-DD — Revision A)*
