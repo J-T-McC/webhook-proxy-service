@@ -19,11 +19,14 @@
 >   **`docs/questions/prd-10-q-10-04-proxy-level-signing-grain-and-live-secret-cap.md`**. Neither
 >   document is edited here.
 
-- **Status:** **Proposed — pending Project Owner approval.** This ADR is **Owner-approval flag 2**
-  of `docs/plans/plan-10-sensitive-data-handling.md`, and the Owner is asked to choose between two
-  fully-specified storage models, not to approve a direction. It is security-sensitive: it decides
-  that every secret item #10 introduces is stored so the application can read it back rather than
-  hashed, where those secrets live, and how long a replaced one survives.
+- **Status:** **Accepted — Project Owner, 2026-08-27.** This ADR was **Owner-approval flag 2** of
+  `docs/plans/plan-10-sensitive-data-handling.md`. The Owner was asked to choose between two
+  fully-specified storage models rather than approve a direction, and chose the one recorded here —
+  the `proxy_secrets` relation — consistent with their ruling of the same day asking for a table and
+  a relation rather than a fixed column pair. The rejected fixed-column alternative is retained
+  below as the record of what was decided against. It is security-sensitive: it decides that every
+  secret item #10 introduces is stored so the application can read it back rather than hashed, where
+  those secrets live, and how long a replaced one survives.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-27
 - **Feature:** prd-10-sensitive-data-handling (AC1, AC10, AC11, AC26, AC29, AC30, AC33, AC34,

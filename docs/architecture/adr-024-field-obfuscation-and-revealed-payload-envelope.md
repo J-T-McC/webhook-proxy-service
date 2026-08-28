@@ -1,10 +1,12 @@
 # ADR-024: Field obfuscation at the single egress boundary, and the revealed-payload envelope (partially supersedes ADR-017 Decision 6)
 
-- **Status:** **Proposed — pending Project Owner approval.** This ADR is **Owner-approval flag 4**
-  of `docs/plans/plan-10-sensitive-data-handling.md`. It changes the response shape of the one
+- **Status:** **Accepted — Project Owner, 2026-08-27.** This ADR was **Owner-approval flag 4** of
+  `docs/plans/plan-10-sensitive-data-handling.md`. It changes the response shape of the one
   content-bearing endpoint this system has — a surface ADR-017 marks *"Security-sensitive
   (Owner-gated ✋): the first user-facing egress of stored payload content"* — and it **adopts an
-  alternative ADR-017 rejected by name**. Both make this the Owner's, not the plan gate's.
+  alternative ADR-017 rejected by name**. Both made this the Owner's rather than the plan gate's,
+  and the Owner accepted it on 2026-08-27, which supersedes ADR-017's rejection of that
+  alternative for this endpoint.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-27
 - **Feature:** prd-10-sensitive-data-handling (AC12–AC22, AC49; design-10 Screen 7 and corrections

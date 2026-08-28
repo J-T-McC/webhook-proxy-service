@@ -1,7 +1,7 @@
 # ADR-022: Inbound verification at the ingest boundary — a closed scheme registry evaluated before capture
 
-- **Status:** **Proposed — pending Project Owner approval.** This ADR is **Owner-approval flag 3**
-  of `docs/plans/plan-10-sensitive-data-handling.md`. The *behaviour* is ratified — the Project
+- **Status:** **Accepted — Project Owner, 2026-08-27.** This ADR was **Owner-approval flag 3**
+  of `docs/plans/plan-10-sensitive-data-handling.md`. The *behaviour* was already ratified — the Project
   Owner settled roadmap open question **V2** directly on 2026-08-27 and ratified it by approving
   PRD-10 (AC23–AC29, AC50–AC53). What is not ratified is the **seam**: where verification runs, and
   the shape a third scheme would be added to. AC50 makes adding a scheme a Project Owner decision

@@ -18,12 +18,12 @@
 >   The signing **backend**, the destination credential, inbound verification and field obfuscation
 >   are all unblocked by it.
 
-- **Status:** **Approved (Principal-Engineer self-certified) — *except* the four items at
-  § *Owner-approval flags (✋)*, which are not mine to certify and are **not settled**.** #10 adds a
-  table and six columns, stores three kinds of secret, changes the response shape of the system's
-  only payload-content egress, and adds the product's first authentication mechanism for inbound
-  traffic. Each is on `CLAUDE.md`'s major-decision list. Everything else is self-certified and needs
-  no further sign-off.
+- **Status:** **Fully approved.** Principal-Engineer self-certified everywhere except the four items
+  at § *Owner-approval flags (✋)*, which were not mine to certify — and **all four were approved by
+  the Project Owner on 2026-08-27**. #10 adds a table and six columns, stores three kinds of secret,
+  changes the response shape of the system's only payload-content egress, and adds the product's
+  first authentication mechanism for inbound traffic. Each is on `CLAUDE.md`'s major-decision list,
+  which is why each was flagged rather than assumed.
 - **Author:** Principal Engineer
 - **Date:** 2026-08-27
 - **PRD:** `docs/product/prd-10-sensitive-data-handling.md` — **APPROVED by the Project Owner,
@@ -416,7 +416,8 @@ already hold — a second reader or writer of the table is a review finding, not
 
 ## Data Model
 
-> **✋ This whole section is the Project Owner's data-model gate — flag 1.** It is stated once, in
+> **✋ This whole section was the Project Owner's data-model gate — flag 1, APPROVED 2026-08-27.**
+> It is stated once, in
 > full, so the Owner rules on the complete set at once. The column-by-column reasoning and every
 > rejected alternative are in **ADR-021**; this is the summary the gate is taken against. **Flag 1
 > and flag 2 are coupled**: the change set below is the *recommended* storage model, and a `no` on
@@ -1015,12 +1016,17 @@ its own verification pass.
     theirs. Recorded in `Q-10-02`'s answer rather than raised separately, because the change is
     protective either way.
 
-### Owner-approval flags (✋) — **four outstanding**
+### Owner-approval flags (✋) — **all four APPROVED (Project Owner, 2026-08-27)**
 
 Stated in full, as the house format requires, because this is the single place the Owner reads it.
-**This plan is self-certified except for these four items.** **Flags 1 and 2 are coupled** — flag 1's
-change set is the recommended storage model, and a `no` on flag 2 substitutes the alternative change
-set enumerated at the end of § *Data Model*.
+This plan was self-certified except for these four items, and the Project Owner approved all four
+together on 2026-08-27.
+
+**Flags 1 and 2 were coupled**, and the coupling resolved the recommended way: flag 2 was approved,
+so flag 1's change set stands as enumerated. The alternative fixed-column change set at the end of
+§ *Data Model* is **not** taken; it is retained as the record of what was decided against.
+
+**ADR-021, ADR-022 and ADR-024 are Accepted** as of the same date. Nothing below is outstanding.
 
 1. **✋ Data-model change — one new table and six columns.**
    **New table `proxy_secrets`:** `id` bigint unsigned PK · `team_id` bigint unsigned NOT NULL,
