@@ -182,6 +182,21 @@ it's actually live first (`lsof -p <pid> -a -d cwd` to check it's this project; 
 plainly in completion notes that verification ran against the live dev server, not a "production
 build" — the two are different claims and only one was actually checked (item #10 T23).
 
+**`Proxy::factory()` needs `created_by`, not `user_id`, for a creator** (`App\Models\Proxy`'s
+`created_by` column, checked by `ProxyPolicy`'s creator-bypass logic) — `Proxy::factory()->for($team)
+->create(['created_by' => $user->id])`; passing `user_id` fails silently at the DB layer (no such
+column) rather than a clear factory error.
+
+**When a task's own Testing line already folds deeper manual verification into a later task, and the
+new/changed code is a handful of straightforward `v-if` branches on an already-well-typed prop, a
+full authenticated-Playwright-login pass is not required** — a careful line-by-line trace of the
+render logic against the prop shape, backed by a green `pnpm run types:check`/`build`, satisfies a
+"direct check" testing line. Don't sink time fighting a login flow (CSRF/cookie handling, selector
+guessing) for a check that risk-wise doesn't need it — drop it and do the code-trace instead, noting
+in completion notes exactly what was traced and what was deferred to the later task. Confirmed as the
+right call by the coordinator mid-task (item #10 T41): the full Flow G/H/I browser walkthrough
+belongs to T43/T44 by the task doc's own words, not T41.
+
 **Playwright login flow in this app: don't `await page.waitForLoadState('networkidle')` right after
 clicking submit** — it can resolve while still mid-redirect and leave the script reading the `/login`
 page's own DOM (stale selectors, confusing "element not visible" failures downstream). Race the click
