@@ -3227,7 +3227,64 @@ rows until T54 deletes them.
     `proxies` and `destinations`; every other table.
   - `composer lint`, `composer types:check`, `./vendor/bin/sail test --parallel` all green.
 - **Testing:** new file for the migration's own round-trip/deletion assertions; edited T1 schema test.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. New migration
+  `database/migrations/2026_08_28_000001_remove_inbound_verification.php` — `up()` deletes every
+  `proxy_secrets` row of purpose `verification` via the query builder (not the model, since
+  `SecretPurpose::Verification` no longer exists to construct), then drops
+  `proxies.verification_scheme`/`verification_header_name` in one `Schema::table()` call. `down()`
+  restores exactly the two columns, matching their original `string(32)`/`string(128)` nullable
+  definitions, with a docblock stating plainly — mirroring T1's own migration's precedent — that it
+  cannot restore the column values (both `NULL` on every row after rollback), the deleted secrets
+  (provider-issued, PRD-10 AC26, never recoverable), or the code (removed at T53).
+  `2026_08_27_000001_add_sensitive_data_handling_schema.php` is confirmed byte-for-byte unedited —
+  `git diff --numstat` against it shows zero lines. `app/Enums/SecretPurpose.php` now declares exactly
+  one case, `Signing = 'signing'`; the docblock explains the single-case shape is deliberate (a later
+  purpose still costs no migration) rather than an oversight. Grepped the full `app/`, `routes/`,
+  `database/migrations/` and `tests/` trees for `SecretPurpose::Verification`: zero matches — T53's own
+  retargeting already closed every reference, so this task's enum-case removal introduced no new
+  compile errors.
+
+  **`SensitiveDataHandlingSchemaTest.php` narrowed and one further test repaired beyond the task's own
+  "otherwise unchanged" framing** (an entangled case, fixed to the smallest correct thing per this
+  session's own guidance, flagged for **T49**'s sweep rather than reopened here): the `proxies` column
+  assertion narrows from three added columns to one (`sensitive_fields`), as specified, and the two
+  `proxy_secrets` seed-row tests (`purpose => 'verification'` fixtures) retarget to `'signing'` — the
+  unique-index/superseded-rows properties they prove are purpose-agnostic. The rollback round-trip
+  test, however, needed more than the task's own note allowed for: with T54's migration now the most
+  recently applied one, `artisan migrate:rollback --step=1` rolls back T54's migration alone rather
+  than T1's — a mechanical consequence of ordering the task's own file list didn't anticipate. Changed
+  to `--step=2` (rolling back both new migrations to the true pre-#10 schema, then reapplying both),
+  renamed to name what it now asserts, and its post-reapply assertions corrected: `verification_scheme`
+  is asserted absent after the full round trip (T54 drops it again on reapply), where the original
+  asserted it present (a T1-only claim that stopped being true the moment T54 landed after it).
+
+  New `tests/Unit/Migrations/RemoveInboundVerificationMigrationTest.php` (5 tests) — exercises this
+  migration's `up()`/`down()` in isolation by rolling back exactly this one migration (it is the
+  latest applied) rather than the combined pair: proxies ends up with exactly one of T1's three added
+  columns; a `verification`-purpose row (current and superseded, seeded directly via the query builder
+  since the enum case no longer exists to construct one) is deleted while a `signing`-purpose row
+  survives untouched; `down()` restores the two columns matching their original nullable definitions;
+  the single-migration rollback round trip leaves `proxy_secrets`, `sensitive_fields` and all three
+  `destinations` credential columns untouched, confirming this migration's own blast radius is exactly
+  the two columns and the verification rows, nothing else on the schema T1 introduced; and
+  `SecretPurpose::cases()` is exactly `[Signing]`, with a `signing`-purpose row still hydrating through
+  `ProxySecret`'s `purpose` enum cast without throwing.
+
+  **Left untouched, per ADR-026 Decision 3's explicit "unchanged" list, despite naming "verification" in
+  a docblock comment** — flagged here rather than edited, consistent with T53's own precedent for the
+  same two files plus one more found this task: `app/Models/ProxySecret.php`'s class docblock ("One
+  rotating secret for a proxy … verification or signing") is stale prose now that only one purpose
+  remains, but the ADR names this file's docblock as explicitly unchanged, so it is left for **T49**.
+
+  **Test count**: 998 → 1003, a rise of 5 — the new `RemoveInboundVerificationMigrationTest.php`'s own
+  five tests; no test was deleted or gained elsewhere by this task. Combined with T53's 1063 → 998,
+  the running total against the documented 1063 baseline is 1063 → 1003, a net drop of 60 (65 removed
+  by T53's verification-only deletions and prunings, 5 added back by this task's own new migration
+  test file).
+
+  Gates: `composer lint`, `composer types:check` both green. Full suite
+  `./vendor/bin/sail test --parallel` — 1003/1003 passing, 4749 assertions. Frontend gates not
+  re-run for this task (no `resources/js` file touched by T54).
 
 ---
 

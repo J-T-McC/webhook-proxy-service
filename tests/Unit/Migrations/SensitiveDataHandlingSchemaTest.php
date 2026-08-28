@@ -69,13 +69,17 @@ class SensitiveDataHandlingSchemaTest extends TestCase
         );
     }
 
-    public function test_proxies_gains_exactly_its_three_new_columns_and_every_pre_existing_index_survives(): void
+    public function test_proxies_gains_exactly_its_one_surviving_new_column_and_every_pre_existing_index_survives(): void
     {
+        // T1 added three columns to `proxies`; ADR-026 Decision 4 (T54) drops
+        // two of them (`verification_scheme`, `verification_header_name`)
+        // in a later migration, so only `sensitive_fields` survives to be
+        // asserted against the fully-migrated schema this test runs against.
         $columns = $this->columnTypesFor('proxies');
 
-        $this->assertSame('varchar|YES', $columns['verification_scheme']);
-        $this->assertSame('varchar|YES', $columns['verification_header_name']);
         $this->assertSame('longtext|YES', $columns['sensitive_fields']);
+        $this->assertArrayNotHasKey('verification_scheme', $columns);
+        $this->assertArrayNotHasKey('verification_header_name', $columns);
 
         $indexes = array_values($this->indexColumnsFor('proxies'));
         $this->assertContains('ingest_token_hash', $indexes);
@@ -103,7 +107,7 @@ class SensitiveDataHandlingSchemaTest extends TestCase
         DB::table('proxy_secrets')->insert([
             'team_id' => $team->id,
             'proxy_id' => $proxy->id,
-            'purpose' => 'verification',
+            'purpose' => 'signing',
             'value' => 'ciphertext-a',
             'is_current' => true,
             'created_at' => now(),
@@ -115,7 +119,7 @@ class SensitiveDataHandlingSchemaTest extends TestCase
         DB::table('proxy_secrets')->insert([
             'team_id' => $team->id,
             'proxy_id' => $proxy->id,
-            'purpose' => 'verification',
+            'purpose' => 'signing',
             'value' => 'ciphertext-b',
             'is_current' => true,
             'created_at' => now(),
@@ -132,7 +136,7 @@ class SensitiveDataHandlingSchemaTest extends TestCase
             DB::table('proxy_secrets')->insert([
                 'team_id' => $team->id,
                 'proxy_id' => $proxy->id,
-                'purpose' => 'verification',
+                'purpose' => 'signing',
                 'value' => "ciphertext-{$i}",
                 'is_current' => null,
                 'expires_at' => now()->addHours(24),
@@ -144,11 +148,18 @@ class SensitiveDataHandlingSchemaTest extends TestCase
         $this->assertSame(3, DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->count());
     }
 
-    public function test_rollback_removes_exactly_proxy_secrets_and_the_six_new_columns_and_reapplying_restores_them(): void
+    public function test_rollback_removes_exactly_proxy_secrets_and_the_five_surviving_new_columns_and_reapplying_restores_them(): void
     {
-        $migration = '2026_08_27_000001_add_sensitive_data_handling_schema';
+        // Two migrations now sit on top of the pre-#10 schema: T1's own, and
+        // ADR-026 Decision 4's later `remove_inbound_verification` migration
+        // (T54), which runs after it. `--step=1` rolls back only the most
+        // recently run migration, so this round trip rolls back both — the
+        // pre-#10 schema — and reapplying both restores today's actual
+        // shape, not T1's shape alone.
+        $t1Migration = '2026_08_27_000001_add_sensitive_data_handling_schema';
+        $t54Migration = '2026_08_28_000001_remove_inbound_verification';
 
-        Artisan::call('migrate:rollback', ['--step' => 1]);
+        Artisan::call('migrate:rollback', ['--step' => 2]);
 
         $this->assertFalse(Schema::hasTable('proxy_secrets'));
         $this->assertFalse(Schema::hasColumn('proxies', 'verification_scheme'));
@@ -164,13 +175,18 @@ class SensitiveDataHandlingSchemaTest extends TestCase
         $indexes = array_values($this->indexColumnsFor('proxies'));
         $this->assertContains('ingest_token_hash', $indexes);
 
-        $this->assertNotContains($migration, DB::table('migrations')->pluck('migration')->all());
+        $applied = DB::table('migrations')->pluck('migration')->all();
+        $this->assertNotContains($t1Migration, $applied);
+        $this->assertNotContains($t54Migration, $applied);
 
         Artisan::call('migrate');
 
-        $this->assertContains($migration, DB::table('migrations')->pluck('migration')->all());
+        $applied = DB::table('migrations')->pluck('migration')->all();
+        $this->assertContains($t1Migration, $applied);
+        $this->assertContains($t54Migration, $applied);
         $this->assertTrue(Schema::hasTable('proxy_secrets'));
-        $this->assertTrue(Schema::hasColumn('proxies', 'verification_scheme'));
+        $this->assertFalse(Schema::hasColumn('proxies', 'verification_scheme'));
+        $this->assertTrue(Schema::hasColumn('proxies', 'sensitive_fields'));
         $this->assertTrue(Schema::hasColumn('destinations', 'credential_secret'));
     }
 }

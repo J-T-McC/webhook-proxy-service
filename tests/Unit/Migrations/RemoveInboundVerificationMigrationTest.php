@@ -1,0 +1,161 @@
+<?php
+
+namespace Tests\Unit\Migrations;
+
+use App\Enums\SecretPurpose;
+use App\Models\Proxy;
+use App\Models\ProxySecret;
+use App\Models\Team;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+/**
+ * T54 (ADR-026 Decision 4) — `2026_08_28_000001_remove_inbound_verification`.
+ * The test suite runs with every migration already applied (T1, then this
+ * one), so several tests here roll back exactly this migration in isolation
+ * to exercise its own `up()`/`down()` independently of the rest of the
+ * schema — the pre-existing-column-survival assertions prove the boundary
+ * this migration promises not to cross.
+ */
+class RemoveInboundVerificationMigrationTest extends TestCase
+{
+    private const MIGRATION = '2026_08_28_000001_remove_inbound_verification';
+
+    /**
+     * @return array<string, string> column name => lowercase DATA_TYPE|IS_NULLABLE
+     */
+    private function columnTypesFor(string $table): array
+    {
+        return collect(DB::select(
+            'SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+             FROM information_schema.COLUMNS
+             WHERE TABLE_NAME = ? AND TABLE_SCHEMA = DATABASE()
+             ORDER BY ORDINAL_POSITION',
+            [$table],
+        ))->mapWithKeys(fn ($row) => [
+            (string) $row->COLUMN_NAME => strtolower((string) $row->DATA_TYPE).'|'.strtoupper((string) $row->IS_NULLABLE),
+        ])->all();
+    }
+
+    public function test_proxies_ends_up_with_exactly_one_of_t1s_three_added_columns(): void
+    {
+        $this->assertFalse(Schema::hasColumn('proxies', 'verification_scheme'));
+        $this->assertFalse(Schema::hasColumn('proxies', 'verification_header_name'));
+        $this->assertTrue(Schema::hasColumn('proxies', 'sensitive_fields'));
+    }
+
+    public function test_it_deletes_every_verification_purpose_secret_and_leaves_signing_untouched(): void
+    {
+        // Roll back exactly this migration (it is the latest applied), so
+        // the two `proxies` columns exist again and rows of purpose
+        // `verification` can be seeded — `SecretPurpose::Verification` no
+        // longer exists as an enum case, so these are inserted directly
+        // through the query builder, the same way a pre-#54 database's
+        // rows would already exist on disk.
+        Artisan::call('migrate:rollback', ['--step' => 1]);
+
+        $team = Team::factory()->createQuietly();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $team->id]);
+
+        DB::table('proxy_secrets')->insert([
+            [
+                'team_id' => $team->id,
+                'proxy_id' => $proxy->id,
+                'purpose' => 'verification',
+                'value' => 'current-verification-ciphertext',
+                'is_current' => true,
+                'expires_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'team_id' => $team->id,
+                'proxy_id' => $proxy->id,
+                'purpose' => 'verification',
+                'value' => 'superseded-verification-ciphertext',
+                'is_current' => null,
+                'expires_at' => now()->addHours(24),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'team_id' => $team->id,
+                'proxy_id' => $proxy->id,
+                'purpose' => 'signing',
+                'value' => 'current-signing-ciphertext',
+                'is_current' => true,
+                'expires_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        Artisan::call('migrate');
+
+        $this->assertSame(
+            0,
+            DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->where('purpose', 'verification')->count(),
+        );
+        $this->assertSame(
+            1,
+            DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->where('purpose', 'signing')->count(),
+        );
+    }
+
+    public function test_down_restores_exactly_the_two_columns_matching_their_original_nullable_definitions(): void
+    {
+        Artisan::call('migrate:rollback', ['--step' => 1]);
+
+        $columns = $this->columnTypesFor('proxies');
+
+        $this->assertSame('varchar|YES', $columns['verification_scheme']);
+        $this->assertSame('varchar|YES', $columns['verification_header_name']);
+
+        Artisan::call('migrate');
+    }
+
+    public function test_rollback_round_trip_leaves_proxy_secrets_sensitive_fields_and_destination_credential_columns_untouched(): void
+    {
+        Artisan::call('migrate:rollback', ['--step' => 1]);
+
+        // T1's own table/columns are untouched by rolling back only this
+        // later migration — they belong to capabilities that survive
+        // (ADR-026 Decision 4).
+        $this->assertTrue(Schema::hasTable('proxy_secrets'));
+        $this->assertTrue(Schema::hasColumn('proxies', 'sensitive_fields'));
+        $this->assertTrue(Schema::hasColumn('destinations', 'credential_header_name'));
+        $this->assertTrue(Schema::hasColumn('destinations', 'credential_secret'));
+        $this->assertTrue(Schema::hasColumn('destinations', 'credential_set_at'));
+
+        $this->assertNotContains(self::MIGRATION, DB::table('migrations')->pluck('migration')->all());
+
+        Artisan::call('migrate');
+
+        $this->assertContains(self::MIGRATION, DB::table('migrations')->pluck('migration')->all());
+        $this->assertFalse(Schema::hasColumn('proxies', 'verification_scheme'));
+        $this->assertFalse(Schema::hasColumn('proxies', 'verification_header_name'));
+    }
+
+    public function test_secret_purpose_has_exactly_one_case_and_a_signing_row_still_hydrates(): void
+    {
+        $this->assertSame([SecretPurpose::Signing], SecretPurpose::cases());
+
+        $team = Team::factory()->createQuietly();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $team->id]);
+        $id = DB::table('proxy_secrets')->insertGetId([
+            'team_id' => $team->id,
+            'proxy_id' => $proxy->id,
+            'purpose' => 'signing',
+            'value' => encrypt('whsec_test'),
+            'is_current' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $secret = ProxySecret::query()->findOrFail($id);
+
+        $this->assertSame(SecretPurpose::Signing, $secret->purpose);
+    }
+}
