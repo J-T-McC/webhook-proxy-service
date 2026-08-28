@@ -76,6 +76,29 @@ class TeamInvitationTest extends TestCase
         $this->assertStringContainsString('log in', strtolower(implode(' ', $mail->introLines)));
     }
 
+    public function test_invitation_email_renders_to_html_through_commonmark()
+    {
+        $owner = User::factory()->create(['name' => 'Owner <Name> & "Co"']);
+        $team = Team::factory()->create(['name' => 'Acme & <Co>']);
+        $invitedUser = User::factory()->create(['email' => 'invited@example.com']);
+
+        $team->members()->attach($owner, ['role' => TeamRole::Owner->value]);
+
+        $invitation = TeamInvitation::factory()->create([
+            'team_id' => $team->id,
+            'email' => $invitedUser->email,
+            'invited_by' => $owner->id,
+        ]);
+
+        $mail = (new TeamInvitationNotification($invitation))->toMail($invitedUser);
+
+        $html = (string) $mail->render();
+
+        $this->assertStringContainsString(e($team->name), $html);
+        $this->assertStringContainsString(e($mail->actionUrl), $html);
+        $this->assertStringNotContainsString('<Co>', $html);
+    }
+
     public function test_team_invitations_can_be_created_by_admins()
     {
         Notification::fake();
