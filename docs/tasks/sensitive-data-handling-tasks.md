@@ -310,7 +310,12 @@
     match only, never substring.
   - An empty proxy addition list still matches every default name.
 - **Testing:** `tests/Unit/Services/SensitiveFieldMatcherTest.php` (new) — one case per bullet above.
-- **Completion notes:** _pending_
+- **Completion notes:** Done. `App\Enums\MatchSource` (`Default`/`Addition`, string-backed
+  `'default'`/`'addition'` so it serializes directly for T8/T9). `SensitiveFieldMatcher` builds two
+  normalised-name lookup tables at construction (defaults, and the proxy's `sensitive_fields`
+  additions) and checks defaults first in `matchFor()` — the tie-break falls out of check order rather
+  than needing separate logic. `composer lint`, `composer types:check` and
+  `./vendor/bin/sail test --parallel` all green.
 
 ## T6 — `App\Support\PayloadObfuscator` (AC15, AC16, AC17, C6; plan § Architecture D, ADR-024 Decisions 2 and 4)
 - **Description:** Pure class, no DB, no I/O, no clock. Walks a decoded JSON document (an
