@@ -13,6 +13,9 @@ Agents re-read these documents many times; every word is paid for repeatedly.
 - No filler ("it is important to note…"), no restating upstream content — link it.
 - Say it once: if a fact lives in another artifact or section, reference it.
 - Dense ≠ cryptic: names, criteria, and decisions stay explicit and testable.
+- Bold marks the exception, not the rule. When most of a paragraph is bold, the
+  emphasis carries no signal and the markers are paid for on every read. Reserve
+  it for the word a reader must not skim past.
 
 ## Placeholders (customize per project)
 

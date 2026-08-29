@@ -33,6 +33,27 @@ archive — do not read it to route work, and do not maintain it.
   `docs/` is searchable via the **mem-search** skill — consult it before
   asking an upstream agent. `docs/` remains authoritative where they conflict.
 
+## Reading the workspace
+
+Several `docs/` artifacts are very large — task plans and PRDs run to hundreds of
+kilobytes, and `docs/status.md` is dense prose. Reading four of them from the top
+costs more context than the work they inform. Read them the way you would read a
+reference manual, not a novel.
+
+- **Never read a task plan, PRD, plan or `docs/status.md` from the top when you
+  already know which part you need.** Use `grep -n` to find the milestone, task
+  or acceptance-criterion heading, then read that line range only.
+- **Task plans are split per milestone** — see `docs/tasks/README.md`. Read the
+  index for orientation and only the milestone file you are working in. Shipped
+  milestones are history; they do not inform an unstarted task.
+- **When delegating, name the range.** Tell the agent which file and which lines
+  or which milestone file, and tell it explicitly not to read the others. An
+  agent given no bound reads everything.
+- Read a whole artifact when you genuinely need the whole artifact: a review
+  gate against every acceptance criterion, or an amendment that touches the
+  document as a whole. The rule is against reading it by default, not against
+  reading it.
+
 
 ## Commands
 
