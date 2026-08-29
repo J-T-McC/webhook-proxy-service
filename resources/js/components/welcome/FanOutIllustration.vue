@@ -301,7 +301,7 @@ function computeGeometry(width: number, height: number): Geometry {
     // scaling everything down.
     const compact = width < 520;
     const nodeW = width * (compact ? 0.4 : 0.13);
-    const nodeH = height * (compact ? 0.12 : 0.14);
+    const nodeH = height * (compact ? 0.12 : 0.17);
 
     return {
         width,
@@ -339,7 +339,7 @@ function computeGeometry(width: number, height: number): Geometry {
         ],
         nodeW,
         nodeH,
-        junctionR: height * (compact ? 0.014 : 0.018),
+        junctionR: height * (compact ? 0.014 : 0.022),
         cornerR: Math.min(nodeW, nodeH) * 0.2,
     };
 }
@@ -960,7 +960,7 @@ useCanvasIllustration<ThemeVisuals, RenderState>({
 
         <div
             ref="container"
-            class="mx-auto aspect-square w-full max-w-6xl overflow-hidden rounded-2xl border border-border sm:aspect-[2/1]"
+            class="mx-auto aspect-square w-full max-w-6xl overflow-hidden rounded-2xl border border-border sm:aspect-[5/2]"
         >
             <canvas
                 ref="canvas"
