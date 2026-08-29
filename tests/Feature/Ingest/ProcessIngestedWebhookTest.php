@@ -6,6 +6,7 @@ use App\Actions\ProcessIngestedWebhook;
 use App\Enums\DeliveryStatus;
 use App\Enums\DispatchKind;
 use App\Enums\ProcessingMode;
+use App\Enums\WebhookEventStatus;
 use App\Events\DeliveryExhausted;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
@@ -282,5 +283,92 @@ class ProcessIngestedWebhookTest extends TestCase
 
         $this->assertSame(0, DeliveryAttempt::count());
         Http::assertNothingSent();
+    }
+
+    // --- Event queue status (webhook_events.status) ------------------------
+
+    public function test_the_original_dispatch_marks_the_event_dispatched(): void
+    {
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $this->assertSame(WebhookEventStatus::Pending, $event->fresh()->status);
+
+        ProcessIngestedWebhook::run($event->ingest_id);
+
+        $this->assertSame(WebhookEventStatus::Dispatched, $event->fresh()->status);
+    }
+
+    public function test_an_event_on_a_paused_async_proxy_stays_pending(): void
+    {
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Async]);
+        $proxy->forceFill(['paused_at' => now()])->save();
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id);
+
+        $this->assertSame(WebhookEventStatus::Pending, $event->fresh()->status);
+    }
+
+    public function test_a_cleaned_event_that_never_dispatched_stays_pending_at_the_column(): void
+    {
+        // Not a lie: the queue view derives "expired" from payload_cleaned_at
+        // at read time, never from this column alone.
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id);
+
+        $this->assertSame(WebhookEventStatus::Pending, $event->fresh()->status);
+    }
+
+    public function test_a_replay_does_not_change_the_original_events_status(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $proxy = Proxy::factory()->createQuietly();
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $this->assertSame(WebhookEventStatus::Pending, $event->fresh()->status);
+
+        $replayDispatchUuid = 'replay-status-uuid';
+        Delivery::factory()->createQuietly([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+            'dispatch_uuid' => $replayDispatchUuid,
+            'kind' => DispatchKind::Replay,
+            'status' => DeliveryStatus::Pending,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id, $replayDispatchUuid);
+
+        $this->assertSame(WebhookEventStatus::Pending, $event->fresh()->status);
     }
 }

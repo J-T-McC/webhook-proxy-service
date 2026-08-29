@@ -5,6 +5,7 @@ namespace App\Actions;
 use App\Enums\DeliveryStatus;
 use App\Enums\DispatchKind;
 use App\Enums\ProcessingMode;
+use App\Enums\WebhookEventStatus;
 use App\Events\DeliveryExhausted;
 use App\Models\Delivery;
 use App\Models\Proxy;
@@ -36,6 +37,13 @@ use Lorisleiva\Actions\Concerns\AsAction;
  * own guard), so this action is never reached for FIFO in the ordinary case.
  * Async has no separate claim step — this action IS the dispatch point — so
  * this is where Async's original-dispatch pause guard lives.
+ *
+ * The event queue view's `webhook_events.status` is also written here, and
+ * ONLY here — inside the `$dispatchUuid === $ingestId` block below, since
+ * that is what already identifies the original dispatch. Neither pause guard
+ * above nor the cleaned-payload guard reaches that block, so a captured but
+ * undelivered event correctly stays `pending`; a replay never reaches it
+ * either, since a replay's `dispatchUuid` is never equal to `ingestId`.
  */
 class ProcessIngestedWebhook
 {
@@ -95,6 +103,13 @@ class ProcessIngestedWebhook
                     ],
                 );
             }
+
+            // The event queue view's ONLY status write (see WebhookEvent's
+            // docblock): this block is the original dispatch, by construction
+            // ($dispatchUuid === $ingestId), so this is the one place it is
+            // ever correct to flip the column. A replay never reaches here —
+            // it mints its own distinct dispatch_uuid.
+            WebhookEvent::query()->whereKey($event->id)->update(['status' => WebhookEventStatus::Dispatched]);
         }
 
         $ctx = new PipelineContext(
