@@ -18,9 +18,25 @@ archive — do not read it to route work, and do not maintain it.
   role skill in-conversation (read-only; resulting changes still go to the
   agent). Routing and status.md upkeep → orchestrator skill in-conversation;
   spawn agents only to produce or change artifacts.
-- Small work is flat, no gates: bugs/chores → senior-developer (fix + tests +
-  record in `docs/fixes/`); doc corrections → the owning role updates the doc.
-  Only decision-changing work goes through the pipeline.
+- **Three lanes, chosen by blast radius, not by size. Default to Brief.**
+  - **Fix** — bugs, chores, doc corrections. Senior developer, or the role that
+    owns the doc. No artifact beyond a `docs/fixes/` note when the cause was
+    non-obvious.
+  - **Brief** — the default for new work. One file, `docs/briefs/<slug>.md`,
+    100 lines or fewer: what and why, the decisions actually made, a short task
+    list, done-criteria. One senior-developer pass writes it and builds it. No
+    PRD, no design, no plan, no separate task plan, no gates. The Owner sees it
+    at the pull request.
+  - **Pipeline** — only when the change alters the data model, an external
+    contract, or security posture, or is expensive to reverse. The test is
+    consequence, not effort: a one-line change to a shared guard can qualify
+    while a 900-line form restructure does not.
+- Reviewer runs on pipeline work, and on a brief only when it touches auth,
+  secrets, billing, or data destruction. A review document is written only when
+  there are findings; a clean review is a line in the pull request.
+- Write an ADR only for decisions that would be expensive to reverse. Pivoting a
+  draft or unapproved document needs no amendment record — edit it and move on.
+- State a ruling once, in the artifact that made it. Everywhere else links to it.
 - Owner approval only for PRDs, releases, and major decisions (new deps,
   stack/data-model changes, security, irreversible). Other gates are delegated:
   design → product-manager, plan → principal-engineer self-certified, tasks →
