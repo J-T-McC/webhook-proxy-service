@@ -125,7 +125,7 @@
     --card-foreground: hsl(0 0% 3.9%);
     --popover: hsl(0 0% 100%);
     --popover-foreground: hsl(0 0% 3.9%);
-    --primary: hsl(217 91% 46%);
+    --primary: var(--brand);
     --primary-foreground: hsl(0 0% 100%);
     --secondary: hsl(0 0% 92.1%);
     --secondary-foreground: hsl(0 0% 9%);
@@ -161,14 +161,11 @@
     --illustration-from: var(--brand);
     --illustration-to: var(--brand-accent);
 
-    /* Primary is the logo's blue, one step deeper than `text-blue-500` itself:
-       white on blue-500 reaches only 3.6:1, under AA, while this carries it at
-       5.8:1 and still reads as the same colour. It drives every primary action,
-       focus ring and active nav item.
-
-       The violet and cyan below stay the landing illustrations' own pair, and
-       cyan doubles as the `moved` status hue — a dispatch in flight on the
-       canvases, a dispatched event in the queue.
+    /* The product's two brand hues. Violet carries identity — primary actions,
+       focus rings, the active nav item. Cyan carries motion: a dispatch in
+       flight on the landing canvases, a dispatched event in the queue. They
+       were already the illustration accents and nothing else; promoting them is
+       what stops the app reading as an unstyled install.
 
        Status hues below are a separate axis and mean one thing each: amber
        waits, cyan moved, grey is inert, red failed. Configuration — a proxy's
@@ -189,7 +186,11 @@
     --card-foreground: hsl(0 0% 98%);
     --popover: hsl(0 0% 3.9%);
     --popover-foreground: hsl(0 0% 98%);
-    --primary: hsl(217 91% 50%);
+    /* Not `--brand` directly. The brand violet is tuned bright so the landing
+       canvases bloom against near-black, and white on it reaches only 3.9:1 —
+       under AA. Chrome takes a slightly deeper violet that carries white at
+       5.6:1 and still reads as the same hue. */
+    --primary: hsl(258 90% 60%);
     --primary-foreground: hsl(0 0% 100%);
     --secondary: hsl(0 0% 14.9%);
     --secondary-foreground: hsl(0 0% 98%);
