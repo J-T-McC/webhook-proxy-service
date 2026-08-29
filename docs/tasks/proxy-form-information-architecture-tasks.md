@@ -609,14 +609,18 @@
      inside the Delivery card — "Mode and processing" (currently line 412) and "Retry policy"
      (currently line 559) — are correctly subordinate to that card's own `h2` and are out of scope for
      this task: they keep `class="text-sm font-medium"` unchanged.
-  2. **Shared tooltip delay grouping (Finding 2, Minor).** `ProxyForm.vue` currently wraps each of its
+  2. **Shared `TooltipProvider` (Finding 2, Minor).** `ProxyForm.vue` currently wraps each of its
      four tooltips — Response Body help (line 363), Mode help (line 419), Backoff strategy help
      (line 602), Always hidden help (line 677) — in its own `TooltipProvider`. Replace the four
-     per-tooltip `TooltipProvider`s with a single `TooltipProvider` wrapping the whole `<form>`, so
-     Reka's shared `delayDuration`/`skipDelayDuration` grouping applies across all four: moving focus
-     or the pointer from one tooltip's trigger directly to another's no longer re-incurs the full open
-     delay. Each `Tooltip`/`TooltipTrigger`/`TooltipContent` triple stays exactly where it is and
-     exactly as it renders; only the `TooltipProvider` wrapping changes, from four instances to one.
+     per-tooltip `TooltipProvider`s with a single `TooltipProvider` wrapping the whole `<form>`. This
+     is a structural simplification only — one provider instead of four, fewer nodes, the shape the
+     primitive is designed for — and not a behaviour change: `resources/js/components/ui/tooltip/
+     TooltipProvider.vue` sets `withDefaults(..., { delayDuration: 0 })`, so every provider in this
+     codebase, including each of the four per-tooltip providers being replaced, already opens its
+     tooltips with no delay. There was never a shared open/close delay to group between tooltips, and
+     hoisting to one provider does not introduce one. Each `Tooltip`/`TooltipTrigger`/`TooltipContent`
+     triple stays exactly where it is and exactly as it renders; only the `TooltipProvider` wrapping
+     changes, from four instances to one.
 
 - **Dependencies:** T8 (the shipped feature this task reworks)
 - **Files:** `resources/js/pages/proxies/ProxyForm.vue`; `resources/js/components/DestinationRows.vue`
@@ -642,8 +646,7 @@
   verification (host production build) at 360px: Sensitive fields' and Destinations' headings read at
   the same size and weight as Details, Response and Delivery's `h2`s, and visibly distinct from the
   two Delivery-nested sub-headings; each of the four tooltips still opens on Tab-focus and on hover
-  and closes on blur/Escape; moving focus or the pointer directly from one tooltip's trigger to
-  another's no longer re-incurs the full open delay.
+  and closes on blur/Escape.
 
   No backend gate re-run: agreed with the Designer's amendment on this point — nothing in this task
   touches PHP, a migration, a controller, a request/resource class, or any backend-tested behavior, so
@@ -693,16 +696,124 @@
   - Nothing here turned out wrong against the ruling — both files' post-edit state matches
     `## Amendment` Ruling 1 exactly, and T6's criterion is understood as corrected by this task's own
     AC (one presentational class edit permitted in `DestinationRows.vue`, not zero-diff).
+- **Task Planner correction note (2026-08-29), added post-review:** This task's Description and
+  Testing section originally claimed that hoisting to a single `TooltipProvider` restores Reka's
+  shared `delayDuration`/`skipDelayDuration` grouping, so that moving focus or the pointer directly
+  from one tooltip's trigger to another's would no longer re-incur the full open delay. Review-17's
+  re-review (`## Finding 2 (Minor) — RESOLVED, and my original rationale was wrong`) found that claim
+  false: `resources/js/components/ui/tooltip/TooltipProvider.vue` sets `withDefaults(..., {
+  delayDuration: 0 })`, so every provider in this codebase — including each of the four per-tooltip
+  providers this task replaced — already opened its tooltips with no delay. There was never a shared
+  delay to group between tooltips, and hoisting to one provider does not introduce one. The
+  Description and Testing section above are corrected in place to state the hoist as a structural
+  simplification only — one provider instead of four, fewer nodes, the shape the primitive is
+  designed for — with no claim of a perceptible behaviour change; the Testing section's runtime
+  timing check, which could neither pass nor fail because there is no timing difference to observe,
+  is removed. The Senior Developer's completion notes above are left exactly as written, including
+  the now-superseded "left for the manual/browser pass" bullet describing that same timing check —
+  the code they describe is correct and shipped cleanly, only the benefit claimed for it was wrong.
+  That outstanding manual timing check is withdrawn: there is nothing left for the manual pass to
+  confirm on this point.
+
+## T10 — Cap tooltip content width at the four call sites (Review-17 Finding 5, Major; `design-17` `## Amendment — tooltip content width cap`, 2026-08-29)
+
+- **Description:** Rework task raised directly by the review gate against the already-shipped T1–T9
+  feature. Review-17's re-review, driven headless at a 360px viewport (this design's own stated
+  minimum supported width), measured every `TooltipContent` this feature added rendering wider than
+  the viewport, with the overflow unreachable — `document.documentElement.scrollWidth` stayed 360px,
+  so no gesture brings the clipped text into view. Measured: Mode 892px (532px/60% clipped), Backoff
+  strategy 744px (384px/52% clipped), "Always hidden" 469px (109px/23% clipped), Response Body 431px
+  (71px/16% clipped) — each against a 360px viewport, each with computed `max-width: none`. This
+  matters beyond a cosmetic overflow because `design-17`'s `## Rule: form copy vs. tooltip vs. cut`
+  moved these four sentences out of the form's wrapping `<p>` elements and into these tooltips on the
+  strength of the tooltip carrying them; at 360px it did not, so on the form's own minimum supported
+  width this feature was a net loss of information against the pre-#17 form.
+
+  The Designer's amendment (`## Amendment — tooltip content width cap`, 2026-08-29) rules that
+  `## Responsive Behavior`'s refusal of "bespoke width" yields a cap, and that the cap is
+  `class="max-w-xs"` (320px), added at each `TooltipContent` call site — not in
+  `resources/js/components/ui/tooltip/TooltipContent.vue`, which is generated code under
+  `resources/js/components/ui/` and, per `docs/standards/coding.md` → Project structure, must never
+  be hand-edited. `max-w-xs` is the identical class `ReplayDialog.vue` already carries; Reka UI's
+  `TooltipContent` wrapper forwards a caller's `class` prop and merges it with its own `w-fit`, so the
+  two compose rather than conflict — `w-fit` governs width below the cap, `max-w-xs` governs it above.
+  The amendment's Ruling 2 withdraws N1's earlier rejection of that class (while keeping N1's separate
+  and correct rejection of `ReplayDialog.vue`'s non-focusable `span` trigger), so this task is no
+  longer barred by the note that previously blocked it.
+
+  Add `class="max-w-xs"` to exactly the four `TooltipContent` elements this feature added in
+  `resources/js/pages/proxies/ProxyForm.vue`: Response Body help (currently line 384), Mode help
+  (currently line 438), Backoff strategy help (currently line 635), and Sensitive fields' "Always
+  hidden" help (currently line 710). No other attribute, no wrapping element, and no line inside any
+  of the four is touched.
+
+- **Dependencies:** T9 (the shipped feature state this task reworks)
+- **Files:** `resources/js/pages/proxies/ProxyForm.vue`
+- **Acceptance Criteria:**
+  - Each of the four `TooltipContent` elements (Response Body, Mode, Backoff strategy, Always hidden)
+    carries `class="max-w-xs"` and no other class.
+  - No copy string inside any of the four tooltips' `<p>` content changes.
+  - No `aria-*` attribute, on any of the four `Tooltip`/`TooltipTrigger`/`TooltipContent` triples or
+    their trigger `Button`s, changes.
+  - No trigger markup changes: each trigger stays the same `TooltipTrigger as-child` wrapping the same
+    `Button`, same `variant`, same `size`, same `aria-label`, same `Info` icon.
+  - `resources/js/components/ui/tooltip/TooltipContent.vue` — the generated primitive — carries zero
+    diff. This task's entire change surface is the four `class="max-w-xs"` additions in
+    `ProxyForm.vue`; no other line of any file changes.
+  - **Measured, not eyeballed**, per the Designer's amendment and Review-17's recommended resolution:
+    at a 360px-wide viewport, each of the four `TooltipContent` elements, opened by keyboard focus on
+    its trigger, has a rendered width that fits inside the viewport and a right edge
+    (`getBoundingClientRect().right`) at or inside 360px — i.e. no greater than
+    `document.documentElement.clientWidth`. The before-state, recorded here so the after-state is
+    checkable against something rather than asserted on faith:
+
+    | Tooltip | Before (unconstrained) | Viewport | Clipped |
+    |---|---|---|---|
+    | Mode | 892px | 360px | 532px — 60% |
+    | Backoff strategy | 744px | 360px | 384px — 52% |
+    | "Always hidden" | 469px | 360px | 109px — 23% |
+    | Response Body | 431px | 360px | 71px — 16% |
+
+    After `class="max-w-xs"` (320px) is applied, every one of the four is expected to render at or
+    under its capped width, comfortably inside the 360px viewport with margin for the tooltip's own
+    on-screen position — this is the after-state the manual pass below must confirm by the same
+    measurement method, not by inspection.
+
+- **Testing:** Frontend gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped
+  `npx eslint resources/js/pages/proxies/ProxyForm.vue` 0 errors, and `pnpm build` (host — the sail
+  container cannot run the Vite build). These gates catch a malformed class attribute or an
+  unintended structural edit; they do not measure rendered pixel width, which is a runtime/DOM fact.
+
+  **The 360px width measurement itself is a manual/browser-pass item, not something this session or
+  the Senior Developer can complete** — it requires a real or emulated browser viewport, which this
+  role does not have. It is called out explicitly here, not left implicit, because the Designer's
+  amendment requires the re-check be measured rather than eyeballed. The manual pass must, for each of
+  the four tooltips, open it via keyboard focus on its trigger at a 360px-wide viewport against a
+  freshly host-built production bundle, then read `getBoundingClientRect()` (or the equivalent
+  computed style) on its `[data-slot="tooltip-content"]` element and confirm: (1) rendered width
+  no greater than 320px (the `max-w-xs` cap, allowing for the primitive's own `px-3` padding), and
+  (2) `right <= 360` — no part of the box past the viewport's right edge. The pass must also confirm
+  `document.documentElement.scrollWidth` still reads 360 (no new horizontal scroll introduced as a
+  side effect of the cap) and that each tooltip still opens on Tab-focus and closes on blur/Escape,
+  matching T9's already-verified trigger behaviour, which this task does not touch.
+
+  No backend gate re-run: this task touches no PHP file, no migration, no controller, no request/
+  resource class, and no backend-tested behaviour, so `composer lint`, `composer types:check`, and the
+  backend test suite have no file in this task's scope to exercise.
+
+- **Completion notes:** _pending_
 
 ## Handoff
 
 - **Inputs:** `docs/design/design-17-proxy-form-information-architecture.md` (Approved, Product
-  Manager, 2026-08-29, corrections C1–C5 landed); the shipped
-  `resources/js/pages/proxies/ProxyForm.vue`, `Create.vue`, `Edit.vue`,
+  Manager, 2026-08-29, corrections C1–C5 landed, plus the `## Amendment — card-level legend heading
+  weight ruling` and `## Amendment — tooltip content width cap` amendments, both 2026-08-29); the
+  shipped `resources/js/pages/proxies/ProxyForm.vue`, `Create.vue`, `Edit.vue`,
   `resources/js/components/DestinationRows.vue` on this branch; `docs/tasks/README.md`;
   `docs/standards/planning.md`; `resources/js/pages/teams/Edit.vue` (the correct keyboard-focusable
   Tooltip precedent, as distinct from `ReplayDialog.vue`'s bare-`span`-trigger anti-pattern named at
-  N1).
+  N1); `docs/reviews/review-17-proxy-form-information-architecture.md` (Finding 5, Major, and the
+  re-review's correction to its own Finding 2 rationale).
 - **Outputs:** this task plan.
 - **Dependencies:** none, technical or otherwise — every control this plan's tasks build reuses an
   already-shipped primitive (`Card`, `fieldset`, `Tooltip`); no new dependency, no backend change.
@@ -712,5 +823,6 @@
   without guessing.
 - **Next Agent:** Senior Developer, to build T1 through T8 in order. T9 is a rework task added
   2026-08-29 in response to Review-17 Finding 1 (Major) and Finding 2 (Minor) and the Designer's
-  amendment to `design-17`; it is built after T1–T8's already-shipped work, not in that original
-  sequence.
+  card-level legend heading weight amendment; it is built after T1–T8's already-shipped work, not in
+  that original sequence. T10 is a further rework task added 2026-08-29 in response to Review-17
+  Finding 5 (Major) and the Designer's tooltip content width cap amendment; it is built after T9.
