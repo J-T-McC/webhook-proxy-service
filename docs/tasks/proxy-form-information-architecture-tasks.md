@@ -410,7 +410,14 @@
 - **Acceptance Criteria:**
   - The fifth `Card` wraps `<DestinationRows>` with no `h2` inside the `Card` (same C4-style rule as
     Sensitive fields — the component's own `legend` carries the heading weight).
-  - `resources/js/components/DestinationRows.vue` has zero diff from its currently shipped content.
+  - `resources/js/components/DestinationRows.vue`'s only permitted change from what T6 itself shipped
+    is the `legend`'s `class` attribute at line 123, corrected by T9 from `class="text-sm font-medium"`
+    to `class="text-base font-semibold"` per the Designer's 2026-08-29 amendment to `design-17`
+    (`## Amendment — card-level legend heading weight ruling`, Ruling 1). No other line, attribute,
+    string, or piece of markup in the file changes: `id="destinations-help"` and every destination
+    row's `aria-describedby="destinations-help"` wiring stay exactly as shipped, and every copy
+    string — the fieldset's help paragraph and the Credential subsection's two sentences — is
+    unchanged.
   - `id="destinations-help"` is present exactly once, on the fieldset's help paragraph, and every
     destination row's URL `input` still points at it via `aria-describedby="destinations-help"` when
     that row has no error.
@@ -437,6 +444,18 @@
   Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
   resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue` 0 errors.
   `composer lint`/`composer types:check` green, 0 diff to any backend file.
+- **Task Planner correction note (2026-08-29), added post-review:** The acceptance criterion above
+  was rewritten after Review-17 Finding 1 (Major) and the Designer's amendment
+  `## Amendment — card-level legend heading weight ruling` (2026-08-29); the original criterion
+  required zero diff to `DestinationRows.vue`, which conflicts with the design's own heading-weight
+  rule once the Designer ruled that "unchanged internals" never governed the `legend`'s presentational
+  class. Separately: both this task's and T5's completion notes above describe the relevant `legend`
+  as carrying "the heading weight." At the time each task closed, the shipped class on both was
+  `text-sm font-medium` — unchanged from `main` and identical to the Delivery card's two subordinate
+  `legend`s — which Review-17 found indistinguishable from a subordinate heading. Those completion
+  notes are left exactly as the Senior Developer wrote them; this note exists only so the plan does
+  not now read as though that class already satisfied the design's heading-weight rule when T5 and T6
+  closed. T9 makes the class change the design actually requires.
 
 ## T7 — Cross-cutting accessibility and structure verification sweep
 
@@ -574,6 +593,72 @@
   This feature is ready for Reviewer handoff, with the browser-only checks above named explicitly
   as outstanding rather than claimed.
 
+## T9 — Rework: card-level legend heading weight, hoist shared `TooltipProvider` (Review-17 Finding 1 Major, Finding 2 Minor; `design-17` `## Amendment — card-level legend heading weight ruling`, 2026-08-29)
+
+- **Description:** Rework task raised directly by the review gate against the already-shipped T1–T8
+  feature. Two independent fixes, both confined to files this feature already touches; neither
+  changes a requirement or introduces a new component.
+
+  1. **Heading weight (Finding 1, Major).** Apply `class="text-base font-semibold"` to exactly two
+     `legend`s — the ones standing in for a card's own heading with no sibling `h2`: the Sensitive
+     fields `legend` in `resources/js/pages/proxies/ProxyForm.vue` (currently at line 666, currently
+     `class="text-sm font-medium"`) and the Destinations `legend` in
+     `resources/js/components/DestinationRows.vue` (currently at line 123, currently
+     `class="text-sm font-medium"`). This is `## Grouping proposal`'s original heading-weight rule,
+     restated as an exact class by the Designer's amendment, Ruling 1. The two `legend`s nested
+     inside the Delivery card — "Mode and processing" (currently line 412) and "Retry policy"
+     (currently line 559) — are correctly subordinate to that card's own `h2` and are out of scope for
+     this task: they keep `class="text-sm font-medium"` unchanged.
+  2. **Shared tooltip delay grouping (Finding 2, Minor).** `ProxyForm.vue` currently wraps each of its
+     four tooltips — Response Body help (line 363), Mode help (line 419), Backoff strategy help
+     (line 602), Always hidden help (line 677) — in its own `TooltipProvider`. Replace the four
+     per-tooltip `TooltipProvider`s with a single `TooltipProvider` wrapping the whole `<form>`, so
+     Reka's shared `delayDuration`/`skipDelayDuration` grouping applies across all four: moving focus
+     or the pointer from one tooltip's trigger directly to another's no longer re-incurs the full open
+     delay. Each `Tooltip`/`TooltipTrigger`/`TooltipContent` triple stays exactly where it is and
+     exactly as it renders; only the `TooltipProvider` wrapping changes, from four instances to one.
+
+- **Dependencies:** T8 (the shipped feature this task reworks)
+- **Files:** `resources/js/pages/proxies/ProxyForm.vue`; `resources/js/components/DestinationRows.vue`
+- **Acceptance Criteria:**
+  - `ProxyForm.vue`'s Sensitive fields `legend` carries `class="text-base font-semibold"`; its text
+    content and every surrounding line are unchanged.
+  - `DestinationRows.vue`'s Destinations `legend` carries `class="text-base font-semibold"`; this is
+    the file's only change from what T6 shipped — `id="destinations-help"`, every destination row's
+    `aria-describedby="destinations-help"` wiring, the fieldset's help paragraph copy, row rendering,
+    add/remove handling, the Credential subsection (including both of its copy sentences), `v-model`
+    bindings, and validation are all unchanged.
+  - The Delivery card's two nested `legend`s ("Mode and processing", "Retry policy") remain
+    `class="text-sm font-medium"`; this task makes no edit to either.
+  - `ProxyForm.vue`'s four tooltips (Response Body, Mode, Backoff strategy, Always hidden) share a
+    single `TooltipProvider` wrapping the `<form>`; no per-tooltip `TooltipProvider` remains. Each
+    tooltip's trigger `Button`, `aria-label`, and `TooltipContent` copy are byte-identical to what
+    shipped in T2–T5 — only the provider wrapping changes.
+  - No other line of either file changes: no copy string, `v-model` binding, validation rule, or `id`/
+    `aria-*` attribute besides what is named above is touched.
+- **Testing:** Frontend gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped
+  `npx eslint resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue`
+  0 errors, and `pnpm build` (host — the sail container cannot run the Vite build). Manual
+  verification (host production build) at 360px: Sensitive fields' and Destinations' headings read at
+  the same size and weight as Details, Response and Delivery's `h2`s, and visibly distinct from the
+  two Delivery-nested sub-headings; each of the four tooltips still opens on Tab-focus and on hover
+  and closes on blur/Escape; moving focus or the pointer directly from one tooltip's trigger to
+  another's no longer re-incurs the full open delay.
+
+  No backend gate re-run: agreed with the Designer's amendment on this point — nothing in this task
+  touches PHP, a migration, a controller, a request/resource class, or any backend-tested behavior, so
+  `composer lint`, `composer types:check`, and the backend test suite have no file in this task's
+  scope to exercise.
+
+  One addition beyond the amendment's own recommendation: the amendment's "`pnpm format:check` and a
+  360px visual re-check are sufficient" was written for the legend-class edit alone (Finding 1).
+  This task also carries Finding 2's `TooltipProvider` hoist, which restructures a template — moving
+  a wrapping element, not editing a utility class — so `pnpm types:check` and the scoped `eslint` run
+  above are required in addition to `pnpm format:check`, not skipped. `pnpm build` is included because
+  a hoisted `TooltipProvider` is exactly the kind of structural change a type-check and lint pass do
+  not fully exercise at runtime.
+- **Completion notes:** _pending_
+
 ## Handoff
 
 - **Inputs:** `docs/design/design-17-proxy-form-information-architecture.md` (Approved, Product
@@ -590,4 +675,7 @@
   the design was specific enough on every point a Task Planner needed (grouping, exact copy, tooltip
   disposition, C1's two-fieldset ruling, C2's kept help line, C5's interpolation ruling) to break down
   without guessing.
-- **Next Agent:** Senior Developer, to build T1 through T8 in order.
+- **Next Agent:** Senior Developer, to build T1 through T8 in order. T9 is a rework task added
+  2026-08-29 in response to Review-17 Finding 1 (Major) and Finding 2 (Minor) and the Designer's
+  amendment to `design-17`; it is built after T1–T8's already-shipped work, not in that original
+  sequence.
