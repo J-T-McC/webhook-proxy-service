@@ -371,7 +371,28 @@
 - **Testing:** pnpm gates green. Manual verification (host production build): default badges still
   render literally and wrap correctly at 360px; adding/removing an addition still works in-session with
   no server round trip until save; the new tooltip opens on Tab-focus and its wording matches exactly.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Wrapped the existing "Sensitive fields" `fieldset` in
+  its own fourth `Card` — no `h2`, the `legend` carries the heading weight (correction C4). Section
+  help trimmed to exactly "Hidden wherever this proxy's payloads are shown. Storage and delivery are
+  unaffected." The "Case and separators don't matter…" paragraph is removed from the template
+  entirely (confirmed via grep — no remaining occurrence anywhere in the file); its content moved to
+  a Tooltip on the "Always hidden" label, same `Button`/`TooltipTrigger as-child`/`TooltipProvider`
+  shape as T2–T4, `aria-label="More about matching for Always hidden fields"`, content exactly
+  "Matches password, Password, pass_word, etc. — case and separators don't matter." All default
+  badges (`defaultSensitiveFieldNames`, one per entry), the additions list, `addSensitiveField`/
+  `removeSensitiveField`, and the no-enable/disable-obfuscation-control invariant are unchanged —
+  only the section help paragraph, the removed paragraph, and the new tooltip were touched.
+  Closed the Sensitive fields `Card` right after its `fieldset` and left `<DestinationRows>` +
+  its `InputError` as bare (un-Carded) siblings for now, explicitly commented "T6 wraps this in its
+  own Card" — kept T5's diff to Sensitive fields only rather than pre-empting T6's own AC.
+  Verification: no Playwright/browser access available to this agent; verified structurally by
+  reading the exact copy strings and confirming via grep that the cut paragraph is gone, plus
+  `pnpm build` (host) succeeding. A live pass — default badges rendering literally and wrapping at
+  360px, add/remove working in-session with no server round trip, and the new tooltip opening on
+  Tab-focus with exact wording — is left for the Reviewer/QA gate, not claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors. `composer lint`/`composer types:check` green,
+  0 diff to any backend file.
 
 ## T6 — Destinations card: structural wrap only, `DestinationRows.vue` untouched (`## Grouping proposal`; correction C2)
 

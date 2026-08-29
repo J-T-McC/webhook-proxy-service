@@ -667,14 +667,35 @@ function submit(): void {
                         Sensitive fields
                     </legend>
                     <p class="text-sm text-muted-foreground">
-                        Values in these fields are hidden wherever this proxy's
-                        stored payloads are shown. This never changes what's
-                        stored or what's delivered — see a payload's Reveal to
-                        check.
+                        Hidden wherever this proxy's payloads are shown. Storage
+                        and delivery are unaffected.
                     </p>
 
                     <div class="grid gap-2">
-                        <p class="text-sm font-medium">Always hidden</p>
+                        <div class="flex items-center gap-2">
+                            <p class="text-sm font-medium">Always hidden</p>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="More about matching for Always hidden fields"
+                                        >
+                                            <Info class="size-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>
+                                            Matches password, Password,
+                                            pass_word, etc. — case and
+                                            separators don't matter.
+                                        </p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
                         <div class="flex flex-wrap gap-2">
                             <Badge
                                 v-for="name in defaultSensitiveFieldNames"
@@ -684,10 +705,6 @@ function submit(): void {
                                 {{ name }}
                             </Badge>
                         </div>
-                        <p class="text-sm text-muted-foreground">
-                            Case and separators don't matter — password,
-                            Password and pass_word are all this same name.
-                        </p>
                     </div>
 
                     <div class="grid gap-2">
@@ -751,15 +768,15 @@ function submit(): void {
                         </span>
                     </div>
                 </fieldset>
-
-                <!-- Destinations -->
-                <DestinationRows
-                    v-model="form.destinations"
-                    :errors="form.errors"
-                    :disabled="form.processing"
-                />
-                <InputError :message="form.errors.destinations" />
             </Card>
+
+            <!-- Destinations (T6 wraps this in its own Card) -->
+            <DestinationRows
+                v-model="form.destinations"
+                :errors="form.errors"
+                :disabled="form.processing"
+            />
+            <InputError :message="form.errors.destinations" />
         </div>
 
         <div class="mt-6 flex items-center gap-3">
