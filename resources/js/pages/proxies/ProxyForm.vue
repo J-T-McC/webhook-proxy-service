@@ -406,123 +406,153 @@ function submit(): void {
 
             <!-- Delivery -->
             <Card class="gap-6 p-6">
-                <div class="grid gap-2">
-                    <Label for="mode">Mode</Label>
-                    <Select v-model="form.mode" :disabled="form.processing">
-                        <SelectTrigger
-                            id="mode"
-                            class="w-full sm:w-64"
-                            :aria-invalid="
-                                form.errors.mode ? 'true' : undefined
-                            "
-                            aria-describedby="mode-help mode-error"
-                        >
-                            <SelectValue placeholder="Select a mode" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="simple">Simple</SelectItem>
-                            <SelectItem value="enhanced">Enhanced</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <p id="mode-help" class="text-sm text-muted-foreground">
-                        Enhanced mode stores the payload actually dispatched,
-                        separately from the payload received, and lets this
-                        proxy configure its own retry attempts and backoff
-                        strategy below. Automatic retry, payload capture,
-                        retention, and replay apply to every proxy regardless of
-                        Mode.
-                    </p>
-                    <span id="mode-error">
-                        <InputError :message="form.errors.mode" />
-                    </span>
-                </div>
+                <h2 class="text-base font-semibold">Delivery</h2>
 
-                <!-- Downgrade disclosure (Enhanced → Simple edit only, AC13/AC14(c)) -->
-                <div aria-live="polite">
-                    <Alert
-                        v-if="isDowngrading"
-                        class="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-100 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400"
-                    >
-                        <Info class="size-4" />
-                        <AlertTitle>Switching to Simple mode</AlertTitle>
-                        <AlertDescription
-                            class="text-blue-900 dark:text-blue-100"
-                        >
-                            <ul class="list-disc space-y-1 pl-4">
-                                <li>
-                                    Enhanced-only steps — payload storage and
-                                    retry configuration — stop running for
-                                    events processed after you save. Automatic
-                                    retry, payload capture, retention, and
-                                    replay are unaffected; they apply to every
-                                    proxy regardless of mode.
-                                </li>
-                                <li>
-                                    Dispatched payloads already stored for this
-                                    proxy's past events are kept, unchanged, and
-                                    expire on their normal 30-day schedule — the
-                                    same as always. Nothing is deleted by this
-                                    switch.
-                                </li>
-                                <li>
-                                    Any retry configuration you've saved for
-                                    this proxy is kept but stops applying while
-                                    it's Simple — the system default ({{
-                                        defaultAttemptLimit
-                                    }}
-                                    attempts, {{ defaultBackoffStrategyLower }})
-                                    governs meanwhile. It applies again, with
-                                    the same values, if you turn Enhanced back
-                                    on.
-                                </li>
-                            </ul>
-                        </AlertDescription>
-                    </Alert>
-                </div>
+                <fieldset class="grid gap-4">
+                    <legend class="text-sm font-medium">
+                        Mode and processing
+                    </legend>
 
-                <div class="grid gap-2">
-                    <Label for="processing_mode">Processing</Label>
-                    <Select
-                        v-model="form.processing_mode"
-                        :disabled="form.processing"
-                    >
-                        <SelectTrigger
-                            id="processing_mode"
-                            class="w-full sm:w-64"
-                            :aria-invalid="
-                                form.errors.processing_mode ? 'true' : undefined
-                            "
-                            aria-describedby="processing-help processing-error"
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem
-                                v-for="option in PROXY_PROCESSING_MODES"
-                                :key="option.value"
-                                :value="option.value"
+                    <div class="grid gap-2">
+                        <div class="flex items-center gap-2">
+                            <Label for="mode">Mode</Label>
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="More about Mode"
+                                        >
+                                            <Info class="size-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>
+                                            Automatic retry, payload capture,
+                                            retention, and replay all apply
+                                            regardless of Mode — this only
+                                            affects dispatched-payload storage
+                                            and the retry settings below.
+                                        </p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                        <Select v-model="form.mode" :disabled="form.processing">
+                            <SelectTrigger
+                                id="mode"
+                                class="w-full sm:w-64"
+                                :aria-invalid="
+                                    form.errors.mode ? 'true' : undefined
+                                "
+                                aria-describedby="mode-help mode-error"
                             >
-                                {{ option.label }}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <p
-                        id="processing-help"
-                        class="text-sm text-muted-foreground"
-                    >
-                        Independent of the Mode setting above. Async (default)
-                        delivers this proxy's events to its destinations in
-                        parallel, with no guaranteed order — the right choice
-                        for most, higher-throughput traffic. FIFO delivers this
-                        proxy's events in the order they were received; it
-                        trades throughput for strict ordering, so FIFO is
-                        necessarily more serialized and slower than Async, not a
-                        free upgrade.
-                    </p>
-                    <span id="processing-error">
-                        <InputError :message="form.errors.processing_mode" />
-                    </span>
-                </div>
+                                <SelectValue placeholder="Select a mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="simple">Simple</SelectItem>
+                                <SelectItem value="enhanced">
+                                    Enhanced
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p id="mode-help" class="text-sm text-muted-foreground">
+                            Enhanced stores what was actually dispatched and
+                            unlocks the retry settings below.
+                        </p>
+                        <span id="mode-error">
+                            <InputError :message="form.errors.mode" />
+                        </span>
+                    </div>
+
+                    <!-- Downgrade disclosure (Enhanced → Simple edit only, AC13/AC14(c)) -->
+                    <div aria-live="polite">
+                        <Alert
+                            v-if="isDowngrading"
+                            class="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-100 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400"
+                        >
+                            <Info class="size-4" />
+                            <AlertTitle>Switching to Simple mode</AlertTitle>
+                            <AlertDescription
+                                class="text-blue-900 dark:text-blue-100"
+                            >
+                                <ul class="list-disc space-y-1 pl-4">
+                                    <li>
+                                        Enhanced-only steps — payload storage
+                                        and retry configuration — stop running
+                                        for events processed after you save.
+                                        Automatic retry, payload capture,
+                                        retention, and replay are unaffected;
+                                        they apply to every proxy regardless of
+                                        mode.
+                                    </li>
+                                    <li>
+                                        Dispatched payloads already stored for
+                                        this proxy's past events are kept,
+                                        unchanged, and expire on their normal
+                                        30-day schedule — the same as always.
+                                        Nothing is deleted by this switch.
+                                    </li>
+                                    <li>
+                                        Any retry configuration you've saved for
+                                        this proxy is kept but stops applying
+                                        while it's Simple — the system default
+                                        ({{ defaultAttemptLimit }} attempts,
+                                        {{ defaultBackoffStrategyLower }})
+                                        governs meanwhile. It applies again,
+                                        with the same values, if you turn
+                                        Enhanced back on.
+                                    </li>
+                                </ul>
+                            </AlertDescription>
+                        </Alert>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="processing_mode">Processing</Label>
+                        <Select
+                            v-model="form.processing_mode"
+                            :disabled="form.processing"
+                        >
+                            <SelectTrigger
+                                id="processing_mode"
+                                class="w-full sm:w-64"
+                                :aria-invalid="
+                                    form.errors.processing_mode
+                                        ? 'true'
+                                        : undefined
+                                "
+                                aria-describedby="processing-help processing-error"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem
+                                    v-for="option in PROXY_PROCESSING_MODES"
+                                    :key="option.value"
+                                    :value="option.value"
+                                >
+                                    {{ option.label }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p
+                            id="processing-help"
+                            class="text-sm text-muted-foreground"
+                        >
+                            Async (default) delivers in parallel, no order
+                            guaranteed. FIFO preserves order, at lower
+                            throughput. Set independently of Mode.
+                        </p>
+                        <span id="processing-error">
+                            <InputError
+                                :message="form.errors.processing_mode"
+                            />
+                        </span>
+                    </div>
+                </fieldset>
 
                 <!-- Retry policy (enhanced mode only, Flow F) -->
                 <fieldset v-if="isEnhanced" class="grid gap-4">
@@ -615,7 +645,9 @@ function submit(): void {
                         </span>
                     </div>
                 </fieldset>
+            </Card>
 
+            <Card class="gap-6 p-6">
                 <!-- Sensitive fields (Screen 2; AC12, AC13, AC19, C4, N4) -->
                 <fieldset class="grid gap-4">
                     <legend class="text-sm font-medium">

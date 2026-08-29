@@ -249,7 +249,34 @@
   Delivery card; on an Edit form for a currently-Enhanced proxy, switching to Simple still shows the
   downgrade disclosure with its exact existing text, now positioned inside "Mode and processing"; the
   Mode tooltip opens on Tab-focus.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Created the third `Card`, headed "Delivery" (`h2`),
+  directly after Response. Inside it, wrapped Mode, the downgrade disclosure `Alert`, and
+  Processing in a new `fieldset` legended "Mode and processing" (correction C1); relocated the
+  existing Retry policy `fieldset` (still `v-if="isEnhanced"`) into the same Delivery `Card`, as a
+  sibling — its own content untouched here (copy pass is T4). Mode's help now reads exactly
+  "Enhanced stores what was actually dispatched and unlocks the retry settings below."; added a
+  Tooltip on Mode (same `Button`/`TooltipTrigger as-child`/`TooltipProvider` shape as T2's Body
+  tooltip) carrying "Automatic retry, payload capture, retention, and replay all apply regardless
+  of Mode — this only affects dispatched-payload storage and the retry settings below." Processing's
+  help now reads exactly "Async (default) delivers in parallel, no order guaranteed. FIFO preserves
+  order, at lower throughput. Set independently of Mode." — no tooltip. The downgrade `Alert`'s
+  three-bullet text, including the interpolated `defaultAttemptLimit`/`defaultBackoffStrategyLower`
+  values, is unchanged character-for-character (confirmed via `git diff`: only surrounding
+  indentation moved, no text inside the `<li>`s changed) and still gated on `isDowngrading`.
+  `isEnhanced`, `isDowngrading`, and the Enhanced↔Simple discard-and-reseed `watch` are unchanged.
+  Closed the Delivery `Card` immediately after the Retry policy `fieldset` and opened a new,
+  as-yet-unheaded `Card` to hold Sensitive fields + Destinations pending T5/T6 — same "keep the file
+  well-formed at every commit" approach used at T1 for the Details/rest split.
+  Verification: no Playwright/browser access available to this agent; verified structurally (card
+  boundaries, exact copy strings, `git diff` confirming the downgrade Alert's `<li>` text is
+  byte-identical) plus `pnpm build` (host) succeeding. A live pass — switching Mode to Enhanced
+  reveals Retry policy directly under "Mode and processing" in the same card; on an Edit form for a
+  currently-Enhanced proxy, switching to Simple shows the downgrade disclosure inside "Mode and
+  processing"; the Mode tooltip opens on Tab-focus — is left for the Reviewer/QA gate, not claimed
+  here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors. `composer lint`/`composer types:check` green,
+  0 diff to any backend file.
 
 ## T4 — Retry policy fieldset copy pass (correction C5; `## Copy rewrite pass` → Delivery)
 
