@@ -8,6 +8,7 @@ use App\Enums\DeliveryStatus;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
+use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Scheduling\Schedule;
@@ -24,9 +25,11 @@ class SweepDueRetriesTest extends TestCase
      * attempt-1 row — the state a real delayed `RetryDelivery` job would find,
      * minus the timing.
      */
-    private function retryingDelivery(CarbonInterface $nextAttemptAt): Delivery
+    private function retryingDelivery(CarbonInterface $nextAttemptAt, ?Proxy $proxy = null): Delivery
     {
-        $destination = Destination::factory()->createQuietly();
+        $destination = $proxy !== null
+            ? Destination::factory()->for($proxy)->createQuietly()
+            : Destination::factory()->createQuietly();
         $event = WebhookEvent::factory()->createQuietly([
             'proxy_id' => $destination->proxy_id,
             'team_id' => $destination->team_id,
@@ -128,6 +131,53 @@ class SweepDueRetriesTest extends TestCase
         $this->expectExceptionMessage("config('retry.sweep_grace_seconds')");
 
         SweepDueRetries::run();
+
+        RetryDelivery::assertNotPushed();
+    }
+
+    public function test_excludes_an_overdue_retrying_delivery_whose_proxy_is_paused(): void
+    {
+        // Item #15, Q-15-01(3): a retry is a dispatch, so it must not fire while
+        // the proxy is paused — and must not spend the attempt it did not make.
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly(['paused_at' => now()]);
+        $grace = (int) config('retry.sweep_grace_seconds');
+        $delivery = $this->retryingDelivery(now()->subSeconds($grace + 60), $proxy);
+
+        SweepDueRetries::run();
+
+        RetryDelivery::assertNotPushed();
+        $this->assertSame(DeliveryStatus::Retrying, $delivery->fresh()->status, 'The retry budget must be untouched while paused.');
+    }
+
+    public function test_for_proxy_dispatches_this_proxys_overdue_retries_immediately_regardless_of_grace(): void
+    {
+        // AC4 parity: on resume, waiting retries fire immediately rather than
+        // waiting for the next per-minute sweep tick.
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        // Barely overdue — well inside the sweep grace period, so handle()
+        // would leave it untouched, but forProxy() (the resume path) must not
+        // wait out that grace.
+        $delivery = $this->retryingDelivery(now()->subSeconds(1), $proxy);
+
+        app(SweepDueRetries::class)->forProxy($proxy->id);
+
+        RetryDelivery::assertPushed(1);
+        RetryDelivery::assertPushed(fn ($action, array $params) => $params === [$delivery->id, 2]);
+    }
+
+    public function test_for_proxy_never_touches_another_proxys_overdue_retry(): void
+    {
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        $other = Proxy::factory()->createQuietly();
+        $this->retryingDelivery(now()->subSeconds(60), $other);
+
+        app(SweepDueRetries::class)->forProxy($proxy->id);
 
         RetryDelivery::assertNotPushed();
     }

@@ -7,6 +7,7 @@ use App\Actions\PurgeExpiredPayloads;
 use App\Enums\AttemptStatus;
 use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
+use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\FifoDispatch;
@@ -68,6 +69,42 @@ class RetentionInFlightHoldsAcceptanceTest extends TestCase
         $dispatch->update(['status' => FifoDispatchStatus::Settled, 'settled_at' => now()]);
         PurgeExpiredPayloads::run();
         $this->assertTrue($this->isCleaned($event), 'Once settled the hold lifts and the event is cleaned.');
+    }
+
+    public function test_h2_hold_does_not_apply_when_the_fifo_dispatchs_proxy_is_paused(): void
+    {
+        // Item #15 AC9: pause creates no hold — a pending fifo_dispatches row
+        // behind a paused proxy must not keep its event alive past retention.
+        $proxy = Proxy::factory()->createQuietly();
+        $proxy->forceFill(['paused_at' => now()])->save();
+        $event = $this->expiredEventFor($proxy);
+        FifoDispatch::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'status' => FifoDispatchStatus::Pending,
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertTrue($this->isCleaned($event), 'A paused proxy'."'".'s pending fifo row must not hold the event.');
+    }
+
+    public function test_h2_hold_still_applies_once_the_proxy_is_resumed(): void
+    {
+        // The bypass is pause-scoped, not a general H2 weakening.
+        $proxy = Proxy::factory()->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+        FifoDispatch::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'status' => FifoDispatchStatus::Pending,
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertFalse($this->isCleaned($event), 'An unpaused proxy'."'".'s pending fifo row must still hold the event.');
     }
 
     public function test_h3_async_hold_blocks_erasure_until_every_delivery_attempt_is_terminal(): void

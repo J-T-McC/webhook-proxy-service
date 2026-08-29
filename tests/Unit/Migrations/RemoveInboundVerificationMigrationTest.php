@@ -24,6 +24,39 @@ class RemoveInboundVerificationMigrationTest extends TestCase
     private const MIGRATION = '2026_08_28_000001_remove_inbound_verification';
 
     /**
+     * Roll back exactly {@see MIGRATION}, however many later migrations now
+     * sit on top of it (item #15's `add_paused_at_to_proxies_table` is one).
+     * `--step` alone rolls back the N most-recently-run migrations by
+     * position, not by name, so a bare `--step=1` silently rolls back
+     * whatever migration is newest instead of this one once anything ships
+     * after it. Combining a wide-enough `--step` with `--path` restricted to
+     * this migration's own file rolls back only this file: `rollbackMigrations`
+     * skips (leaves applied) any selected migration whose file isn't in the
+     * given path, so every later migration is left untouched.
+     */
+    private function rollbackThisMigrationOnly(): void
+    {
+        Artisan::call('migrate:rollback', [
+            '--path' => 'database/migrations/'.self::MIGRATION.'.php',
+            '--step' => $this->stepsToReach(self::MIGRATION),
+        ]);
+    }
+
+    /**
+     * How many of the most-recently-run migrations (by position) must be
+     * selected for rollback to reach `$migration`, counting from the top.
+     */
+    private function stepsToReach(string $migration): int
+    {
+        $position = DB::table('migrations')
+            ->orderByDesc('id')
+            ->pluck('migration')
+            ->search($migration);
+
+        return $position === false ? 1 : $position + 1;
+    }
+
+    /**
      * @return array<string, string> column name => lowercase DATA_TYPE|IS_NULLABLE
      */
     private function columnTypesFor(string $table): array
@@ -60,7 +93,7 @@ class RemoveInboundVerificationMigrationTest extends TestCase
         // and would otherwise leak into every later test in this worker's
         // database. `finally` deletes it explicitly rather than relying on
         // transactional rollback, which does not apply once DDL has run.
-        Artisan::call('migrate:rollback', ['--step' => 1]);
+        $this->rollbackThisMigrationOnly();
 
         $team = Team::factory()->createQuietly();
         $proxy = Proxy::factory()->createQuietly(['team_id' => $team->id]);
@@ -118,7 +151,7 @@ class RemoveInboundVerificationMigrationTest extends TestCase
 
     public function test_down_restores_exactly_the_two_columns_matching_their_original_nullable_definitions(): void
     {
-        Artisan::call('migrate:rollback', ['--step' => 1]);
+        $this->rollbackThisMigrationOnly();
 
         $columns = $this->columnTypesFor('proxies');
 
@@ -130,7 +163,7 @@ class RemoveInboundVerificationMigrationTest extends TestCase
 
     public function test_rollback_round_trip_leaves_proxy_secrets_sensitive_fields_and_destination_credential_columns_untouched(): void
     {
-        Artisan::call('migrate:rollback', ['--step' => 1]);
+        $this->rollbackThisMigrationOnly();
 
         // T1's own table/columns are untouched by rolling back only this
         // later migration — they belong to capabilities that survive

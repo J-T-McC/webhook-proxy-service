@@ -38,6 +38,15 @@ class ProxyEventReplayController extends Controller
     {
         $this->authorize('replay', $proxy);
 
+        // Item #15 AC3: a replay is unavailable while paused — rejected before
+        // any row is created, not silently queued and not silently dropped,
+        // the same treatment PRD-06 already gives a cleaned event below.
+        if ($proxy->isPaused()) {
+            throw ValidationException::withMessages([
+                'event' => __('This proxy is paused. Resume it before replaying events.'),
+            ]);
+        }
+
         $validatedDestinations = $request->validated('destinations');
         $destinationIds = array_map('intval', is_array($validatedDestinations) ? $validatedDestinations : []);
         $dispatchUuid = (string) Str::uuid();

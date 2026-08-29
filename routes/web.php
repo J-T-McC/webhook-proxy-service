@@ -6,6 +6,7 @@ use App\Http\Controllers\ProxyController;
 use App\Http\Controllers\ProxyEventController;
 use App\Http\Controllers\ProxyEventPayloadController;
 use App\Http\Controllers\ProxyEventReplayController;
+use App\Http\Controllers\ProxyPauseController;
 use App\Http\Controllers\ProxySigningController;
 use App\Http\Controllers\ProxySigningOverlapController;
 use App\Http\Controllers\Teams\TeamInvitationController;
@@ -38,6 +39,10 @@ Route::prefix('{current_team}')
         Route::post('proxies/{proxy}/events/{event}/replay', [ProxyEventReplayController::class, 'store'])
             ->scopeBindings()
             ->name('proxies.events.replay');
+        Route::post('proxies/{proxy}/pause', [ProxyPauseController::class, 'store'])
+            ->name('proxies.pause.store');
+        Route::delete('proxies/{proxy}/pause', [ProxyPauseController::class, 'destroy'])
+            ->name('proxies.pause.destroy');
         Route::post('proxies/{proxy}/signing', [ProxySigningController::class, 'store'])
             ->name('proxies.signing.store');
         Route::delete('proxies/{proxy}/signing', [ProxySigningController::class, 'destroy'])

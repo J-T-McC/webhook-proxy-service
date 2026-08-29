@@ -38,6 +38,10 @@ class ProxyResource extends JsonResource
             // Per-proxy processing mode (ADR-011). Read by the shared Create/Edit form
             // select, the Show badge, and the Index column.
             'processing_mode' => $this->processing_mode->value,
+            // Item #15 (pause and resume dispatch), AC14: shown wherever a
+            // proxy is presented, and says when it was paused — null means
+            // never paused/currently resumed.
+            'paused_at' => $this->paused_at,
             // User-defined upstream response config (nullable = unconfigured → the
             // resolver returns 202). Exposed so the shared Create/Edit form pre-fills
             // them; the index doesn't render them but the shape stays consistent.

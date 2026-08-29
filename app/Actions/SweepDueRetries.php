@@ -6,6 +6,7 @@ use App\Enums\DeliveryStatus;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Services\RetryPolicy;
+use Illuminate\Database\Eloquent\Builder;
 use Lorisleiva\Actions\Concerns\AsAction;
 
 /**
@@ -24,6 +25,14 @@ use Lorisleiva\Actions\Concerns\AsAction;
  * attempt_number)` create-or-resume key (T5/T10) inside
  * `DeliverToDestination`, exactly as the FIFO sweeper's nudge is arbitrated
  * by `AdvanceProxyFifoQueue`'s atomic claim — no dedupe logic lives here.
+ *
+ * Item #15 (pause and resume dispatch), Q-15-01(3): a retry is a dispatch, so
+ * a paused proxy's overdue retries are excluded from the per-minute sweep —
+ * they must not spend an attempt they did not make (PRD-15 AC19). Retry
+ * counts/schedules/limits are untouched; the retry simply does not fire while
+ * paused and is picked up again once resumed, either by the next sweep or by
+ * {@see forProxy()} called immediately on resume (AC4 — no waiting for the
+ * next tick).
  */
 class SweepDueRetries
 {
@@ -33,12 +42,45 @@ class SweepDueRetries
     {
         $cutoff = now()->subSeconds(app(RetryPolicy::class)->sweepGraceSeconds());
 
-        $overdue = Delivery::query()
-            ->where('status', DeliveryStatus::Retrying)
-            ->where('next_attempt_at', '<', $cutoff)
-            ->get();
+        $this->dispatchOverdue(
+            $this->overdueQuery()
+                ->where('next_attempt_at', '<', $cutoff)
+                ->whereNotIn('proxy_id', function ($query): void {
+                    $query->select('id')->from('proxies')->whereNotNull('paused_at');
+                }),
+        );
+    }
 
-        foreach ($overdue as $delivery) {
+    /**
+     * Immediate, proxy-scoped counterpart to {@see handle()}: on resume,
+     * dispatch this proxy's already-overdue retries right away rather than
+     * waiting for the next per-minute sweep (AC4 parity with the FIFO
+     * advancer's immediate re-dispatch). No `paused_at` filter needed — the
+     * caller only invokes this once the proxy is no longer paused.
+     */
+    public function forProxy(int $proxyId): void
+    {
+        $this->dispatchOverdue(
+            $this->overdueQuery()
+                ->where('proxy_id', $proxyId)
+                ->where('next_attempt_at', '<=', now()),
+        );
+    }
+
+    /**
+     * @return Builder<Delivery>
+     */
+    private function overdueQuery(): Builder
+    {
+        return Delivery::query()->where('status', DeliveryStatus::Retrying);
+    }
+
+    /**
+     * @param  Builder<Delivery>  $query
+     */
+    private function dispatchOverdue(Builder $query): void
+    {
+        foreach ($query->get() as $delivery) {
             $nextAttemptNumber = (DeliveryAttempt::query()
                 ->where('delivery_id', $delivery->id)
                 ->max('attempt_number') ?? 0) + 1;

@@ -221,6 +221,42 @@ class RetryReplayRetentionInterplayAcceptanceTest extends TestCase
         $this->assertTrue($this->isCleaned($event), 'Once every delivery is terminal, the next GC pass erases the event.');
     }
 
+    public function test_h5_hold_does_not_apply_to_a_retrying_delivery_whose_proxy_is_paused(): void
+    {
+        // Item #15 AC9: a retry that came due during a pause must not spend
+        // an attempt (AC19) — and must not hold retention either. PRD-06
+        // AC18's in-flight-retry hold is narrowed for exactly this case.
+        $proxy = Proxy::factory()->createQuietly();
+        $proxy->forceFill(['paused_at' => now()])->save();
+        $event = $this->expiredEventFor($proxy);
+        Delivery::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'status' => DeliveryStatus::Retrying,
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertTrue($this->isCleaned($event), 'A paused proxy'."'".'s retrying delivery must not hold the event.');
+    }
+
+    public function test_h5_hold_still_applies_to_a_retrying_delivery_on_an_unpaused_proxy(): void
+    {
+        $proxy = Proxy::factory()->createQuietly();
+        $event = $this->expiredEventFor($proxy);
+        Delivery::factory()->createQuietly([
+            'webhook_event_id' => $event->id,
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'status' => DeliveryStatus::Retrying,
+        ]);
+
+        PurgeExpiredPayloads::run();
+
+        $this->assertFalse($this->isCleaned($event), 'An unpaused proxy'."'".'s retrying delivery must still hold the event.');
+    }
+
     public function test_h5_a_pending_delivery_holds_only_within_the_dispatch_horizon(): void
     {
         $proxy = Proxy::factory()->createQuietly();

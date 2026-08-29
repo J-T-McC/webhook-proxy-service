@@ -5,9 +5,12 @@ namespace Tests\Feature\Ingest;
 use App\Actions\ProcessIngestedWebhook;
 use App\Enums\DeliveryStatus;
 use App\Enums\DispatchKind;
+use App\Enums\ProcessingMode;
+use App\Events\DeliveryExhausted;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
+use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -150,6 +153,117 @@ class ProcessIngestedWebhookTest extends TestCase
         $this->expectException(ModelNotFoundException::class);
 
         ProcessIngestedWebhook::run('does-not-exist');
+    }
+
+    public function test_a_cleaned_replays_pre_created_delivery_rows_are_terminalized_not_left_stuck(): void
+    {
+        // Item #15 Q-15-01(4): a replay pre-creates its `deliveries` rows before
+        // this action ever runs. If the event is cleaned by the time it does,
+        // those rows must not be left non-terminal forever (the livelock this
+        // brief fixes at the root, in the cleaned-event early return).
+        Event::fake();
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        $replayDispatchUuid = 'replay-uuid-1';
+        $delivery = Delivery::factory()->createQuietly([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'destination_id' => $destination->id,
+            'webhook_event_id' => $event->id,
+            'dispatch_uuid' => $replayDispatchUuid,
+            'kind' => DispatchKind::Replay,
+            'status' => DeliveryStatus::Pending,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id, $replayDispatchUuid);
+
+        $this->assertSame(DeliveryStatus::Failed, $delivery->fresh()->status);
+        $this->assertNull($delivery->fresh()->next_attempt_at);
+        $this->assertSame(0, DeliveryAttempt::count(), 'No attempt is ever made for a cleaned event.');
+        Http::assertNothingSent();
+        Event::assertDispatched(DeliveryExhausted::class, fn ($event) => $event->delivery->id === $delivery->id);
+    }
+
+    public function test_a_cleaned_event_with_no_pre_created_deliveries_is_an_unaffected_no_op(): void
+    {
+        // The ordinary (original-dispatch) shape: nothing to terminalize.
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id);
+
+        $this->assertSame(0, Delivery::count());
+        $this->assertSame(0, DeliveryAttempt::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_a_paused_async_proxy_dispatches_nothing_and_creates_no_delivery_rows(): void
+    {
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly([
+            'processing_mode' => ProcessingMode::Async,
+        ]);
+        $proxy->forceFill(['paused_at' => now()])->save();
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id);
+
+        $this->assertSame(0, Delivery::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_a_paused_fifo_proxy_still_dispatches_when_invoked_directly(): void
+    {
+        // The pause guard inside this action is scoped away from FIFO
+        // (Q-15-01(2) is handled at AdvanceProxyFifoQueue's claim instead) —
+        // were it to also fire here, a bare invocation with zero deliveries
+        // created would read as "done" to settleOrHold() and silently lose
+        // the event rather than leave it to resume.
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $proxy = Proxy::factory()->createQuietly([
+            'processing_mode' => ProcessingMode::Fifo,
+        ]);
+        $proxy->forceFill(['paused_at' => now()])->save();
+        Destination::factory()->for($proxy)->createQuietly();
+
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        FifoDispatch::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'webhook_event_id' => $event->id,
+            'dispatch_uuid' => $event->ingest_id,
+        ]);
+
+        ProcessIngestedWebhook::run($event->ingest_id);
+
+        $this->assertSame(1, Delivery::count());
+        Http::assertSentCount(1);
     }
 
     public function test_a_cleaned_event_returns_cleanly_and_dispatches_nothing(): void

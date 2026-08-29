@@ -321,6 +321,44 @@ function endSigningOverlap(): void {
     );
 }
 
+const proxyPauseOpen = ref(false);
+const pauseResumeBusy = ref(false);
+
+function confirmPauseProxy(): void {
+    pauseResumeBusy.value = true;
+
+    router.post(
+        proxyRoutes.pause.store({
+            current_team: teamSlug.value,
+            proxy: props.proxy.id,
+        }).url,
+        {},
+        {
+            onFinish: () => {
+                pauseResumeBusy.value = false;
+                proxyPauseOpen.value = false;
+            },
+        },
+    );
+}
+
+function resumeProxy(): void {
+    // AC10: resuming requires no confirmation.
+    pauseResumeBusy.value = true;
+
+    router.delete(
+        proxyRoutes.pause.destroy({
+            current_team: teamSlug.value,
+            proxy: props.proxy.id,
+        }).url,
+        {
+            onFinish: () => {
+                pauseResumeBusy.value = false;
+            },
+        },
+    );
+}
+
 const proxyDeleteOpen = ref(false);
 const busy = ref(false);
 
@@ -366,8 +404,29 @@ function confirmDeleteProxy(): void {
                             )
                         }}
                     </Badge>
+                    <Badge v-if="props.proxy.paused_at" variant="outline">
+                        Paused since
+                        {{ formatTimestamp(props.proxy.paused_at) }}
+                    </Badge>
                 </div>
                 <div class="flex items-center gap-2">
+                    <Button
+                        v-if="canUpdate && !props.proxy.paused_at"
+                        variant="outline"
+                        :disabled="pauseResumeBusy"
+                        @click="proxyPauseOpen = true"
+                    >
+                        Pause
+                    </Button>
+                    <Button
+                        v-if="canUpdate && props.proxy.paused_at"
+                        variant="outline"
+                        :disabled="pauseResumeBusy"
+                        @click="resumeProxy"
+                    >
+                        <Spinner v-if="pauseResumeBusy" />
+                        Resume
+                    </Button>
                     <Button variant="outline" as-child>
                         <Link
                             :href="
@@ -956,6 +1015,35 @@ function confirmDeleteProxy(): void {
         :can-update="canUpdate"
         @update:open="(value) => (signingDialogOpen = value)"
     />
+
+    <!-- Pause proxy confirmation (AC10: the consequence is stated before the
+         decision — resuming needs no confirmation at all). -->
+    <AlertDialog
+        :open="proxyPauseOpen"
+        @update:open="(value) => (proxyPauseOpen = value)"
+    >
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>
+                    Pause &ldquo;{{ props.proxy.name }}&rdquo;?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                    Nothing will be sent to its destinations until it is
+                    resumed. Events keep aging and expire on schedule whether or
+                    not they were sent.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                    :disabled="pauseResumeBusy"
+                    @click="confirmPauseProxy"
+                >
+                    Pause proxy
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 
     <!-- Delete proxy confirmation -->
     <AlertDialog

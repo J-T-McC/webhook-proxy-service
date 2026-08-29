@@ -160,6 +160,24 @@ class SweepStalledFifoDispatchesTest extends TestCase
         $this->assertSame(FifoDispatchStatus::AwaitingRetry, $held->fresh()->status);
     }
 
+    public function test_excludes_a_paused_proxy_with_pending_rows_from_the_idle_nudge(): void
+    {
+        // Item #15, Q-15-01(1): a paused proxy sits in exactly the "pending, no
+        // claim, no hold" shape the nudge exists to unstick — without this
+        // exclusion the pause would silently lift within one tick.
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly([
+            'processing_mode' => ProcessingMode::Fifo,
+            'paused_at' => now(),
+        ]);
+        $this->pendingDispatch($proxy);
+
+        SweepStalledFifoDispatches::run();
+
+        AdvanceProxyFifoQueue::assertNotPushed();
+    }
+
     public function test_releases_a_stuck_hold_whose_dispatch_has_gone_fully_terminal(): void
     {
         Queue::fake();

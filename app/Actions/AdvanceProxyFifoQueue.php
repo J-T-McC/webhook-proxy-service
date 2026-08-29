@@ -6,6 +6,7 @@ use App\Enums\DeliveryStatus;
 use App\Enums\FifoDispatchStatus;
 use App\Models\Delivery;
 use App\Models\FifoDispatch;
+use App\Models\Proxy;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\DB;
 use Lorisleiva\Actions\Concerns\AsAction;
@@ -67,6 +68,19 @@ class AdvanceProxyFifoQueue
     private function claimNext(int $proxyId): ?FifoDispatch
     {
         return DB::transaction(function () use ($proxyId): ?FifoDispatch {
+            // Item #15 (pause and resume dispatch), Q-15-01(2): a paused proxy's
+            // rows must never be claimed. Checked first, inside the same
+            // transaction as the busy/pending scan below, so ordering (AC5) is
+            // untouched — this is purely an early return, never a timing input
+            // to which row gets claimed. No lock is needed: this is a read, not
+            // a mutation, and the narrow race (paused a moment after this read
+            // commits) just lets an already-accepted claim finish, which is the
+            // desired behaviour, not a violation (AC8 — a pause delays, never
+            // alters).
+            if (Proxy::query()->whereKey($proxyId)->value('paused_at') !== null) {
+                return null;
+            }
+
             $busy = FifoDispatch::query()
                 ->where('proxy_id', $proxyId)
                 ->where(function ($query): void {

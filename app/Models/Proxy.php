@@ -32,6 +32,7 @@ use Illuminate\Support\Carbon;
  * @property string $ingest_token_hash
  * @property string $ingest_token
  * @property list<string>|null $sensitive_fields
+ * @property Carbon|null $paused_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -149,6 +150,16 @@ class Proxy extends Model
     }
 
     /**
+     * Whether dispatch is currently paused for this proxy (item #15, AC1).
+     * `paused_at` is the two-state signal AND the "since when" timestamp
+     * (AC14) — never a separate boolean column.
+     */
+    public function isPaused(): bool
+    {
+        return $this->paused_at !== null;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -162,6 +173,7 @@ class Proxy extends Model
             'response_status' => 'integer',
             'ingest_token' => 'encrypted',
             'sensitive_fields' => 'array',
+            'paused_at' => 'datetime',
         ];
     }
 }
