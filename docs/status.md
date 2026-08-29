@@ -189,18 +189,23 @@ Principal Engineer sign-off gate **stays lapsed**, so no engineering sign-off is
 Project Owner can reinstate it. The design and its task plan are merged to `main` (`17fb9a8`,
 PR #37); the implementation is not.
 
-- **Phase:** implementation complete, review gate run. The Reviewer recommends **Request
-  changes** on one Major.
-- **Current agent:** Designer, ruling the Major; then the Senior Developer applies it, then a
-  re-review.
-- **Blockers:** the Major — the Sensitive fields and Destinations card `legend`s ship at a
-  smaller, lighter class than the three cards headed by an `h2`, so two of the five containers
-  read as subordinate. Half of it is a contradiction inside the design itself, which is why it
-  routes to the Designer rather than straight to a fix. Three Minors are carried as follow-ups.
+- **Phase:** implementation complete, reviewed and re-reviewed. The Reviewer recommends
+  **Approve with follow-ups** after three rework cycles. No Blocker or Major remains open and
+  no rework is owed.
+- **Current agent:** — (Project Owner merges).
+- **Blockers:** none. Three follow-ups are carried, none blocking: the design's
+  `## Consequences` amendments to six approved specs, which the design says the Owner directs;
+  this status block's own upkeep; and a note that `max-w-xs` now sits at four call sites, so
+  the next tooltip carrying a sentence hits the same clipping defect unless its author
+  remembers — the durable fix is a default in the generated primitive, which cannot be
+  hand-edited.
 - **Artifacts:** `docs/design/design-17-proxy-form-information-architecture.md` (Approved,
-  Product Manager, 2026-08-29), `docs/tasks/proxy-form-information-architecture-tasks.md`
-  (T1–T8, all built), `docs/reviews/review-17-proxy-form-information-architecture.md`. The
-  rulings, findings and coverage traces live there, not here.
+  Product Manager, 2026-08-29, plus two self-certified amendments — the card-level `legend`
+  heading weight and the tooltip content width cap),
+  `docs/tasks/proxy-form-information-architecture-tasks.md` (T1–T10, all built), and
+  `docs/reviews/review-17-proxy-form-information-architecture.md`, which retains its two
+  superseded verdicts alongside the close-out. The rulings, findings and coverage traces live
+  there, not here.
 
 ## Backlog follow-ups (deferred, not gating any current item)
 

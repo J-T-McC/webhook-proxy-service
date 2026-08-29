@@ -641,7 +641,10 @@ not eyeballed: re-run the four width measurements at 360px and require every ren
 
 ## Re-review recommendation
 
-- **Recommendation:** **Request changes** — on Finding 5 alone.
+- **Recommendation:** ~~**Request changes** — on Finding 5 alone.~~ **SUPERSEDED by
+  `## Close-out (2026-08-29)` below**, which records Finding 5 resolved. The text of this
+  re-review's recommendation is retained unedited as the record of what was recommended at the
+  time; see the close-out for the live recommendation.
 
 Everything raised at the first pass is closed, and the rework is exemplary in shape: two product
 files, three content changes, zero copy drift, zero accessibility drift, all six gates green, and
@@ -660,7 +663,7 @@ defensible call, since all four strings are bucket-3 content and the form itself
 that width — then this becomes **Approve with follow-ups**, with Finding 5 carried as the first
 follow-up. That call is the Owner's; this review does not make it.
 
-- **Project Owner decision / date:** _pending_
+- **Project Owner decision / date:** _superseded — see the close-out recommendation_
 
 ## Re-review handoff
 
@@ -680,3 +683,145 @@ follow-up. That call is the Owner's; this review does not make it.
 - **Next Agent:** Project Owner (decision), then Designer (Finding 5 ruling), then Senior Developer
   (apply to the four call sites), then Reviewer (second re-review, appended in place below this
   section).
+
+---
+
+# Close-out (2026-08-29)
+
+- **Reviewer / date:** Reviewer, 2026-08-29
+- **Scope:** branch `feat/design-17-form-restructure` at `b663280`, three commits since the
+  re-reviewed `837601b`: `c5c1d43` (Designer's second amendment,
+  `## Amendment — tooltip content width cap`), `528550e` (Task Planner adding T10 and correcting
+  T9's inherited delay-grouping claim), `b663280` (Senior Developer implementing T10).
+- **Purpose:** close Finding 5 and give a final recommendation. Findings 1–4 were settled in the
+  re-review above and are not re-opened here.
+
+## Gates — re-run at `b663280`
+
+| Gate | Result observed |
+|---|---|
+| `composer lint` | `{"tool":"pint","result":"passed"}` |
+| `composer types:check` | `{"tool":"phpstan","result":"passed","errors":0}` |
+| `./vendor/bin/sail test --parallel` | `{"tool":"paratest","result":"passed","tests":1019,"passed":1019,"assertions":4818,"duration_ms":10131}` |
+| `pnpm types:check` | clean, exit 0 |
+| `pnpm format:check` | "All matched files use Prettier code style!" |
+| `pnpm lint:check` | 0 files with errors outside `.claude/worktrees`; `npx eslint resources/` exits 0 silently |
+| `pnpm build` (host) | `✓ built in 2.14s`, exit 0 |
+
+Suite count unchanged at 1019/4818 for the third consecutive run, and the branch still contains no
+test file — the delta is structurally zero, not merely observed to be.
+
+## Finding 5 (Major) — RESOLVED
+
+**The diff is four lines.** `git diff 837601b..b663280 -- resources/js/pages/proxies/ProxyForm.vue`
+shows exactly four changed lines, one per call site, each `<TooltipContent>` becoming
+`<TooltipContent class="max-w-xs">`. Nothing else in the file moved. All four
+`TooltipContent` open tags in the file carry the class — none was missed.
+
+**Nothing else drifted**, each checked rather than assumed:
+
+- **Copy:** the normalized visible-text extraction reports an **empty delta** against `837601b` for
+  both `ProxyForm.vue` and `DestinationRows.vue`. No help string, tooltip body, label, legend or
+  `Alert` bullet changed.
+- **Trigger markup:** filtering the diff for `TooltipTrigger`, `aria-label`, `Button`, `Info` and
+  `TooltipProvider` returns **zero** matching lines — no trigger, accessible name or provider was
+  touched. All four `aria-label`s are still the ones reviewed at the first pass.
+- **Accessibility wiring:** every `aria-describedby` token in `ProxyForm.vue` still resolves against
+  a declared id; no dangling references, no duplicate ids.
+- **Finding 1's fix is intact:** the two card-level `legend`s are still `text-base font-semibold`
+  and the two Delivery-nested ones still `text-sm font-medium`.
+
+**The generated primitive was not hand-edited, which was the constraint that made this a Designer
+question.** `resources/js/components/ui/tooltip/TooltipContent.vue` has a zero diff for this commit,
+and more strongly, `git diff main..b663280 -- resources/js/components/ui/` is **empty across the
+entire branch** — no file under the generated `ui/` tree was touched at any point in this feature.
+That satisfies `docs/standards/coding.md` → Project structure, restated in
+`docs/standards/review.md`'s checklist.
+
+**Measured independently by the Reviewer, not accepted from the completion note or the
+hand-off.** Driven headless at 360×800 against a freshly host-built bundle at `b663280`, each
+trigger focused by keyboard and its `[data-slot="tooltip-content"]` measured:
+
+| Tooltip | Before | After | `left` | `right` | Computed `max-width` | Fits in 360px |
+|---|---|---|---|---|---|---|
+| Mode | 892px | **320px** | 0 | 320 | `320px` | Yes |
+| Backoff strategy | 744px | **320px** | 11 | 331 | `320px` | Yes |
+| "Always hidden" | 469px | **320px** | 0 | 320 | `320px` | Yes |
+| Response Body | 431px | **320px** | 0 | 320 | `320px` | Yes |
+
+This reproduces the reported numbers exactly, including Backoff strategy's `left: 11` — Reka's
+collision handling nudging it inboard, which is the primitive behaving as `## Responsive Behavior`
+always expected once the element is small enough for repositioning to have somewhere to go.
+`document.documentElement.scrollWidth` stays 360 throughout and every `left` is ≥ 0, so nothing is
+clipped in either direction. Each trigger still carries an `aria-describedby` pointing at its
+content.
+
+**The capped text wraps rather than being clipped on the other axis** — the failure mode a width cap
+can introduce. Checked on the worst offender: the Mode tooltip now renders 320×76px with
+`scrollHeight` 76 equal to `clientHeight` 76, `overflow: visible`, at a 16px line-height, and its
+full 158-character sentence is present in the DOM. It wraps to roughly five lines and is entirely
+readable. **The information the design moved off the form is now genuinely carried by the tooltip at
+the minimum supported width, which is what Finding 5 said it was not.**
+
+**The upstream corrections are the right shape.** The Designer's amendment rules the exact class at
+the call site, states plainly that "`## Responsive Behavior` and N1 were themselves wrong on this one
+point" rather than recasting the implementation as at fault, and splits N1 into two
+independently-verdicted criticisms — the non-focusable `span` trigger rejection stands, the
+`max-w-xs` rejection is withdrawn. The Task Planner's T9 correction withdraws the manual timing
+check that could neither pass nor fail, and leaves the Senior Developer's completion notes as
+written with a correction note beneath, the same treatment T6 received. Both follow this project's
+convention of pointing at a superseded record rather than rewriting it.
+
+## Findings — final status
+
+| # | Severity | Status |
+|---|---|---|
+| 1 | Major | **Resolved** (re-review) — both card-level legends at heading weight |
+| 2 | Minor | **Resolved** (re-review) — single hoisted `TooltipProvider`; my original rationale corrected in place |
+| 3 | Minor | **Resolved** (re-review) — `docs/status.md` block corrected |
+| 4 | Minor | **Partially resolved** — the `design.md` typography correction landed; six `## Consequences` amendments carried forward as a non-blocking follow-up |
+| 5 | Major | **Resolved** — all four tooltips capped at 320px, fitting and wrapping unclipped at 360px |
+
+**No Blocker or Major remains open.**
+
+## Final recommendation
+
+- **Recommendation:** **Approve with follow-ups.**
+
+Every Major is closed and verified by measurement rather than by claim. The feature delivers what
+`design-17` specifies: five containers in pipeline order reading as visual peers, every copy
+disposition matching the design's table verbatim, four accessibility obligations discharged, and all
+four tooltips carrying their content readably at the minimum supported width. All six gates are
+green, the backend is untouched, and the generated `ui/` tree was never hand-edited.
+
+The rework across three review cycles stayed disciplined throughout — twelve changed lines of
+product code in total after the first pass, zero copy drift at every step, and both upstream
+defects corrected in their own artifacts by the roles that own them rather than worked around in
+code.
+
+**Carried as follow-ups, none blocking:**
+
+1. **Finding 4 —** `design-17` `## Consequences` still lists six approved specs (`design-10`,
+   `design-07`, `design-06`, `design-04`, `design-01`, `design-03`) describing copy and containers
+   this restructure changed, plus the `docs/standards/design.md` note that `Tooltip` is now an active
+   pattern for field-level explanatory copy. Owner-directed; the design amends none of them itself.
+2. **`docs/status.md`** needs one routine refresh to record this close-out and the Owner's decision.
+3. **A width cap belongs in the shared primitive eventually.** `max-w-xs` now sits at four call
+   sites, and the next tooltip carrying a sentence anywhere in the app will hit the same defect
+   unless its author remembers. The durable fix is a default `max-width` in
+   `components/ui/tooltip/TooltipContent.vue`, which cannot be hand-edited — so it belongs in a
+   regeneration or an upstream shadcn-vue change, not in this feature. Worth an ADR-level note
+   rather than silent repetition.
+
+- **Project Owner decision / date:** _pending_
+
+## Close-out handoff
+
+- **Inputs:** branch `feat/design-17-form-restructure` at `b663280`; `design-17`
+  `## Amendment — tooltip content width cap` (2026-08-29, Designer, self-certified);
+  `docs/tasks/proxy-form-information-architecture-tasks.md` T10 and the T9 correction note; the
+  Reviewer's own 360px measurement of all four tooltips at this commit.
+- **Outputs:** this close-out, appended in place.
+- **Dependencies:** none. Nothing is gated on another role.
+- **Outstanding Questions:** none.
+- **Next Agent:** **Project Owner** — approval decision. No rework is outstanding.

@@ -245,5 +245,10 @@ metadata:
   cannot shrink. `ReplayDialog.vue`'s `max-w-xs` is the only guard in the codebase and it exists for
   exactly this reason. **The fix can never be in `TooltipContent.vue`** — `components/ui/*` is
   generated and must never be hand-edited (`coding.md` → Project structure) — so it has to be a
-  call-site `class`, which is what design-17's note N1 forbade. Whenever a design routes explanatory
-  prose into a tooltip, measure the width at 360px before approving.
+  call-site `class`. **Resolved at review-17 close-out: the house answer is `class="max-w-xs"` (320px)
+  on every `TooltipContent` call site** — it caps the width, Reka's collision handling then has room
+  to nudge it inboard, and the text wraps. Whenever a design routes explanatory prose into a tooltip,
+  measure the width at 360px before approving; and when a width cap is the fix, also check it did not
+  just move the clipping to the other axis — assert `scrollHeight === clientHeight` on the content,
+  not only that the width fits. A durable fix belongs in the primitive's own default, which cannot be
+  hand-edited, so it needs a regeneration or an upstream change rather than more call sites.
