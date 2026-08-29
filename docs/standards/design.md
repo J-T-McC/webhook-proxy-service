@@ -56,11 +56,16 @@ scale in `@theme` — only one font family is declared (`--font-sans: Instrument
 Sans, ui-sans-serif, system-ui, ...`) and pages use Tailwind's stock
 `text-sm`/`text-lg`/`text-xl`/`font-medium`/`font-semibold` utilities directly
 (e.g. `Show.vue` page heading is `text-xl font-semibold`, card headings are
-`text-sm font-medium`, helper/error text is `text-sm`). Proposed default: keep
-using Tailwind's default type scale as-is rather than introduce a bespoke one —
-page titles `text-xl font-semibold`, section/card headings `text-sm
-font-medium`, body/help/error text `text-sm`, secondary text pairs with
-`text-muted-foreground`.
+`<h2 class="text-base font-semibold">`, helper/error text is `text-sm`).
+Proposed default: keep using Tailwind's default type scale as-is rather than
+introduce a bespoke one — page titles `text-xl font-semibold`, section/card
+headings `text-base font-semibold` (the `Show.vue` precedent above — this
+applies equally to a `fieldset`/`legend` standing in for a card's own heading
+when the card has no sibling `h2`, per `design-17`'s 2026-08-29 amendment),
+sub-headings nested *inside* an already-headed card (e.g. a `legend` grouping
+a subsection of fields under a card that already carries its own `h2`)
+`text-sm font-medium`, body/help/error text `text-sm`, secondary text pairs
+with `text-muted-foreground`.
 
 **Spacing (Proposed default — no prior precedent):** no spacing scale override
 in `@theme` — Tailwind 4's default 4px-based scale is used as-is (`gap-2`/`gap-3`/

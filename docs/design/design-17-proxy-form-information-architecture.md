@@ -13,7 +13,14 @@
   end of this document for the coverage trace against the Owner's brief and the
   five corrections' original findings. The approved design specs that need
   amending as a consequence are listed under `## Consequences` below, and that
-  amendment work is not done here.
+  amendment work is not done here. **`## Amendment — card-level legend heading
+  weight ruling` (2026-08-29, below, at the very end of this document) settles
+  Review-17 Finding 1 (Major)** — it states the exact class a card-level
+  `legend` takes (`class="text-base font-semibold"`) and rules that
+  `DestinationRows.vue`'s "unchanged internals" label in Screen 1 never
+  governed, and does not govern, that `legend`'s presentational class. Where
+  the amendment and the original spec body conflict, the amendment governs.
+  Self-certified by the Designer; does not reopen the design gate.
 - **Author:** Designer
 - **Approved by / date:** **Product Manager, 2026-08-29** (design gate, delegated).
   This is the last gate before task planning: `docs/architecture/adr-026-inbound-
@@ -189,7 +196,17 @@ named "Retry policy, Destinations" here, but `## Screens & States` Screen 1 puts
 Retry policy inside the **Delivery** card, which carries its own `h2`, and puts
 Sensitive fields in a card of its own with no `h2`; Sensitive fields and
 Destinations are the two single-`fieldset` cards this rule governs), the `legend`
-carries that same visual weight instead of a redundant second heading. Details
+**takes the identical class the `h2` it replaces would have carried —
+`class="text-base font-semibold"` — not `class="text-sm font-medium"`**,
+instead of a redundant second heading. (Stated explicitly here, ruled by the
+Designer's 2026-08-29 amendment `## Amendment — card-level legend heading
+weight ruling` below, after Review-17 Finding 1 found "that same visual
+weight" ambiguous between the `h2`'s class and the default legend class
+`docs/standards/design.md` separately documents.) This class applies only to a
+`legend` standing in for a card's own heading with no sibling `h2` — the two
+`fieldset`/`legend` groups nested *inside* the Delivery card ("Mode and
+processing", "Retry policy"), which sit beneath that card's own `h2`, are
+correctly subordinate and keep `class="text-sm font-medium"` unchanged. Details
 and Response each hold exactly one field, or one ungrouped pair of fields, and
 need no nested `fieldset` at all — the plain `h2` is the whole of their heading,
 the same precedent Details already sets.
@@ -341,7 +358,12 @@ Card "Sensitive fields"
     Also hidden for this proxy (badges + add)
 
 Card "Destinations"
-  fieldset "Destinations"  (DestinationRows.vue, unchanged internals)
+  fieldset "Destinations"  (DestinationRows.vue — the `legend` is restyled to
+    `class="text-base font-semibold"` per `## Grouping proposal` and the
+    2026-08-29 amendment below; every other internal — the rows, add/remove,
+    the Credential subsection, `v-model` bindings, validation — is unchanged.
+    "Unchanged internals" in this document has only ever meant behavior, not
+    the legend's presentational class, which is this document's own subject.)
     [rows: URL, Method, Credential subsection, Remove]
     Add destination
 
@@ -805,3 +827,128 @@ Ruled moot and closed at `## Open Questions` item 3 — no `design-10` amendment
 owed on naming grounds, and the broader form-versus-Show-page naming consistency
 check the question invited was run and passes. **No open question remains in this
 document.**
+
+## Amendment — card-level legend heading weight ruling (2026-08-29)
+
+**What this settles.** `docs/reviews/review-17-proxy-form-information-architecture.md`
+Finding 1 (Major, blocked approval of the shipped implementation) found two
+problems, both originating in this document rather than in the Senior
+Developer's work. First, `## Grouping proposal`'s sentence that a card-level
+`legend` "carries that same visual weight instead of a redundant second
+heading" was genuinely ambiguous: it can be read as this document intended —
+the `legend` takes the `h2`'s own class — or, just as reasonably, as "the
+`legend` already *is* the heading, so a plain legend needs no further styling,"
+which is the reading `docs/standards/design.md`'s typography section supported
+before this amendment, since it independently documented `text-sm font-medium`
+as the default class for "section/card headings" with no carve-out for a
+`legend` standing in for an `h2`. The shipped form took the second reading:
+Sensitive fields' `legend` (`ProxyForm.vue:666`) and Destinations' `legend`
+(`DestinationRows.vue:123`) both render `class="text-sm font-medium"` — smaller
+and lighter than the three `h2`-headed cards, and identical to the two
+`legend`s nested *inside* the Delivery card that this document always intended
+to read as subordinate. Three containers read as top-level and two read as
+sub-headings, on a feature whose entire deliverable is visual grouping.
+
+Second, Screen 1 labeled `DestinationRows.vue` "unchanged internals" while the
+Grouping proposal required its `legend`'s presentation to change — two clauses
+of this same document in direct conflict, not a defect in what the Senior
+Developer built. `T6`'s acceptance criterion, written from Screen 1's label,
+requires the file to have zero diff, which cannot be simultaneously true of a
+file whose `legend` class changes. The Senior Developer is not at fault for
+either half: it followed the instruction the document gave it, and the
+document gave it two instructions that cannot both hold.
+
+**Ruling 1 — the exact class.** A card-level `legend` — one standing in for a
+card's own heading, used because the card wraps a single `fieldset` group with
+no sibling `h2` — takes `class="text-base font-semibold"`: the identical class
+the `h2` it replaces would otherwise carry, matching `proxies/Show.vue`'s own
+card-heading precedent. This is not a new class choice; it is `## Grouping
+proposal`'s original sentence, now stated as an exact class rather than as
+"that same visual weight," so no future implementer has to interpret it. It
+governs exactly two `legend`s on this form: Sensitive fields' (`ProxyForm.vue`,
+currently at line 666) and Destinations' (`DestinationRows.vue`, currently at
+line 123). It does not govern the two `legend`s nested inside the Delivery
+card ("Mode and processing", "Retry policy"), which sit beneath that card's own
+`h2` and are correctly subordinate to it; those keep `class="text-sm
+font-medium"` unchanged. `## Grouping proposal` and `## Screens & States`
+Screen 1 are both corrected in place above to state this class directly.
+
+**Ruling 2 — `DestinationRows.vue`'s "unchanged internals" yields, narrowly.**
+The two clauses are not equally weighted. `## Grouping proposal`'s heading-weight
+rule is this document's central, load-bearing deliverable — it is the specific
+sentence Review-17 traced back to the design gate's own correction C4, which
+exists precisely to confirm Destinations is one of the two cards the rule
+governs. Screen 1's "unchanged internals" parenthetical is a one-line aside
+describing `DestinationRows.vue`'s behavior — its row rendering, add/remove
+handling, the Credential subsection, `v-model` bindings and validation — none
+of which this document ever proposed touching. Reading "unchanged internals" to
+also freeze the `legend`'s presentational class would mean the one card-level
+`legend` this document most needed to restyle — Destinations, the card the
+Owner named directly among the "jumbled" containers — is the one place the
+heading-weight rule silently does not apply, for a reason (a stray word in a
+diagram annotation) that has nothing to do with visual grouping. That result
+defeats the document's own stated purpose and is rejected. **"Unchanged
+internals" is corrected, at Screen 1 above, to describe behavior only; it never
+governed and does not govern the `legend`'s heading class.** `DestinationRows.vue`
+is not "unchanged" in the byte-identical sense `T6`'s acceptance criterion
+currently tests; it has one presentational class edit at its `legend`, nothing
+else. `T6`'s zero-diff acceptance criterion is out of step with the corrected
+design and needs a Task Planner correction to permit exactly this one-class
+edit — that correction is not made here, as task plans are outside this role's
+authority; it is flagged here as a direct consequence of this ruling so it is
+not lost.
+
+**Decision authority.** Component heading treatment and the presentational
+class a card-level `legend` takes are UI-detail decisions within this
+document's own UX direction — the Designer's decision authority per this
+role's skill definition. Which of two conflicting clauses in a document this
+role authored governs is likewise this role's call, per the escalation rule
+that routes a design-spec self-conflict back to the Designer rather than to
+the Senior Developer who correctly followed one of the two readings. Neither
+ruling changes a requirement, invents UI no user story calls for, or reopens
+any user-visible outcome the design gate approved: Screen 1 already showed
+five stacked cards with two single-`fieldset` cards among them; this amendment
+only removes the ambiguity in how one of their two headings is styled.
+
+**Date:** 2026-08-29.
+
+**Author of this amendment:** Designer, in response to Review-17 Finding 1
+(Major).
+
+**Status of this amendment: self-certified by the Designer**, per `CLAUDE.md`'s
+routing for doc corrections ("doc corrections → the owning role updates the
+doc") and per the design gate's own delegation. This document's `## Status`
+stays **Approved** — this is an amendment resolving an internal ambiguity and
+self-conflict the gate did not catch, not a change of intent, and it does not
+reopen the design gate.
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| `## Grouping proposal` | **Corrected** — "that same visual weight" is now stated as the exact class, `class="text-base font-semibold"`, with an explicit carve-out that the two `legend`s nested inside the Delivery card are unaffected and keep `class="text-sm font-medium"`. |
+| `## Screens & States` Screen 1, Destinations card | **Corrected** — the `legend`'s class is now named directly; "unchanged internals" is narrowed to describe `DestinationRows.vue`'s behavior only, not its `legend`'s presentational class. |
+
+**Not changed, and deliberately so:** every other line of `## Grouping
+proposal` and Screen 1; every other screen and flow in this document; the
+Sensitive fields `legend` in `ProxyForm.vue`, which this ruling also governs
+but which needed no clause correction since nothing in Screen 1 called it
+"unchanged"; and every prior approval record and amendment in this document,
+all of which remain history and are not rewritten.
+
+### For the Senior Developer
+
+Two single-utility-class edits, no behavioral change: set
+`class="text-base font-semibold"` on the Sensitive fields `legend`
+(`ProxyForm.vue:666`, class currently `text-sm font-medium`) and on the
+Destinations `legend` (`DestinationRows.vue:123`, class currently `text-sm
+font-medium`). No other line of either file changes. This needs no re-run of
+the backend gates — `pnpm format:check` and a 360px visual re-check are
+sufficient, per Review-17's own recommended resolution.
+
+### For the Task Planner / Orchestrator
+
+`T6`'s acceptance criterion (zero diff on `DestinationRows.vue`) predates this
+ruling and needs a corresponding correction to permit the one `legend`-class
+edit above. Flagged here as a consequence of Ruling 2; not actioned by this
+role.
