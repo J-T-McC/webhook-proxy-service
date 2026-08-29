@@ -52,6 +52,17 @@ outcome the same screen falsifies on a path the approved design names, with real
 pre-existing (review-07 Finding 1) — route it to the role whose ruling forbids the fix (there,
 the Principal Engineer), not to the Senior Developer.
 
+**Live-check setup corrections (verified 2026-08-29, review-17 re-review) — the old recipe wastes
+three round trips without these.** The app serves on **port 80**, not the `APP_URL=http://localhost:8000`
+in `.env` (nothing listens on 8000; `curl` port 80 returns 200). Proxy routes are **team-scoped**:
+`/{team-slug}/proxies/create`, not `/proxies/create` — get the slug from the team row, or
+`artisan route:list --path=proxies` to see the `{current_team}` segment. Seeding a QA user:
+`User::factory()->create()` **already creates a personal team** and sets `current_team_id`, so do not
+build one — `Team::factory()` fails anyway (`teams` has no `created_by` column). `User` has **no
+SoftDeletes**, so `User::withTrashed()` throws; use `find()` + `forceDelete()`, and delete the
+`team_members` row plus the team first. Check `public/hot` before trusting a build: when it is absent
+`@vite` serves `public/build`, so a host `pnpm build` genuinely is what the browser runs.
+
 **Live-browser tooling:** the project has **no** playwright dependency; the skill at
 `/Users/tyson/.claude/skills/playwright` carries its own `node_modules` — run a script with
 `cd /Users/tyson/.claude/skills/playwright && node run.js /abs/path/script.js`. Browsers live in

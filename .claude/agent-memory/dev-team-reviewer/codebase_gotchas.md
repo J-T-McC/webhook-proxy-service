@@ -230,5 +230,20 @@ metadata:
   pattern is `TooltipTrigger as-child` wrapping a real `Button` with its own `aria-label`
   (`teams/Edit.vue`, `ProxyForm.vue`); `ReplayDialog.vue` wraps a bare non-focusable `span` and also
   sets a bespoke `max-w-xs` on `TooltipContent` — design-17 note N1 names it as the anti-pattern.
-  `TooltipProvider` is instantiated per-tooltip everywhere in this repo, so its shared open-delay
-  grouping never actually applies (Minor at review-17, matches precedent — do not grade it higher).
+  **Do NOT raise "each tooltip has its own `TooltipProvider`, so delay grouping is lost"** — I raised
+  it at review-17 and the rationale was wrong. The local wrapper
+  `components/ui/tooltip/TooltipProvider.vue` sets `withDefaults(..., { delayDuration: 0 })`, so every
+  tooltip already opens instantly and there is no delay for a shared provider to skip. Hoisting one
+  provider is a fine simplification but changes nothing observable; say so rather than claiming a
+  timing benefit.
+- **`TooltipContent` is `w-fit` with NO `max-width`, so any tooltip carrying a SENTENCE is clipped
+  off-screen at the 360px minimum width — and the clipped part is unreachable.** Measured at
+  review-17 on a 360px viewport: the four `ProxyForm.vue` tooltips render 431 / 469 / 744 / 892px
+  wide, all at `left: 0`, losing 16–60% of their text, while `documentElement.scrollWidth` stays
+  360 — no horizontal scroll exists to reveal the remainder. Cause: `w-fit` resolves to max-content
+  and `text-balance` only acts once wrapping happens; Reka's collision handling repositions but
+  cannot shrink. `ReplayDialog.vue`'s `max-w-xs` is the only guard in the codebase and it exists for
+  exactly this reason. **The fix can never be in `TooltipContent.vue`** — `components/ui/*` is
+  generated and must never be hand-edited (`coding.md` → Project structure) — so it has to be a
+  call-site `class`, which is what design-17's note N1 forbade. Whenever a design routes explanatory
+  prose into a tooltip, measure the width at 360px before approving.

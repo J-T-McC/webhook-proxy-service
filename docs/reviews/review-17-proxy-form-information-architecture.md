@@ -391,11 +391,13 @@ call is the Owner's, and this review does not make it.
 
 ## Approval
 
-- **Recommendation:** Request changes — one Major, scoped to a single utility class at two sites,
-  gated on a one-line Designer ruling. Everything else about this branch is clean: the scope claims
-  are true, all eight tasks' criteria are met, every copy disposition matches the design verbatim,
-  all four accessibility obligations are discharged and confirmed live, and all six gates are green.
-- **Project Owner decision / date:** _pending_
+- **Recommendation:** ~~Request changes~~ — **SUPERSEDED by the re-review below (2026-08-29).**
+  The recommendation as written at the first pass: request changes — one Major, scoped to a single
+  utility class at two sites, gated on a one-line Designer ruling. Everything else about this branch
+  is clean: the scope claims are true, all eight tasks' criteria are met, every copy disposition
+  matches the design verbatim, all four accessibility obligations are discharged and confirmed live,
+  and all six gates are green. **See `## Re-review (2026-08-29)` for the live recommendation.**
+- **Project Owner decision / date:** _superseded — see the re-review recommendation_
 
 ## Handoff
 
@@ -412,3 +414,269 @@ call is the Owner's, and this review does not make it.
   for that component's own `legend`, or override it?
 - **Next Agent:** Project Owner (decision), then Designer (Finding 1 ruling), then Senior Developer
   (apply), then Reviewer (re-review, recorded in place in this file).
+
+---
+
+# Re-review (2026-08-29)
+
+- **Reviewer / date:** Reviewer, 2026-08-29
+- **Scope:** branch `feat/design-17-form-restructure` at `837601b`, four commits since the reviewed
+  `e2dd1a0`: `3bf21a8` (Designer's amendment ruling Finding 1, plus a `docs/standards/design.md`
+  correction, plus the `docs/status.md` fix for Finding 3), `7296d41` (Task Planner correcting T6's
+  zero-diff criterion and adding T9), `cb862d2` (Senior Developer implementing T9), `837601b`
+  (agent-memory note, no product code).
+- **What this section covers:** whether Findings 1 and 2 are resolved, whether Finding 3's fix
+  landed, whether the rework stayed in scope, and one new defect found after the first pass.
+
+## Gates — re-run at `837601b`
+
+| Gate | Result observed |
+|---|---|
+| `composer lint` | `{"tool":"pint","result":"passed"}` |
+| `composer types:check` | `{"tool":"phpstan","result":"passed","errors":0}` |
+| `./vendor/bin/sail test --parallel` | `{"tool":"paratest","result":"passed","tests":1019,"passed":1019,"assertions":4818,"duration_ms":10346}` |
+| `pnpm types:check` | clean, exit 0 |
+| `pnpm format:check` | "All matched files use Prettier code style!" |
+| `pnpm lint:check` | Clean on every tracked file — the count of files with errors outside `.claude/worktrees` is **0**; `npx eslint resources/` exits 0 silently |
+| `pnpm build` (host) | `✓ built in 2.21s`, exit 0 |
+
+**Suite delta reconciles exactly.** 1019 tests / 4818 assertions, identical to the first pass. The
+rework added no test file and removed none, which is expected — the change is three presentational
+lines and one component hoist, with no backend surface.
+
+## Scope discipline of the rework
+
+The diff from `e2dd1a0` to `837601b` touches two product files. Whitespace- and blank-line-suppressed
+diffing reduces `ProxyForm.vue`'s 801 changed lines to exactly three content changes — one
+`TooltipProvider` opened, four removed, and one `legend` class — with every remaining line being
+Prettier re-wrapping at the shifted indentation depth the hoisted provider introduces.
+`DestinationRows.vue`'s entire diff is one line.
+
+**No copy changed.** The normalized visible-text extraction used at the first pass was re-run
+against `e2dd1a0` for both files. Both report **an empty delta**: not one help string, tooltip body,
+label, legend text or `Alert` bullet differs from what was already reviewed and found verbatim
+against the design. The rework is purely presentational, as claimed.
+
+**No accessibility wiring changed.** Every `aria-describedby` token in `ProxyForm.vue` still resolves
+against an id declared in the file; there are no duplicate ids. `DestinationRows.vue` is byte-identical
+apart from the one class, so `id="destinations-help"` and every row's fallback reference to it are
+unchanged by construction.
+
+**Upstream artifacts were corrected, not quietly worked around.** The Designer's amendment
+(`design-17` `## Amendment — card-level legend heading weight ruling`) rules the exact class and
+explicitly narrows Screen 1's "unchanged internals" to behaviour, recording that `T6`'s zero-diff
+criterion would need a Task Planner correction and declining to make it from the Designer's chair.
+The Task Planner then made exactly that correction, permitting the one class edit and nothing more,
+and added a note that leaves T5's and T6's original completion notes untouched while recording that
+their "carries the heading weight" phrasing did not match the class shipped at the time. That is the
+right shape: the gate record stays readable as what was actually claimed then, with a pointer rather
+than a rewrite.
+
+## Finding 1 (Major) — RESOLVED
+
+**Evidence, checked in source rather than taken from the completion note.** Every `legend` in the
+tracked tree was re-listed:
+
+| `legend` | Class | Expected |
+|---|---|---|
+| `DestinationRows.vue:123` — "Destinations" | `text-base font-semibold` | Card-level, heading weight |
+| `ProxyForm.vue:688` — "Sensitive fields" | `text-base font-semibold` | Card-level, heading weight |
+| `ProxyForm.vue:420` — "Mode and processing" | `text-sm font-medium` | Nested under Delivery's `h2`, subordinate |
+| `ProxyForm.vue:579` — "Retry policy" | `text-sm font-medium` | Nested under Delivery's `h2`, subordinate |
+
+This is exactly the Designer's Ruling 1 — the two card-level legends take the `h2`'s own class, the
+two nested legends are untouched. `DestinationRows.vue`'s diff is the single class edit and nothing
+else, which is the narrow permission Ruling 2 grants and the corrected T6 criterion tests. The
+main session's runtime measurement agrees: Details, Response and Delivery `h2` all compute to 16px
+weight 600, both corrected legends now compute to 16px weight 600, and "Mode and processing" stays
+14px weight 500. **The five containers read as peers; the hierarchy defect is gone.**
+
+The one detail worth recording, because a class change is the kind of fix that can be applied to the
+right file in the wrong place: `ReplayDialog.vue:150`'s `legend` was correctly left alone. It is not
+in this feature's scope and is not a card-level heading.
+
+## Finding 2 (Minor) — RESOLVED, and my original rationale was wrong
+
+**The structural change landed.** `ProxyForm.vue` now has a single `TooltipProvider`, opened
+immediately inside the `<form>` and closed immediately before its close tag, wrapping the card stack
+and the Actions row. Three occurrences of the token remain in the file — the import, the open tag and
+the close tag — and no per-tooltip provider survives. All four `Tooltip`/`TooltipTrigger`/
+`TooltipContent` triples, their trigger `Button`s, `aria-label`s and content copy are unchanged. The
+main session confirmed all four still open on keyboard focus, still wire `aria-describedby` to their
+content, and still close on Escape with focus retained on the trigger.
+
+**But the benefit I claimed for this finding does not exist, and I should correct my own record.**
+The first pass asserted that four separate providers meant "each of the four always waits the full
+default delay" and that hoisting one would restore Reka's `skipDelayDuration` grouping. That is
+wrong. This project's local wrapper, `resources/js/components/ui/tooltip/TooltipProvider.vue`,
+declares `withDefaults(defineProps<TooltipProviderProps>(), { delayDuration: 0 })` — every provider
+in this codebase already opens its tooltips with **no** delay, so there was never a delay to
+re-incur and never one for a shared provider to skip. The hoist is a real simplification — one
+provider instead of four, fewer nodes, the shape the primitive is designed for — but it changes
+nothing a user can perceive.
+
+This error propagated: T9's Description and Testing section both restate the timing benefit, and its
+completion notes leave the runtime timing check outstanding for a manual pass. **That check cannot
+fail and cannot pass — there is no timing difference to observe.** Nothing needs re-doing; the code
+is fine and is better than it was. Recorded so the plan and this review are not left asserting a
+behaviour the primitive's own defaults rule out. Graded as it was: Minor, now resolved.
+
+## Finding 3 (Minor) — RESOLVED
+
+`docs/status.md`'s `design-17` block now names the correct branch (`feat/design-17-form-restructure`),
+records the phase as implementation-complete with the review gate run, and lists all three artifacts
+including this review. The stale "Current agent: Designer, landing C1–C5" line is gone.
+
+It will need one further refresh once the Owner rules on this re-review — the block currently states
+the Reviewer's recommendation as *Request changes* on the original Finding 1, which this section
+supersedes. That is ordinary routing upkeep for the orchestrator, not a re-raised finding.
+
+## Finding 4 (Minor) — PARTIALLY RESOLVED, carried forward
+
+The sharpest part is fixed. `docs/standards/design.md`'s typography passage no longer misstates the
+shipped `Show.vue` heading class: it now reads `<h2 class="text-base font-semibold">`, and it
+codifies the distinction this feature surfaced — a `legend` standing in for a card's own heading
+takes `text-base font-semibold`, while a `legend` nested inside an already-headed card stays
+`text-sm font-medium`. That is a better standard than existed before this work, and it means the
+next implementer who consults the standard to settle a heading question gets the right answer.
+
+The rest of `design-17` `## Consequences` is still outstanding: `design-10`, `design-07`,
+`design-06`, `design-04`, `design-01` and `design-03` all still describe copy and containers this
+restructure changed, and the `docs/standards/design.md` note that `Tooltip` is now an active pattern
+for field-level explanatory copy is not written. The design is explicit that the Project Owner
+directs those amendments and that this branch amends none of them, so nothing here is the Senior
+Developer's to fix. Carried forward as a follow-up so it is not lost at approval. Does not block.
+
+## Finding 5 — NEW — Major — every tooltip this feature adds is clipped off-screen at 360px
+
+**Criterion violated.** Three, converging:
+
+- **T7 acceptance criterion:** "The form remains usable and **un-clipped at 360px** width
+  (`docs/standards/design.md` baseline)."
+- **`design-17` `## Responsive Behavior`:** "**Minimum supported width: 360px**, the standing default
+  from `docs/standards/design.md` — no feature-specific override," and, in the same section,
+  "**Tooltip content** uses Reka UI's default `TooltipContent` positioning/collision handling … no
+  bespoke width or placement handling is introduced."
+- **`docs/standards/design.md` → Minimum supported width:** 360px is "the practical minimum to remain
+  usable."
+
+**Measured, not inferred.** Driven headless at a 360×800 viewport against a freshly host-built
+`public/build` at `837601b` (no `public/hot` present, so `@vite` serves the built bundle, and the
+built `ProxyForm` chunk contains the new tooltip strings). Each trigger was focused by keyboard and
+its `[data-slot="tooltip-content"]` measured:
+
+| Tooltip | Rendered width | Viewport | Clipped | Computed `max-width` |
+|---|---|---|---|---|
+| Mode | **892px** | 360px | 532px — **60%** | `none` |
+| Backoff strategy | **744px** | 360px | 384px — **52%** | `none` |
+| "Always hidden" | **469px** | 360px | 109px — **23%** | `none` |
+| Response Body | **431px** | 360px | 71px — **16%** | `none` |
+
+All four render flush at `left: 0` and overflow to the right. **The clipped remainder is
+unreachable, not merely off-screen:** at the same moment, `document.documentElement.scrollWidth`,
+`clientWidth` and `document.body.scrollWidth` are all **360** — the page has no horizontal scroll,
+so there is no gesture that brings the missing text into view. On two of the four, the majority of
+the sentence simply cannot be read.
+
+**Root cause, in source.** `resources/js/components/ui/tooltip/TooltipContent.vue` styles the
+content `… z-50 w-fit rounded-md px-3 py-1.5 text-xs text-balance`. `w-fit` resolves to the text's
+max-content width with **no `max-width`**, so the content never wraps; `text-balance` only
+redistributes lines once wrapping occurs and does nothing here. Reka's collision handling
+repositions an overflowing tooltip but cannot shrink one, which is why the design's reliance on
+"Reka UI's default positioning/collision handling" does not cover this case.
+
+**This is a design defect, not an implementation slip — which is what sets the routing.** Note **N1**
+tells the implementer not to copy `ReplayDialog.vue`, citing two things together: its bare-`span`
+trigger *and* its "bespoke `max-w-xs` on `TooltipContent`", and states that `## Responsive Behavior`
+"already declines bespoke widths." The Senior Developer followed that instruction exactly — no
+`TooltipContent` in `ProxyForm.vue` carries a class. **N1 bundled two criticisms that deserved
+opposite verdicts.** Rejecting `ReplayDialog.vue`'s non-focusable trigger was right and this feature
+is better for it. Rejecting its width cap by association removed the one guard the codebase already
+had against precisely this failure — `ReplayDialog.vue` is the only prior consumer whose tooltip
+carries a sentence rather than a two-word action label, and it is the only one that caps its width.
+
+**And the obvious local fix is barred by a standard.** `TooltipContent.vue` lives under
+`resources/js/components/ui/`, which `docs/standards/coding.md` → Project structure (restated in
+`docs/standards/review.md`'s checklist) says is generated code that **must never be hand-edited**.
+So the width cap cannot go in the primitive; it can only be a `class` passed at the four call sites —
+which is exactly what N1 forbids. The design has to yield for this, in the same shape as Ruling 2
+yielded on "unchanged internals."
+
+**Why Major and not Blocker.** I considered Blocker: T7's acceptance criterion says "un-clipped at
+360px" in as many words, and this is not a marginal overshoot — it is all four instances, two of them
+losing more than half their text. What holds me at Major is that nothing is broken or lost. The form
+itself is un-clipped and fully usable at 360px (verified: no page overflow, five cards stacked in
+order, every control reachable); every field can still be filled and the form submitted; no data is
+affected; and the design's own `## Rule: form copy vs. tooltip vs. cut` puts all four of these
+strings in bucket 3 — background or definitional, explicitly "not needed to fill the field correctly
+the first time." A member at 360px is under-informed, not blocked. Under this project's severity
+definitions that is "materially violates the … standards", which is Major. **Major blocks approval
+here regardless**, so the practical routing is identical either way; I would rather name the band
+accurately than inflate it.
+
+**The reason it belongs at the top of the Major band, and not lower.** The design deliberately *cut*
+these four sentences from the form on the strength of the tooltip carrying them — that is the whole
+of the Owner's criticism 3, "tooltips can carry what the prose currently does." At 360px they
+demonstrably do not carry it, so on the minimum supported width this feature is a net loss of
+information against the pre-#17 form, where the same sentences sat in wrapping `<p>` elements. That
+is worth the Owner seeing plainly before deciding.
+
+**Recommended resolution.** A Designer ruling on whether `## Responsive Behavior`'s refusal of
+bespoke widths yields a `max-width` for tooltip content, and if so what it is — noting that the fix
+cannot live in the generated primitive and that N1's two criticisms of `ReplayDialog.vue` should be
+separated so its width cap is no longer rejected by association with its trigger. Then a Senior
+Developer task applying it to the four call sites. Re-verification is cheap and should be measured,
+not eyeballed: re-run the four width measurements at 360px and require every rendered width to be
+`<= clientWidth`.
+
+## Findings summary — re-review
+
+| # | Severity | Status | Location |
+|---|---|---|---|
+| 1 | Major | **Resolved** — both card-level legends at `text-base font-semibold`, both nested legends untouched | `ProxyForm.vue:688`; `DestinationRows.vue:123` |
+| 2 | Minor | **Resolved** structurally; my stated rationale was wrong and is corrected above | `ProxyForm.vue` — single hoisted `TooltipProvider` |
+| 3 | Minor | **Resolved** — needs one routine refresh after this re-review | `docs/status.md` |
+| 4 | Minor | **Partially resolved** — the `design.md` typography correction landed; six `## Consequences` amendments carried forward | `design-17` `## Consequences` |
+| 5 | Major | **New, open** — all four tooltips clipped at 360px, 16–60% of each unreachable | `ProxyForm.vue` tooltip call sites; `design-17` `## Responsive Behavior` / N1 |
+
+## Re-review recommendation
+
+- **Recommendation:** **Request changes** — on Finding 5 alone.
+
+Everything raised at the first pass is closed, and the rework is exemplary in shape: two product
+files, three content changes, zero copy drift, zero accessibility drift, all six gates green, and
+both upstream artifacts corrected in place with the original gate records left readable rather than
+rewritten. Findings 1 and 3 are fully resolved, Finding 2 is resolved with a correction to my own
+reasoning, and Finding 4's most misleading part is fixed with the rest carried forward as
+non-blocking follow-ups.
+
+Finding 5 is new, was missed by both the Senior Developer and by me at the first pass, and originates
+in the design rather than the implementation. It blocks approval as a Major, and it needs the same
+Designer-then-Developer routing that resolved Finding 1 — which took one amendment and one
+one-class commit, so this is not expensive to close.
+
+If the Project Owner judges that clipped background copy at 360px is acceptable for now — a
+defensible call, since all four strings are bucket-3 content and the form itself is fully usable at
+that width — then this becomes **Approve with follow-ups**, with Finding 5 carried as the first
+follow-up. That call is the Owner's; this review does not make it.
+
+- **Project Owner decision / date:** _pending_
+
+## Re-review handoff
+
+- **Inputs:** branch `feat/design-17-form-restructure` at `837601b`; `design-17`
+  `## Amendment — card-level legend heading weight ruling` (2026-08-29, Designer, self-certified);
+  `docs/tasks/proxy-form-information-architecture-tasks.md` T6 correction and T9;
+  `docs/standards/design.md` typography correction; `docs/status.md`; the main session's browser pass
+  and this Reviewer's own 360px tooltip measurement at the same commit.
+- **Outputs:** this re-review, appended in place.
+- **Dependencies:** Finding 5's fix depends on a Designer ruling before any code change, because the
+  design's `## Responsive Behavior` and note N1 currently forbid the only permitted fix and the
+  generated primitive may not be hand-edited.
+- **Outstanding Questions:** for the Designer — does `## Responsive Behavior`'s refusal of bespoke
+  tooltip widths yield a `max-width` for `TooltipContent` at the four `ProxyForm.vue` call sites, and
+  what value; and should N1 be split so that its correct rejection of `ReplayDialog.vue`'s
+  non-focusable trigger no longer carries with it the rejection of that component's width cap?
+- **Next Agent:** Project Owner (decision), then Designer (Finding 5 ruling), then Senior Developer
+  (apply to the four call sites), then Reviewer (second re-review, appended in place below this
+  section).
