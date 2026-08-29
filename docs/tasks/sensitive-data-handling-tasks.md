@@ -3827,7 +3827,21 @@ Flows A–C and folds in T44.
   `routes/console.php` literal, Horizon's config, `config('retention.days')`) and asserts the ordering
   holds at whatever the current environment resolves them to.
 - **Testing:** `tests/Unit/Config/RetentionOrderingTest.php` (new).
-- **Completion notes:** _pending_
+- **Completion notes:** Ordering confirmed already correct — no gap, nothing flagged. Read all three
+  values from their actual sources at test time: `queue:prune-failed`'s `--hours` is read off the
+  registered `Schedule::events()` entry's built command string (same technique as
+  `PruneFailedJobsScheduleTest`, `routes/console.php`), Horizon's `failed`/`monitored` trim windows via
+  `config('horizon.trim.failed')`/`config('horizon.trim.monitored')` (`config/horizon.php`), and the
+  retention window via `config('retention.days')` (`config/retention.php`, env-overridable). Currently
+  resolves to 10080 minutes (7 days) for `queue:prune-failed` and both Horizon trim windows, against
+  43200 minutes (30 days) for retention — comfortably ordered. One test, three `assertGreaterThan`
+  checks (retention above each of the other two), all against the live-resolved values rather than
+  copied literals, so the test would catch a future env-driven `RETENTION_DAYS` regression as well as a
+  literal edit to either other file.
+
+  Gates: `composer lint`, `composer types:check` both green (0 errors). Full suite,
+  `./vendor/bin/sail test --parallel` — **1009/1009 passing, 4776 assertions**: +1 test and +5
+  assertions over the 1008/4771 T46 baseline. No frontend file touched; `pnpm` gates not run.
 
 ## T48 — Secret-absence sweep (R6)
 - **Description:** A sweep across every proxy-bearing response — `show`, `edit`, `index`, the events
