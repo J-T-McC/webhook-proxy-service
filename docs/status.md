@@ -171,6 +171,31 @@ assumed to match what production sets;** they are Laravel's conventional names. 
 resolving `MailgunHttpTransport` from the container under `MAIL_MAILER=mailgun` rather than by
 sending mail. Suite 880/880, `composer lint` and `composer types:check` clean.
 
+## Owner-commissioned design work (not a roadmap line)
+
+Work the Project Owner commissioned directly, outside the roadmap. `docs/product/roadmap.md`
+remains the source of truth for roadmap lines, and nothing here adds one.
+
+**`design-17`, proxy create/edit form restructure — branch `design/proxy-form-restructure`,
+not merged.** Commissioned by the Project Owner on 2026-08-28 after direct criticism that the
+form is "too jumbled and overwhelming." There is no PRD-17; the requirements basis is the
+Owner's brief, quoted in the design. The document was drafted against PRD-16, and when the
+Owner withdrew PRD-16 the Designer re-based it on 2026-08-29 (`6c6bdb9`) — the
+PRD-16-dependent inbound-verification material deleted, the grouping proposal and copy-rewrite
+pass kept. `docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+`## Amendment A` (merged, `c891974`) records the re-basing and rules that the Owner-directed
+Principal Engineer sign-off gate **stays lapsed**, so no engineering sign-off is owed; only the
+Project Owner can reinstate it.
+
+- **Phase:** design gate passed. Product Manager approved on 2026-08-29 with five required
+  corrections (C1–C5), which are specification gaps rather than changes of intent and do not
+  require re-approval once landed.
+- **Current agent:** Designer, landing C1–C5; then the Task Planner.
+- **Blockers:** none. No open questions remain — Question 3, on whether the form's legend
+  rename also renames the proxy Show page's card, was ruled at the design gate.
+- **Artifact:** `docs/design/design-17-proxy-form-information-architecture.md`. Its rulings,
+  corrections and coverage trace against the brief live there, not here.
+
 ## Backlog follow-ups (deferred, not gating any current item)
 
 Open:
