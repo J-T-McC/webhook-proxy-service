@@ -3854,7 +3854,36 @@ Flows A–C and folds in T44.
 - **Acceptance Criteria:** no response from any of the five surfaces above contains any stored secret's
   value, under both the ordinary query path and the eager-loaded-relation path.
 - **Testing:** `tests/Feature/Proxies/SecretAbsenceSweepTest.php` (new).
-- **Completion notes:** _pending_
+- **Completion notes:** Swept all five surfaces — no gap found, both guards (`ProxySecret` never
+  serialized into a resource; `ProxySecret::$hidden = ['value']`) hold, nothing flagged.
+
+  `tests/Feature/Proxies/SecretAbsenceSweepTest.php` (new), 7 tests. A shared fixture
+  (`proxyWithEverySecret()`) builds one proxy carrying a destination credential and a live signing
+  secret (via `SecretStore::replace()`) plus one captured event, so every surface below has something
+  to leak if a guard were broken.
+
+  Ordinary query path — one test per surface, real HTTP round trip, asserting neither secret literal
+  appears in the response body: `index` (`proxies.index`), `show` (`proxies.show`), `edit`
+  (`proxies.edit`), the events pages (`proxies.events.index`, `proxies.events.show`), and the payload
+  endpoint (`proxies.events.payload`).
+
+  Eager-loaded-relation path — one dedicated test (`test_secrets_eager_loaded_before_serialization_still_never_leaks`):
+  loads the proxy with `->load(['destinations', 'secrets'])` (the mistake `ProxySecret`'s own doc-block
+  calls out as never happening today: "this relation is never eager-loaded onto a resource") and
+  serializes it directly through the three resource classes that carry a `Proxy` onto the five surfaces
+  — `ProxyResource` (index/show/events pages), `ProxyFormResource` (edit), `ProxySecurityResource`
+  (show/edit). Asserts no resource output contains a `"secrets"` key at all (guard 1: never serialized
+  into a resource) or either secret's literal value, and separately asserts
+  `$eagerLoaded->secrets->first()->toArray()` has no `value` key (guard 2: `$hidden = ['value']`),
+  proven independently of whether any resource reads the relation.
+
+  No gap found — both guards hold under eager-loading exactly as `ProxySecret`'s doc-block claims; the
+  test exists to keep it true, not because it was found false. Nothing flagged for T48.
+
+  Gates: `composer lint` (auto-fixed one `no_unused_imports` on this new file), `composer types:check`
+  both green (0 errors). Full suite, `./vendor/bin/sail test --parallel` — **1016/1016 passing, 4809
+  assertions**: +7 tests and +33 assertions over the 1009/4776 T47 baseline. No frontend file touched;
+  `pnpm` gates not run.
 
 ## T49 — Whole-surface manual verification pass (`design-10` Flows D–I) and final regression sweep
 - **Description:** The feature's closing task, mirroring `plan-11`'s T29 — re-checks `plan-10`'s
