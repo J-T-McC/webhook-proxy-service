@@ -15,12 +15,14 @@ use App\Models\FifoDispatch;
 use App\Pipeline\DeliveryUnit;
 use App\Services\DeliveryUnitResolver;
 use App\Services\RetryPolicy;
+use App\Support\IngestHostGuard;
 use App\Support\OutboundHeaders;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Lorisleiva\Actions\Concerns\AsAction;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -207,12 +209,36 @@ class DeliverToDestination
      * `$unit->signingSecrets` (T36) is already resolved by the time this
      * runs — only the signature itself, over the exact dispatched bytes and
      * this attempt's timestamp, is computed here.
+     *
+     * **Delivery-loop guard send-time backstop**
+     * (`docs/briefs/delivery-loop-guard.md`): re-checks the destination's
+     * host against this service's own ingest host immediately before the
+     * HTTP call, via the same `IngestHostGuard` the save-time
+     * `NotSelfReferencingDestinationUrl` rule uses. A row saved before that
+     * rule existed is never re-validated by a form rule, and
+     * `config('ingest.url')` can change after save so a previously-valid
+     * destination becomes self-referential — this is the only re-check for
+     * either case. Does not repeat the IP-literal check (static at save
+     * time, not something a later config change turns an existing row
+     * into). Fails this attempt with a clear `error_summary`, through the
+     * same `catch (Throwable $e)` below — no new catch path.
+     *
+     * Guzzle follows redirects by default; `->withoutRedirecting()` on the
+     * client below stops a destination answering 3xx from routing around
+     * both this check and the save-time rule — the redirect response
+     * itself settles as an ordinary failed attempt.
      */
     private function send(DeliveryUnit $unit, DeliveryAttempt $attempt): void
     {
         $startedAt = now();
 
         try {
+            $host = IngestHostGuard::hostFrom($unit->destination->url);
+
+            if ($host !== null && IngestHostGuard::pointsBackToIngest($host)) {
+                throw new RuntimeException('Destination host resolves to this service\'s own ingest host; refusing to deliver.');
+            }
+
             // T39, AC11's all-or-none rule: a signing secret that failed to
             // decrypt (deferred by `DeliveryUnitResolver`, T36, so the
             // `DeliveryAttempt` row above still gets created) fails THIS
@@ -235,6 +261,7 @@ class DeliverToDestination
             );
 
             $response = Http::withHeaders($headers)
+                ->withoutRedirecting()
                 ->timeout(self::TIMEOUT_SECONDS)
                 ->send($unit->method, $unit->destination->url, ['body' => $unit->payload]);
 

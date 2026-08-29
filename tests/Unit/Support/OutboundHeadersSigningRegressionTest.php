@@ -40,7 +40,7 @@ class OutboundHeadersSigningRegressionTest extends TestCase
     }
 
     #[Test]
-    public function ac63_a_destination_of_a_proxy_with_no_signing_secret_configured_is_byte_identical_to_the_ac37_baseline(): void
+    public function ac63_a_destination_of_a_proxy_with_no_signing_secret_configured_is_byte_identical_to_the_ac37_baseline_plus_the_hop_header(): void
     {
         $headers = [
             'Content-Type' => ['application/json'],
@@ -51,13 +51,15 @@ class OutboundHeadersSigningRegressionTest extends TestCase
 
         $result = OutboundHeaders::build($unit, null, null, []);
 
-        // No WebhookProxy-* header added.
+        // No WebhookProxy-Id/Timestamp/Signature added (signing not enabled).
         $this->assertArrayNotHasKey('WebhookProxy-Id', $result);
         $this->assertArrayNotHasKey('WebhookProxy-Timestamp', $result);
         $this->assertArrayNotHasKey('WebhookProxy-Signature', $result);
 
-        // Byte-identical to the T26 AC37 baseline — the same assertion, same fixture.
-        $this->assertSame($unit->forwardHeaders(), $result);
+        // Byte-identical to the T26 AC37 baseline plus the always-stamped hop
+        // header (docs/briefs/delivery-loop-guard.md) — the same assertion,
+        // same fixture, narrowed the same way T26's own test was.
+        $this->assertSame([...$unit->forwardHeaders(), 'WebhookProxy-Hops' => '1'], $result);
     }
 
     #[Test]
@@ -77,6 +79,6 @@ class OutboundHeadersSigningRegressionTest extends TestCase
         $this->assertArrayNotHasKey('WebhookProxy-Id', $result);
         $this->assertArrayNotHasKey('WebhookProxy-Timestamp', $result);
         $this->assertArrayNotHasKey('WebhookProxy-Signature', $result);
-        $this->assertSame($unit->forwardHeaders(), $result);
+        $this->assertSame([...$unit->forwardHeaders(), 'WebhookProxy-Hops' => '1'], $result);
     }
 }

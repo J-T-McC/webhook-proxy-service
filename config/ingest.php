@@ -97,4 +97,35 @@ return [
 
     'webhooks_queue' => env('INGEST_WEBHOOKS_QUEUE', 'webhooks'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Delivery Loop Guard: Max Hops
+    |--------------------------------------------------------------------------
+    |
+    | The delivery-loop guard's indirect-cycle bound (docs/briefs/delivery-loop
+    | -guard.md): the `WebhookProxy-Hops` header this app stamps on every
+    | outbound delivery (App\Support\OutboundHeaders::build(), inbound value
+    | plus one) is compared here on ingest. A request arriving with an inbound
+    | hop count at or above this limit is rejected with 508 Loop Detected,
+    | before capture — no `webhook_event` row, no dispatch. Read via
+    | App\Support\HopCount and IngestController.
+    |
+    | Clamped to a floor of 1, NOT `env()`'s built-in default: `env()`'s
+    | second argument only applies when the key is absent, never when it is
+    | present-and-blank — `INGEST_MAX_HOPS=` casts to `(int) '' === 0`, and a
+    | limit of 0 rejects every inbound request with 508 before capture,
+    | a silent, total ingest outage (review finding, same defect class as
+    | review-05 Finding 1's `RETENTION_DAYS=` blank-cast). Deliberately a
+    | clamp, not `PurgeExpiredPayloads::requirePositiveBatchSize()`'s
+    | throwing idiom: that guard protects an irreversible mass-erasure path
+    | where refusing to run is the safe direction; here, throwing would turn
+    | every ingest request into a 500 — a worse outage than the one being
+    | prevented. Keeping webhooks flowing is the safe direction on this path.
+    | Do not "correct" this back to a bare `(int) env(...)` cast or to the
+    | throwing idiom.
+    |
+    */
+
+    'max_hops' => max(1, (int) env('INGEST_MAX_HOPS', 3)),
+
 ];

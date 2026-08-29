@@ -624,4 +624,67 @@ class DeliverToDestinationTest extends TestCase
         $this->assertTrue($request->hasHeader('Cookie', 'session=abc'));
         $this->assertTrue($request->hasHeader('Stripe-Signature', 't=1,v1=abc'));
     }
+
+    // --- Delivery-loop guard (docs/briefs/delivery-loop-guard.md) ----------
+
+    /**
+     * The send-time backstop: a row saved before
+     * `NotSelfReferencingDestinationUrl` existed, or whose host became
+     * self-referential after an `INGEST_URL` change since save, is caught
+     * here instead of ever reaching the network. `createQuietly()`
+     * deliberately bypasses `StoreProxyRequest`'s save-time rule to set up
+     * exactly that "already saved, now self-referential" state.
+     */
+    public function test_send_time_backstop_fails_the_attempt_when_the_destination_host_matches_the_ingest_host(): void
+    {
+        Queue::fake();
+        Event::fake();
+        Http::fake();
+
+        $ingestHost = parse_url((string) config('ingest.url'), PHP_URL_HOST);
+        $destination = Destination::factory()->createQuietly([
+            'url' => "https://{$ingestHost}/ingest/some-token",
+        ]);
+
+        DeliverToDestination::run($this->unit($destination));
+
+        $attempt = DeliveryAttempt::firstOrFail();
+        $this->assertSame(AttemptStatus::Failed, $attempt->status);
+        $this->assertNull($attempt->http_status);
+        $this->assertNotNull($attempt->error_summary);
+        $this->assertStringContainsString('ingest host', (string) $attempt->error_summary);
+
+        Http::assertNothingSent();
+        Event::assertDispatched(DeliveryFailed::class);
+        Event::assertNotDispatched(DeliverySucceeded::class);
+    }
+
+    /**
+     * `Http::withoutRedirecting()` stops a real destination's 3xx from being
+     * chased by Guzzle's default redirect-following — the option a real
+     * client honors. `Http::fake()` returns exactly the faked response and
+     * never invokes Guzzle's redirect middleware regardless of that option,
+     * so this proves the outcome that matters at this layer: a 3xx is
+     * handled by the existing `$response->successful()` path like any other
+     * non-2xx — settled as an ordinary failed attempt, never specially
+     * followed or swallowed.
+     */
+    public function test_a_3xx_response_settles_as_a_failed_attempt_rather_than_being_treated_as_success(): void
+    {
+        Queue::fake();
+        Event::fake();
+        Http::fake(['*' => Http::response('', 302, ['Location' => 'https://example.com/elsewhere'])]);
+
+        $destination = Destination::factory()->createQuietly();
+
+        DeliverToDestination::run($this->unit($destination));
+
+        $attempt = DeliveryAttempt::firstOrFail();
+        $this->assertSame(AttemptStatus::Failed, $attempt->status);
+        $this->assertSame(302, $attempt->http_status);
+
+        Http::assertSentCount(1);
+        Event::assertDispatched(DeliveryFailed::class);
+        Event::assertNotDispatched(DeliverySucceeded::class);
+    }
 }
