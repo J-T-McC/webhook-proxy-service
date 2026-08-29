@@ -10,6 +10,7 @@ use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Services\ResponseResolver;
 use App\Services\WebhookEventCapture;
+use App\Support\HopCount;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,22 @@ class IngestController extends Controller
         $method = $request->method();
         $headers = $request->headers->all();
         $rawBody = $request->getContent();
+
+        // Delivery-loop guard (docs/briefs/delivery-loop-guard.md): the
+        // indirect-cycle bound. `WebhookProxy-Hops` is stamped on every
+        // outbound delivery by `OutboundHeaders::build()` (inbound + 1); an
+        // inbound value at or above the configured limit means this request
+        // has already looped through this many hops and is rejected before
+        // capture — no `webhook_event` row, no dispatch. The rejection
+        // reaches back to the delivering side as this response, which
+        // settles as an ordinary failed attempt (non-2xx) through the
+        // existing retry policy (AC/decision 2) — no separate handling
+        // needed here.
+        abort_if(
+            HopCount::inboundFrom($headers) >= (int) config('ingest.max_hops'),
+            Response::HTTP_LOOP_DETECTED,
+            'Delivery loop detected.',
+        );
 
         $isFifo = $proxy->processing_mode === ProcessingMode::Fifo;
 
