@@ -177,7 +177,35 @@
   still disables and blanks Body; the Body tooltip opens on Tab-focus and on hover and closes on
   blur/Escape; an accessibility spot-check (axe DevTools or a screen reader) confirms the tooltip's
   content is exposed as the trigger button's accessible description.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Created the second `Card`, headed "Response" (`h2`,
+  no nested `fieldset`), positioned directly after Details and before Delivery. Relocated the
+  Status code and Body fields out of their old position (between the Retry policy `fieldset` and
+  the Sensitive fields `fieldset`) into this new card — an actual move, not a reflow (N2):
+  confirmed by grep that "Upstream response" no longer appears anywhere near the Retry
+  policy/Sensitive fields boundary. Relabelled "Response status code" → "Status code"; help now
+  reads exactly "Sent immediately, before delivery — independent of destination outcome."; no
+  tooltip on Status code. Relabelled "Response body" → "Body"; help now reads exactly "Optional.
+  Disabled when Status code is 204."; added a Tooltip on Body — trigger is a real `Button`
+  (`variant="ghost" size="icon-sm"`) wrapping the already-imported `Info` icon, `as-child` inside
+  `TooltipTrigger`/`TooltipProvider` (the `teams/Edit.vue` precedent, not `ReplayDialog.vue`'s bare
+  `span`), `aria-label="More about the response body"`, content "Useful for a verification
+  challenge echo some senders require during setup." reka-ui's `TooltipTrigger` sets
+  `aria-describedby` to the content's id automatically while open (verified by reading
+  `node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js`), so no manual id-wiring was needed —
+  matches the same auto-linking the `teams/Edit.vue` precedent relies on. `statusSelect`,
+  `selectedStatus`, `bodyDisabled`, the 204-forces-empty-body `watch`, and both fields'
+  `v-model`/validation/error wiring are byte-for-byte unchanged (only label/help text and
+  container moved).
+  Verification: no Playwright/browser access available to this agent; verified structurally by
+  reading the rendered template (card order, exact copy strings, tooltip composition) and by
+  `pnpm build` (host) succeeding. A live pass — selecting 204 still disables/blanks Body, the
+  tooltip opens on Tab-focus and hover and closes on blur/Escape, and an axe/screen-reader check
+  that the tooltip content is exposed as the trigger's accessible description — is left for the
+  Reviewer/QA gate, not claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors (one import-order violation from adding the
+  Tooltip import was caught and fixed with `--fix` before commit). `composer lint`/`composer
+  types:check` green, 0 diff to any backend file.
 
 ## T3 — Delivery card shell + "Mode and processing" fieldset (correction C1; `## Copy rewrite pass` → Delivery)
 

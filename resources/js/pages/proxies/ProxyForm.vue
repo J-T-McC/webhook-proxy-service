@@ -17,6 +17,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { PROXY_PROCESSING_MODES } from '@/data/proxyProcessingModes';
 import {
     PROXY_RESPONSE_STATUS_DEFAULT_LABEL,
@@ -310,6 +316,95 @@ function submit(): void {
                 </div>
             </Card>
 
+            <!-- Response -->
+            <Card class="gap-6 p-6">
+                <h2 class="text-base font-semibold">Response</h2>
+                <div class="grid gap-2">
+                    <Label for="response_status">Status code</Label>
+                    <Select v-model="statusSelect" :disabled="form.processing">
+                        <SelectTrigger
+                            id="response_status"
+                            class="w-full sm:w-64"
+                            :aria-invalid="
+                                form.errors.response_status ? 'true' : undefined
+                            "
+                            aria-describedby="response-status-help response-status-error"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="STATUS_DEFAULT">
+                                {{ PROXY_RESPONSE_STATUS_DEFAULT_LABEL }}
+                            </SelectItem>
+                            <SelectItem
+                                v-for="status in PROXY_RESPONSE_STATUSES"
+                                :key="status.value"
+                                :value="status.value.toString()"
+                            >
+                                {{ status.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p
+                        id="response-status-help"
+                        class="text-sm text-muted-foreground"
+                    >
+                        Sent immediately, before delivery — independent of
+                        destination outcome.
+                    </p>
+                    <span id="response-status-error">
+                        <InputError :message="form.errors.response_status" />
+                    </span>
+                </div>
+
+                <div class="grid gap-2">
+                    <div class="flex items-center gap-2">
+                        <Label for="response_body">Body</Label>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger as-child>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="More about the response body"
+                                    >
+                                        <Info class="size-3.5" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>
+                                        Useful for a verification challenge echo
+                                        some senders require during setup.
+                                    </p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
+                    <Input
+                        id="response_body"
+                        v-model="form.response_body"
+                        type="text"
+                        placeholder="(empty)"
+                        :disabled="form.processing || bodyDisabled"
+                        :aria-invalid="
+                            form.errors.response_body ? 'true' : undefined
+                        "
+                        aria-describedby="response-body-help response-body-error"
+                    />
+                    <p
+                        id="response-body-help"
+                        class="text-sm text-muted-foreground"
+                    >
+                        Optional. Disabled when Status code is 204.
+                    </p>
+                    <span id="response-body-error">
+                        <InputError :message="form.errors.response_body" />
+                    </span>
+                </div>
+            </Card>
+
+            <!-- Delivery -->
             <Card class="gap-6 p-6">
                 <div class="grid gap-2">
                     <Label for="mode">Mode</Label>
@@ -520,78 +615,6 @@ function submit(): void {
                         </span>
                     </div>
                 </fieldset>
-
-                <!-- Upstream response (acknowledgement, returned before delivery) -->
-                <div class="grid gap-2">
-                    <Label for="response_status">Response status code</Label>
-                    <Select v-model="statusSelect" :disabled="form.processing">
-                        <SelectTrigger
-                            id="response_status"
-                            class="w-full sm:w-64"
-                            :aria-invalid="
-                                form.errors.response_status ? 'true' : undefined
-                            "
-                            aria-describedby="response-status-help response-status-error"
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem :value="STATUS_DEFAULT">
-                                {{ PROXY_RESPONSE_STATUS_DEFAULT_LABEL }}
-                            </SelectItem>
-                            <SelectItem
-                                v-for="status in PROXY_RESPONSE_STATUSES"
-                                :key="status.value"
-                                :value="status.value.toString()"
-                            >
-                                {{ status.label }}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <p
-                        id="response-status-help"
-                        class="text-sm text-muted-foreground"
-                    >
-                        The HTTP status returned to the sender the moment the
-                        webhook is received — an acknowledgement, sent
-                        immediately and independently of whether delivery to
-                        your destinations succeeds. Choose 200, 202, or 204; 204
-                        (No Content) sends an empty body. Leave as Default to
-                        return 202 Accepted.
-                    </p>
-                    <span id="response-status-error">
-                        <InputError :message="form.errors.response_status" />
-                    </span>
-                </div>
-
-                <div class="grid gap-2">
-                    <Label for="response_body">Response body</Label>
-                    <Input
-                        id="response_body"
-                        v-model="form.response_body"
-                        type="text"
-                        placeholder="(empty)"
-                        :disabled="form.processing || bodyDisabled"
-                        :aria-invalid="
-                            form.errors.response_body ? 'true' : undefined
-                        "
-                        aria-describedby="response-body-help response-body-error"
-                    />
-                    <p
-                        id="response-body-help"
-                        class="text-sm text-muted-foreground"
-                    >
-                        An optional fixed body returned with the acknowledgement
-                        (for example a verification challenge echo). It is a
-                        static reply, not a delivery report, and never reflects
-                        your destinations' responses. Leave blank for an empty
-                        body; 204 (No Content) always sends an empty body, so
-                        this field is disabled when 204 is selected.
-                    </p>
-                    <span id="response-body-error">
-                        <InputError :message="form.errors.response_body" />
-                    </span>
-                </div>
 
                 <!-- Sensitive fields (Screen 2; AC12, AC13, AC19, C4, N4) -->
                 <fieldset class="grid gap-4">
