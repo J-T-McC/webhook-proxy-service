@@ -770,13 +770,15 @@ function submit(): void {
                 </fieldset>
             </Card>
 
-            <!-- Destinations (T6 wraps this in its own Card) -->
-            <DestinationRows
-                v-model="form.destinations"
-                :errors="form.errors"
-                :disabled="form.processing"
-            />
-            <InputError :message="form.errors.destinations" />
+            <!-- Destinations -->
+            <Card class="gap-6 p-6">
+                <DestinationRows
+                    v-model="form.destinations"
+                    :errors="form.errors"
+                    :disabled="form.processing"
+                />
+                <InputError :message="form.errors.destinations" />
+            </Card>
         </div>
 
         <div class="mt-6 flex items-center gap-3">

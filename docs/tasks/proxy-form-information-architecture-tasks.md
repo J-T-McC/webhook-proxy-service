@@ -420,7 +420,23 @@
   destination row, and replacing/removing a row's credential, all behave exactly as before; a
   deliberately invalid destination URL still swaps that row's `aria-describedby` to its own error id
   instead of `destinations-help`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Wrapped `<DestinationRows>` and its sibling
+  `InputError` in a new fifth (last) `Card`, no `h2` — same single-`fieldset`-card rule as Sensitive
+  fields. `git diff --stat resources/js/components/DestinationRows.vue` produces no output — zero
+  diff, confirmed, not assumed: its own `fieldset`/`legend`, its help paragraph, `id=
+  "destinations-help"`, and every row's `aria-describedby="destinations-help"` wiring (verified
+  present at `DestinationRows.vue` lines 124 and 152) are all exactly as shipped. The Destinations
+  Credential subsection copy was not touched, per the task's own instruction that it already meets
+  the standard.
+  Verification: no Playwright/browser access available to this agent; verified structurally (zero
+  diff to `DestinationRows.vue`, the `destinations-help` id and its wiring still present, unchanged)
+  plus `pnpm build` (host) succeeding. A live pass — add/remove a destination row and
+  replace/remove a credential behaving exactly as before, and a deliberately invalid destination URL
+  swapping that row's `aria-describedby` to its own error id — is left for the Reviewer/QA gate, not
+  claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue` 0 errors.
+  `composer lint`/`composer types:check` green, 0 diff to any backend file.
 
 ## T7 — Cross-cutting accessibility and structure verification sweep
 
