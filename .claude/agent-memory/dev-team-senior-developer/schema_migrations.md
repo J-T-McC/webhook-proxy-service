@@ -148,3 +148,13 @@ Schema/migration gotchas (MySQL 8 / InnoDB via sail; PHPStan L7):
   ->count()`, then rollback that many steps and reapply everything with a single `migrate` — the
   round-trip assertions are unaffected since all rolled-back migrations get reapplied together
   (`AnalyticsIndexesTest` fixed this way when item #10 T1 added a later-dated migration).
+  **Refinement (item #15):** `--path` DOES matter, just not at selection — `rollbackMigrations()`
+  builds a name→file map from `getMigrationFiles($paths)` and skips (`Arr::get($files, ...) ===
+  null`) any of the `--step`-selected migrations whose name isn't in that map, leaving it applied.
+  So combining a wide-enough `--step` (`array_search` the target's position in
+  `DB::table('migrations')->orderByDesc('id')->pluck('migration')`, +1) with `--path` restricted to
+  the target migration file(s) rolls back ONLY the named migration(s), leaving every other one
+  (including ones in between) genuinely untouched — no reapply-everything needed. Prefer this over
+  the reapply-everything approach above when the migrations in between shouldn't be exercised at all
+  (`RemoveInboundVerificationMigrationTest`/`SensitiveDataHandlingSchemaTest` fixed this way when
+  `add_paused_at_to_proxies_table` landed on top of both).

@@ -64,7 +64,15 @@ rules live in `docs/standards/testing.md`, not repeated here.
   pipeline doesn't yet produce.
 - **Driving a state machine across a mid-flow external change:** mutate the target row directly
   with `$model->forceFill([...])->saveQuietly()` (bypasses `#[Fillable]`, suppresses model events),
-  then call the real action under `Queue::fake()` and assert step-by-step.
+  then call the real action under `Queue::fake()` and assert step-by-step. **The trap this guards
+  against fails silently, not loudly:** `$model->update(['non_fillable_col' => $v])` on a column
+  deliberately left out of `#[Fillable]` (e.g. a system-managed column like `paused_at`) neither
+  throws nor errors by default — it just drops that key and updates nothing, so the assertion that
+  follows fails with a confusing "value unchanged" result that looks like the code under test is
+  broken rather than the test fixture. `forceFill(...)->save()` (or `->saveQuietly()` to also skip
+  events) is the fix in test setup; production code sets such columns through a dedicated
+  action/controller, never mass assignment.
+
 - **`QUEUE_CONNECTION=sync` (phpunit.xml) means ANY un-faked dispatch — including a `->delay(...)`'d
   one — runs `handle()` synchronously in-process the moment `dispatch()` is called**
   (`SyncQueue::later()` ignores the delay). Before adding a new delayed dispatch inside an existing
