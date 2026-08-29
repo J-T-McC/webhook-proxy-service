@@ -801,7 +801,32 @@
   resource class, and no backend-tested behaviour, so `composer lint`, `composer types:check`, and the
   backend test suite have no file in this task's scope to exercise.
 
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Added `class="max-w-xs"` to exactly the four
+  `TooltipContent` elements this feature added in `ProxyForm.vue`: Response Body help (line 384),
+  Mode help (line 438), Backoff strategy help (line 635), and Sensitive fields' "Always hidden" help
+  (line 710) — confirmed by `git diff`: four one-line changes, each `<TooltipContent>` →
+  `<TooltipContent class="max-w-xs">`, nothing else in the file touched. No copy string, no `aria-*`
+  attribute, and no trigger markup changed on any of the four triples.
+  `resources/js/components/ui/tooltip/TooltipContent.vue` carries zero diff, confirmed via `git diff
+  --stat` returning empty for that file.
+  - Gates: `pnpm types:check` 0 errors; `pnpm format:check` clean; scoped `npx eslint
+    resources/js/pages/proxies/ProxyForm.vue` 0 errors; `pnpm build` (host) succeeds. No backend
+    file touched, so no backend gate re-run, per this task's own Testing note.
+  - **Left for the manual/browser pass** (no Playwright access in this session), per the task's own
+    Testing section: at a 360px-wide viewport against a freshly host-built production bundle, open
+    each of the four tooltips via keyboard focus on its trigger and read
+    `getBoundingClientRect()` (or the equivalent computed style) on its
+    `[data-slot="tooltip-content"]` element, confirming (1) rendered width no greater than 320px
+    (the `max-w-xs` cap, allowing for the primitive's own `px-3` padding) and (2) `right <= 360` —
+    no part of the box past the viewport's right edge — for all four (Mode, Backoff strategy,
+    "Always hidden", Response Body), replacing the recorded before-state (892px/744px/469px/431px
+    unconstrained, respectively). The pass must also confirm
+    `document.documentElement.scrollWidth` still reads 360 (no new horizontal scroll introduced as a
+    side effect of the cap) and that each tooltip still opens on Tab-focus and closes on
+    blur/Escape, matching T9's already-verified trigger behaviour, which this task did not touch.
+  - Nothing here turned out wrong against the ruling — all four call sites were bare
+    `<TooltipContent>` with no existing class, matching the Designer's amendment and the task's own
+    description exactly, so the change was the single mechanical edit specified.
 
 ## Handoff
 

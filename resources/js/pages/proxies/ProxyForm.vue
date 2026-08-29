@@ -381,7 +381,7 @@ function submit(): void {
                                         <Info class="size-3.5" />
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>
+                                <TooltipContent class="max-w-xs">
                                     <p>
                                         Useful for a verification challenge echo
                                         some senders require during setup.
@@ -435,7 +435,7 @@ function submit(): void {
                                             <Info class="size-3.5" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
+                                    <TooltipContent class="max-w-xs">
                                         <p>
                                             Automatic retry, payload capture,
                                             retention, and replay all apply
@@ -632,7 +632,7 @@ function submit(): void {
                                             <Info class="size-3.5" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
+                                    <TooltipContent class="max-w-xs">
                                         <p>
                                             Exponential increases the wait each
                                             attempt; fixed interval stays
@@ -707,7 +707,7 @@ function submit(): void {
                                             <Info class="size-3.5" />
                                         </Button>
                                     </TooltipTrigger>
-                                    <TooltipContent>
+                                    <TooltipContent class="max-w-xs">
                                         <p>
                                             Matches password, Password,
                                             pass_word, etc. — case and
