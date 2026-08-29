@@ -262,6 +262,31 @@ class ProxyEventReplayControllerTest extends TestCase
         AdvanceProxyFifoQueue::assertNotPushed();
     }
 
+    public function test_a_paused_proxys_replay_attempt_is_rejected_and_creates_nothing(): void
+    {
+        // Item #15 AC3: a replay is unavailable while paused — not queued,
+        // not a silent no-op.
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = $this->proxyWithDestinations($user);
+        $proxy->forceFill(['paused_at' => now()])->save();
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+        $destinationId = $proxy->destinations()->value('id');
+
+        $this->actingAs($user)
+            ->postJson($this->route($user, $proxy, $event), ['destinations' => [$destinationId]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('event');
+
+        $this->assertSame(0, Delivery::query()->where('webhook_event_id', $event->id)->count());
+        ProcessIngestedWebhook::assertNotPushed();
+        AdvanceProxyFifoQueue::assertNotPushed();
+    }
+
     public function test_a_race_where_gc_cleans_the_event_between_page_load_and_the_post_is_rejected(): void
     {
         Queue::fake();
