@@ -670,7 +670,11 @@ by that pass — but there is no such pass today and therefore no seam to hang a
 
 ## Recommendation
 
-- **Recommendation:** **Request changes.** One Major (Finding 4) — a member-facing affordance the
+- **Recommendation:** ~~**Request changes**~~ — **SUPERSEDED 2026-08-28** by the re-review
+  appended below, which found all four routed findings genuinely resolved. The original
+  recommendation and its reasoning are retained unedited beneath, as the record of what this
+  gate found.
+- **Recommendation (original, superseded):** **Request changes.** One Major (Finding 4) — a member-facing affordance the
   approved design spec requires, which the save silently discards while confirming success. Nothing
   else about this feature is in doubt: the gates reproduce exactly, every surviving acceptance
   criterion holds, the ADR-026 removal is complete, and the four Minors are all small and
@@ -701,3 +705,250 @@ by that pass — but there is no such pass today and therefore no seam to hang a
   whether the Minors are bundled into the same pass. On the Owner electing to accept Finding 4 as
   shipped instead, this becomes *Approve with follow-ups* and routes straight to approval — that
   call is the Owner's, not mine.
+
+---
+
+## Re-review (2026-08-28)
+
+- **Reviewer / date:** Reviewer, 2026-08-28
+- **Scope:** targeted re-review of the rework only — `feat/item-10-sensitive-data` at `fc08161`,
+  diff `368ee23..HEAD`, two commits: `55db968` (Findings 4, 5, 8 — four source files, two test
+  files, three task-plan rework notes) and `fc08161` (documentation: this review's gate record, the
+  two design-10 amendment approvals, and the Screen 4b placement ruling). **No milestone is
+  re-reviewed.** M1–M8b, M10 and M11 stand exactly as recorded above.
+- **Inputs read for this pass:** the four routed findings' own text above; `55db968`'s source diff;
+  `design-10` § *Screen 4b — Placement*, `## Amendment — Screen 4b placement clause resolved
+  (2026-08-28)`, `## Approval record — inbound-verification withdrawal gate (2026-08-28)`,
+  `## Approval record — Screen 6 DialogDescription gate (2026-08-28)` and the document's header
+  block; `docs/status.md:67`.
+- **Method:** every fix was verified by **re-running my own original reproduction**, not by reading
+  the diff and not by accepting the rework's account of itself. Findings 4 and 5 were both raised on
+  runtime evidence in the first pass; both were re-probed the same way, and Finding 4's probe was
+  extended to all six branches of the changed method rather than only the one that was broken.
+
+### Gate results (re-run)
+
+| Gate | Command | Result |
+|---|---|---|
+| Backend suite | `./vendor/bin/sail test --parallel` | **`{"tool":"paratest","result":"passed","tests":1019,"passed":1019,"assertions":4818,"duration_ms":8570}`**, exit 0 |
+
+**Green, and green at exactly the claimed numbers** — 1019/4818, up from 1016/4809, i.e. **+3 tests
+and +9 assertions**, which is precisely the three new test methods this rework adds and nothing
+else. That delta matching exactly is itself evidence: no existing test was weakened, deleted or
+relaxed to accommodate a fix. `composer lint` and `composer types:check` taken as recorded, per the
+standing instruction not to re-run gates already run.
+
+### Finding 4 (Major) — **RESOLVED**
+
+`destinationCredentialAttributes()` now takes `bool $hasExistingCredential`, supplied from
+`update()`'s matched row as `$existing->credential_set_at !== null`.
+
+**Verified by re-running the original reproduction, extended to every branch.** Reflecting into the
+method and invoking all six cases:
+
+| Case | Result | Correct? |
+|---|---|---|
+| Existing credential, changed header name, blank secret | `['credential_header_name' => 'X-Api-Key']` | ✅ the defect, fixed |
+| **No** existing credential, header name, blank secret | `[]` | ✅ a row can never come to rest holding a name with no secret |
+| Existing credential, **blank** header name, blank secret | `[]` | ✅ a blank name cannot null out a stored one |
+| Existing credential, header name, new secret | all three keys written | ✅ unchanged from before |
+| `remove_credential` true | all three nulled | ✅ still checked first, unchanged |
+| One-argument call (`store()`'s path) | `[]` | ✅ the default is the safe one |
+
+The original probe returned `array(0) {}` for case 1; it now returns the header name. **The defect
+does not reproduce.**
+
+**The `credential_set_at` judgement is right, and it is the non-obvious part of this fix.** A
+header-name-only edit deliberately does not bump the timestamp, because Screen 3's status line reads
+"Credential set — changed {date}" and that date is a statement about the *secret*. Bumping it on a
+name edit would have closed this finding while introducing a smaller version of the same class of
+defect — a surface asserting something the data does not support. The docblock states the reasoning
+rather than leaving it to be rediscovered.
+
+**The regression guard is genuine, not a restatement of the fix.**
+`CredentialValidationTest::test_a_changed_header_name_with_a_blank_secret_persists_the_new_name_and_leaves_the_secret_and_changed_at_unchanged`
+drives a real `PUT` through the route and asserts all three columns on a `fresh()` model — the new
+name persisted, `original-secret` intact, `credential_set_at` equal to its prior value. Worth noting
+because it is a trap I have hit here before: `assertRedirect()` alone would be vacuous, since an
+Inertia validation failure also redirects — but the three column assertions can only pass if the
+save actually landed, so the test is not vacuous. It also covers the *changed*-name case the
+pre-existing test missed by resubmitting the same name.
+
+### Finding 5 (Minor) — **RESOLVED**
+
+`build()` now runs `$added` through the existing `withoutNames()` helper against the signing keys
+before merging, so the same case-insensitive precedence rule that governed the forwarded set now
+governs within the added set too.
+
+**Verified by re-running the original probe across five credential header names:**
+
+| Credential header name | Emitted keys | Duplicates | Credential present |
+|---|---|---|---|
+| `webhookproxy-signature` | the three `WebhookProxy-*` + forwarded | **none** | no — displaced |
+| `WebhookProxy-Signature` | same | **none** | no — displaced |
+| `WebhookProxy-Id` | same | **none** | no — displaced |
+| `WEBHOOKPROXY-TIMESTAMP` | same | **none** | no — displaced |
+| `Authorization` (control) | same + one `Authorization` | **none** | **yes** | 
+
+Both original outcomes are gone: no casing produces two headers of one name, and no casing lets the
+spread silently drop the credential without a rule saying so. The ordinary case is unaffected — the
+control row confirms a normal `Authorization` credential still wins over the forwarded one and is
+emitted exactly once, so AC38 is untouched by the fix.
+
+**The docblock's R9 claim is now true as written** — which is what I was asked to check, and it is
+the right thing to have been asked. R9 is the hazard that `Http::withHeaders()` takes a PHP array
+and will happily emit two headers differing only in case. After this change every path into the
+final array is name-deduplicated: the forwarded set is filtered against every added name, and the
+added set is filtered against the signing names. `$request->headers->all()` lowercases inbound
+keys, so the forwarded set cannot contain an internal case-collision either. **There is no
+remaining way for `build()` to return two keys that lowercase to the same string.** R9 is fully
+discharged rather than half-discharged.
+
+The two new `OutboundHeadersSigningTest` cases cover both casings independently, which is correct —
+they are two different mechanisms (array-key survival vs spread overwrite) that happened to share
+one root cause.
+
+### Finding 6 (Minor) — **RESOLVED, by the Designer, in the direction I would have chosen**
+
+`## Amendment — Screen 4b placement clause resolved (2026-08-28)` rules the primary clause operative
+and the parenthetical descriptive, and corrects Screen 4b's Placement paragraph in place to read
+"immediately after the Destinations table and before Retry policy — the Verification card's former
+card-stack position".
+
+**Confirmed the spec moved to match the code, not the reverse** — which is the thing worth checking
+about a documentation-side resolution. `proxies/Show.vue`'s card order at `HEAD` is byte-for-byte
+what it was when I raised the finding: Ingest URL → Response → Destinations → Signing → Retry
+policy. `git diff 368ee23..HEAD -- resources/js/` is empty. Nothing moved.
+
+**I concur with the ruling on its merits, not merely as the Designer's call to make.** The
+amendment's decisive argument is the one I put in the finding and it draws the right conclusion from
+it: the parenthetical was never true of the inherited card order — the Verification card itself sat
+*after* Destinations at `ffd2bd5~1` — so honouring it now would mean reordering cards into an
+arrangement no version of this product has ever shipped, on a Minor finding with no functional
+consequence and no acceptance criterion behind it. The amendment states that reasoning explicitly
+rather than simply asserting the outcome, and it records "no code change" for the Senior Developer
+so the resolution cannot be misread downstream as pending work.
+
+### Finding 8 (Minor) — **RESOLVED**
+
+Both docblocks now name `WebhookProxy-Id`. `grep -rn "webhook-id\|webhook-timestamp" app/ resources/js/`
+returns **nothing** — so the fix is complete rather than partial, and no site I did not name in the
+finding was missed. `StandardWebhooks.php`'s `webhook-signature` reference is correctly still
+present: it documents `verify()`, the receiver-side oracle, where that is the specification's own
+inbound name, exactly as the finding said it should be.
+
+### Finding 9 (Minor) — **RESOLVED, by the Product Manager**
+
+Both gates were run on the merits and approved with no required corrections, each with its own
+record: `## Approval record — inbound-verification withdrawal gate (2026-08-28)` (the third gate
+entry) and `## Approval record — Screen 6 DialogDescription gate (2026-08-28)` (the fourth). The
+document's header block now enumerates four closed gates and states plainly: **"No design gate on
+this document is open."**
+
+**The pre-approval status line is retained rather than rewritten** — the withdrawal amendment reads
+"Status of this amendment: APPROVED …" with the former "WRITTEN, awaiting Product Manager
+re-approval" quoted beneath it. That is `docs/standards/documentation.md`'s retain-history rule
+applied correctly, and it is what lets this re-review verify the transition rather than take it on
+trust.
+
+**Confirmed no `status.md` edit was needed.** Line 67 reads "Approved as amended — two dated gates
+2026-08-27, plus the inbound-verification withdrawal and the Screen 6 `DialogDescription`
+correction, both 2026-08-28". That was the inaccurate half of the finding; with both gates now
+closed it is accurate as written. The finding is closed by the artifact catching up to status.md
+rather than the reverse, which is the correct direction — `CLAUDE.md` makes `docs/` the source of
+truth, and a status line is not made true by editing it.
+
+The PM's note **N-D2** corrects the withdrawal amendment's own claim that "the two amendments above"
+went through this gate — only one had. Recorded in place. That is precisely the kind of small
+factual drift a gate exists to catch, and catching it is evidence the gate was run rather than
+rubber-stamped.
+
+### On the Product Manager's flag — correction B2's "on both surfaces" wording
+
+Asked for my eye on this, so: **I checked it and I do not think it needs further change.**
+
+The concern is real — correction B2's own text in `## Approval record — amendment gate (2026-08-27)`
+still requires the AC29 ruling-2a disclosure "on **both** surfaces", one of which no longer exists,
+and that record is deliberately not rewritten. A reader landing on it cold would conclude a required
+surface is unbuilt. I nearly did.
+
+What stops that is already in place and is well sited. The pure-insertion pointer
+`[Correction B2 — restated for one surface, 2026-08-28.]` sits **immediately above** B2's own text
+(line 2059, B2 begins at 2078) — i.e. at the exact point of stumble, not in a distant appendix — and
+it does the one thing that actually works: it **quotes the trap back at the reader**, naming B2's
+"on **both** surfaces" wording explicitly and saying why it stands unedited. The restatement is then
+repeated at four further entry points (the header block, the withdrawal amendment's change table,
+its § *Correction B2, restated for one surface*, and Screen 6 state 4's own inline note), so a
+reader arriving by search rather than by reading downward still meets it.
+
+That is as much as documentation can do without breaking the retain-history rule, and breaking that
+rule to fix a readability risk would cost more than it saves — the amendment-gate record is evidence
+of what that gate considered, and a gate record that silently matches today's requirements is
+evidence of nothing. **My recommendation is to leave it and rely on the pointer.** If the Owner
+wants belt-and-braces, the cheapest addition is a one-line note at PRD-10 AC29 itself — the upstream
+criterion both surfaces derived from — rather than any further edit to design-10.
+
+### Scope discipline
+
+Checked, because a rework touching a controller and a header builder is where unrelated change
+tends to ride along.
+
+- `55db968` touches **four** source files: the two named in Finding 4 and 5's locations
+  (`ProxyController.php`, `OutboundHeaders.php`) and the two named in Finding 8
+  (`DeliveryUnit.php`, `DeliveryUnitResolver.php`). **No file outside the findings' own cited
+  locations is touched.**
+- **No frontend file changed at all** — `git diff 368ee23..HEAD -- resources/js/` is empty. Correct:
+  none of the four findings called for one, and Finding 6 explicitly resolved to no code change.
+- **No migration, no route, no permission, no dependency** added or changed.
+- Test changes are **additive only** — three new methods, no existing method edited or removed. The
+  +3/+9 suite delta corroborates this independently of reading the diff.
+- Task-plan rework notes were recorded against T29, T34 and T49 rather than the completion notes
+  being rewritten, per `docs/standards/documentation.md`.
+- The three Nits (1, 2, 3) were not routed and are untouched, as expected. **They are not re-raised
+  here** — see below.
+
+### What carries forward
+
+Not findings, and not conditions on approval — recorded so the decision is informed.
+
+| # | Severity | Subject | Status |
+|---|---|---|---|
+| 1 | Nit | JSON object with sequential numeric keys is walked as an array | Open, not routed. Unreachable without an all-digit AC13 addition |
+| 2 | Nit | Undecodable signing secret would sign under an empty key | Open, not routed. Unreachable while AC56 makes the product the sole generator |
+| 3 | Nit | Secrets sweeper drops a scheduler guard its own comment claims it reused | Open, not routed. Comment-accuracy only; the command is an idempotent `DELETE` |
+| 7 | Nit | Screen 6 state 5 reachable only within one page session | Open, not routed. A consequence of ADR-021 Decision 5, not an implementation shortcut |
+
+Plus the ruling already recorded above on T49's soft-deleted-destination observation: **acceptable
+as shipped, no follow-up**, because a purge would conflict with AC32.
+
+### Re-review recommendation
+
+- **Recommendation:** **Approve.** The one Major is genuinely closed — verified by re-running the
+  reproduction that raised it, across all six branches of the changed method, not by reading the
+  fix. Both routed Minors with code behind them are closed the same way, and Finding 5's fix
+  discharges R9 completely rather than patching the one case I demonstrated. The two
+  documentation-side findings were resolved by the roles that owned them, on their merits, in the
+  direction the evidence supported, with history retained rather than rewritten. The rework is
+  tightly scoped: four source files, all cited in the findings, no frontend change, no schema,
+  route, permission or dependency change, and additive tests whose count exactly accounts for the
+  suite delta.
+- **Four Nits carry forward, none blocking**, all previously recorded and none re-raised.
+- **Remaining findings: 0 Blockers · 0 Majors · 0 Minors · 4 Nits.**
+- **Project Owner decision / date:** _pending_
+
+### Re-review handoff
+
+- **Inputs:** PRD-10 (Approved, Owner 2026-08-27, incl. Amendments A, B and C); `design-10`
+  (**Approved as amended, four gates closed, none open** — the two that were open at my first pass
+  were run and approved by the Product Manager, 2026-08-28, plus a Designer self-certified placement
+  correction); `plan-10` (fully approved, incl. `## Revision A`);
+  `docs/tasks/sensitive-data-handling/` (rework notes recorded against T29, T34, T49); ADR-021 …
+  ADR-026, ADR-026 governing.
+- **Outputs:** this re-review section, appended in place per the standing convention; the original
+  recommendation marked superseded, its text retained.
+- **Dependencies:** none new, and none changed by the rework.
+- **Outstanding:** nothing routed. The four Nits are open and unassigned by choice; the Owner may
+  close them as accepted, or bundle them into a later chore — none is a condition on this decision.
+  The Product Manager's B2-readability flag is answered above with a recommendation to leave it.
+- **Next agent:** **Project Owner** — for the approval decision on item #10. On approval this is
+  ready to merge; nothing in the pipeline is waiting on another role.
