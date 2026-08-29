@@ -16,7 +16,7 @@ const howItWorks = [
     {
         icon: Webhook,
         title: 'Ingest',
-        body: 'Create a proxy, get an ingest URL. Point any sender at it.',
+        body: 'Create a proxy, get an ingest URL. Point any sender at\u00a0it.',
     },
     {
         icon: Split,
@@ -118,7 +118,7 @@ const reliabilitySteps = [
                 <h2 class="text-2xl font-semibold tracking-tight">
                     How it works
                 </h2>
-                <div class="mt-6 grid gap-8 md:grid-cols-3">
+                <div class="mt-6 grid gap-x-6 gap-y-8 md:grid-cols-3">
                     <div v-for="step in howItWorks" :key="step.title">
                         <component
                             :is="step.icon"
@@ -128,7 +128,9 @@ const reliabilitySteps = [
                         <h3 class="mt-4 text-sm font-medium">
                             {{ step.title }}
                         </h3>
-                        <p class="mt-2 text-sm text-muted-foreground">
+                        <p
+                            class="mt-2 text-sm text-pretty text-muted-foreground"
+                        >
                             {{ step.body }}
                         </p>
                     </div>
@@ -163,7 +165,9 @@ const reliabilitySteps = [
                                 <h3 class="text-sm font-medium">
                                     {{ step.title }}
                                 </h3>
-                                <p class="mt-1 text-sm text-muted-foreground">
+                                <p
+                                    class="mt-1 text-sm text-pretty text-muted-foreground"
+                                >
                                     {{ step.body }}
                                 </p>
                             </div>
