@@ -29,11 +29,13 @@ final class IngestHostGuard
 
     /**
      * Whether `$host` is an IP literal (IPv4 or IPv6) rather than a domain
-     * name.
+     * name. `parse_url()`'s `PHP_URL_HOST` keeps the surrounding brackets on
+     * a bracketed IPv6 literal (`[2001:db8::1]`) — `FILTER_VALIDATE_IP`
+     * rejects those brackets, so they are stripped before validating.
      */
     public static function isIpLiteral(string $host): bool
     {
-        return filter_var($host, FILTER_VALIDATE_IP) !== false;
+        return filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) !== false;
     }
 
     /**

@@ -88,6 +88,66 @@ class ProxyRequestValidationTest extends TestCase
         $this->assertArrayNotHasKey('destinations.0.url', $validator->errors()->messages());
     }
 
+    // --- Delivery-loop guard (docs/briefs/delivery-loop-guard.md) ----------
+
+    #[DataProvider('requestClasses')]
+    public function test_a_destination_url_whose_host_matches_the_ingest_host_is_rejected_under_row_url_key(string $requestClass): void
+    {
+        $ingestHost = parse_url((string) config('ingest.url'), PHP_URL_HOST);
+
+        $validator = $this->validate($requestClass, $this->validData([
+            'destinations' => [['url' => "https://{$ingestHost}/hook", 'http_method' => 'POST']],
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('destinations.0.url', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_a_destination_url_whose_host_matches_the_ingest_host_in_a_different_case_is_rejected(string $requestClass): void
+    {
+        $ingestHost = strtoupper((string) parse_url((string) config('ingest.url'), PHP_URL_HOST));
+
+        $validator = $this->validate($requestClass, $this->validData([
+            'destinations' => [['url' => "https://{$ingestHost}/hook", 'http_method' => 'POST']],
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('destinations.0.url', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_an_ip_literal_destination_url_host_is_rejected_under_row_url_key(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'destinations' => [['url' => 'https://203.0.113.4/hook', 'http_method' => 'POST']],
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('destinations.0.url', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_an_ipv6_literal_destination_url_host_is_rejected_under_row_url_key(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'destinations' => [['url' => 'https://[2001:db8::1]/hook', 'http_method' => 'POST']],
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('destinations.0.url', $validator->errors()->messages());
+    }
+
+    #[DataProvider('requestClasses')]
+    public function test_an_ordinary_third_party_domain_destination_url_is_accepted(string $requestClass): void
+    {
+        $validator = $this->validate($requestClass, $this->validData([
+            'destinations' => [['url' => 'https://example.com/hook', 'http_method' => 'POST']],
+        ]));
+
+        $this->assertArrayNotHasKey('destinations.0.url', $validator->errors()->messages());
+    }
+
     #[DataProvider('requestClasses')]
     public function test_invalid_http_method_rejected_under_row_method_key(string $requestClass): void
     {
