@@ -1,11 +1,23 @@
 # Design Proposal: Proxy create/edit form — information architecture restructure
 
-- **Status:** Draft. This is a proposal, commissioned by the Project Owner directly
-  (2026-08-28), not an amendment to any approved spec and not tied to an approved PRD.
-  Nothing in this document is authorized until the Project Owner rules on it. If
-  accepted, the specific approved design specs that would need amending are listed
-  under `## Consequences` below, and that amendment work is not done here.
+- **Status:** **Approved — with five required corrections (C1–C5)** (design gate,
+  delegated per `CLAUDE.md`). This document was commissioned by the Project Owner
+  directly (2026-08-28) and is not an amendment to any approved spec and not tied to
+  an approved PRD; the Project Owner has since directed the work through to
+  implementation. The corrections are **specification gaps, not changes of intent** —
+  they close places where a Task Planner would otherwise have to guess — and they do
+  **not** require re-approval once landed. Where this note and the spec body conflict,
+  this note governs until the Designer lands the corrections. See
+  `## Approval record (design gate)` at the end of this document for the coverage
+  trace against the Owner's brief, the five required corrections, and the two
+  non-blocking notes. The approved design specs that need amending as a consequence
+  are listed under `## Consequences` below, and that amendment work is not done here.
 - **Author:** Designer
+- **Approved by / date:** **Product Manager, 2026-08-29** (design gate, delegated).
+  This is the last gate before task planning: `docs/architecture/adr-026-inbound-
+  verification-removal-and-minimal-outbound-header-strip.md` `## Amendment A` records
+  that the Owner-directed Principal Engineer sign-off gate stays lapsed, so no
+  engineering sign-off is owed on this document.
 - **Commissioned by:** Project Owner, 2026-08-28 — direct criticism of the shipped
   create/edit form ("too jumbled and overwhelming"), with five specific complaints
   quoted throughout this document where they bear on a decision.
@@ -67,8 +79,11 @@ commit `acc3325` and the two `wip` commits that followed it), per this
 document's own established practice of citing history by commit rather than
 carrying dead prose forward.
 
-**Status stays Draft.** This remains a proposal awaiting a Project Owner ruling;
-nothing in it, before or after this re-basing, is authorized.
+**Status when this re-basing was written: Draft**, awaiting a ruling. **Superseded
+by the header above:** the re-based document was taken to the delegated design gate
+and approved by the Product Manager on 2026-08-29 with five required corrections. This
+paragraph is retained as the record of what the re-basing itself claimed at the time
+it was written, not as a live status.
 
 ## Overview
 
@@ -166,7 +181,12 @@ form's single `Card` becomes five stacked `Card`s (`space-y-6`, the spacing
 increment `docs/standards/design.md` already documents for "stacked-section
 spacing"), each headed the same way `proxies/Show.vue` already heads its own
 stacked cards (`<h2 class="text-base font-semibold">`) or, where a card wraps a
-single `fieldset`/`legend` group (Retry policy, Destinations), the `legend`
+single `fieldset`/`legend` group (**Sensitive fields and Destinations** —
+corrected by the Product Manager, 2026-08-29, correction C4: the original text
+named "Retry policy, Destinations" here, but `## Screens & States` Screen 1 puts
+Retry policy inside the **Delivery** card, which carries its own `h2`, and puts
+Sensitive fields in a card of its own with no `h2`; Sensitive fields and
+Destinations are the two single-`fieldset` cards this rule governs), the `legend`
 carries that same visual weight instead of a redundant second heading. Details
 and Response each hold exactly one field, or one ungrouped pair of fields, and
 need no nested `fieldset` at all — the plain `h2` is the whole of their heading,
@@ -210,7 +230,7 @@ nothing.
 | Downgrade disclosure (Enhanced → Simple, `design-07` AC13/AC14(c)) | Three-bullet `Alert`, full sentences | **Unchanged, verbatim.** This is a multi-step consequence statement about real, non-obvious data and behavior effects — the class of content this project's own communication conventions carve out from any terseness pass. It moves with Mode into the Delivery card but its text is untouched. | — |
 | Processing help | *"Independent of the Mode setting above. Async (default) delivers this proxy's events to its destinations in parallel, with no guaranteed order — the right choice for most, higher-throughput traffic. FIFO delivers this proxy's events in the order they were received; it trades throughput for strict ordering, so FIFO is necessarily more serialized and slower than Async, not a free upgrade."* | **"Async (default) delivers in parallel, no order guaranteed. FIFO preserves order, at lower throughput. Set independently of Mode."** | — |
 | Retry policy fieldset help | *"Applies to automatic re-attempts after a failed delivery to a destination. Available on Enhanced-mode proxies; Simple-mode proxies use the fixed system default ({N} attempts, {strategy} backoff)."* | **Cut the first sentence** (redundant once the fieldset only ever renders directly under Mode = Enhanced in the same card — the adjacency now says it). Keep, trimmed: **"Simple-mode proxies use the fixed default ({N} attempts, {strategy})."** | — |
-| Attempts help | *"Leave blank to use the default (5). Maximum 10."* | **"Default {N}. Max 10."** | — |
+| Attempts help | *"Leave blank to use the default (5). Maximum 10."* | **"Default {N}. Max 10."** — **correction C5 (Product Manager, 2026-08-29): the Designer must state whether `{N}` is prose shorthand for the literal `5` or an instruction to interpolate.** The shipped copy hard-codes "5" in this one place, while the Retry policy `fieldset` help immediately above it interpolates the same value from source. `{N}` is used for both in this table, so a Task Planner cannot tell whether this row asks for a copy trim only or for a copy trim **plus** a switch from a literal to an interpolated default. Name which, and if interpolated, say it reads the same source the fieldset help already reads so the two cannot drift apart. | — |
 | Backoff strategy help | *"Exponential increases the wait between attempts each time; fixed interval waits the same amount every time. Either way, retries are always bounded well inside your team's 30-day payload retention window."* | **Cut from the form.** | *"Exponential increases the wait each attempt; fixed interval stays constant. Always bounded well inside the 30-day retention window."* — definitional, not decision-blocking; a developer picks based on the label text itself. |
 
 ### Sensitive fields
@@ -232,6 +252,27 @@ not a section that itself needs rewriting:
 - "Replacing takes effect on the next dispatch — there's no transition period." stays,
   unchanged — the direct contrast to Verification's now-withdrawn overlap disclosure,
   and needs to stay explicit for that reason regardless.
+
+**Correction C2 (Product Manager, 2026-08-29) — one field's copy is missing from
+this inventory and must be added by the Designer.** The `Destinations` `fieldset`
+in `DestinationRows.vue` carries its own help line above the rows, which no row of
+this copy pass covers:
+
+> "The webhook is delivered to every destination below."
+
+It is not part of `design-10`'s Screen 3 Credential copy (the two lines quoted
+above), so "Screen 3's copy is left as-is" does not dispose of it. This proposal
+therefore has no stated treatment for a line that is on the form it is regrouping,
+and a Task Planner would have to invent one. The Designer must add a row for it
+stating keep / trim / tooltip / cut. **Two facts bear on that ruling and must be
+stated with it:** first, the line is plausibly a rule-1 cut candidate under
+`## Rule: form copy vs. tooltip vs. cut` (a `fieldset` legended "Destinations",
+holding a list of destination rows, arguably already shows that the webhook goes to
+each of them); second, it is not free-standing markup — it carries
+`id="destinations-help"` and **every destination row's URL input points at it via
+`aria-describedby`** when that row has no error. Cutting or moving it therefore has
+an accessibility consequence that the ruling must handle explicitly, not leave to
+implementation.
 
 ## Rule: form copy vs. tooltip vs. cut
 
@@ -314,7 +355,7 @@ approved states.
 |---|---|---|
 | Card sections | `Card` (×5, was ×1) | Reused, same primitive, more instances. |
 | Card/fieldset headings | plain `h2`/`legend`, `text-base font-semibold` (h2) or existing `legend` weight | Reuses the exact pattern `proxies/Show.vue` already uses for its own stacked cards — no new heading component. |
-| Tooltips | `Tooltip`/`TooltipTrigger`/`TooltipContent`/`TooltipProvider` (`ui/tooltip`) | **New usage for this purpose.** The primitive is generated and already imported (`AppHeader.vue`, `SidebarMenuButton.vue`) for icon-button affordances, but this proposal is the first place it carries explanatory field copy. Trigger is an `Info` icon (`@lucide/vue`, already imported in `ProxyForm.vue` for the downgrade `Alert`) inside a small, keyboard-focusable button — never a bare hover-only element (see `## Accessibility`). |
+| Tooltips | `Tooltip`/`TooltipTrigger`/`TooltipContent`/`TooltipProvider` (`ui/tooltip`) | **New usage for this purpose.** The primitive is generated and already in use in five places — **corrected by the Product Manager, 2026-08-29, correction C3**: the original text named only `AppHeader.vue` and `SidebarMenuButton.vue`, but `resources/js/pages/teams/Edit.vue`, `resources/js/pages/teams/Index.vue` and `resources/js/components/ReplayDialog.vue` use it too. The substantive claim stands and is confirmed against the shipped code: every existing usage is either an **icon-button action label** ("Remove member", "Cancel invitation", "Leave team") or a **truncation reveal** of text already on screen (`ReplayDialog.vue`, showing a destination's full method and URL), so this proposal is still the first place the primitive carries explanatory field copy. The corrected list is given so a Task Planner looking for precedent finds all of it. Trigger is an `Info` icon (`@lucide/vue`, already imported in `ProxyForm.vue` for the downgrade `Alert`) inside a small, keyboard-focusable button — never a bare hover-only element (see `## Accessibility`). |
 | Everything else | unchanged | `Input`, `InputError`, `Alert`/`AlertTitle`/`AlertDescription`, `Badge`, `Button` — all reused exactly as `design-10`/`design-07`/current `ProxyForm.vue` already specify them. |
 
 ## Interactions
@@ -343,6 +384,23 @@ control left for it to describe.
   none. This is a net accessibility improvement over today's shipped form,
   where Mode, Processing, and Response sit as unrelated sibling `div`s with no
   grouping semantics at all.
+  > **Correction C1 (Product Manager, 2026-08-29) — required before task
+  > planning. This bullet and Screen 1 disagree, and the disagreement is not
+  > resolvable by reading.** This bullet says that in the Delivery card *each*
+  > group is a `fieldset`/`legend`, naming two groups: Mode/Processing, and
+  > Retry policy. Screen 1's structure diagram shows only one `fieldset` in that
+  > card — `fieldset "Retry policy"` — with Mode, the downgrade disclosure and
+  > Processing as bare children of the card, and it supplies no legend text for
+  > a Mode/Processing group. A Task Planner reading the two together cannot tell
+  > whether to wrap Mode and Processing in a `fieldset`, and if so what its
+  > `legend` should say, or whether the Delivery card's own `h2` is intended to
+  > serve as that group's accessible name. **The Designer must rule and make the
+  > two sections agree**, either by (a) adding the `fieldset` to Screen 1 with
+  > its `legend` text written out, or by (b) restating this bullet so that the
+  > Delivery card's `h2` is the group's name and Retry policy is the card's only
+  > nested `fieldset`. Both are defensible; the design has to pick one. This is
+  > a specification gap, not a disagreement with the approach — the approval
+  > above is not contingent on which way it is ruled, only on its being ruled.
 - **Tooltip triggers must be keyboard-reachable and screen-reader-exposed, not
   hover-only** — Reka UI's `Tooltip` primitive shows on focus as well as hover by
   default, which this proposal relies on rather than re-implementing; each
@@ -434,6 +492,38 @@ missing.
    reconcile. Whether that makes this question fully moot, or whether the
    Product Manager judges some other consistency check still owed, is the
    Product Manager's call — this document does not make it.
+
+   **RULED — Product Manager, 2026-08-29: moot. Closed, and no `design-10`
+   amendment is owed on naming grounds.** The Designer's finding is confirmed
+   against the shipped code on this branch, which has `main` merged in:
+   `resources/js/pages/proxies/Show.vue` has seven cards — **Deliveries, Trend,
+   Ingest URL, Response, Destinations, Signing, Retry policy** — and none of
+   them is named "Verification." `design-10`'s own inbound-verification
+   withdrawal amendment (approved by the Product Manager, 2026-08-28) withdrew
+   Screen 4 in full, so neither the approved spec nor the shipped page carries
+   the name. This document, re-based, proposes neither a "Verification" legend
+   nor a "Webhook secret" legend on the form. Both sides of the naming
+   comparison the question posed are therefore empty, and a rename cannot
+   propagate from a name that exists in neither place.
+
+   **The further consistency check the question invited is answered too, and it
+   passes.** The relevant question is no longer "does the rename propagate" but
+   "do the form's five new container names agree with the Show page's card names
+   for the same subject matter," since a member moves between the two surfaces.
+   Checked against the shipped `Show.vue`: **Response** (form container 2) and
+   **Response** (Show card, `Show.vue` `h2`) agree; **Destinations** (form
+   container 5) and **Destinations** (Show card) agree; **Retry policy** (the
+   `fieldset` nested in the Delivery card) and **Retry policy** (Show card)
+   agree. The two form containers with no Show-page counterpart, **Details** and
+   **Sensitive fields**, cannot disagree with anything. No container name
+   proposed here collides with, or contradicts, a name already shipped on the
+   Show page. **No amendment to `design-10`, and no amendment to any other
+   approved spec, is required on naming grounds by this proposal.** The
+   `design-10` amendments that `## Consequences` already lists — Screen 2's help
+   copy and Screen 2/Screen 3's containers — are unaffected by this ruling and
+   still stand.
+
+   **This closes the last open question in this document. None remains open.**
 4. **New, to the Product Manager: PRD-16 UX Direction point 9 (readable months
    later) is answered for the create/edit form here, but the dedicated read-only
    summary on the proxy Show page is out of this proposal's stated scope. Is a
@@ -465,9 +555,14 @@ document; this is a list for whoever the Owner directs to carry the amendment:
   verification) need no further amendment from this proposal**: ADR-026's own
   routed amendment, `## Amendment — inbound verification withdrawn
   (2026-08-28)`, already withdrew both in full and was approved by the Product
-  Manager on 2026-08-28. If Open Question 3 above is ruled to require further
-  action, that is an amendment to `design-10` in its own right, not one this
-  proposal specifies.
+  Manager on 2026-08-28. **Open Question 3 has since been ruled (Product
+  Manager, 2026-08-29): moot, and no further `design-10` amendment is owed on
+  naming grounds** — neither the shipped `Show.vue` nor the approved spec
+  carries a "Verification" name any longer, and every container name this
+  proposal does introduce either matches its Show-page counterpart (Response,
+  Destinations, Retry policy) or has none (Details, Sensitive fields). The
+  Screen 2 and Screen 3 amendments named in this bullet are unaffected by that
+  ruling and still stand.
 - **`design-07-enhanced-mode-toggle.md`** — Mode's help copy (trimmed) and the
   downgrade disclosure's container (moves into the new Delivery card; its own
   copy unchanged).
@@ -526,14 +621,170 @@ file was edited.
   against PRD-16 (Draft) and its feasibility study; PRD-16 is withdrawn (ADR-026
   § *Documents*), and every control this document now proposes reuses an
   existing, already-shipped primitive.
-- **Outstanding Questions:** one — Open Question 3, routed to the Product
-  Manager, and out of this document's scope because it crosses into the
-  approved `design-10`. Open Questions 1 and 2 are closed as moot by this
-  re-basing (the control they concerned no longer exists); Open Question 4 is
-  resolved — `design-16` will never be written.
-- **Next Agent:** Product Manager — to route the Project Owner's ruling on
-  whether to accept this rebased proposal, and, if accepted, to rule on Open
-  Question 3 and direct which approved specs (`design-10`, `design-07`,
-  `design-06`, `design-04`, `design-01`, `design-03`, `docs/standards/design.md`)
-  are amended and by whom. This document does not self-approve and does not
-  amend any of the artifacts listed under `## Consequences`.
+- **Outstanding Questions:** **none.** All four are closed. Open Questions 1 and
+  2 were closed as moot by the re-basing (the control they concerned no longer
+  exists); Open Question 4 was resolved by PRD-16's withdrawal — `design-16`
+  will never be written; **Open Question 3 was ruled moot by the Product
+  Manager on 2026-08-29**, with the naming-consistency check it invited answered
+  and passing (see `## Open Questions` item 3).
+- **Next Agent:** **Designer** — to land the five required corrections C1–C5
+  recorded in `## Approval record (design gate)`. C1 (the Delivery card's
+  internal `fieldset` structure) and C2 (the Destinations `fieldset` help line)
+  are genuine design rulings this gate does not make for the Designer; C5 asks
+  the Designer to say which of two readings of "Default {N}" was meant; C3 and
+  C4 are factual corrections already applied in place by the Product Manager and
+  need only be read, not re-landed. **No re-approval is required once C1, C2 and
+  C5 land** — the corrections change no user-visible outcome this gate approved.
+  **Then: Task Planner**, to break the corrected document down. Separately, the
+  Project Owner directs which approved specs (`design-10`, `design-07`,
+  `design-06`, `design-04`, `design-01`, `design-03`,
+  `docs/standards/design.md`) are amended under `## Consequences` and by whom;
+  this document amends none of them.
+
+## Approval record (design gate)
+
+**Approved by: Product Manager · 2026-08-29 · with five required corrections
+(C1–C5).**
+
+This gate covers the **re-based** document — the version that survives PRD-16's
+withdrawal and ADR-026 Decision B's removal of inbound verification from the
+product. It does not approve, and does not revive, any of the Inbound-control
+material the re-basing deleted.
+
+### The basis this design was judged against
+
+There is no PRD-17, and none is owed. This work was commissioned by the Project
+Owner directly on 2026-08-28 as criticism of a shipped surface, not as a new
+capability: it adds no field, no data, no endpoint and no behaviour. The
+requirements basis is therefore the Owner's own brief, restated by the Designer at
+`## The problem, restated from the brief` and quoted throughout. The design was
+judged against that brief on the three standards this project's delegated design
+gate applies — that the design answers its requirements, that it invents none, and
+that it is specific enough for a Task Planner to break down without guessing.
+
+`docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-
+header-strip.md` `## Amendment A` records that the Owner-directed Principal
+Engineer sign-off gate stays lapsed, so this is the last gate before task
+planning and it was applied as a real gate, not a formality.
+
+### Coverage trace — the Owner's five criticisms
+
+| # | Criticism | Where answered | Verdict |
+|---|---|---|---|
+| 1 | No grouping — fields run together in one long column | `## Grouping proposal`; `## Screens & States` Screen 1 | **Covered.** Five containers in pipeline order, each justified by when in a request's life its fields first take effect. The ordering principle is not invented here — it extends the one `design-10` Screen 1 already stated for this same form. The one substantive regrouping (Response moving out from between Retry policy and Sensitive fields) is called out explicitly rather than buried as a reflow, and is grounded in `ADR-004`'s decoupling of the acknowledgement from delivery outcome. Accepted as designed. |
+| 2 | Copy pitched at a reader who doesn't know what a webhook is | `## Copy rewrite pass` | **Covered.** Every shipped help string is quoted verbatim, with a proposed replacement and a stated disposition. Verified below against the shipped components. |
+| 3 | Tooltips can carry what the prose currently does | `## Rule: form copy vs. tooltip vs. cut` | **Covered, and better than asked.** The Owner asked for tooltips; the design supplies a three-bucket rule (cut / keep one line / tooltip) applied uniformly, with the Owner's own worked example ("off by default" on a control visibly off) as the test case for the cut bucket. It also states the anti-pattern — a tooltip is not a dumping ground for every trimmed sentence — and names the four fields that get none. |
+| 4 | The Verification section's copy names no recognizable concept | Declared moot | **Correctly moot.** Verified against the shipped `resources/js/pages/proxies/ProxyForm.vue` on this branch: there is no Verification section, no scheme field, no secret field and no header-name field anywhere on the form. ADR-026 Decision B removed the control the criticism was about. There is no copy left to fix. |
+| 5 | "My sender already implements Standard Webhooks" means nothing; the Owner wants a plain on/off | Declared moot | **Correctly moot**, same verification, same authority. The design does not attempt to invent a replacement control, which is right — the Owner's ruling was that none is wanted, and proposing one would have been inventing a requirement. |
+
+Three of five answered, two moot by an Owner ruling that post-dates the brief. The
+brief is discharged as far as the product still has surface for it.
+
+### Invented requirements — none found
+
+Every container, every field and every state in this document already exists on
+the shipped form. The document says so and it holds up: `## Interactions` claims no
+interaction behaviour changes, and the shipped `ProxyForm.vue` confirms that each
+mechanism it names is present and untouched by anything proposed here — the
+Enhanced/Simple retry discard-and-reseed, the 204-forces-empty-body watcher, the
+sensitive-field add/remove, and `DestinationRows.vue`'s per-row credential
+Replace / Remove-credential flow. **No new field, no new data, no new endpoint, no
+new dependency, no new primitive.** The one genuinely new thing is a new *usage* of
+an already-generated primitive (`Tooltip` carrying field copy), which is what
+criticism 3 asked for.
+
+### Verification of the document's factual claims about the shipped form
+
+Checked against `resources/js/pages/proxies/ProxyForm.vue`,
+`resources/js/components/DestinationRows.vue` and
+`resources/js/pages/proxies/Show.vue` as they stand on this branch, which has
+`main` merged in.
+
+**The field inventory is complete and correctly assigned, with one omission
+(C2).** Every field on the shipped form appears in `## Grouping proposal` and in
+Screen 1: Name → Details; Response status code and Response body → Response; Mode,
+the downgrade `Alert`, Processing and the Retry policy `fieldset` (Attempts,
+Backoff strategy) → Delivery; the Sensitive fields `fieldset` (default badges,
+per-proxy additions with their Remove buttons, the Add input and button) →
+Sensitive fields; `DestinationRows.vue`'s rows (URL, Method, Remove destination,
+the Credential `Collapsible`) and Add destination → Destinations. **No field named
+in this document is absent from the shipped form, and no field on the shipped form
+is missing from the document's inventory.**
+
+**Every quoted "Current" copy string is verbatim-accurate.** All nine were compared
+character-for-character with the shipped components: Name's help, the Mode help,
+the Processing help, the Retry policy `fieldset` help, the Attempts help, the
+Backoff strategy help, the Response status help, the Response body help, the
+Sensitive fields section help, the "Case and separators don't matter" note, and the
+two credential sentences in `DestinationRows.vue`. Each matches.
+
+**Structural claims verified:** Response does sit between the Retry policy
+`fieldset` and the Sensitive fields `fieldset` today, as `## Grouping proposal`
+states; Mode, Processing and the two Response fields are indeed bare sibling
+`div`s with no grouping semantics, as `## Accessibility` states; `Info` is already
+imported into `ProxyForm.vue` from `@lucide/vue`; `proxies/Show.vue` does head its
+stacked cards with `<h2 class="text-base font-semibold">`; and
+`docs/standards/design.md` does document `space-y-6` as the stacked-section
+spacing increment, single-column forms as the established pattern, and 360px as
+the minimum supported width.
+
+**One omission and one incomplete claim were found, and are C2 and C3 below.**
+
+### Required corrections
+
+All five are **specification gaps, not disagreements with the design**. None
+changes a user-visible outcome this gate approved, and none requires re-approval.
+Each is recorded in place, at the section it corrects.
+
+- **C1 — the Delivery card's internal `fieldset` structure is unspecified.**
+  `## Accessibility` says each group in the Delivery card is a `fieldset`/`legend`
+  and names two groups (Mode/Processing, Retry policy); Screen 1 shows only one
+  `fieldset` there and supplies no legend text for a Mode/Processing group. A Task
+  Planner cannot resolve this by reading. The Designer must rule one way or the
+  other and make the two sections agree. Recorded at `## Accessibility`.
+- **C2 — one shipped help string is missing from the copy pass.** The Destinations
+  `fieldset`'s own help line in `DestinationRows.vue` — "The webhook is delivered
+  to every destination below." — has no row in `## Copy rewrite pass` and is not
+  part of `design-10` Screen 3's credential copy, so "Screen 3 is left as-is" does
+  not dispose of it. The Designer must state its treatment, and must handle the
+  fact that it carries `id="destinations-help"` and is the `aria-describedby`
+  target of **every** destination row's URL input. Recorded at
+  `## Copy rewrite pass` → `### Destinations / Credential`.
+- **C3 — the `Tooltip` precedent list was incomplete. Corrected in place by the
+  Product Manager**; no Designer action needed. `## Components` named two files;
+  five use the primitive. The document's substantive claim — that this is the
+  first use carrying explanatory field copy — was checked against all five and
+  stands. Recorded at `## Components`.
+- **C4 — a parenthetical named the wrong two cards. Corrected in place by the
+  Product Manager**; no Designer action needed. `## Grouping proposal` cited
+  "(Retry policy, Destinations)" as the single-`fieldset` cards; per Screen 1 they
+  are Sensitive fields and Destinations. Recorded at `## Grouping proposal`.
+- **C5 — "Default {N}" is ambiguous between a literal and an interpolation.** The
+  shipped Attempts help hard-codes "5" while the Retry policy help directly above
+  it interpolates the same value; the copy table writes `{N}` for both. The
+  Designer must say which this row asks for. Recorded at `## Copy rewrite pass` →
+  `### Delivery`.
+
+### Non-blocking notes
+
+- **N1 — do not copy `ReplayDialog.vue` as the tooltip pattern.** Its
+  `TooltipTrigger` wraps a bare `span`, which is not keyboard-focusable, and it
+  sets a bespoke `max-w-xs` on `TooltipContent`. This document's `## Accessibility`
+  section already requires a real focusable `button` with a discernible
+  `aria-label` and `aria-describedby`-linked content, and its
+  `## Responsive Behavior` section already declines bespoke widths. Both are
+  right. The note exists only so a Task Planner searching for precedent does not
+  find the weaker one first and follow it.
+- **N2 — Response's move is the one change of substance, and it should survive
+  task breakdown intact.** Everything else here can be described as "same fields,
+  new boxes, shorter copy." Response moving to second in the stack is not that: it
+  changes what is read next to what. It is well justified and is accepted as
+  designed, but it is the one item a planner could quietly drop as an incidental
+  reflow while keeping the containers. It should not be dropped.
+
+### Ruling on Open Question 3
+
+Ruled moot and closed at `## Open Questions` item 3 — no `design-10` amendment is
+owed on naming grounds, and the broader form-versus-Show-page naming consistency
+check the question invited was run and passes. **No open question remains in this
+document.**
