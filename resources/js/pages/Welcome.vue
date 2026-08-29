@@ -16,36 +16,36 @@ const howItWorks = [
     {
         icon: Webhook,
         title: 'Ingest',
-        body: 'Create a proxy and get a unique ingest URL. Point any webhook sender at it — no changes needed on their end.',
+        body: 'Create a proxy, get an ingest URL. Point any sender at it.',
     },
     {
         icon: Split,
         title: 'Fan out',
-        body: "Every request that arrives is delivered to all of that proxy's destinations, in the same structure, however many you've configured.",
+        body: "Every request goes to all of the proxy's destinations, unchanged.",
     },
     {
         icon: ListOrdered,
-        title: 'Choose your processing',
-        body: 'Async dispatches to every destination in parallel, for the highest throughput. FIFO processes one event at a time per proxy, in the order it was received, before starting the next — the right choice when strict ordering matters more than throughput.',
+        title: 'Async or FIFO',
+        body: 'Async for speed, FIFO for order. Set per proxy.',
     },
 ];
 
 const reliabilitySteps = [
     {
-        title: 'Delivery attempted',
-        body: "Sent to the destination the moment it's due.",
+        title: 'Attempted',
+        body: 'Each destination tracked separately.',
     },
     {
-        title: 'Retried automatically',
-        body: 'A failure is retried after a short wait, then a longer one, up to a set limit.',
+        title: 'Retried',
+        body: 'On the schedule you set.',
     },
     {
-        title: 'Marked terminally failed',
-        body: 'Once retries are exhausted, the delivery is marked clearly — never hidden or silently dropped.',
+        title: 'Failed',
+        body: 'Marked failed, kept on the record.',
     },
     {
-        title: 'Replayed on demand',
-        body: "Any delivery, including a terminally failed one, can be sent again manually to some or all of the proxy's destinations.",
+        title: 'Replayed',
+        body: 'Sent again, to whichever destinations you pick.',
     },
 ];
 </script>
@@ -92,9 +92,8 @@ const reliabilitySteps = [
                     Ingest once. Deliver everywhere.
                 </h1>
                 <p class="mt-4 max-w-2xl text-lg text-muted-foreground">
-                    One webhook in, fanned out to every destination you
-                    configure — automatically retried on failure, and replayable
-                    on demand, with full visibility into every delivery attempt.
+                    One webhook in, every destination out. Failures retry,
+                    attempts are recorded, anything can be replayed.
                 </p>
 
                 <div class="mt-8 flex flex-wrap gap-3">
@@ -144,10 +143,8 @@ const reliabilitySteps = [
                     Nothing gets lost, even when a destination is down.
                 </h2>
                 <p class="mt-4 max-w-2xl text-muted-foreground">
-                    Every delivery to every destination is tracked on its own.
-                    When one fails, it's retried automatically on a bounded
-                    backoff — waiting a little longer each time — instead of
-                    hammering a struggling endpoint or giving up immediately.
+                    Failed deliveries retry on a schedule you set. Every attempt
+                    is kept.
                 </p>
 
                 <div class="mt-10 grid gap-10 lg:grid-cols-2 lg:items-center">

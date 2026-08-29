@@ -954,9 +954,8 @@ useCanvasIllustration<ThemeVisuals, RenderState>({
 <template>
     <div class="flex flex-col items-center">
         <p class="sr-only">
-            The diagram alternates between two processing modes. Async delivers
-            an event to every destination at once. FIFO processes one event at a
-            time per proxy, in the order received.
+            One event fanning out to three destinations, alternating between
+            Async and FIFO.
         </p>
 
         <div
