@@ -290,11 +290,7 @@ function submit(): void {
 </script>
 
 <template>
-    <form
-        ref="formEl"
-        class="mx-auto w-full max-w-3xl"
-        @submit.prevent="submit"
-    >
+    <form ref="formEl" class="w-full" @submit.prevent="submit">
         <TooltipProvider>
             <div class="space-y-6">
                 <!-- Details -->
