@@ -1,17 +1,19 @@
 # Design Proposal: Proxy create/edit form — information architecture restructure
 
-- **Status:** **Approved — with five required corrections (C1–C5)** (design gate,
-  delegated per `CLAUDE.md`). This document was commissioned by the Project Owner
-  directly (2026-08-28) and is not an amendment to any approved spec and not tied to
-  an approved PRD; the Project Owner has since directed the work through to
-  implementation. The corrections are **specification gaps, not changes of intent** —
-  they close places where a Task Planner would otherwise have to guess — and they do
-  **not** require re-approval once landed. Where this note and the spec body conflict,
-  this note governs until the Designer lands the corrections. See
-  `## Approval record (design gate)` at the end of this document for the coverage
-  trace against the Owner's brief, the five required corrections, and the two
-  non-blocking notes. The approved design specs that need amending as a consequence
-  are listed under `## Consequences` below, and that amendment work is not done here.
+- **Status:** **Approved** (design gate, delegated per `CLAUDE.md`). The gate's
+  five required corrections (C1–C5) have all landed — C3 and C4 were applied in
+  place by the Product Manager as factual corrections; C1, C2 and C5 were design
+  rulings landed by the Designer on 2026-08-28. All five were **specification
+  gaps, not changes of intent** — they closed places where a Task Planner would
+  otherwise have had to guess — and none required re-approval; none changed a
+  user-visible outcome the gate approved. This document was commissioned by the
+  Project Owner directly (2026-08-28) and is not an amendment to any approved
+  spec and not tied to an approved PRD; the Project Owner has since directed the
+  work through to implementation. See `## Approval record (design gate)` at the
+  end of this document for the coverage trace against the Owner's brief and the
+  five corrections' original findings. The approved design specs that need
+  amending as a consequence are listed under `## Consequences` below, and that
+  amendment work is not done here.
 - **Author:** Designer
 - **Approved by / date:** **Product Manager, 2026-08-29** (design gate, delegated).
   This is the last gate before task planning: `docs/architecture/adr-026-inbound-
@@ -230,7 +232,7 @@ nothing.
 | Downgrade disclosure (Enhanced → Simple, `design-07` AC13/AC14(c)) | Three-bullet `Alert`, full sentences | **Unchanged, verbatim.** This is a multi-step consequence statement about real, non-obvious data and behavior effects — the class of content this project's own communication conventions carve out from any terseness pass. It moves with Mode into the Delivery card but its text is untouched. | — |
 | Processing help | *"Independent of the Mode setting above. Async (default) delivers this proxy's events to its destinations in parallel, with no guaranteed order — the right choice for most, higher-throughput traffic. FIFO delivers this proxy's events in the order they were received; it trades throughput for strict ordering, so FIFO is necessarily more serialized and slower than Async, not a free upgrade."* | **"Async (default) delivers in parallel, no order guaranteed. FIFO preserves order, at lower throughput. Set independently of Mode."** | — |
 | Retry policy fieldset help | *"Applies to automatic re-attempts after a failed delivery to a destination. Available on Enhanced-mode proxies; Simple-mode proxies use the fixed system default ({N} attempts, {strategy} backoff)."* | **Cut the first sentence** (redundant once the fieldset only ever renders directly under Mode = Enhanced in the same card — the adjacency now says it). Keep, trimmed: **"Simple-mode proxies use the fixed default ({N} attempts, {strategy})."** | — |
-| Attempts help | *"Leave blank to use the default (5). Maximum 10."* | **"Default {N}. Max 10."** — **correction C5 (Product Manager, 2026-08-29): the Designer must state whether `{N}` is prose shorthand for the literal `5` or an instruction to interpolate.** The shipped copy hard-codes "5" in this one place, while the Retry policy `fieldset` help immediately above it interpolates the same value from source. `{N}` is used for both in this table, so a Task Planner cannot tell whether this row asks for a copy trim only or for a copy trim **plus** a switch from a literal to an interpolated default. Name which, and if interpolated, say it reads the same source the fieldset help already reads so the two cannot drift apart. | — |
+| Attempts help | *"Leave blank to use the default (5). Maximum 10."* | **"Default {N}. Max 10."** — `{N}` is an interpolation, not prose shorthand for the literal `5`. **Resolved — Designer, correction C5 (2026-08-28).** The shipped copy hard-codes "5" here while the Retry policy `fieldset` help immediately above it already interpolates the same value from `defaultAttemptLimit` (`ProxyForm.vue`, sourced from `RETRY_DEFAULT_ATTEMPT_LIMIT` in `@/data/proxyRetryBackoffStrategies`). **Ruled: switch Attempts' help to read the same `defaultAttemptLimit` value, not keep the hard-coded literal.** This is a copy trim plus a one-line source fix, not a copy trim only: the two help strings sit one field apart and must not be able to drift out of sync if the system default ever changes. `{N}` in this row's "Default {N}. Max 10." means the interpolated `defaultAttemptLimit` value, exactly as `{N}` already means in the Retry policy `fieldset` help row above. | — |
 | Backoff strategy help | *"Exponential increases the wait between attempts each time; fixed interval waits the same amount every time. Either way, retries are always bounded well inside your team's 30-day payload retention window."* | **Cut from the form.** | *"Exponential increases the wait each attempt; fixed interval stays constant. Always bounded well inside the 30-day retention window."* — definitional, not decision-blocking; a developer picks based on the label text itself. |
 
 ### Sensitive fields
@@ -253,26 +255,36 @@ not a section that itself needs rewriting:
   unchanged — the direct contrast to Verification's now-withdrawn overlap disclosure,
   and needs to stay explicit for that reason regardless.
 
-**Correction C2 (Product Manager, 2026-08-29) — one field's copy is missing from
-this inventory and must be added by the Designer.** The `Destinations` `fieldset`
-in `DestinationRows.vue` carries its own help line above the rows, which no row of
-this copy pass covers:
+**Resolved — Designer, correction C2 (2026-08-28).** The `Destinations`
+`fieldset` in `DestinationRows.vue` carries its own help line above the rows,
+which no row of this copy pass previously covered:
 
 > "The webhook is delivered to every destination below."
 
 It is not part of `design-10`'s Screen 3 Credential copy (the two lines quoted
-above), so "Screen 3's copy is left as-is" does not dispose of it. This proposal
-therefore has no stated treatment for a line that is on the form it is regrouping,
-and a Task Planner would have to invent one. The Designer must add a row for it
-stating keep / trim / tooltip / cut. **Two facts bear on that ruling and must be
-stated with it:** first, the line is plausibly a rule-1 cut candidate under
-`## Rule: form copy vs. tooltip vs. cut` (a `fieldset` legended "Destinations",
-holding a list of destination rows, arguably already shows that the webhook goes to
-each of them); second, it is not free-standing markup — it carries
-`id="destinations-help"` and **every destination row's URL input points at it via
-`aria-describedby`** when that row has no error. Cutting or moving it therefore has
-an accessibility consequence that the ruling must handle explicitly, not leave to
-implementation.
+above), so "Screen 3's copy is left as-is" does not dispose of it. Its own row:
+
+| Field | Current | Proposed on-form | Tooltip |
+|---|---|---|---|
+| Section help | *"The webhook is delivered to every destination below."* | **Keep, unchanged.** | — |
+
+**Ruled: keep, not trim or cut.** It is a plausible rule-1 cut candidate under
+`## Rule: form copy vs. tooltip vs. cut` — a `fieldset` legended "Destinations,"
+holding a list of destination rows, could be read as already showing that the
+webhook goes to each of them — but the sentence states a fact the rows
+themselves do not: that delivery **fans out to every row**, not to a single
+selected destination or the first one that succeeds. A developer scanning a
+list of destination rows could plausibly read it either way without this line;
+that makes it decision-relevant under rule 2, not a rule-1 restatement. It is
+also already exactly the length and register the rest of this copy pass is
+bringing the form up to — one short, plain sentence, no rewrite needed — the
+same standard `design-10` Screen 3's Credential copy was already held to above.
+
+**Accessibility consequence: none, because nothing about the line changes.**
+It keeps `id="destinations-help"`, and every destination row's URL `input`
+keeps pointing at it via `aria-describedby="destinations-help"` when that row
+has no error, exactly as `DestinationRows.vue` ships today. No new
+`aria-describedby` target is introduced and none needs to be.
 
 ## Rule: form copy vs. tooltip vs. cut
 
@@ -315,9 +327,10 @@ Card "Response"
 
 Card "Delivery"
   h2 "Delivery"
-  Mode
-  [Downgrade disclosure, v-if downgrading — unchanged]
-  Processing
+  fieldset "Mode and processing"
+    Mode
+    [Downgrade disclosure, v-if downgrading — unchanged]
+    Processing
   fieldset "Retry policy" [v-if Enhanced]
     Attempts
     Backoff strategy
@@ -378,29 +391,32 @@ control left for it to describe.
 
 - **Card/fieldset structure adds real semantic grouping, not just visual
   boxes.** Where a container holds more than one distinct group of related
-  controls (Delivery: Mode/Processing + Retry policy), each group is a
-  `fieldset`/`legend` exactly as Retry policy and Destinations already are
-  today — a single-field-or-single-group container (Details, Response) needs
-  none. This is a net accessibility improvement over today's shipped form,
-  where Mode, Processing, and Response sit as unrelated sibling `div`s with no
-  grouping semantics at all.
-  > **Correction C1 (Product Manager, 2026-08-29) — required before task
-  > planning. This bullet and Screen 1 disagree, and the disagreement is not
-  > resolvable by reading.** This bullet says that in the Delivery card *each*
-  > group is a `fieldset`/`legend`, naming two groups: Mode/Processing, and
-  > Retry policy. Screen 1's structure diagram shows only one `fieldset` in that
-  > card — `fieldset "Retry policy"` — with Mode, the downgrade disclosure and
-  > Processing as bare children of the card, and it supplies no legend text for
-  > a Mode/Processing group. A Task Planner reading the two together cannot tell
-  > whether to wrap Mode and Processing in a `fieldset`, and if so what its
-  > `legend` should say, or whether the Delivery card's own `h2` is intended to
-  > serve as that group's accessible name. **The Designer must rule and make the
-  > two sections agree**, either by (a) adding the `fieldset` to Screen 1 with
-  > its `legend` text written out, or by (b) restating this bullet so that the
-  > Delivery card's `h2` is the group's name and Retry policy is the card's only
-  > nested `fieldset`. Both are defensible; the design has to pick one. This is
-  > a specification gap, not a disagreement with the approach — the approval
-  > above is not contingent on which way it is ruled, only on its being ruled.
+  controls, each group is a `fieldset`/`legend` exactly as Retry policy and
+  Destinations already are today — a single-field-or-single-group container
+  (Details, Response) needs none. The Delivery card holds two such groups:
+  **Mode and processing** (`legend` "Mode and processing" — Mode, the
+  downgrade disclosure, and Processing) and **Retry policy** (Attempts,
+  Backoff strategy, rendered only for Enhanced-mode proxies). This is a net
+  accessibility improvement over today's shipped form, where Mode, Processing,
+  and Response sit as unrelated sibling `div`s with no grouping semantics at
+  all.
+  > **Resolved — Designer, correction C1 (2026-08-28).** This bullet and
+  > Screen 1 previously disagreed: this bullet named two `fieldset`/`legend`
+  > groups in the Delivery card, but Screen 1's structure diagram showed only
+  > one (`fieldset "Retry policy"`), with Mode, the downgrade disclosure and
+  > Processing as bare children of the card and no legend text for a
+  > Mode/Processing group. **Ruled: the Delivery card holds two
+  > `fieldset`/`legend` groups, not one.** Mode, the downgrade disclosure, and
+  > Processing are wrapped in a `fieldset` with `legend` text **"Mode and
+  > processing"**; Retry policy keeps its own `fieldset`/`legend` exactly as
+  > already specified. This is the reading that keeps the "net accessibility
+  > improvement" claim above true in full — under the alternative (folding
+  > Mode/Processing under the card's own `h2` with no nested `fieldset`), Mode
+  > and Processing would still sit as ungrouped siblings inside the card, the
+  > same failure mode this bullet exists to fix, just moved one level in. Screen
+  > 1 is updated to show both `fieldset`s with this `legend` text; `##
+  > Components`'s generic "Card/fieldset headings" row already covers this
+  > pattern without naming specific groups and needs no further change.
 - **Tooltip triggers must be keyboard-reachable and screen-reader-exposed, not
   hover-only** — Reka UI's `Tooltip` primitive shows on focus as well as hover by
   default, which this proposal relies on rather than re-implementing; each
@@ -627,15 +643,16 @@ file was edited.
   will never be written; **Open Question 3 was ruled moot by the Product
   Manager on 2026-08-29**, with the naming-consistency check it invited answered
   and passing (see `## Open Questions` item 3).
-- **Next Agent:** **Designer** — to land the five required corrections C1–C5
-  recorded in `## Approval record (design gate)`. C1 (the Delivery card's
-  internal `fieldset` structure) and C2 (the Destinations `fieldset` help line)
-  are genuine design rulings this gate does not make for the Designer; C5 asks
-  the Designer to say which of two readings of "Default {N}" was meant; C3 and
-  C4 are factual corrections already applied in place by the Product Manager and
-  need only be read, not re-landed. **No re-approval is required once C1, C2 and
-  C5 land** — the corrections change no user-visible outcome this gate approved.
-  **Then: Task Planner**, to break the corrected document down. Separately, the
+- **Next Agent:** **Task Planner**, to break the corrected document down. All
+  five required corrections recorded in `## Approval record (design gate)` have
+  landed: C1 (the Delivery card's internal `fieldset` structure — ruled two
+  `fieldset`/`legend` groups) and C2 (the Destinations `fieldset` help line —
+  ruled keep, unchanged) were design rulings landed by the Designer; C5 (the
+  Attempts help's `{N}`) was ruled an interpolation from the same source the
+  Retry policy `fieldset` help already reads, also landed by the Designer; C3
+  and C4 were factual corrections already applied in place by the Product
+  Manager. No re-approval was required — none of the five changed a
+  user-visible outcome the gate approved. Separately, the
   Project Owner directs which approved specs (`design-10`, `design-07`,
   `design-06`, `design-04`, `design-01`, `design-03`,
   `docs/standards/design.md`) are amended under `## Consequences` and by whom;
