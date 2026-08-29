@@ -3786,7 +3786,31 @@ Flows A–C and folds in T44.
   - The same treatment applies to a failed secret write (`proxy_secrets`/`destinations.credential_secret`).
 - **Testing:** `tests/Unit/Http/IngestControllerReportWrapTest.php` (new) — simulates a `QueryException`
   during capture and asserts the reported payload's shape.
-- **Completion notes:** _pending_
+- **Completion notes:** The production `reportCaptureFailure()` wrap in `IngestController` (already
+  present on this branch, ADR-026-noted as untouched by T53's removal) was reviewed and found correct
+  as written: it reports a fresh, unchained `RuntimeException` carrying only `ingest_id`, `proxy_id`
+  and, when the caught exception is a `QueryException`, `sqlstate=` — never the original message and
+  never set as `previous`, so no interpolated SQL statement or ciphertext binding can resurface via
+  exception-chain formatting. The wrap sits around the whole `DB::transaction()` closure, so it is
+  table-agnostic by construction: whichever write inside it fails (`webhook_events`, or
+  `fifo_dispatches`, or in principle a `proxy_secrets`/`destinations.credential_secret` write elsewhere
+  in the same transaction) reaches the same sanitized `catch (Throwable $e)` block. No production code
+  changed for this task.
+
+  `tests/Unit/Http/IngestControllerReportWrapTest.php` (new): `Exceptions::fake()` plus a mocked
+  `WebhookEventCapture::capture()` throwing (1) a real `QueryException` built with an interpolatable
+  SQL string and a ciphertext-shaped binding, asserting the one reported exception's message contains
+  `proxy_id=` and `sqlstate=23000` but neither the binding nor the SQL text, and has no `previous`; and
+  (2) a plain `RuntimeException` (standing in for a non-`QueryException` failure, e.g. a secret-table
+  write), asserting the reported message carries no `sqlstate=` and not the original exception's own
+  message text. Both drive the real HTTP path (`$this->post()`) rather than a direct controller
+  invocation, so the `abort(500)` half of the catch block renders through the real exception handler
+  instead of throwing out of the test; `Exceptions::fake()`'s explicit `report()` capture is unaffected
+  by that render.
+
+  Gates: `composer lint`, `composer types:check` both green (0 errors). Full suite,
+  `./vendor/bin/sail test --parallel` — **1008/1008 passing, 4771 assertions**: +2 tests and +6
+  assertions (3 each) over the 1006/4765 T45 baseline. No frontend file touched; `pnpm` gates not run.
 
 ## T47 — Prune/trim/retention ordering test (Q-10-02 finding B)
 - **Description:** One test asserting `queue:prune-failed --hours 168`, Horizon's `failed`/`monitored`
