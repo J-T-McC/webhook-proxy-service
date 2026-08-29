@@ -4,6 +4,18 @@
   (Accepted, ratified by the Project Owner's approval of PRD-10, 2026-08-27). The decision itself —
   the safe allowlist — stands whole and operative; see the inline pointers below and ADR-023
   § *Positions amended*. **This is an amendment, not a supersession.**
+  - **Two further properties are superseded by ADR-025** (Accepted, Project Owner, 2026-08-28) —
+    the strip of the five provider signature header names, and the § *Reasoning* sentence that
+    groups those signatures with `Cookie` and `Authorization`. The allowlist policy is again
+    untouched. See the inline pointers at **P3** and **P4** below and ADR-025
+    § *Positions superseded*.
+  - **Two more are superseded by ADR-026** (`adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`,
+    Accepted, Project Owner, 2026-08-28) — the `Cookie` strip and the inbound `Authorization`
+    strip. **The allowlist policy is untouched a third time**, and this is the last reduction it
+    can take: after ADR-026 the stripped set is `Host`, `Content-Length` and the RFC 7230 §6.1
+    hop-by-hop fields, and every remaining entry is there because forwarding it would make the
+    request malformed or misrouted. Everything else this service receives is forwarded. See the
+    inline pointers at **P5** and **P6** below.
 - **Author:** Principal Engineer
 - **Date:** 2026-07-30
 - **Feature:** walking-skeleton (Roadmap #1 / PRD-01 AC7/AC8); referenced by
@@ -31,14 +43,51 @@ remainder). At item #1, `DeliveryUnit::forwardHeaders()`:
     7230 §6.1), plus `Content-Length` (recomputed by the outbound HTTP client for
     the body actually sent).
   - `Cookie` — inbound session/cookie state must not cross to destinations.
+
+    > **[P5 — SUPERSEDED by ADR-026 (Accepted, Project Owner, 2026-08-28).]** `Cookie` is removed
+    > from `DeliveryUnit::STRIPPED_HEADERS` and forwarded. The reasoning above is not withdrawn as a
+    > description of the exposure — it is accurate — but the product does not classify a sender's
+    > headers by what they might contain. Under the Owner's ruling that this service is a fan-out
+    > relay, a destination receives what the sender sent, minus only what would make the request
+    > malformed. ADR-026 § *Decision A* records the forwarded-credential consequence as the Owner's
+    > accepted trade.
+
   - Inbound `Authorization` — the sender's credential to *us* is not the
     destination's credential; forwarding it leaks a secret to third parties.
+
+    > **[P6 — SUPERSEDED by ADR-026 (Accepted, Project Owner, 2026-08-28).]** Inbound
+    > `Authorization` is removed from `DeliveryUnit::STRIPPED_HEADERS` and forwarded, on the
+    > Owner's ruling: "*we are going to forward all of the headers including auth, strip only what
+    > is technically required.*" The Owner's stated grounds are that they have never seen a webhook
+    > carry one, that this service does not validate it, and that a destination configured to expect
+    > the original sender's credential can only check it if it arrives. **A forwarded credential
+    > reaches every destination of the proxy**, and ADR-026 § *Decision A* records that consequence
+    > in full as an accepted trade rather than an oversight. `Proxy-Authorization` stays stripped —
+    > on hop-by-hop grounds under RFC 7230 §6.1, not on credential grounds.
+
   - Inbound **webhook signature / verification headers** — provider signatures
     (e.g. `Stripe-Signature`, `X-Hub-Signature` / `X-Hub-Signature-256`,
     `X-Signature`, `X-Webhook-Signature` and equivalents) are computed over the
     original body for the original recipient; they are meaningless-to-misleading at
     a destination and can leak verification material. Outbound signing is item #10,
     not #1.
+
+    > **[P3 — SUPERSEDED by ADR-025 (Accepted, Project Owner, 2026-08-28).]**
+    > The five provider signature header names are removed from `DeliveryUnit::STRIPPED_HEADERS` and
+    > forwarded, so a recipient holding the provider's secret can verify the original signature with
+    > that provider's own library. Two premises in this bullet are corrected there: a provider
+    > signature header carries an HMAC **digest**, not key material, so it discloses nothing; and at
+    > a destination that does hold the provider's secret it is not meaningless but the only means of
+    > verification available. **The one signature-shaped header that does carry key material — a
+    > `shared-secret` verification header, whose value is the member's own secret — is stripped per
+    > proxy under PRD-10 AC27 and stays stripped**, which is what makes the change safe.
+    >
+    > **That last sentence is itself superseded by ADR-026 (Accepted, Project Owner, 2026-08-28),
+    > and the correction matters.** The AC27 per-proxy strip is deleted along with inbound
+    > verification. Pass-through is safe now for a different reason, and a reader must not carry
+    > the old one forward: **no header carries a member's own verification secret, because no
+    > member can configure a verification secret.** The hazard is removed at its source rather
+    > than mitigated at the boundary.
 
 - **Forwards everything else, including `Content-Type`** — preserving the payload's
   media type so destinations interpret the replayed body correctly (AC8), along with
@@ -88,6 +137,19 @@ items can extend it without touching the fan-out logic.
   to the inbound leg** (`Cookie`, `Authorization`, provider signatures). Removing
   exactly these prevents credential leakage and framing confusion while leaving the
   sender's descriptive headers intact for destination logic.
+
+  > **[P4 — SUPERSEDED by ADR-025 (Accepted, Project Owner, 2026-08-28), in the grouping only.]**
+  > `Cookie` and `Authorization` carry credentials and stay stripped for exactly the reason stated
+  > here. Provider signatures carry a digest rather than a credential and are removed from this
+  > category; the rest of the sentence, and every strip that rests on it, stands.
+  >
+  > **[P4 — SUPERSEDED AGAIN by ADR-026 (Accepted, Project Owner, 2026-08-28), and this time the
+  > whole second half goes.]** The sentence names two categories: transport-scoped, and
+  > secret/authenticator material scoped to the inbound leg. **Only the first survives.** `Cookie`
+  > and `Authorization` are forwarded, so nothing is stripped on credential grounds any more, and
+  > `Proxy-Authorization` — which is both — is retained on hop-by-hop grounds alone. What remains
+  > is a list a Reviewer can settle against RFC 7230 §6.1 rather than by judgement about what a
+  > header's value might contain.
 - A deny-list (option a) matches the walking skeleton's fidelity posture — replay
   the webhook faithfully — while the explicit strip list keeps the security-relevant
   removals auditable and extensible for #10 (outbound signing) and #5 (payload

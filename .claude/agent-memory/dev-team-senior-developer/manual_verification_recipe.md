@@ -143,3 +143,72 @@ walking `?page=N` directly (or checking row count hits 0) over trusting a click-
 (same mechanism `AnalyticsDemoSeeder::makeTeam()` uses) — grab `$user->currentTeam`, rename it, log
 in as that user, and the account has zero of everything by construction. `forceDelete()` the team
 and user afterward per the existing cleanup step above.
+
+**Local dev DB can be behind on migrations, and `APP_ENV=production` in `.env` blocks `sail artisan
+migrate` unless forced.** Before seeding: `sail artisan migrate:status` — if this branch's own
+migration shows `Pending`, run `sail artisan migrate --force` (the `production` guard is just this
+repo's local `.env` setting, not evidence of a real deployment; forcing an already-tested, purely
+additive migration onto the shared local dev DB is expected branch-switch hygiene, not a risky
+action).
+
+**`sail tinker --execute '...'` with a multi-line, multi-statement string is unreliable** — it can
+silently swallow all stdout (both echoed output AND thrown-exception messages) while still executing
+every line's side effects (DB writes happen even though nothing printed, so a "no output, exit 1"
+run can leave a half-seeded row behind that collides on the retry). Prefer piping a script file via
+stdin instead: `docker exec -i <container> php artisan tinker < script.php` — but the script must NOT
+start with a `<?php` tag (psysh reads it as anlready-open, tinker's REPL, and a leading tag causes a
+parse error) and must NOT `use` a class tinker already auto-imports at the top level (e.g. `App\
+Models\Proxy` is auto-aliased to `Proxy`; a `use App\Models\Proxy;` in the piped script collides with
+that and fails with "Cannot use ... because the name is already in use"). Reference classes fully
+qualified (`\App\Models\Proxy::factory()...`) instead of importing them. Wrap the body in `try {...}
+catch (\Throwable $e) { echo ...; }` and `file_put_contents()` any ids you need to a `/tmp/*.json` file
+inside the container, then `sail exec laravel.test cat /tmp/that.json` to read it back — this is the
+reliable way to get seeded ids out of a tinker run.
+
+**This project's primary checkout can have a long-forgotten `pnpm run dev` process running for
+days** (observed: started days earlier, on port 5174 while Sail's own Vite port is 5173) with a
+stale `public/hot` file alongside it — the exact review-07 Finding 8 trap, encountered for real.
+If it's your own session's leftover: removing the stale `public/hot` file is safe and does not
+kill the orphaned node process, it just stops Laravel's `@vite()` helper from routing asset
+requests to that dev server — do this before any `pnpm run build` + browser-verification pass on
+the primary checkout, not just worktrees. If it belongs to another agent/session you must not
+disrupt, verifying against that live dev server directly (rather than deleting `public/hot`) is a
+legitimate fallback — Vite's dev server serves current source on every request (transformed on the
+fly, HMR-updated on save), so it isn't "stale" the way the Finding 8 trap is (a stale *build*
+silently preferred over a fresh one). Confirm it's actually live first (`lsof -p <pid> -a -d cwd`
+to check it's this project; `curl` the `public/hot` URL's asset paths, not just `/`, since Vite dev
+servers often 404 a bare root), and state plainly in completion notes that verification ran
+against the live dev server, not a "production build" — the two are different claims and only one
+was actually checked.
+
+**`Proxy::factory()` needs `created_by`, not `user_id`, for a creator** (`App\Models\Proxy`'s
+`created_by` column, checked by `ProxyPolicy`'s creator-bypass logic) — `Proxy::factory()->for($team)
+->create(['created_by' => $user->id])`; passing `user_id` fails silently at the DB layer (no such
+column) rather than a clear factory error.
+
+**When a task's own Testing line already folds deeper manual verification into a later task, and the
+new/changed code is a handful of straightforward `v-if` branches on an already-well-typed prop, a
+full authenticated-Playwright-login pass is not required** — a careful line-by-line trace of the
+render logic against the prop shape, backed by a green `pnpm run types:check`/`build`, satisfies a
+"direct check" testing line. Don't sink time fighting a login flow (CSRF/cookie handling, selector
+guessing) for a check that risk-wise doesn't need it — drop it and do the code-trace instead, noting
+in completion notes exactly what was traced and what was deferred to the later task. Confirmed as the
+right call by the coordinator mid-task (item #10 T41): the full Flow G/H/I browser walkthrough
+belongs to T43/T44 by the task doc's own words, not T41.
+
+**To prove two `v-if`/`v-else-if` branches' copy is genuinely mutually exclusive (never both render,
+never neither) without a browser pass:** grep the `pnpm build` output for each branch's exact phrase —
+each should appear exactly once in the whole bundle (`grep -c '<phrase>' public/build/assets/*.js`).
+Then confirm they sit in separate arms of the same compiled ternary/switch (Vue's `v-else-if` chain
+compiles to a `cond ? (...) : cond2 ? (...) : ...` with sequential `key:N` markers) rather than two
+independent `v-if`s that could both fire — read the raw minified chunk around each match for the
+`key:N`/`O.value===` structure. This is stronger than a source read alone, since it also catches a
+build-step regression (e.g. a bad `v-else` → `v-if` edit that Prettier/ESLint wouldn't flag). Used for
+item #10 T43 (Screen 6 states 3/4 in `ProxySigningDialog.vue`) in place of a live browser pass.
+
+**Playwright login flow in this app: don't `await page.waitForLoadState('networkidle')` right after
+clicking submit** — it can resolve while still mid-redirect and leave the script reading the `/login`
+page's own DOM (stale selectors, confusing "element not visible" failures downstream). Race the click
+against the URL actually leaving `/login`: `await Promise.all([page.waitForURL(url =>
+!url.pathname.includes('/login'), { timeout: 15000 }), page.click('button[type="submit"]')]);` — then
+follow with `waitForLoadState('networkidle')` for the destination page itself.

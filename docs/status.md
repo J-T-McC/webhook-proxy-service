@@ -44,6 +44,8 @@ that made it, never here. Narrative history of items already **Done** is archive
 | ADR-022 inbound verification at the ingest boundary (the seam, and the closed two-case scheme registry) | Accepted | Project Owner, 2026-08-27 |
 | ADR-023 outbound request contract (amends ADR-008 P1 and P2) | **Accepted by ratification** — PRD-10's approval | Project Owner, 2026-08-27 |
 | ADR-024 field obfuscation & revealed-payload envelope (partially supersedes ADR-017 — adopts an alternative it rejected by name) | Accepted | Project Owner, 2026-08-27 |
+| ADR-025 outbound header policy, signature pass-through & signing header names (supersedes positions in ADR-008 and ADR-023) | Accepted | Project Owner, 2026-08-28 |
+| ADR-026 inbound-verification removal & minimal outbound header strip (supersedes ADR-022 in full; positions in ADR-008, ADR-023, ADR-025) | Accepted | Project Owner, 2026-08-28 |
 
 ## Feature status
 
@@ -62,446 +64,58 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 7 | Enhanced-mode toggle | Done | — | None | PRD-07 Approved (Owner, 2026-08-21) + Amendments A/B (PM, 2026-08-25); design-07 PM-approved; plan-07 PE-certified + **Revision A**; ADR-018 Accepted; tasks-07 T1–T13 + M7; review-07 **Approve** after re-review (2026-08-26) — one Major (persisted retry policy destroyed by an abandoned in-session downgrade) fixed on Owner ruling *keep preservation, fix the re-seed*; PR #14 merged (`13f0da7`, 2026-08-26). **Follow-ups: review-07 Finding 8 (`public/hot` + a live Vite dev server invalidate "verified against a fresh build" claims) and Nits 5–7** |
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
 | 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
-| 10 | Sensitive data handling | **Task Planning** | **Task Planner** | **Everything upstream is approved, and the design-10 amendment blocker is now closed.** PRD-10 Approved with **Amendment A and Amendment B** (Project Owner, 2026-08-27); plan-10 fully approved with **all four Owner gates approved**; ADR-021, ADR-022, ADR-024 Accepted, ADR-023 Accepted by ratification. **`design-10` was amended for Amendment B on 2026-08-27 and passed a second, dated design gate the same day** — Product Manager, *approve with four required corrections B1–B4*, all four applied and committed. Signing moved from a per-destination surface (Screens 5 and 6, Flows G–I, the per-row Signed badge) to a proxy-level one: a new **Screen 4b Signing card** and a renamed **Manage proxy signing** dialog. The three stale places Q-10-04 did not name — Overview prose, Decisions carried forward, the AC11 scope-boundaries bullet — were swept. **AC11 is rendered at proxy grain**: an undecryptable proxy signing secret fails dispatch to *every* destination of that proxy, carried through design-06's existing attempt-history treatment rather than a new per-row indicator. **AC29 ruling 2a now reaches both surfaces** (correction B2, which was the one blocking M8b): Flow B step 2 for the inbound secret and Flow H step 2 plus Screen 6 state 4 for signing each state the immediate discard of the oldest secret **before** save, with no confirmation step added. **Q-10-03 RESOLVED by the Designer** on its own authority and cleared by the gate as inventing no requirement: a **Remove credential** control on Screen 3, stated as an explicit removal signal and never a blank field (correction B3), and plain `Input type="password"` over `PasswordInput.vue` (correction B1 restated the ground, not the conclusion). **Q-10-02 and Q-10-04 remain RESOLVED**; `IngestController.php:79` ciphertext-to-log finding ruled as a design change with a test. **D2 item 3 closed.** **Nothing was reopened**: plan-10, PRD-10 and the ADRs are untouched, and plan-10's R7 test (three rotations produce exactly two rows) still pins the cap. **Task Planning is unblocked for the whole feature, M8b included.** **One open defect belongs to the Product Manager, not the Task Planner**: PRD-10's Status block still reads "`## Amendment B` — AWAITING PROJECT OWNER APPROVAL" while § Amendment B records the Owner's approval of 2026-08-27. Recorded as a backlog doc correction; it blocks nothing | `docs/product/prd-10-sensitive-data-handling.md` (**Approved + Amendments A and B**, 64 ACs — **Status block stale, see the correction above**); `docs/plans/plan-10-sensitive-data-handling.md` (**fully approved**); `docs/architecture/adr-021`, `adr-022`, `adr-023`, `adr-024` (all **Accepted**); `docs/design/design-10-sensitive-data-handling.md` (**Approved, as amended — two dated gates, 2026-08-27**); `docs/questions/prd-10-q-10-02-…`, `prd-10-q-10-03-credential-removal-and-secret-field-primitive.md` and `prd-10-q-10-04-…` (**all RESOLVED**) |
-| 11 | Analytics / stats | **Merged — Review gate not run** | — | **MERGED to `main` (PR #17, `d9fed9c`).** Depends on #4 (Done). **V7 RESOLVED/closed** (Tier 3; export ruled **out**, not deferred). **V8 renewed as a deferral, still open against #4 and #11** — no numeric target, no verdict layer, but four definitions fixed. **Q-11-03 RESOLVED** (PE, 2026-08-26, all ten items). **Q-11-04 RESOLVED** (PE, 2026-08-26). **PRD-11 Amendment B ruled** (PM, 2026-08-26) — trend buckets vary by window; `plan-11` now at **Revision B**, `design-11` **fully Approved again** (PM, 2026-08-26) — Amendment B delta approved with no corrections, design gate closed. **All 29 tasks complete; T29 verification pass clean. PR #17 squash-merged to `main` (`d9fed9c`, 2026-08-26) — the Owner merged on T29's self-verification, so the independent Review gate was NOT run and no `docs/reviews/review-11-*.md` exists. #6 and #7 each surfaced Majors at that gate, so this is a recorded gap, not a completed phase.** **See § Item #11 — live detail** | PRD-11 Approved (Owner, 2026-08-26, 37 ACs) + **Amendment A** (PM, 2026-08-26); design-11 **fully Approved** (PM, 2026-08-26) — all six corrections landed, C1 cleared on section-scoped re-check; **plan-11 fully approved** — PE-self-certified 2026-08-26 **and both Owner flags ruled (Project Owner, 2026-08-26)**: charting dependency approved as recommended (`chart.js` ^4 **plus** `@j-t-mcc/vue3-chartjs`, local-wrapper alternative explicitly not taken), and the four-index change set approved exactly as enumerated. **No ADR** — each candidate walked against the bar and the two gates are themselves the decision record; **`docs/tasks/analytics-tasks.md` self-certified (Task Planner, 2026-08-26)** — 29 tasks T1–T29 across M1–M7, no approval gate required |
+| 10 | Sensitive data handling | **PR open (#34)** | — (Project Owner merges) | None. Review gate run in full and **re-reviewed after rework: Approve** (`docs/reviews/review-10-sensitive-data-handling.md`, 2026-08-28) — 0 Blockers, 0 Majors, 0 Minors, 4 Nits carried forward, none routed. The gate's one Major (an edited credential header name was silently discarded unless the secret was also replaced) and its four Minors are all closed: `55db968` fixed findings 4, 5 and 8, the Designer resolved finding 6 with no code work, and the Product Manager closed finding 9 by running both open design-10 amendment gates. Suite 1019/1019, 4818 assertions; lint and types clean. Review **Approved by the Project Owner, 2026-08-28**; **PR #34 open** against `main` (branch pushed, not merged) | PRD-10 Approved with Amendments A, B and C (Project Owner, 2026-08-27; Amendment C by the Product Manager, 2026-08-28); `docs/plans/plan-10-sensitive-data-handling.md` fully approved, all four Owner gates; `docs/design/design-10-sensitive-data-handling.md` Approved as amended — **four closed gates, none open** (two 2026-08-27, plus the inbound-verification withdrawal and the Screen 6 `DialogDescription` correction, both gated 2026-08-28; the Screen 4b placement ruling is Designer self-certified); ADR-021, ADR-022, ADR-024 Accepted, ADR-023 Accepted by ratification, ADR-025 and ADR-026 Accepted (2026-08-28); tasks at `docs/tasks/sensitive-data-handling/index.md`, split per milestone, every task carrying completion notes; review-10 *Approve*; Q-10-02, Q-10-03, Q-10-04 and Q-10-05 all RESOLVED |
+| 11 | Analytics / stats | Merged — Review gate not run | — | Merged to `main` (PR #17, `d9fed9c`, 2026-08-26). Depends on #4 (Done). **The independent Review gate was NOT run** — the Owner merged on T29's self-verification, so no `docs/reviews/review-11-*.md` exists. #6 and #7 each surfaced Majors at that gate, so this is a recorded gap, not a completed phase. V7 RESOLVED/closed; **V8 renewed as a deferral, still open against #4 and #11**. See § Item #11 — live detail | PRD-11 Approved (Project Owner, 2026-08-26, 37 ACs) plus Amendments A and B; design-11 fully Approved and re-approved for the Amendment B delta (Product Manager, 2026-08-26); plan-11 fully approved — PE self-certified plus both Owner flags ruled — now at Revision B; `docs/tasks/analytics-tasks.md` self-certified, T1–T32 complete. No ADR: the two gates are themselves the decision record |
 | 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
 | 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
-| 15 | Pause and resume dispatch | **Requirements** | Product Manager → **Project Owner (approval)** | **New item, added 2026-08-27 per Owner ruling** that it is its own roadmap line rather than #10 scope, because its value is independent of secret rotation (destination outages, maintenance windows). PRD-15 drafted, 22 ACs, awaiting Owner approval. Depends on #4 (Done) and #6 (Done); interacts with #5's retention window. **Ingest never pauses** — the zero-data-loss policy holds; a member who wants ingestion stopped pauses the third party at source. **PRD-15 narrows two already-approved documents and that needs the Owner specifically**: PRD-05 AC8 and PRD-06 AC18 today hold payload erasure open for any event queued, pending, or claimed under #4's FIFO ordering — exactly the state a paused proxy's events sit in. Unnarrowed, pause becomes a supported way to hold payload content indefinitely, against PRD-06 AC18's own closing sentence that *a retry policy can never make a payload immortal*. **Two calls are the PM's, not the Owner's, and are flagged as such in the document**: replay is *unavailable* while paused rather than queued, and per-destination pause is out of scope (AC15). **Q-15-01 open to the Principal Engineer** — pause is a dispatch-side state that must be visible to the FIFO advancer, the sweeper's idle-proxy nudge and the due-retry sweeper, not enforced at one call site the schedulers bypass; **ordering on resume is already free and must not be re-engineered** (it derives from the atomic claim, not from timing). Its fourth item is the PM's own: an event whose payload expired while paused can never dispatch (PRD-06 AC17) but still holds a FIFO ordering row, which would park the queue — ADR-019's finding in another form. **PRD-15 carries a `## UX Direction` section, so the Designer is a required phase before Technical Design** | `docs/product/prd-15-pause-and-resume-dispatch.md` (Draft, 22 ACs); `docs/questions/prd-15-q-15-01-pause-dispatch-scheduler-interactions.md` (open) |
+| 15 | Pause and resume dispatch | **Requirements** | Product Manager → **Project Owner (approval)** | New roadmap line added 2026-08-27 per Owner ruling that it is not #10 scope. PRD-15 drafted, 22 ACs, **awaiting Owner approval**. Depends on #4 (Done) and #6 (Done); interacts with #5's retention window. **The Owner specifically is required because PRD-15 narrows two already-approved documents** — PRD-05 AC8 and PRD-06 AC18. **Q-15-01 is open to the Principal Engineer.** **PRD-15 carries a `## UX Direction` section, so the Designer is a required phase before Technical Design.** Rulings, scope calls and the reasoning behind them are in PRD-15 and Q-15-01, not here | `docs/product/prd-15-pause-and-resume-dispatch.md` (Draft, 22 ACs); `docs/questions/prd-15-q-15-01-pause-dispatch-scheduler-interactions.md` (open) |
 
 ## Item #11 — live detail
 
-**Artifacts:** `docs/product/prd-11-analytics.md` (Approved, Owner, 2026-08-26, 37 ACs,
-plus `## Amendment A`); `docs/design/design-11-analytics.md` (**fully Approved**,
-PM, 2026-08-26); `docs/plans/plan-11-analytics.md` (**fully approved**, PE-self-certified
-plus both Owner flags ruled, 2026-08-26);
-`docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` (**RESOLVED**);
-`docs/tasks/analytics-tasks.md` (**self-certified**, Task Planner, 2026-08-26).
+**Phase:** Merged to `main` (PR #17, `d9fed9c`, 2026-08-26). The independent Review gate was
+not run.
 
-- **Next gate: Implementation (Senior Developer) — unblocked, all of M1–M7.** Requirements,
-  UX Design, Technical Design and Task Planning are all closed, and **no open question or
-  outstanding approval remains on #11**. Task lists carry no approval gate.
-- **Implementation progress: M1 and M2 complete — T1 through T11 landed and committed**
-  (Senior Developer, 2026-08-26). `composer lint`, `composer types:check` (PHPStan level 7,
-  zero errors, no suppressions) and the full suite at 810/810 all verified green afterwards.
-  Five deviations were
-  flagged rather than decided, all recorded in `docs/tasks/analytics-tasks.md`'s completion
-  notes and none of them blocking. Two are worth carrying here because a later reader could
-  otherwise mistake them for defects. First, **T1's `down()` is not four bare `dropIndex`
-  calls**: InnoDB silently reclaims `deliveries.team_id`/`proxy_id`'s automatic
-  foreign-key-support index once the composite index covers it, so dropping the composite
-  outright fails with error 1553 — the rollback restores an equivalent single-column index
-  first, guarded by `Schema::hasIndex()` so it is safe to run twice. **The forward schema is
-  untouched: still exactly the four indexes the Owner approved.** Second, the task doc's
-  miniature "canonical 100%/67%" fixture (one delivery, three attempts, one succeeded) is
-  internally inconsistent — 67% is that fixture's *failure* share, while `UnitFigure::$rate`
-  is a success rate throughout, which reads ≈33%. Implemented against the correct value.
-  **This does not disturb design-11's canonical pair**, which is a different and larger
-  fixture (42 of 42 delivered = 100% delivery success, 28 of 42 = 67% attempt success) and
-  still stands as correction C5 landed it.
-- **M3 complete — T12 through T17 landed and committed** (Senior Developer, 2026-08-26).
-  The Dashboard (Screen 1) is built: `resources/js/data/analyticsLabels.ts` as the single
-  source of every unit-bearing label, `DashboardController`'s `statistics`/`proxies` props,
-  the two-tier headline and bridge sentence, the sortable Proxies table, the Retry & replay
-  tiles and Latency card, and the Trend accessible table. Verified green afterwards:
-  `composer lint`, `composer types:check` (0 errors), `pnpm lint:check`, `pnpm types:check`,
-  `pnpm format:check`, and the full suite at **817/817** (up from 810; T13 added seven
-  tests). **Next task is T18** (M4, Proxy Show). Three things worth carrying forward.
-  First, **every manual verification in M3 was run against a production build with
-  `public/hot` removed** — the marker was present at session start, was removed before the
-  first build, and stayed removed, so review-07 Finding 8 did not bite. Second, **T15 reads
-  `Q-11-03(9)`'s deleted-proxy degradation as plural**: a deleted proxy's row keeps its
-  figures and gains a muted **Deleted** badge but loses *both* the name link and the
-  Terminal-failures drill-through link, because `withTrashed()` on either path would surface
-  the shipped **Replay** affordance against a deleted parent. Third, **the last
-  `PlaceholderPattern` usage came out in T16's commit rather than T17's**, even though T17
-  is the task that names the removal — T16's card placement displaced it and the dead import
-  had to go for `pnpm lint:check` to stay green. Both tasks' completion notes record this so
-  a later reader does not go looking in the wrong commit.
-- **M4 complete — T18 through T20 landed and committed** (Senior Developer, 2026-08-26),
-  preceded by one Owner-reported fix. Proxy Show (Screens 2 and 3) is built:
-  `ProxyController::show()`'s `window`/`statistics`/`destinations` props, the Analytics card,
-  and the extended Destinations table. Verified green afterwards: `composer lint`,
-  `composer types:check` (0 errors), `pnpm lint:check`, `pnpm types:check`,
-  `pnpm format:check`, and the full suite at **825/825** (up from 817). **Next task is T21**
-  (M5, Events list and drill-through). Four things worth carrying forward.
-  First, **the Owner-reported fix**: the Dashboard Proxies table's action-column header
-  rendered visible "View" text; it is now `sr-only`, the column and its action unchanged.
-  The reading rests on `design-11` line 271, which writes that table as
-  `Proxy | Delivery success | Attempt success | Terminal failures (deliveries) | (View)` —
-  four bare labels and one parenthesised entry, which is an unlabelled action column rather
-  than a fifth labelled header. `resources/js/pages/proxies/Index.vue`'s **visible** `Actions`
-  header is a genuine counter-precedent and was deliberately left alone. Recorded as a rework
-  note on T15 rather than in `docs/fixes/`, because it corrects in-flight implementation
-  output rather than shipped or reviewed code.
-  Second, **T20's Destinations table keeps a visible `Actions` header**, unlike Screen 1 —
-  design-11 writes that one unparenthesised. The two screens differ on purpose.
-  Third, **T19 included the trend/series table even though T19's own task text omits it.**
-  Design-11's mockup, Flow C and T28's own back-reference all require it on this screen, and
-  no other M4 task could have built it. This is a task-text omission, not a design change.
-  Fourth, **T19 kept the window selector visible in the zero-traffic collapsed state.**
-  Design-11's text says the entire card collapses to one message, but also calls the selector
-  page-level; removing it would strand a member on an empty window with no way to check
-  another. **This one is a genuine reading of design intent rather than a settled ruling —
-  it is the one M4 decision the Owner or the Designer may want to overturn.**
-- **M5 landed but T23 is incomplete — T21, T22 and T24 are done; T23 is partial and
-  blocked on `Q-11-04`** (Senior Developer, 2026-08-26). The Events list filter resolver
-  (`window`/`destination`/`outcome`, with `withQueryString()` on pagination), the
-  deleted-parent drill-through tests for both halves of `Q-11-03(9)`, and the filter chips /
-  explanatory copy / empty-filtered state all landed. Verified green afterwards: `composer
-  lint`, `composer types:check` (0 errors), `pnpm lint:check`, `pnpm types:check`,
-  `pnpm format:check`, and the full suite at **836/836** (up from 825).
-  **What is blocked, and what is not.** Three of T23's four drill-through entry points are
-  wired and verified — the Dashboard Proxies table's Terminal failures cell, Proxy Show's
-  Retry & replay Terminal failure tile, and the Destinations table's `View events` action.
-  The fourth, **the Trend "View as table" row's per-day, per-unit link, is not built**, and
-  T23 must not be marked complete until it is. `docs/questions/prd-11-q-11-04-trend-day-drill-through.md`
-  is **open, directed to the Principal Engineer** as the plan's owner: design-11 requires
-  that link to carry a window "narrowed to that single day", while plan-11 defines the
-  resolver as accepting exactly three query parameters with no day-granular mechanism, and
-  `AnalyticsWindow::tryFrom()` falls back **silently** to the 30-day default (Technical
-  ruling 8), so passing a date through `window` would produce the wrong window rather than
-  narrowing — precisely the silently-wrong-answer failure Technical ruling 3 forbids. Both
-  documents are fully approved, so this is a shape disagreement between them rather than an
-  ambiguity, and resolving it means changing one of them. **The same entry point recurs at
-  T27/T28** once the chart itself exists, so the ruling needs to cover the chart's own click
-  target and not only the accessible table's row.
-  Separately, **T21 reconciled `AC28`'s byte-identical-when-unfiltered requirement against
-  § Architecture E's more literal "window always narrows `received_at`" prose in favour of
-  AC28**, matching design-11's own "arrived directly" state: a bare request stays identical
-  to the pre-#11 surface, and narrowing begins only once `destination` or `outcome` actually
-  resolves. Recorded in T21's completion notes.
-- **`Q-11-04` RESOLVED and `plan-11` re-certified at Revision A** (Principal Engineer,
-  2026-08-26), on plan authority — **no Owner gate was sought or needed** (no dependency, no
-  stack change, no data-model change, no security surface, nothing irreversible; the walk is
-  written into the plan item by item so it can be checked rather than trusted), **and no ADR**.
-  The ruling adds a **fourth optional query parameter, `date`** (ISO `Y-m-d`, deliberately the
-  same string `SeriesPoint.date` already carries). A resolved `date` **replaces** the window's
-  range bound with the half-open interval `[that day 00:00, next day 00:00)` — written as
-  `>= start` and `< end`, never an inclusive `whereBetween`, so no instant at a day boundary
-  belongs to two days or to neither. That is the same partition Technical ruling 9's
-  `DATE(updated_at)` bucket produces, which is what makes a day cell's figure and that day's
-  drill-through describe the same records. Absent or malformed means **no day-narrowing and
-  never a 422**, per ruling 8 as now amended. `window` still resolves and is still emitted —
-  it is the period a member returns to — it simply does not bound the query while a `date` is
-  resolved. **The day is not a fourth chip**: Screen 4 fixes the chip row at three and Flow E
-  calls the day *the window* narrowed, so it renders as the existing Window chip's value and
-  that chip's `×` drops `window` and `date` together. **No design change, so nothing returned
-  to the Designer.** Recorded as `## Revision A` plus new **Technical ruling 10** in
-  `plan-11-analytics.md`, with `### Re-certification at Revision A` appended below the original
-  certification. **T27/T28 need nothing from this**: the canvas carries **no click target by
-  design** (Flow C step 3, Implementation Note 14's `aria-hidden`, and T27's own criteria
-  forbidding `tabindex` and click handlers), so drill-through lives on the accessible table.
-  Scoped further: the entry point is the **Proxy Show** trend table only — the C1 re-check
-  states the Dashboard's team-grained trend is not a drill-through entry point at all, so its
-  rows get no links **despite T23's own task text naming `Dashboard.vue`**.
-- **T23 complete** (Senior Developer, 2026-08-26) — the day-narrowed Trend drill-through landed
-  against Revision A's `date` parameter, and all four of T23's entry points are now wired.
-  Suite at **844/844**; `composer lint`, `composer types:check`, and the three `pnpm` checks
-  all green.
-- **M6 STOPPED AT T25 — awaiting a Project Owner ruling. The charting dependency was not
-  committed, and this is the task's own designed exit rather than a failure.** T25's check 2
-  is the decisive one, and it fails: **`@j-t-mcc/vue3-chartjs` 2.1.0 defeats `chart.js`
-  tree-shaking.** Its bundled source imports `chart.js`'s `registerables` export and, on every
-  mount, runs `Chart.register(...registerables)` unconditionally — the same effect
-  `chart.js/auto` has, reached by a different path. **The literal string `chart.js/auto` does
-  not appear in the package**, so a text search for it would have passed; the finding rests on
-  reading the wrapper's own bundled code, verified against the published 2.1.0 tarball fetched
-  from the registry rather than only against whatever resolved locally, and independently
-  re-checked by the orchestrator before this entry was written. `registerables` is an eagerly
-  constructed array naming every controller, element, scale and plugin the library ships, so
-  importing it pulls all of them into the module graph no matter what the consuming app
-  registers. **Measured, not only read:** two minimal esbuild bundles registering the same
-  seven line-chart pieces came out at **218.6 kB raw / 77.6 kB gzip with the wrapper** against
-  **159.4 kB / 57.0 kB without it** — roughly **59 kB raw, 20.6 kB gzip** of pure tax — and all
-  seven unused controllers (`BarController`, `BubbleController`, `DoughnutController`,
-  `PieController`, `PolarAreaController`, `RadarController`, `ScatterController`) appear in the
-  wrapper bundle and in none of the other. The packages were installed only to run checks 1 and
-  2 against the real published code rather than an assumption, then reverted; `package.json`
-  and `pnpm-lock.yaml` are unchanged and neither package is in `node_modules`. Checks 3 and 4
-  were not run, being conditioned on check 2 passing. **The Owner's standing ruling was that
-  the wrapper is used because it is the Owner's own package — but that approval was explicitly
-  conditional on these checks, and this is the condition it named.** The plan's own recorded
-  alternative is to adopt `chart.js` alone behind roughly forty lines of local `TrendChart.vue`
-  doing what the wrapper's component does — hold a `<canvas>` ref, construct in `onMounted`,
-  `update()` on prop change, `destroy()` on unmount — which needs no plan change beyond dropping
-  one package name. **RULED (Project Owner, 2026-08-26): adopt the wrapper anyway.** The
-  fallback and the fix-upstream-first option were both put to the Owner with the measured cost and
-  neither was taken; the Owner accepted the roughly 59 kB raw / 20.6 kB gzip tax, and both packages
-  ship as originally approved. The reasoning behind the original flag-1 approval is what carries it:
-  the wrapper is the Owner's own package, so the maintenance exposure that would argue for keeping
-  forty lines in-tree does not apply, and those lines would become this project's to own. Recorded
-  in `plan-11-analytics.md` § *Owner ruling on T25's check-2 finding* and in T25's completion notes.
-  **T25 resumes from check 3**; every other condition stands — `onMounted`-only construction, no
-  click target on the canvas, and no automated vulnerability scanning for this package, Dependabot
-  being configured for `github-actions` only. **M6 is unblocked**; T29 remains unstarted.
-- **M6 complete — T25 through T28 landed and committed** (Senior Developer, 2026-08-26).
-  `chart.js` ^4.5.1 and `@j-t-mcc/vue3-chartjs` ^2.1.0 are adopted; `resources/js/lib/chartTokens.ts`
-  resolves the series colours; `resources/js/components/TrendChart.vue` renders the two-series line
-  chart; both the Dashboard and Proxy Show wire it in **above the existing accessible table, which
-  stays** and is now collapsed by default. Verified green afterwards: `composer lint`,
-  `composer types:check` (0 errors), the three `pnpm` checks, and the suite still at **844/844** —
-  M6 added no backend surface. **Only T29 remains**, the whole-surface production-build sweep.
-  Four things worth carrying forward.
-  First, **the real bundle cost is larger than the figure the Owner ruled on, and the difference is
-  not a contradiction.** Check 3's `pnpm build` delta measured **0 kB** at T25 time, because nothing
-  imported the packages yet and Rollup dropped them entirely. Measured again after T27 and T28 wired
-  the chart in, the true delta is **+206.6 kB raw / +71.0 kB gzip** (901.97 to 1108.56 kB raw,
-  278.28 to 349.23 kB gzip). The ~59 kB raw / 20.6 kB gzip the Owner accepted was never the feature's
-  total cost — it was the wrapper's **own auto-registration tax**, the avoidable part, which is the
-  part the ruling was actually about. The rest is `chart.js` itself and would have been paid under
-  the declined local-wrapper option too.
-  Second, **`@j-t-mcc/vue3-chartjs` has a real defect that this implementation works around.** Its
-  exposed `update()` replays a `props` snapshot frozen once in `setup()`, so prop-driven colour and
-  data changes silently no-op. `TrendChart.vue` therefore writes to the exposed
-  `chartJSState.chart` — the actual Chart.js instance — rather than calling the wrapper's `update()`.
-  Without that, a live theme toggle leaves the chart painted in the old theme's colours. The package
-  also ships a broken `exports` map with no `types` condition, unreachable under
-  `moduleResolution: "bundler"`, so `resources/js/types/vue3-chartjs.d.ts` carries a local ambient
-  shim. **Both are upstream bugs in the Owner's own package**, worth fixing there rather than
-  carrying these workarounds indefinitely.
-  Third, **check 4 confirmed the PR #12 scenario is real, not theoretical**: against a production
-  build, `--chart-1`/`--chart-2` deliver as **minified hex** in both themes, which is exactly what
-  defeats pattern-matching on token text and why the `fillStyle` round-trip is required.
-  Fourth, **flagged and deliberately not fixed**: light-theme `--chart-1` clears WCAG 1.4.11's 3:1
-  non-text contrast floor at **3.11:1** — passing, but with almost no margin. It is a pre-existing
-  design-11 token choice, not something M6 introduced, and it is worth a second look if that palette
-  ever changes.
-- **Trend bucket granularity reopened and re-ruled after the Owner saw it live** (2026-08-26).
-  The Owner observed the 24h trend rendering **a single point at the far left** — correct
-  behaviour under the original specification, since the series bucketed by day and a 24-hour
-  window can only yield one or two day buckets. The specification was wrong, not the code.
-  Three artifacts moved in response, in order:
-  **PRD-11 `## Amendment B`** (PM, on AC16/AC17's PM-derived D-11-4 authority, recorded as
-  **D-11-8** and **D-11-9**). **(i)** Bucket size varies by window: `24h` buckets **hourly**
-  (24 points), `7d` and `30d` bucket **daily**. Buckets partition the window with no gap or
-  overlap, every point names the period it covers (AC8), and an empty bucket may not be
-  dropped. AC17's windows and default are untouched. **(ii)** The per-bucket drill-through is
-  obliged at **day grain only**. Hourly buckets owe none, and **an hourly row carrying a
-  day-grained link is a direct AC10 breach, forbidden outright** — an 11am bucket reading 3
-  failures must never land on a whole-day view reading 40. An hour-precise drill-through is
-  permitted and not required. `Q-11-04`'s `date` parameter therefore stands untouched and the
-  PM needed no mechanism ruling from the PE. **The absence of a link must not render as a
-  disabled or dead control.**
-  **`design-11` revised** (Designer) across the PM's seven named places plus five more it
-  found, and is **pending PM re-approval** — it did not self-approve. Two calls worth carrying:
-  an hourly row renders as **plain text in the same weight and colour as any other cell**,
-  reusing the treatment already given the Dashboard's non-linking rate cells; and the hour
-  column is **date-qualified** (`Aug 25, 2:00 PM`, never a bare hour) because a rolling 24-hour
-  window crosses midnight and Amendment B(i) forbids inferring a point's period from its
-  position. The same reasoning revised the **chart axis**: design-11's "the axis already states
-  the window, so no caption is needed" holds for day buckets and does not hold for hourly ones,
-  fixed by qualifying the axis at the day-boundary tick rather than by adding a caption. The
-  historical approval record was deliberately left unedited, two stale "daily" lines and all —
-  it is a dated record of what was true at that gate.
-  **`plan-11` at Revision B** (PE, no Owner gate and no ADR, walked item by item into the plan).
-  Buckets key on `Y-m-d H` via `SUBSTRING(updated_at, 1, 13)` at 24h and the unchanged
-  `DATE(updated_at)` at 7d/30d, half-open at both sizes because a truncating expression
-  *produces* the partition rather than leaving it to a pair of comparisons. **Timezone is now an
-  obligation pinned by test rather than an observation** — SQL, the database session and
-  `CarbonImmutable::now()` must agree, because a mismatch displaces *every* hourly point where
-  it displaced only a minority of daily ones. Neither engine has a portable hour-truncating
-  function, so the portable substring form is ruled with a verification step on the implementing
-  task and the driver-selected fallback (`DATE_FORMAT`/`strftime`) pre-approved; PHP-side
-  bucketing was rejected by name. `SeriesPoint` gains `bucketStart` and its `date` becomes
-  nullable, which is also **how link suppression is expressed — in the data, not in display
-  logic**: a row links when and only when it has a `date`, the same idiom as `UnitFigure.rate`
-  and `ProxyBreakdownRow.canDrillThrough`. **The four approved indexes are untouched and Owner
-  flag 2 is not reopened** — the grouping expression was never index-fed (neither `DATE()` nor
-  an hour truncation is sargable), the index serves the *filter* through the unchanged
-  `(grain, status, updated_at)` prefix, and the hourly case reads a strictly narrower range.
-- **A pre-existing defect was found while carrying Amendment B, and is fixed by Revision B
-  ruling 12.** It is independent of the amendment and was in the certified plan. The series used
-  a **calendar-aligned** start (`now()->startOfDay()->subDays($window->days() - 1)`) while every
-  other figure used a **rolling** one (`now()->sub($window->interval())`), so the headline figure
-  counted records that fall before the chart's first bucket — breaking the same partition
-  property Amendment B(i) states. Verified in `app/Services/DeliveryStatistics.php` against both
-  methods before it was recorded here. Ruling 12 gives the feature **one window definition** —
-  `[first bucket start, now)`, resolved once on `AnalyticsWindow::start()`, used by every figure,
-  the series and the Events list, with `interval()` removed. Aligning buckets to `now` was
-  rejected by name because it destroys the calendar alignment `Q-11-04`'s `date` depends on. The
-  user-visible cost is stated: the window boundary moves by less than one bucket.
-- **M8 is appended to `plan-11` and needs the Task Planner before implementation.** Two tasks.
-  **(1) Backend** — the `SeriesBucket` enum, `AnalyticsWindow::bucket()`/`bucketCount()`/`start()`
-  with `interval()` removed, per-bucket grouping and densification, the one window definition
-  applied across the service and `ProxyEventController`, the DTO shapes, and the new test-strategy
-  assertions; depends on nothing. **(2) Frontend** — TypeScript types, bucket-aware labels and
-  formatters, both trend tables' first column and row keys, `TrendChart.vue`'s axis and accessible
-  summary, and hourly link suppression on Proxy Show; **depends on the Designer's revision being
-  approved**, for the hour wording. **`T29`'s verification sweep must run after both** — run
-  earlier it would certify the single-point rendering as correct. One concrete string is already
-  known wrong and is named rather than left to an implementer: `trendChartAriaLabel()` renders
-  "Daily delivery and attempt success rate…", false on the 24-hour window; if the Designer's
-  revision omits an hour wording for it, for the trend table's first-column header, or for a
-  point's period label, `plan-11` requires a question document to the Designer rather than an
-  invented string.
-- **`design-11` re-approved (PM, 2026-08-26) — Amendment B delta, no corrections. The design
-  gate is closed and `plan-11` Revision B's hour-wording dependency is discharged**, so M8's
-  frontend task is blocked only on its own task breakdown. **All three strings the PE named are
-  covered**: the bucket-conditional accessible summary ("Hourly … last 24 hours" against "Daily
-  … last 30 days"), the "Hour"/"Date" first-column header, and the date-qualified point label.
-  **No question document is owed to the Designer.** Named as explicitly *not* among them so it
-  is not misread as settled: the chart's individual **axis tick** strings, beyond the rule that a
-  tick states its period in the bucket's unit with the date shown at the day-boundary tick —
-  tick formatting is a charting-library detail, not one of the three reserved strings.
-  Three rulings from the gate worth carrying, because each answers a question an implementer
-  would otherwise have to guess at. **Hourly rows need no explanatory copy**: bucket size is a
-  property of the window, so a 24h table links nowhere and a 7d/30d table links everywhere, and
-  a member never sees linking and non-linking rows side by side — the case that would have
-  demanded an explanation. Amendment B(ii) also forbids an explanation phrased as a limitation,
-  and at this grain any such copy would be one. **The "Hour" header with a date-qualified value
-  is not a mismatch**: the column names the period, and the date qualifier disambiguates *which*
-  hour rather than redefining the column. **One residual was ruled rather than returned** — the
-  claim that a reader never infers a date from position holds absolutely for the table, but a
-  chart tick *left* of the day-boundary crossing does take its date from being left of it;
-  date-qualifying the first tick is therefore **permitted and not required**, additive rather
-  than a correction. The gate also **adopted the Designer's refusal to edit the historical
-  approval record as this document's standing rule**: those sections quote AC16 as it stood at
-  that gate, and rewriting them would make the record claim the gate considered something it
-  could not have. **A later agent must not tidy them.**
-- **M8 broken down — `T30` (backend) and `T32` (frontend), self-certified** (Task Planner,
-  2026-08-26). T30 depends on nothing; T32 depends on T30, and its `design-11` wording
-  dependency is **discharged** by the re-approval above. **`T31` is deliberately skipped, not
-  used.** `analytics-tasks.md` refers to "backlog T31" — the deferred frontend test harness in
-  `docs/tasks/walking-skeleton-tasks.md` — in **seven unqualified places**, including inside the
-  completion notes of already-finished tasks, so numbering M8's frontend task T31 would have put
-  two meanings of one number inside a single document. The Task Planner flagged the collision
-  rather than deciding it; the number is skipped and a note at the head of T32 records why.
-  Nothing else was renumbered. **`T29` now depends on T30 and T32** and carries a sequencing
-  note explaining that its position moved — that was the only edit made to an existing task.
-  The Task Planner found **no conflict or gap** between PRD-11 Amendment B, `plan-11` Revision B
-  and the revised `design-11`.
-- **T30 complete — the bucket backend landed** (Senior Developer, 2026-08-26). `SeriesBucket`,
-  `AnalyticsWindow::bucket()`/`bucketCount()`/`start()` with **`interval()` removed**, per-bucket
-  grouping and densification in `DeliveryStatistics`, `SeriesPoint.bucketStart` plus its now
-  nullable `date`, and `StatisticsPanel.bucket`. Verified green afterwards: `composer lint`,
-  `composer types:check` (0 errors), and the suite at **857/857** (up from 844; 13 new tests).
-  **Ruling 12 landed on both sides** — `ProxyEventController` calls the same
-  `AnalyticsWindow::start()` the service does, and `AnalyticsWindowConsistencyTest` pins them
-  against each other by placing one record exactly at the window start (must count) and one a
-  second earlier (must not), then asserting the service and a live
-  `GET proxies.events.index?outcome=delivery_failed` agree at all three windows. A second test
-  asserts the series sums to the headline figure at both units on all three windows — the
-  partition property Amendment B(i) states and the pre-existing defect broke.
-  The portable `SUBSTRING(updated_at, 1, 13)` form was adopted with **no fallback needed**.
-  One implementation choice was not dictated by the plan and is recorded: the expression is
-  inlined as a `match` inside the `select()` call rather than extracted to a helper, because
-  `DB::raw()` requires a `literal-string` and a helper's declared `string` return type erases
-  that for PHPStan.
-  **Existing tests changed, and the report is explicit about why each was legitimate.** The four
-  pre-existing series tests needed no behavioural change — all exercise `7d`/`30d`, whose bucket
-  shape Revision B does not alter — and two simply gained `bucketStart` assertions. One test was
-  renamed and extended from "one point per day, every window" to assert 24 points on `24h`; that
-  shape is exactly what Amendment B superseded. **No assertion was weakened to reach green.**
-- **Found while verifying T30, out of scope, fixed by nobody yet: this project's full migration
-  set cannot run against SQLite.** `database/migrations/2026_08_04_000002_create_webhook_events_table.php`
-  issues a raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`, which is MySQL-only
-  DDL — SQLite's parser rejects it outright (`near "AFTER": syntax error`). So `./vendor/bin/sail
-  test` is in practice the **only** way this suite runs. `docs/stack/stack.md` recorded
-  "Local/default: SQLite · CI + test suite: MySQL"; **that half has since been corrected** by the
-  Principal Engineer (PR #22, 2026-08-27), which also names three further MySQL-only migrations, so
-  the constraint belongs to the migration set rather than to one file. This predates item #11
-  entirely and was confirmed independently before being recorded here. The migration is not the
-  half to change (ADR-010 Amendment B). The
-  practical cost today is that the T30 dual-engine bucket verification had to be done at the
-  query-builder level rather than by running the suite on both engines.
-- **T32 complete — M8 closed, and the defect the Owner reported is fixed** (Senior Developer,
-  2026-08-26). The 24h window now renders **24 hourly points** on both the chart and the
-  accessible table, against the single far-left point that started this. Verified green:
-  `composer lint`, `composer types:check` (0 errors), the three `pnpm` checks, and the suite
-  still at **857/857** — unchanged, confirming T32 introduced no backend regression.
-  **Ruling 13 is honoured literally**: the template gates on `point.date` alone and
-  `StatisticsPanel.bucket` is never consulted for that decision. Row keys are `point.bucketStart`
-  on both pages, so 24 hourly buckets no longer collapse into one key. Confirmed by reading the
-  templates, not from the report alone.
-  Manual verification was specific rather than asserted: **zero `<a>` tags in any rate cell
-  across the full 24-row hourly table**, with one row's raw HTML inspected directly to confirm
-  plain text with no wrapping element; the 30-day table still carrying **60 links** (30 rows ×
-  2 units) landing on `…&date=2026-07-28&outcome=delivery_failed`; the accessible summary
-  reading exactly "Hourly delivery and attempt success rate, last 24 hours…" on 24h, with
-  "Daily" never appearing there; and the chart axis showing bare-hour ticks with exactly one
-  date-qualified tick at the midnight crossing. The gap day still reads "No deliveries yet" and,
-  being a **day** bucket, still carries its link — unchanged from T23.
-  All three Designer-reserved strings were taken **verbatim** from the re-approved design after
-  confirming each was present, so **no question document was owed**. The first axis tick was
-  **not** date-qualified: design-11 calls that permitted and not required, and the accessible
-  table is fully dated regardless while the window is stated independently by the selector and
-  the card subtitle. A defensible deferral rather than an omission.
-- **`T29` is the last remaining task on #11** — the whole-surface production-build verification
-  sweep. It was deliberately re-sequenced to run after M8; had it run earlier it would have
-  certified the single-point rendering as correct.
-- **T29 complete and clean — no defect found, nothing fixed, nothing escalated** (Senior
-  Developer, 2026-08-26). **Every task on #11 is now done.** The sweep re-checked Implementation
-  Notes 1–23 and the scope-boundary list **by inspecting the finished diff rather than
-  re-trusting earlier tasks' own completion notes**, then walked the Dashboard, Proxy Show and
-  Events list across all three windows, both themes and a 375px viewport, against a real
-  production build with `public/hot` confirmed absent. Checks that would have caught a
-  cross-task regression and did not: a drill-through figure of **28 terminal failures matched
-  the summed Events-list row count across pagination exactly**; the `Q-11-03(9)` split held both
-  ways (deleted destination keeps its link, deleted proxy loses both); zero-denominator cases
-  read "No deliveries yet" and never `0%` or `100%`, with the distinct "No data" treatment for
-  the latency measure; the gap day read zero but kept its link, being a day bucket; cross-team
-  access returned 403; and the four page widths plus the events list's own `overflow-x-auto`
-  behaved at 375px. **Judgement recorded: item #11's implementation is complete against PRD-11
-  as amended (Amendments A and B) and `design-11` as re-approved.**
-  **#11 is ready for the Review gate.** The branch carries no PR yet — opening one is the
-  Owner's call.
-- **Task breakdown: 29 tasks, T1–T29, no task depends on a later one.** M1 T1 (four-index
-  migration) · M2 T2–T11 (`AnalyticsWindow`, DTOs, `DeliveryStatistics`) · M3 T12–T17
-  (Dashboard) · M4 T18–T20 (Proxy Show) · M5 T21–T24 (Events list and drill-through) ·
-  M6 T25–T28 (charting dependency and `TrendChart.vue`) · M7 T29 (whole-surface
-  verification pass). The Task Planner found **no conflict or gap** requiring escalation.
-  Constraints that must not be lost in implementation are carried as acceptance criteria on
-  named tasks, not as preamble: the four charting verification checks run **before** the
-  packages are committed and the task **reports back rather than committing** if the wrapper
-  pulls `chart.js/auto` (T25); `onMounted`-only chart construction (T27); colour resolution
-  reuses the PR #12 `readTokens()`/`withAlpha()` round-trip rather than pattern-matching
-  token text (T26); the `updated_at` anchor invariant is pinned by a dedicated test (T10);
-  explicit `team_id` on every analytics query with cross-team isolation coverage (T9, T13,
-  T18); the migration is exactly the four approved indexes and nothing else (T1); and every
-  UI task carries a manual-verification step run against `pnpm run build` with `public/hot`
-  removed first, review-07 Finding 8 being the standing trap (T29 closes the sweep).
-- **Both Owner gates RULED (Project Owner, 2026-08-26).** **(a) Charting dependency —
-  approved as recommended:** `chart.js` (^4) **plus** `@j-t-mcc/vue3-chartjs`, both
-  packages; the local-wrapper alternative was **explicitly not taken**, the wrapper being
-  the Owner's own package. Conditions survive the ruling: the four § Dependencies checks
-  still run on the adopting task, and the decisive one is that **if the wrapper pulls
-  `chart.js/auto`, tree-shaking is lost** and the task reports back rather than committing.
-  Construction stays **`onMounted`-only** — Inertia SSR is configured `enabled => true` but
-  has **no entrypoint and no bundle**, so nothing renders server-side today and a future
-  entry must not be able to break the page. Note **Dependabot covers only `github-actions`**,
-  so this package gets no automated vulnerability scanning. **(b) Four indexes — approved
-  exactly as enumerated**, additive only, rollback four `dropIndex`. The approval rests on
-  the **column order** (grain equality, then `status`, then `updated_at` ranging last),
-  which is what bounds each query by window traffic rather than table size — and therefore
-  what makes AC18's indefinite retention cost storage rather than query latency.
-- **`Q-11-03` RESOLVED (PE, 2026-08-26), all ten items.** Both design contingencies
-  collapsed to the good branch: a **true nearest-rank percentile is feasible live**, so
-  AC20 is met outright and design-11's labelled substitute is **not** triggered; and with
-  **no rollup**, the conditional "as of" caption **renders nothing** and AC11 is satisfied
-  vacuously. Item **(10) holds** — the Events list filters by outcome at both grains with
-  no new index or table, so nothing returned to the Designer. Item **(9)** splits: a
-  deleted **destination** keeps a live link, while a deleted **proxy** takes the
-  pre-approved degradation, because `withTrashed()` would surface the shipped **Replay**
-  affordance against it. **No AC lacks a supporting column.** One caveat carried into
-  implementation rather than buried: the window anchor is **`updated_at`**, resting on a
-  terminal-rows-are-never-rewritten invariant **pinned by test, not by schema**;
-  `created_at` was rejected because it makes past buckets mutable, and a new `resolved_at`
-  column was rejected as new capture, which AC29 and D-11-3 forbid. Also found:
-  **`ApplyTeamScope` does not scope `Delivery` or `WebhookEvent`** (only `Proxy`,
-  `Destination`, `DeliveryAttempt`), so every analytics query states `team_id` explicitly.
-- **Standing constraints on the feature, from the Owner's rulings.** Success and failure
-  are reported as **both units, labelled distinctly, never merged into one figure and never
-  behind a unit toggle** — the same healthy traffic reads 67% failure per-attempt and 100%
-  success per-delivery, which is the confusion the labelling exists to prevent. **Statistics
-  are retained indefinitely at #11** (two permanently growing tables — PRD-05 D1's class of
-  concern, compounded by **F1**: ADR-003 promised attempt records a lifecycle that was never
-  built, so "long-lived" means forever by omission); the technical half stays with the PE at
-  `Q-11-03(1)`. **Per-event-type analytics is excluded** — **F3**, no long-lived event-type
-  attribute exists outside the payload body. **Tier 3 needs no new capture**; every figure
-  traces to an existing column. Nothing #11 counts is erased by GC — but that holds *only*
+**Artifacts:** `docs/product/prd-11-analytics.md` (Approved, Project Owner, 2026-08-26, 37 ACs,
+plus Amendments A and B); `docs/design/design-11-analytics.md` (fully Approved, Product Manager,
+2026-08-26, and re-approved the same day for the Amendment B delta with no corrections);
+`docs/plans/plan-11-analytics.md` (fully approved — PE self-certified plus both Owner flags
+ruled, 2026-08-26; now at Revision B, Technical rulings 1–13);
+`docs/tasks/analytics-tasks.md` (self-certified, Task Planner; T1–T32 all complete, T31
+deliberately skipped, with every task's completion notes);
+`docs/questions/prd-11-q-11-03-stats-lifecycle-and-aggregation.md` and
+`prd-11-q-11-04-trend-day-drill-through.md` (both RESOLVED, Principal Engineer, 2026-08-26).
+
+The per-milestone build record — deviations, interpretive calls, manual-verification evidence
+and suite counts — lives in `analytics-tasks.md`'s completion notes. The rulings behind it live
+in `plan-11` (Revisions A and B), PRD-11 Amendment B, and the two question documents. None of
+that is repeated here; read the owning artifact.
+
+- **Recorded gap: the Review gate was never run.** The Owner squash-merged PR #17 on T29's own
+  self-verification, so no `docs/reviews/review-11-*.md` exists. Items #6 and #7 each surfaced
+  Majors at that gate. This is a gap rather than a completed phase, and it is the only
+  outstanding item on #11.
+- **Owner ruling on T25's check-2 finding (Project Owner, 2026-08-26): adopt
+  `@j-t-mcc/vue3-chartjs` anyway.** The wrapper defeats `chart.js` tree-shaking; the measured
+  cost, the local-wrapper fallback and the fix-upstream-first option were all put to the Owner
+  and neither alternative was taken. Recorded in `plan-11-analytics.md` § *Owner ruling on T25's
+  check-2 finding* and in T25's completion notes.
+- **Carried here because no other artifact records it: the wrapper's cost measured after T27 and
+  T28 wired the chart in is +206.6 kB raw / +71.0 kB gzip** (901.97 → 1108.56 kB raw,
+  278.28 → 349.23 kB gzip). This does not contradict the ruling. The ~59 kB raw / 20.6 kB gzip
+  the Owner accepted was the wrapper's own auto-registration tax — the avoidable part, which is
+  what the ruling was about. The rest is `chart.js` itself and would have been paid under the
+  declined local-wrapper option too. See also the backlog follow-up on the wrapper's upstream
+  defects.
+- **Standing constraints from the Owner's rulings, because they bind future work on this
+  surface.** Success and failure are reported as **both units, labelled distinctly**, never
+  merged into one figure and never behind a unit toggle — the same healthy traffic reads 67%
+  failure per-attempt and 100% success per-delivery. Statistics are **retained indefinitely**
+  (two permanently growing tables; the technical half stays with the Principal Engineer at
+  `Q-11-03(1)`). **Per-event-type analytics is excluded** — no long-lived event-type attribute
+  exists outside the payload body. Nothing #11 counts is erased by garbage collection, but only
   because of PRD-05 **Amendment A**; under ADR-012's original hard-delete an events-received
-  count would have decayed silently every night. **AC2 pins it.**
+  count would have decayed silently every night. AC2 pins it.
 
 ## Item #8 — carried forward (must not be lost while deferred)
 
@@ -515,175 +129,106 @@ plus both Owner flags ruled, 2026-08-26);
 
 ## Operations work in flight (not a roadmap line)
 
-**Branch `feat/horizon`, PR #18, merged 2026-08-27 (`bd0e67d`).** Owner-directed operational work,
-deliberately outside the dev-team pipeline, plus one architectural ruling it uncovered. The branch
-has been deleted; the record below stands because ADR-020 is load-bearing for FIFO.
+Owner-directed operational work, deliberately outside the dev-team pipeline. Each entry is
+here because it has no roadmap row; where an artifact owns the detail, it is named rather
+than summarised.
 
-- **Laravel Horizon `^5.48` added** for visibility into the Redis queue, at `/horizon`. Access is
-  HTTP Basic against `HORIZON_USERNAME`/`HORIZON_PASSWORD` rather than a user allow-list, because
-  this project has no superadmin role — operational access is deployment configuration, not a
-  property of an application account. Both the route middleware and Horizon's own `viewHorizon`
-  gate consult the same check, so removing the middleware from `config/horizon.php` cannot open
-  the dashboard. Unset credentials fail closed. `.env.example` moves to `QUEUE_CONNECTION=redis`,
-  since Horizon supervises Redis queues only and shows an empty dashboard on the `database` driver.
-- **Two supervisors configured** — `supervisor-webhooks` on the `webhooks` queue and
-  `supervisor-default` on `default` — replacing the single published one. Concurrency is safe on
-  both because FIFO ordering is held by `AdvanceProxyFifoQueue`'s atomic `FOR UPDATE` claim, not
-  by there being a single worker. `tries` stays 1 on both: `DeliverToDestination` declares
-  `$tries = 1` because retry is ADR-015's application-level policy, and a queue-level retry would
-  re-send a webhook outside it.
-- **`ADR-020` came out of this work and is Accepted** (Project Owner, 2026-08-26). Configuring the
-  supervisors surfaced that the `default` supervisor's `timeout` sits under two constraints at
-  once — above the longest legitimate job (`N × 15` seconds of inline sends) and below
-  `ingest.fifo_lease_seconds` (90) — **jointly unsatisfiable for a FIFO proxy with five or more
-  destinations**. Today such a proxy has its advancer killed mid-delivery every time. The fix is
-  parallel queued fan-out inside a FIFO event, which removes the reason the job is long rather
-  than negotiating around it. **The Owner confirmed the FIFO guarantee is settlement-ordered
-  between events, with no requirement that destinations within one event be sequential**, so the
-  inline loop had no requirement behind it. Event ordering does not change.
-- **The Owner rejected encrypting the payload in the queue and required it removed instead.**
-  Revision A's by-reference delivery job carries `(deliveryId, attemptNumber)` and resolves on the
-  worker through ADR-013's divergence gate — the shape `RetryDelivery` has used since #6, and
-  which ADR-015 Decision 5 already required. Two Owner requirements were in tension:
-  `ShouldBeEncrypted` would have satisfied the security one while worsening the message-size one,
-  and would in any case have been a **silent no-op**, because the object serialized is
-  `lorisleiva`'s `JobDecorator` rather than the action. Revision B additionally rules **plain
-  identifiers over `SerializesModels`** — the trait does work here, but it removes nothing, splits
-  one act of resolution across two mechanisms, and forecloses the resolver seam a future cache
-  would need.
-- **Long-term storage now turns on duration** (Owner, 2026-08-26): encryption at rest is required
-  for long-term storage, and a cache living minutes to an hour is short-term and does not need it.
-  The threshold is deliberately unset and is the Owner's to fix against a real store when one is
-  proposed.
-- **Implemented and reviewed.** `70d667a` carries the production change — `DeliverStep` loses
-  its mode branch and dispatches by reference, `App\Services\DeliveryUnitResolver` becomes the
-  single resolver, `DeliverToDestination::asJob(int $deliveryId, int $attemptNumber)` is the
-  scalar queue entry point, and `settleOrHold()` is rewritten as compare-and-set on both
-  branches. `bbc7762` adds the regression coverage and `docs/fixes/fifo-advancer-duration-and-settle-race.md`.
-  **Reviewed: Approve, one Nit, no Majors and no Minors** —
-  `docs/reviews/review-adr-020-fifo-and-horizon.md` (`de36558`). The Nit, a test whose name
-  promised a failure scenario it no longer contained, is fixed in `8e22649`. Suite at
-  **880/880**, `composer lint` and `composer types:check` clean. **CI failed once on this branch for an unrelated reason and passed on
-a rerun of the same commit**: `vite.config.ts` resolves `bunny('Instrument Sans')` over the network
-at build time, so every build depends on `fonts.bunny.net` being reachable and a CI fresh-install
-keeps no cache — recorded as a backlog follow-up below.
-  **Two limits the review recorded rather than papered over:** no test on the branch
-  demonstrates real concurrency, since PHPUnit on a single connection cannot interleave two
-  live claim transactions — the conclusion rests on every write to `fifo_dispatches.status`
-  being keyed on an expected prior value, which is a property of the code rather than of a
-  reproduction; and because `QUEUE_CONNECTION=sync` runs jobs inline under test, **a green
-  suite is weak evidence for this change specifically.** The two reflection-driven tests in
-  `AdvanceProxyFifoQueueTest` exist for that reason and are the only ones whose passing is
-  meaningful evidence about the race.
-- **The acceptance-suite blast radius was audited directly rather than taken on trust.**
-  `Queue::fake()` cannot be scoped to exclude one action, because Laravel matches
-  `$job instanceof $class` against the pushed `JobDecorator` wrapper, so twelve acceptance
-  classes gained `tests/Concerns/DrainsQueuedDeliveries.php`. Every test method across them was
-  classified by whether it fakes the queue **in its own body**, drives the now-queued path, and
-  asserts delivery state. Three apparent gaps proved to be false positives — two tests carry no
-  `Queue::fake()` at all and the third matched only a comment reading "No Queue::fake()".
-  **No test asserts delivery state it can no longer reach.**
-- **Superseded, not weakened.** Of the three replaced tests, two are stronger — one now pins the
-  queue name, the other pins the attempt number and reads its parameters positionally as
-  scalars, which incidentally guards Decision 9. The third no longer exercises the failure its
-  name promised, because `DeliverStep` has no in-loop transport error left to survive; that
-  behaviour is covered end to end by `RetryEngineAcceptanceTest`.
-- **Two hazards are recorded against this code rather than left to be discovered:** the delivery
-  job's argument list **must stay scalar**, because `JobDecorator` auto-applies `SerializesModels`
-  to top-level parameters and a model would silently opt back in; and `QUEUE_CONNECTION=sync`
-  makes `dispatch()` run inline, so **the existing FIFO acceptance suite passing is not evidence**
-  that parallel fan-out is correct. Both apply to any future change in this area, not only to the
-  original implementation.
+**Branch `feat/horizon`, PR #18, merged 2026-08-27 (`bd0e67d`); branch deleted.** Laravel
+Horizon `^5.48` at `/horizon`, plus `ADR-020` (Accepted, Project Owner, 2026-08-26), which
+this work uncovered and which is load-bearing for FIFO. The design, the by-reference delivery
+job, the two recorded hazards and the concurrency-evidence limits all live in
+`docs/architecture/adr-020-fifo-advancer-job-duration-and-claim-lease-safety.md`,
+`docs/reviews/review-adr-020-fifo-and-horizon.md` (**Approve**, one Nit, fixed in `8e22649`)
+and `docs/fixes/fifo-advancer-duration-and-settle-race.md`. Implementation is `70d667a` and
+`bbc7762`; suite 880/880, `composer lint` and `composer types:check` clean.
+
+Two operational facts have no other home:
+
+- **Horizon access is HTTP Basic against `HORIZON_USERNAME`/`HORIZON_PASSWORD`, not a user
+  allow-list**, because this project has no superadmin role — operational access is deployment
+  configuration, not a property of an application account. Both the route middleware and
+  Horizon's own `viewHorizon` gate consult the same check, so removing the middleware from
+  `config/horizon.php` cannot open the dashboard. Unset credentials fail closed.
+  `.env.example` moves to `QUEUE_CONNECTION=redis`, since Horizon supervises Redis queues only.
+- **Two supervisors replace the single published one** — `supervisor-webhooks` on the
+  `webhooks` queue and `supervisor-default` on `default`. Concurrency is safe on both because
+  FIFO ordering is held by `AdvanceProxyFifoQueue`'s atomic `FOR UPDATE` claim, not by there
+  being a single worker. `tries` stays 1 on both: `DeliverToDestination` declares `$tries = 1`
+  because retry is ADR-015's application-level policy, and a queue-level retry would re-send a
+  webhook outside it.
 
 **Dependabot PR #19, merged 2026-08-27 (`ea35499`).** `pnpm/action-setup` 6.0.9 → 6.0.10 in the
 `github-actions` group. Routine, no review gate.
 
-**Branch `chore/mailgun-mailer`, PR #20, merged 2026-08-27 (`cb0fdf4`).** Owner-directed
-operational work, outside the pipeline.
-Mailgun becomes a selectable mail transport: `symfony/mailgun-mailer` and `symfony/http-client`
-added (neither was present — the project had `symfony/mailer` but no HTTP client), a `mailgun`
-entry added to `config/mail.php`, and a credentials block added to `config/services.php` reading
-`MAILGUN_DOMAIN`, `MAILGUN_SECRET` and `MAILGUN_ENDPOINT`. Nothing switches by default:
-`MAIL_MAILER` stays `log` in `.env.example` and Mailgun is selected by deployment configuration
-only. **The production environment was already configured by the Owner before the packages landed,
-so the variable names above are assumed to match what production sets; they are Laravel's
-conventional names.** Verified by resolving `MailgunHttpTransport` from the container under
-`MAIL_MAILER=mailgun` rather than by sending mail. Suite 880/880, `composer lint` and
-`composer types:check` clean.
+**Branch `chore/mailgun-mailer`, PR #20, merged 2026-08-27 (`cb0fdf4`).** Mailgun becomes a
+selectable mail transport: `symfony/mailgun-mailer` and `symfony/http-client` added (the
+project had `symfony/mailer` but no HTTP client), a `mailgun` entry in `config/mail.php`, and a
+credentials block in `config/services.php` reading `MAILGUN_DOMAIN`, `MAILGUN_SECRET` and
+`MAILGUN_ENDPOINT`. Nothing switches by default — `MAIL_MAILER` stays `log` in `.env.example`
+and Mailgun is selected by deployment configuration only. **The production environment was
+already configured by the Owner before the packages landed, so the variable names above are
+assumed to match what production sets;** they are Laravel's conventional names. Verified by
+resolving `MailgunHttpTransport` from the container under `MAIL_MAILER=mailgun` rather than by
+sending mail. Suite 880/880, `composer lint` and `composer types:check` clean.
 
 ## Backlog follow-ups (deferred, not gating any current item)
 
-- **`league/commonmark` 2.8.3 carries six security advisories, all denial-of-service.** Reported
-  by `composer audit`, all fixed in 2.9.0. They arrive through `laravel/framework`, not through
-  anything added recently, and predate the current branches. `laravel/framework` allows `^2.8.1`,
-  so the upgrade is available without a framework change. Held out of the Horizon branch to keep
-  unrelated work in separate pull requests; it wants its own.
-- ~~**The production asset build depends on a third-party font CDN at build time.**~~
-  **CLOSED 2026-08-27 — PR #21 merged (`5d9f75e`).** `vite.config.ts` passed
-  `bunny('Instrument Sans')` to `laravel-vite-plugin`, which fetched the font over the network
-  during `pnpm run build`; CI reinstalls dependencies from scratch, so the cache never survived a
-  run. It produced one false CI failure on PR #20 — `TypeError: fetch failed` / `AggregateError
-  [ETIMEDOUT]` in `[plugin laravel:fonts]` — on a branch that touched no frontend code. Fixed as
-  recorded: the six woff2 files are vendored at `resources/fonts/`, `resources/css/fonts.css`
-  carries the `@font-face` blocks with `unicode-range` preserved, and both the `fonts:` option and
-  the `@fonts` Blade directive are gone. No CI retry was added.
+Open:
 
-- ~~**`docs/stack/stack.md` records "Local/default: SQLite", but the full migration set cannot run
-  against SQLite.**~~ **Corrected 2026-08-27 — PR #22 open** (Principal Engineer). `stack.md` now
-  records MySQL only, names the raw `ALTER TABLE ... ADD body LONGBLOB NOT NULL AFTER content_type`
-  in `2026_08_04_000002_create_webhook_events_table.php` as the reason, and states that the raw DDL
-  is deliberate per ADR-010 Amendment B and is not the half to change. Two adjacent rows were
-  corrected in the same pass: Testing now leads with `./vendor/bin/sail test`, and Infrastructure
-  no longer claims no compose file is committed (`compose.yaml` is at the repo root).
-- **PRD-10's Status block still says Amendment B is awaiting the Project Owner, but § Amendment B
-  records that the Owner approved it.** Found by the Product Manager while running the second
-  design gate on `design-10` on 2026-08-27, and deliberately left alone there: the gate's scope was
-  the design spec, and an approved PRD is not edited to tidy a document the gate happened to read.
-  The document contradicts itself in its own header, which is the half a later reader trusts first.
-  The correction belongs to the Product Manager, who owns the PRD. It blocks nothing — every
-  downstream document already treats Amendment B as approved, because it is.
-
+- **PRD-10's Status block still says Amendment B is awaiting the Project Owner, while
+  § Amendment B records that the Owner approved it on 2026-08-27.** The document contradicts
+  itself in its own header, which is the half a later reader trusts first. Owned by the Product
+  Manager. It blocks nothing — every downstream document already treats Amendment B as approved.
 - **`.env.example` makes a fresh `composer setup` fail, and no one owns the fix yet.** It ships
-  `DB_CONNECTION=sqlite` with every MySQL variable commented out, so anyone following it literally
-  hits the MySQL-only migration above at `artisan migrate`. `compose.yaml` also interpolates
-  `${DB_DATABASE}`/`${DB_USERNAME}`/`${DB_PASSWORD}`, which are empty under that file. Raised by the
-  Principal Engineer while correcting `stack.md`; it is a code change rather than a doc change, and
-  `.env.example` is on the autopilot's forbidden-paths list, so it needs a Project Owner decision.
-- ~~**`design-11`'s Components row still describes the charting dependency as ungated.**~~
-  **Corrected 2026-08-27 — PR #22 open** (Designer). The Components row and two Handoff bullets now
-  record the Owner's 2026-08-26 ruling adopting `chart.js` `^4` and `@j-t-mcc/vue3-chartjs`. The
-  frozen gate records were deliberately left alone.
+  `DB_CONNECTION=sqlite` with every MySQL variable commented out, so anyone following it
+  literally hits the MySQL-only migration set at `artisan migrate`. `compose.yaml` also
+  interpolates `${DB_DATABASE}`/`${DB_USERNAME}`/`${DB_PASSWORD}`, which are empty under that
+  file. It is a code change rather than a doc change, and `.env.example` is on the autopilot's
+  forbidden-paths list, so it needs a Project Owner decision.
 - **Async fan-out has been exposed to queue-driver message-size limits since #4.** Recorded by
-  ADR-020 Decision 8 as a pre-existing limitation rather than something that change introduces.
-  `INGEST_MAX_BODY_BYTES` defaults to 50 MiB while SQS caps a message at 256 KiB — roughly two
-  hundred times smaller. Redis (512 MB strings) and the `database` driver (`longText`) both
-  tolerate it, which is precisely why it stays invisible until a driver migration turns it into a
-  hard failure rather than a degradation. ADR-020's by-reference delivery job removes the exposure
-  once implemented, since the job then carries two integers. **The 50 MiB cap itself is flagged in
-  `config/ingest.php` as a placeholder to revisit before MVP, and choosing that number is the
-  Product Manager's or the Owner's, not the Principal Engineer's.**
-- **`design-11`'s § Components row still describes the charting dependency as ungated.** A
-  pre-Amendment-B line the 2026-08-26 design gate deliberately did not reopen, since it falls
-  outside that gate's scope. The Owner ruled the dependency on 2026-08-26 (both packages
-  adopted), so the row is stale rather than wrong in a way that misleads implementation. Fix it
-  the next time `design-11` is opened for another reason; it does not warrant opening the
-  document on its own.
-
-- **Frontend test harness (Vitest + `@vue/test-utils` + DOM env + `test:js` script).**
-  Deferred per Owner Option B (2026-07-31); captured as backlog task **T31** in
-  `docs/tasks/walking-skeleton-tasks.md`. First test to write once it lands: the
-  **Index-table row-delete regression**, which no PHP/sail test can exercise. Does **not**
-  run under `./vendor/bin/sail test` (PHPUnit); CI wiring to be updated when scheduled.
-  Until it lands, every design flow verified by hand is guarded only by a documented
-  manual-verification step — and review-07 Finding 8 is the standing trap: with `public/hot`
-  present and a Vite dev server running, a "verified against a fresh build" claim was served
-  from the dev server.
-- **Real-concurrency integration test for the FIFO single-advancer window** (review-04).
-  PHPUnit on a single connection proves the committed-claim short-circuit but cannot
-  interleave two live claim transactions; production ordering leans on `WithoutOverlapping`
-  serialization. Non-blocking; the M-1 fix holds the liveness guarantee.
+  ADR-020 Decision 8 as pre-existing. `INGEST_MAX_BODY_BYTES` defaults to 50 MiB while SQS caps
+  a message at 256 KiB; Redis and the `database` driver both tolerate it, which is why it stays
+  invisible until a driver migration turns it into a hard failure. ADR-020's by-reference
+  delivery job removes the exposure. **Choosing the 50 MiB cap itself is the Product Manager's
+  or the Owner's, not the Principal Engineer's** — it is flagged in `config/ingest.php` as a
+  placeholder to revisit before MVP.
+- **`@j-t-mcc/vue3-chartjs` 2.1.0 has two upstream defects that #11 works around, and no other
+  artifact records them.** Its exposed `update()` replays a `props` snapshot frozen once in
+  `setup()`, so prop-driven colour and data changes silently no-op — `TrendChart.vue` therefore
+  writes to the exposed `chartJSState.chart` directly, without which a live theme toggle leaves
+  the chart painted in the old theme's colours. It also ships a broken `exports` map with no
+  `types` condition, unreachable under `moduleResolution: "bundler"`, so
+  `resources/js/types/vue3-chartjs.d.ts` carries a local ambient shim. **Both are bugs in the
+  Owner's own package**, worth fixing upstream rather than carrying the workarounds
+  indefinitely.
+- **Frontend test harness (Vitest + `@vue/test-utils` + DOM env + `test:js` script).** Deferred
+  per Owner Option B (2026-07-31); captured as backlog task **T31** in
+  `docs/tasks/walking-skeleton-tasks.md`. First test to write once it lands: the Index-table
+  row-delete regression, which no PHP/sail test can exercise. Does not run under
+  `./vendor/bin/sail test`; CI wiring to be updated when scheduled. Until it lands, every design
+  flow verified by hand is guarded only by a documented manual-verification step — and
+  **review-07 Finding 8 is the standing trap**: with `public/hot` present and a Vite dev server
+  running, a "verified against a fresh build" claim was served from the dev server.
+- **Real-concurrency integration test for the FIFO single-advancer window** (review-04). PHPUnit
+  on a single connection proves the committed-claim short-circuit but cannot interleave two live
+  claim transactions; production ordering leans on `WithoutOverlapping` serialization.
+  Non-blocking.
 - **Optional T18 mode-switch test consolidation** (review-04). Endpoint paths are covered by
   T19/T20; no action unless consolidating later.
+
+Closed, kept only as a pointer:
+
+- ~~`league/commonmark` 2.8.3 denial-of-service advisories.~~ **CLOSED 2026-08-27** —
+  `docs/fixes/commonmark-dos-advisories.md`. Upgraded to 2.10.0 within the existing `^2.8.1`
+  constraint; `composer audit` clean.
+- ~~The production asset build depends on a third-party font CDN at build time.~~
+  **CLOSED 2026-08-27 — PR #21 (`5d9f75e`).** Fonts vendored at `resources/fonts/`.
+- ~~`docs/stack/stack.md` records "Local/default: SQLite".~~ **CLOSED 2026-08-27 — PR #22
+  (`6bc26a6`).** `stack.md` now records MySQL only and names the MySQL-only DDL that forces it.
+  **The standing constraint is stack.md's to state: the full migration set cannot run against
+  SQLite, so `./vendor/bin/sail test` is in practice the only way this suite runs.**
+- ~~`design-11`'s Components row describes the charting dependency as ungated.~~
+  **CLOSED 2026-08-27 — PR #22 (`6bc26a6`).**
 
 ## Open questions register (roadmap-level, deferred to their gating item)
 

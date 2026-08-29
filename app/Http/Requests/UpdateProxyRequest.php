@@ -6,6 +6,7 @@ use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
+use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -57,10 +58,82 @@ class UpdateProxyRequest extends FormRequest
             // regardless of mode (system default).
             'retry_attempt_limit' => ['nullable', 'integer', 'min:1', 'max:10', 'prohibited_if:mode,simple'],
             'retry_backoff_strategy' => ['nullable', Rule::enum(RetryBackoffStrategy::class), 'prohibited_if:mode,simple'],
+            // Per-proxy AC13 additions to the fixed AC12 default list (T4/T5's
+            // SensitiveFields/SensitiveFieldMatcher). 'regex:/\S/' rejects a
+            // blank/whitespace-only entry; trimming and de-duplication by
+            // normalised form happen server-side in the controller, not here
+            // (ProxyController::sensitiveFieldAdditions()).
+            'sensitive_fields' => ['nullable', 'array', 'max:100'],
+            'sensitive_fields.*' => ['string', 'max:128', 'regex:/\S/'],
             'destinations' => ['required', 'array', 'min:1'],
             'destinations.*.id' => ['sometimes', 'nullable', 'integer'],
             'destinations.*.url' => ['required', 'string', 'url:https'],
             'destinations.*.http_method' => ['required', Rule::enum(HttpMethod::class)],
+            // Per-destination credential (AC30, AC33; plan-10 §Validation, T29).
+            // The header name defaults to `Authorization` on the form, not here
+            // (the schema allows it to be absent whenever no secret is present).
+            'destinations.*.credential_header_name' => [
+                'required_with:destinations.*.credential_secret',
+                'string',
+                'max:128',
+                'regex:/^[A-Za-z0-9!#$%&\'*+\-.^_`|~]+$/',
+            ],
+            // Write-only (AC33): absent/empty means "leave unchanged" — a
+            // present, non-empty value replaces the stored credential
+            // immediately, reconciled by the row's existing `id`-based
+            // matching in the controller. No `min` length constraint, so an
+            // empty string can reach the controller and must be treated the
+            // same as absent there.
+            // `prohibited_if` makes sending both this and `remove_credential: true`
+            // a deterministic 422 (T31, plan-10 Revision A, ruling 15) — this
+            // application's own UI can never produce that combination (see
+            // `ProxyForm.vue`'s `transform()`), but a malformed request must
+            // still be rejected rather than silently resolved one way or the
+            // other.
+            'destinations.*.credential_secret' => ['nullable', 'string', 'max:1024', 'prohibited_if:destinations.*.remove_credential,true'],
+            // The Remove credential signal (T31; ruling 15) — a sibling
+            // boolean, never a sentinel folded into `credential_secret`.
+            // Read positively in the controller (`($row['remove_credential']
+            // ?? false) === true`), so presence-versus-absence is never
+            // load-bearing on this key.
+            'destinations.*.remove_credential' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /**
+     * Scrub `destinations.*.credential_secret` before the validation exception
+     * propagates (R4; plan Technical ruling 7). `bootstrap/app.php`'s `dontFlash`
+     * list flashes old input via `Arr::except($request->input(), $this->dontFlash)`,
+     * and `Arr::forget()` (what `Arr::except()` uses under the hood) has no
+     * wildcard support — it cannot reach a key nested under a numeric array index.
+     *
+     * The instance validated here (`$this`) is a *copy*: the `FormRequestServiceProvider`
+     * builds it via `Request::createFrom($app['request'], $this)`, so it is never the
+     * same object as the container-bound `request` singleton the exception handler
+     * reads when it builds the redirect-with-input response. Scrubbing `$this` alone
+     * is therefore a no-op for flashing — both the FormRequest's own bag and the
+     * container-bound request must be scrubbed.
+     */
+    protected function failedValidation(Validator $validator)
+    {
+        $destinations = $this->input('destinations');
+
+        if (is_array($destinations)) {
+            foreach ($destinations as $key => $destination) {
+                if (is_array($destination) && array_key_exists('credential_secret', $destination)) {
+                    unset($destinations[$key]['credential_secret']);
+                }
+            }
+
+            $this->merge(['destinations' => $destinations]);
+
+            $bound = $this->container->make('request');
+
+            if ($bound !== $this) {
+                $bound->merge(['destinations' => $destinations]);
+            }
+        }
+
+        parent::failedValidation($validator);
     }
 }

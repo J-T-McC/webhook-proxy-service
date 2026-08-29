@@ -72,3 +72,54 @@ check, a `### Re-review recommendation`, and a `- **Project Owner decision / dat
 line. Add a `### Re-review handoff` rather than rewriting the original. When the Owner
 authorised fixing only *some* findings, tabulate the untouched ones as "what carries forward"
 so approval is informed — do not re-raise them as findings.
+
+**Proving a private method's behaviour without touching source:** reflect into it from tinker —
+`$c = new ReflectionClass(Foo::class); $m = $c->getMethod('bar'); $m->invoke($c->newInstanceWithoutConstructor(), $args)`.
+Turned "I read the code and it discards the field" into decisive evidence at review-10 in one
+command, with nothing written to disk. `newInstanceWithoutConstructor()` matters — controllers here
+take constructor dependencies you do not want to build.
+
+**Reviewing a REMOVAL milestone is a different job from reviewing an addition: the failure mode is a
+survivor, not a defect.** Sweep for the removed vocabulary across `app resources/js routes config
+database/factories` in one `grep -rniE`, then classify every hit as (a) deliberately-retained code,
+(b) unrelated framework code (Fortify's email verification and 2FA both match `/verif/`), or
+(c) a historical comment. Also confirm the *retained* classes an ADR names as most at risk of
+over-deletion actually survived — ADR-026 named `StandardWebhooks` by name for this reason.
+
+**A withdrawn upstream section can leave a surviving clause unanchored, and that is a Designer
+question, not an implementation defect.** design-10 Screen 4b fixed the Signing card's placement
+"alongside the Verification card … before the Destinations table"; Screen 4 was then withdrawn,
+leaving two half-clauses that point in different directions. Route the resolution to the Designer.
+Check `git show <pre-removal-rev>:<file>` first — the pre-existing sibling often did not honour the
+clause either, which makes the deviation inherited rather than introduced.
+
+**Cross-check a required upstream artifact's own status line against `docs/status.md`.** At
+review-10 status.md recorded design-10's inbound-withdrawal amendment as approved while the
+amendment's own header read "WRITTEN, awaiting Product Manager re-approval". `docs/` governs.
+A withdrawal-only amendment whose substance is already Owner-approved via an ADR is a **Minor**
+(open paperwork gate), not the Blocker a genuinely missing design spec would be.
+
+**Cheap independent evidence that a rework weakened no existing test: check the suite DELTA accounts
+exactly for the new test methods.** At the review-10 re-review, 1016/4809 → 1019/4818 was exactly
+the three added methods and nothing else — which proves no test was deleted, skipped or relaxed
+without reading the test diff at all. A delta that does not reconcile is the thing to chase.
+
+**Re-verify a fix by re-running the reproduction that raised the finding, then EXTEND it to every
+branch of the changed method — not just the branch that was broken.** Finding 4's fix added a
+parameter; probing all six branches (existing/no-existing × blank/non-blank name × the
+`remove_credential` short-circuit × the defaulted one-arg `store()` call) caught nothing wrong but
+is what makes "resolved" a claim rather than a hope. A one-branch re-probe would not have shown that
+the safe default survived on `store()`'s path.
+
+**When a fix closes "a surface asserts something the save discards", check the fix did not bump a
+timestamp the surface describes.** Screen 3's status line reads "Credential set — changed {date}";
+writing `credential_set_at` on a header-name-only edit would have closed the finding while creating
+a smaller instance of the same defect class. The right fix persists the sibling field and leaves the
+timestamp alone.
+
+**House answer to a retained-but-superseded gate record whose own wording is now wrong:** a
+pure-insertion pointer immediately above the stale passage that **quotes the stale wording back at
+the reader** and says why it stands unedited — never a rewrite, because a gate record that silently
+matches today's requirements is evidence of nothing. design-10's correction B2 ("on **both**
+surfaces") is the worked example. Judge the mitigation by whether the pointer is adjacent to the
+point of stumble and whether search-arrival paths also carry it.

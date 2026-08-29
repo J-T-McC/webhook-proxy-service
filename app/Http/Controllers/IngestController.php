@@ -10,9 +10,11 @@ use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Services\ResponseResolver;
 use App\Services\WebhookEventCapture;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -46,7 +48,9 @@ class IngestController extends Controller
 
         // Read the raw request facts up front and mint the single ingest_id — the one
         // correlator shared by the capture row and the fan-out delivery_attempts
-        // (ADR-003). Do not introduce a second key.
+        // (ADR-003). Do not introduce a second key. `$rawBody` is read exactly ONCE
+        // here and reused by `WebhookEventCapture` — no second `$request->getContent()`
+        // call anywhere.
         $ingestId = (string) Str::uuid();
         $method = $request->method();
         $headers = $request->headers->all();
@@ -76,7 +80,7 @@ class IngestController extends Controller
                 }
             });
         } catch (Throwable $e) {
-            report($e);
+            $this->reportCaptureFailure($e, $ingestId, $proxy);
             abort(Response::HTTP_INTERNAL_SERVER_ERROR);
         }
 
@@ -95,5 +99,34 @@ class IngestController extends Controller
         }
 
         return $response;
+    }
+
+    /**
+     * Report a capture-transaction failure without letting
+     * `QueryException::formatMessage()`'s interpolated bindings reach the log
+     * (R5; plan Technical ruling 8). Those bindings are always ciphertext today —
+     * `encrypted` casts run at attribute-set time, before `performInsert()` binds
+     * `$this->getAttributes()` — but an encrypted copy of payload content (or a
+     * secret column, if the failing write were `proxy_secrets`/
+     * `destinations.credential_secret`) in a log file is still a copy AC3's
+     * enumeration does not include and no retention pass touches.
+     *
+     * Reports a fresh, unchained exception carrying only `ingest_id`, the proxy
+     * id, and the SQLSTATE (when the failure is a `QueryException`) — never the
+     * original exception's message, and never set as `previous`, so nothing about
+     * the interpolated statement can resurface through exception-chain formatting
+     * either. This is table-agnostic: whichever write inside the wrapped
+     * transaction fails, the same sanitized shape is reported.
+     */
+    private function reportCaptureFailure(Throwable $e, string $ingestId, Proxy $proxy): void
+    {
+        $sqlState = $e instanceof QueryException ? $e->getCode() : null;
+
+        report(new RuntimeException(sprintf(
+            'Webhook capture failed for ingest_id=%s proxy_id=%d%s',
+            $ingestId,
+            $proxy->id,
+            $sqlState !== null ? sprintf(' sqlstate=%s', $sqlState) : '',
+        )));
     }
 }

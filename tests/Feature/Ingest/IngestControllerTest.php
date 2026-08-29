@@ -6,12 +6,14 @@ use App\Actions\AdvanceProxyFifoQueue;
 use App\Actions\ProcessIngestedWebhook;
 use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
+use App\Http\Controllers\IngestController;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
 use App\Services\WebhookEventCapture;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -245,5 +247,51 @@ class IngestControllerTest extends TestCase
         $this->assertSame(0, WebhookEvent::count());
         $this->assertSame(0, FifoDispatch::count());
         Queue::assertNothingPushed();
+    }
+
+    /**
+     * Bypasses the route/middleware stack and invokes the controller
+     * directly — `EnforceIngestBodyLimit` legitimately reads
+     * `$request->getContent()` itself when `Content-Length` is absent, which
+     * would confound a whole-pipeline read count. This isolates the
+     * assertion to `IngestController`'s own body handling: the same
+     * `$rawBody` string reaches `WebhookEventCapture` via exactly one
+     * `getContent()` call.
+     */
+    public function test_the_raw_body_is_read_exactly_once_by_the_controller(): void
+    {
+        [$proxy, $token] = $this->proxyWithToken();
+
+        $request = CountingContentRequest::create(
+            $this->ingestUrl($token),
+            'POST',
+            content: '{"hello":"world"}',
+        );
+
+        $response = app(IngestController::class)($request, $token);
+
+        $this->assertSame(202, $response->getStatusCode());
+        $this->assertSame(1, $request->getContentCalls);
+        $this->assertSame(1, WebhookEvent::count());
+    }
+}
+
+/**
+ * A `Request` subclass that counts calls to `getContent()`, used only by
+ * {@see IngestControllerTest::test_the_raw_body_is_read_exactly_once_by_the_controller()}
+ * to prove `IngestController` reads the raw body exactly once.
+ */
+class CountingContentRequest extends Request
+{
+    public int $getContentCalls = 0;
+
+    public function getContent(bool $asResource = false): string
+    {
+        $this->getContentCalls++;
+
+        /** @var string $content */
+        $content = parent::getContent($asResource);
+
+        return $content;
     }
 }
