@@ -124,6 +124,52 @@ class IngestControllerTest extends TestCase
         Http::assertNothingSent();
     }
 
+    // --- Delivery-loop guard: hop-count limit (docs/briefs/delivery-loop-guard.md) ---
+
+    public function test_ingest_rejects_with_508_when_the_inbound_hop_count_is_at_the_limit(): void
+    {
+        [, $token] = $this->proxyWithToken();
+        $limit = (int) config('ingest.max_hops');
+
+        $this->post($this->ingestUrl($token), ['hello' => 'world'], ['WebhookProxy-Hops' => (string) $limit])
+            ->assertStatus(508);
+
+        $this->assertSame(0, WebhookEvent::count());
+        Http::assertNothingSent();
+    }
+
+    public function test_ingest_rejects_with_508_when_the_inbound_hop_count_is_over_the_limit(): void
+    {
+        [, $token] = $this->proxyWithToken();
+        $limit = (int) config('ingest.max_hops');
+
+        $this->post($this->ingestUrl($token), ['hello' => 'world'], ['WebhookProxy-Hops' => (string) ($limit + 5)])
+            ->assertStatus(508);
+
+        $this->assertSame(0, WebhookEvent::count());
+    }
+
+    public function test_ingest_accepts_when_the_inbound_hop_count_is_below_the_limit(): void
+    {
+        [, $token] = $this->proxyWithToken();
+        $limit = (int) config('ingest.max_hops');
+
+        $this->post($this->ingestUrl($token), ['hello' => 'world'], ['WebhookProxy-Hops' => (string) ($limit - 1)])
+            ->assertStatus(202);
+
+        $this->assertSame(1, WebhookEvent::count());
+    }
+
+    public function test_ingest_accepts_when_the_hop_header_is_absent(): void
+    {
+        [, $token] = $this->proxyWithToken();
+
+        $this->post($this->ingestUrl($token), ['hello' => 'world'])
+            ->assertStatus(202);
+
+        $this->assertSame(1, WebhookEvent::count());
+    }
+
     public function test_body_size_and_rate_limit_config_defaults_are_high_placeholders(): void
     {
         $this->assertSame(52_428_800, config('ingest.max_body_bytes'));
