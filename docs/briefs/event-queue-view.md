@@ -93,4 +93,6 @@ transitions, team scoping), `./vendor/bin/sail test --parallel`, `composer
 lint`/`types:check`, and `pnpm types:check`/`format:check`/scoped
 `eslint`/`build` (host) all clean.
 
-**Status: in progress.**
+**Status: done.** `./vendor/bin/sail test --parallel` — 1053 passed, 4956
+assertions. `composer lint`/`types:check` clean. `pnpm types:check`/
+`format:check`, scoped `eslint`, and `pnpm build` (host) all clean.
