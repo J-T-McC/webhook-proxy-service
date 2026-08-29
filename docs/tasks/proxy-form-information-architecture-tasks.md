@@ -469,7 +469,42 @@
   host-built production bundle against both `/proxies/create` and an existing proxy's
   `/proxies/{id}/edit`, in both light and dark mode, tabbing through every field and every tooltip
   trigger.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Swept the assembled file at the source level (no code
+  change needed — no gap found):
+  - Exactly five `Card`s (`grep -n "<Card class"` → 5 matches), stacked inside one `<div
+    class="space-y-6">`, order Details → Response → Delivery → Sensitive fields → Destinations.
+  - Every `fieldset` has a `legend`: "Mode and processing" (Delivery), "Retry policy" (Delivery,
+    `v-if="isEnhanced"`), "Sensitive fields", and "Destinations" (inside `DestinationRows.vue`,
+    confirmed untouched by T6).
+  - All four Tooltip triggers (Response Body, Mode, Backoff strategy, Sensitive fields "Always
+    hidden") use the identical shape: `TooltipTrigger as-child` wrapping a real `Button` (`variant=
+    "ghost" size="icon-sm"`) with a discernible `aria-label`, `Info` icon — none is a bare
+    `span`/`div` (the `ReplayDialog.vue`/N1 anti-pattern does not appear in this file, confirmed via
+    grep for `TooltipTrigger` — every occurrence is immediately followed by `as-child` and a
+    `<Button`). `reka-ui`'s `TooltipTrigger` sets `aria-describedby` to the content id automatically
+    while open (`node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js`), so all four are linked with
+    no manual id-wiring, matching the `teams/Edit.vue` precedent.
+  - No dangling `aria-describedby`: diffed every `id="..."` in the file against every
+    `aria-describedby="..."` reference — every referenced id exists, and neither `name-help` nor
+    `retry-backoff-strategy-help` (both removed) is referenced anywhere.
+  - `Create.vue`/`Edit.vue`: confirmed via `git diff main..HEAD --stat` that both files carry zero
+    diff across every commit in this feature — both remain thin wrappers passing `initial`/props
+    straight into `ProxyForm.vue`, exactly as the plan's header predicted.
+  - Outer wrapper (`mx-auto w-full max-w-3xl`) and the Actions row (`<div class="mt-6 flex
+    items-center gap-3">`) sit outside the `space-y-6` card stack, at the form's end, unchanged from
+    T1 onward.
+  No fix was needed at this task; every obligation named in the plan's header notes and restated in
+  this task's own ACs was already satisfied by T1–T6.
+  Verification: no Playwright/browser access available to this agent, so the two AC items that are
+  inherently browser-only — actual Tab-focus/open-on-focus/close-on-Escape behaviour of the four
+  tooltips, and un-clipped rendering at 360px width in both light and dark mode on both
+  `/proxies/create` and an existing proxy's `/proxies/{id}/edit` — are **not verified here** and are
+  explicitly left for the Reviewer/QA gate. Everything else in this task's ACs is a static/source
+  check, completed and recorded above, not a claim about runtime behaviour I could not observe.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue` 0 errors,
+  `pnpm build` (host) succeeds. `composer lint`/`composer types:check` green, 0 diff to any backend
+  file. No source file changed by this task — completion notes only.
 
 ## T8 — Full regression sweep and gates
 
