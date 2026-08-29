@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Info } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { Info, RefreshCw, RefreshCwOff } from '@lucide/vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ReplayDialog from '@/components/ReplayDialog.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -186,15 +186,86 @@ function openReplay(event: WebhookEventListItem): void {
     replayEventId.value = event.id;
     replayDialogOpen.value = true;
 }
+
+/**
+ * Skipping the poll while the replay dialog is open is deliberate: refreshing
+ * the rows underneath it can change what the user is about to act on.
+ *
+ * The on/off preference is per tab rather than per account — a viewing choice,
+ * not a setting.
+ */
+const POLL_INTERVAL_MS = 5000;
+
+const POLLING_STORAGE_KEY = 'proxy-events:polling';
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+const pollingEnabled = ref(
+    typeof sessionStorage === 'undefined' ||
+        sessionStorage.getItem(POLLING_STORAGE_KEY) !== 'off',
+);
+
+function togglePolling(): void {
+    pollingEnabled.value = !pollingEnabled.value;
+
+    if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(
+            POLLING_STORAGE_KEY,
+            pollingEnabled.value ? 'on' : 'off',
+        );
+    }
+}
+
+function pollEvents(): void {
+    if (!pollingEnabled.value || document.hidden || replayDialogOpen.value) {
+        return;
+    }
+
+    router.reload({ only: ['events', 'fifoHeldByRetry'] });
+}
+
+onMounted(() => {
+    pollTimer = setInterval(pollEvents, POLL_INTERVAL_MS);
+});
+
+onBeforeUnmount(() => {
+    if (pollTimer !== null) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+});
 </script>
 
 <template>
     <Head :title="`Events for ${props.proxy.name}`" />
 
     <div class="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-6 p-4">
-        <h1 class="text-xl font-semibold">
-            Events for &ldquo;{{ props.proxy.name }}&rdquo;
-        </h1>
+        <div class="flex items-start justify-between gap-4">
+            <h1 class="text-xl font-semibold">
+                Events for &ldquo;{{ props.proxy.name }}&rdquo;
+            </h1>
+
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                :aria-pressed="pollingEnabled"
+                :aria-label="
+                    pollingEnabled
+                        ? 'Turn off auto-refresh'
+                        : 'Turn on auto-refresh'
+                "
+                :title="
+                    pollingEnabled
+                        ? 'Auto-refreshing every 5 seconds'
+                        : 'Auto-refresh is off'
+                "
+                @click="togglePolling"
+            >
+                <RefreshCw v-if="pollingEnabled" class="size-4" />
+                <RefreshCwOff v-else class="size-4 text-muted-foreground" />
+            </Button>
+        </div>
 
         <Alert
             v-if="props.fifoHeldByRetry"
