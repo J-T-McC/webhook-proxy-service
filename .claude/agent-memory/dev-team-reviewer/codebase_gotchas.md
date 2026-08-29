@@ -210,3 +210,45 @@ metadata:
   five provider-signature names are deliberately FORWARDED. `proxy-authorization` stays on
   hop-by-hop grounds alone — do not read its presence beside `authorization`'s absence as an
   inconsistency. Count against the RFC, not against a completion note.
+- **`docs/standards/design.md`'s typography passage is STALE and will give you the wrong answer on a
+  heading finding.** It states card headings are `text-sm font-medium` and cites `Show.vue` as the
+  evidence; the shipped `Show.vue` heads all seven of its cards `<h2 class="text-base font-semibold">`.
+  The passage is marked "Proposed default", not ratified, so it cannot ground a standards violation
+  either way — cite the design spec, and check the code before citing the standard. Same section's
+  spacing rules (`space-y-6` stacked-section, `p-6` card padding, 360px minimum) ARE accurate.
+- **`legend` styling is where a "cards + fieldsets" IA restructure quietly fails.** When a design says
+  a single-`fieldset` card's `legend` "carries the heading weight" instead of an `h2`, check the class:
+  in this repo every `legend` is `text-sm font-medium` (`DestinationRows.vue`, `ReplayDialog.vue`,
+  `ProxyForm.vue` ×3), which is also what *subordinate* legends nested under a card's own `h2` use. An
+  implementer reads "the legend is the heading" and changes nothing, so cards headed by a legend render
+  visually subordinate to cards headed by an `h2`. Raised Major at review-17. The half living in a
+  component the plan pins to a zero diff is a Designer conflict, not an implementation defect — route
+  it there.
+- **Reka `TooltipTrigger` sets `aria-describedby` to the content's id automatically while open**
+  (`node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js`), so a tooltip needs no manual id-wiring —
+  but note the description lands on the TRIGGER, not on the field beside it. The correct in-repo
+  pattern is `TooltipTrigger as-child` wrapping a real `Button` with its own `aria-label`
+  (`teams/Edit.vue`, `ProxyForm.vue`); `ReplayDialog.vue` wraps a bare non-focusable `span` and also
+  sets a bespoke `max-w-xs` on `TooltipContent` — design-17 note N1 names it as the anti-pattern.
+  **Do NOT raise "each tooltip has its own `TooltipProvider`, so delay grouping is lost"** — I raised
+  it at review-17 and the rationale was wrong. The local wrapper
+  `components/ui/tooltip/TooltipProvider.vue` sets `withDefaults(..., { delayDuration: 0 })`, so every
+  tooltip already opens instantly and there is no delay for a shared provider to skip. Hoisting one
+  provider is a fine simplification but changes nothing observable; say so rather than claiming a
+  timing benefit.
+- **`TooltipContent` is `w-fit` with NO `max-width`, so any tooltip carrying a SENTENCE is clipped
+  off-screen at the 360px minimum width — and the clipped part is unreachable.** Measured at
+  review-17 on a 360px viewport: the four `ProxyForm.vue` tooltips render 431 / 469 / 744 / 892px
+  wide, all at `left: 0`, losing 16–60% of their text, while `documentElement.scrollWidth` stays
+  360 — no horizontal scroll exists to reveal the remainder. Cause: `w-fit` resolves to max-content
+  and `text-balance` only acts once wrapping happens; Reka's collision handling repositions but
+  cannot shrink. `ReplayDialog.vue`'s `max-w-xs` is the only guard in the codebase and it exists for
+  exactly this reason. **The fix can never be in `TooltipContent.vue`** — `components/ui/*` is
+  generated and must never be hand-edited (`coding.md` → Project structure) — so it has to be a
+  call-site `class`. **Resolved at review-17 close-out: the house answer is `class="max-w-xs"` (320px)
+  on every `TooltipContent` call site** — it caps the width, Reka's collision handling then has room
+  to nudge it inboard, and the text wraps. Whenever a design routes explanatory prose into a tooltip,
+  measure the width at 360px before approving; and when a width cap is the fix, also check it did not
+  just move the clipping to the other axis — assert `scrollHeight === clientHeight` on the content,
+  not only that the width fits. A durable fix belongs in the primitive's own default, which cannot be
+  hand-edited, so it needs a regeneration or an upstream change rather than more call sites.

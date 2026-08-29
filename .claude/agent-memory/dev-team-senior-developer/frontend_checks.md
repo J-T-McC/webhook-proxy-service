@@ -96,12 +96,20 @@ doesn't need the same treatment (`ReplayDialog.vue` vs. `DestinationRows.vue`/
 `Tooltip`/`TooltipProvider`/`TooltipTrigger`/`TooltipContent` (`components/ui/tooltip`,
 reka-ui-backed) composes cleanly inside a `Dialog` — `TooltipContent` renders through
 its own `TooltipPortal`, same mechanism as `DialogContent`'s `DialogPortal`, so
-hover-opening a tooltip doesn't fight the dialog's focus trap. Existing usage pattern
-in this repo wraps each `Tooltip` (or a `v-for` group of them) in one `TooltipProvider`
-(`teams/Index.vue`, `teams/Edit.vue`, `AppHeader.vue`) — no app-wide provider exists.
-`TooltipContent` ships `w-fit` with no width ceiling — for content whose length is
-data-driven (e.g. a URL), add an explicit `max-w-*` plus `whitespace-normal break-all`
-so it wraps instead of overflowing the viewport on narrow/no-space sides.
+hover-opening a tooltip doesn't fight the dialog's focus trap. `TooltipContent` ships
+`w-fit` with no width ceiling — for content whose length is data-driven (e.g. a URL),
+add an explicit `max-w-*` plus `whitespace-normal break-all` so it wraps instead of
+overflowing the viewport on narrow/no-space sides.
+One `TooltipProvider` per tooltip (the pattern in `teams/Index.vue`, `teams/Edit.vue`,
+`AppHeader.vue`) means Reka's shared `delayDuration`/`skipDelayDuration` grouping never
+applies between sibling tooltips — moving focus/pointer from one trigger straight to
+another always re-incurs the full open delay (review-17 Finding 2, `ProxyForm.vue`).
+Prefer one `TooltipProvider` hoisted around the whole form/section instead of one per
+tooltip; each `Tooltip`/`TooltipTrigger`/`TooltipContent` triple stays exactly where it
+is, only the provider wrapping moves. Reindenting the wrapped subtree by hand isn't
+worth it — run `pnpm format` (not just `format:check`) after the wrap so Prettier
+re-flows the shifted indentation, then diff with leading whitespace stripped from both
+sides to confirm no copy/attribute/binding actually changed under the reflow.
 
 Driving a reka-ui `Select` (e.g. `#mode`, `#retry_backoff_strategy`) via Playwright for a
 manual-verification pass: it's not a native `<select>`, so `page.selectOption()` doesn't

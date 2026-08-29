@@ -13,7 +13,14 @@
   end of this document for the coverage trace against the Owner's brief and the
   five corrections' original findings. The approved design specs that need
   amending as a consequence are listed under `## Consequences` below, and that
-  amendment work is not done here.
+  amendment work is not done here. **`## Amendment — card-level legend heading
+  weight ruling` (2026-08-29, below, at the very end of this document) settles
+  Review-17 Finding 1 (Major)** — it states the exact class a card-level
+  `legend` takes (`class="text-base font-semibold"`) and rules that
+  `DestinationRows.vue`'s "unchanged internals" label in Screen 1 never
+  governed, and does not govern, that `legend`'s presentational class. Where
+  the amendment and the original spec body conflict, the amendment governs.
+  Self-certified by the Designer; does not reopen the design gate.
 - **Author:** Designer
 - **Approved by / date:** **Product Manager, 2026-08-29** (design gate, delegated).
   This is the last gate before task planning: `docs/architecture/adr-026-inbound-
@@ -189,7 +196,17 @@ named "Retry policy, Destinations" here, but `## Screens & States` Screen 1 puts
 Retry policy inside the **Delivery** card, which carries its own `h2`, and puts
 Sensitive fields in a card of its own with no `h2`; Sensitive fields and
 Destinations are the two single-`fieldset` cards this rule governs), the `legend`
-carries that same visual weight instead of a redundant second heading. Details
+**takes the identical class the `h2` it replaces would have carried —
+`class="text-base font-semibold"` — not `class="text-sm font-medium"`**,
+instead of a redundant second heading. (Stated explicitly here, ruled by the
+Designer's 2026-08-29 amendment `## Amendment — card-level legend heading
+weight ruling` below, after Review-17 Finding 1 found "that same visual
+weight" ambiguous between the `h2`'s class and the default legend class
+`docs/standards/design.md` separately documents.) This class applies only to a
+`legend` standing in for a card's own heading with no sibling `h2` — the two
+`fieldset`/`legend` groups nested *inside* the Delivery card ("Mode and
+processing", "Retry policy"), which sit beneath that card's own `h2`, are
+correctly subordinate and keep `class="text-sm font-medium"` unchanged. Details
 and Response each hold exactly one field, or one ungrouped pair of fields, and
 need no nested `fieldset` at all — the plain `h2` is the whole of their heading,
 the same precedent Details already sets.
@@ -341,7 +358,12 @@ Card "Sensitive fields"
     Also hidden for this proxy (badges + add)
 
 Card "Destinations"
-  fieldset "Destinations"  (DestinationRows.vue, unchanged internals)
+  fieldset "Destinations"  (DestinationRows.vue — the `legend` is restyled to
+    `class="text-base font-semibold"` per `## Grouping proposal` and the
+    2026-08-29 amendment below; every other internal — the rows, add/remove,
+    the Credential subsection, `v-model` bindings, validation — is unchanged.
+    "Unchanged internals" in this document has only ever meant behavior, not
+    the legend's presentational class, which is this document's own subject.)
     [rows: URL, Method, Credential subsection, Remove]
     Add destination
 
@@ -448,8 +470,14 @@ control left for it to describe.
   rules.
 - **Tooltip content** uses Reka UI's default `TooltipContent` positioning/
   collision handling (the same defaults `docs/standards/design.md` already relies
-  on for `Dialog`/`AlertDialog` sizing) — no bespoke width or placement handling
-  is introduced.
+  on for `Dialog`/`AlertDialog` sizing) for placement — collision handling
+  repositions an overflowing tooltip but cannot shrink one, so it does not by
+  itself keep content within the viewport. **Width is capped**: every
+  `TooltipContent` call site in `ProxyForm.vue` takes `class="max-w-xs"`, the
+  same class `ReplayDialog.vue` already applies to its own sentence-length
+  tooltip. This is the one bespoke width this document introduces, corrected
+  2026-08-29 in response to Review-17 Finding 5 — see `## Amendment — tooltip
+  content width cap (2026-08-29)` below for why.
 - **Minimum supported width:** 360px, the standing default from
   `docs/standards/design.md` — no feature-specific override; nothing in this
   restructuring narrows the form below what it already tolerates today.
@@ -784,14 +812,29 @@ Each is recorded in place, at the section it corrects.
 
 ### Non-blocking notes
 
-- **N1 — do not copy `ReplayDialog.vue` as the tooltip pattern.** Its
-  `TooltipTrigger` wraps a bare `span`, which is not keyboard-focusable, and it
-  sets a bespoke `max-w-xs` on `TooltipContent`. This document's `## Accessibility`
-  section already requires a real focusable `button` with a discernible
-  `aria-label` and `aria-describedby`-linked content, and its
-  `## Responsive Behavior` section already declines bespoke widths. Both are
-  right. The note exists only so a Task Planner searching for precedent does not
-  find the weaker one first and follow it.
+- **N1 — `ReplayDialog.vue` as tooltip precedent: two separate criticisms,
+  corrected 2026-08-29.** This note originally rejected `ReplayDialog.vue` as a
+  whole, on two grounds bundled together: its `TooltipTrigger` wraps a bare
+  `span`, which is not keyboard-focusable, and it sets `max-w-xs` on
+  `TooltipContent`. Review-17 Finding 5 found that these two grounds deserved
+  opposite verdicts, and it was right. Split:
+  - **Trigger — rejection stands.** A bare `span` is not keyboard-focusable.
+    This document's `## Accessibility` section correctly requires a real
+    focusable `button` with a discernible `aria-label` and
+    `aria-describedby`-linked content instead. Do not copy
+    `ReplayDialog.vue`'s trigger.
+  - **Width cap — rejection was wrong; withdrawn.** `max-w-xs` is not a defect
+    to avoid; it is the one guard in this codebase against a sentence-length
+    tooltip rendering wider than the viewport, and `ReplayDialog.vue` is the
+    only prior `TooltipContent` consumer carrying a sentence rather than a
+    two-word label — the only precedent that had actually met this problem.
+    `## Responsive Behavior` does not decline bespoke tooltip widths as of this
+    amendment; it now requires this exact one. Copy `ReplayDialog.vue`'s
+    `max-w-xs` on every `TooltipContent` this document adds.
+  The note exists so a Task Planner searching for precedent adopts the
+  focusable-trigger correction and the width cap together, rather than finding
+  the original bundled note and, in trying to avoid the trigger defect,
+  discarding the width guard along with it.
 - **N2 — Response's move is the one change of substance, and it should survive
   task breakdown intact.** Everything else here can be described as "same fields,
   new boxes, shorter copy." Response moving to second in the stack is not that: it
@@ -805,3 +848,249 @@ Ruled moot and closed at `## Open Questions` item 3 — no `design-10` amendment
 owed on naming grounds, and the broader form-versus-Show-page naming consistency
 check the question invited was run and passes. **No open question remains in this
 document.**
+
+## Amendment — card-level legend heading weight ruling (2026-08-29)
+
+**What this settles.** `docs/reviews/review-17-proxy-form-information-architecture.md`
+Finding 1 (Major, blocked approval of the shipped implementation) found two
+problems, both originating in this document rather than in the Senior
+Developer's work. First, `## Grouping proposal`'s sentence that a card-level
+`legend` "carries that same visual weight instead of a redundant second
+heading" was genuinely ambiguous: it can be read as this document intended —
+the `legend` takes the `h2`'s own class — or, just as reasonably, as "the
+`legend` already *is* the heading, so a plain legend needs no further styling,"
+which is the reading `docs/standards/design.md`'s typography section supported
+before this amendment, since it independently documented `text-sm font-medium`
+as the default class for "section/card headings" with no carve-out for a
+`legend` standing in for an `h2`. The shipped form took the second reading:
+Sensitive fields' `legend` (`ProxyForm.vue:666`) and Destinations' `legend`
+(`DestinationRows.vue:123`) both render `class="text-sm font-medium"` — smaller
+and lighter than the three `h2`-headed cards, and identical to the two
+`legend`s nested *inside* the Delivery card that this document always intended
+to read as subordinate. Three containers read as top-level and two read as
+sub-headings, on a feature whose entire deliverable is visual grouping.
+
+Second, Screen 1 labeled `DestinationRows.vue` "unchanged internals" while the
+Grouping proposal required its `legend`'s presentation to change — two clauses
+of this same document in direct conflict, not a defect in what the Senior
+Developer built. `T6`'s acceptance criterion, written from Screen 1's label,
+requires the file to have zero diff, which cannot be simultaneously true of a
+file whose `legend` class changes. The Senior Developer is not at fault for
+either half: it followed the instruction the document gave it, and the
+document gave it two instructions that cannot both hold.
+
+**Ruling 1 — the exact class.** A card-level `legend` — one standing in for a
+card's own heading, used because the card wraps a single `fieldset` group with
+no sibling `h2` — takes `class="text-base font-semibold"`: the identical class
+the `h2` it replaces would otherwise carry, matching `proxies/Show.vue`'s own
+card-heading precedent. This is not a new class choice; it is `## Grouping
+proposal`'s original sentence, now stated as an exact class rather than as
+"that same visual weight," so no future implementer has to interpret it. It
+governs exactly two `legend`s on this form: Sensitive fields' (`ProxyForm.vue`,
+currently at line 666) and Destinations' (`DestinationRows.vue`, currently at
+line 123). It does not govern the two `legend`s nested inside the Delivery
+card ("Mode and processing", "Retry policy"), which sit beneath that card's own
+`h2` and are correctly subordinate to it; those keep `class="text-sm
+font-medium"` unchanged. `## Grouping proposal` and `## Screens & States`
+Screen 1 are both corrected in place above to state this class directly.
+
+**Ruling 2 — `DestinationRows.vue`'s "unchanged internals" yields, narrowly.**
+The two clauses are not equally weighted. `## Grouping proposal`'s heading-weight
+rule is this document's central, load-bearing deliverable — it is the specific
+sentence Review-17 traced back to the design gate's own correction C4, which
+exists precisely to confirm Destinations is one of the two cards the rule
+governs. Screen 1's "unchanged internals" parenthetical is a one-line aside
+describing `DestinationRows.vue`'s behavior — its row rendering, add/remove
+handling, the Credential subsection, `v-model` bindings and validation — none
+of which this document ever proposed touching. Reading "unchanged internals" to
+also freeze the `legend`'s presentational class would mean the one card-level
+`legend` this document most needed to restyle — Destinations, the card the
+Owner named directly among the "jumbled" containers — is the one place the
+heading-weight rule silently does not apply, for a reason (a stray word in a
+diagram annotation) that has nothing to do with visual grouping. That result
+defeats the document's own stated purpose and is rejected. **"Unchanged
+internals" is corrected, at Screen 1 above, to describe behavior only; it never
+governed and does not govern the `legend`'s heading class.** `DestinationRows.vue`
+is not "unchanged" in the byte-identical sense `T6`'s acceptance criterion
+currently tests; it has one presentational class edit at its `legend`, nothing
+else. `T6`'s zero-diff acceptance criterion is out of step with the corrected
+design and needs a Task Planner correction to permit exactly this one-class
+edit — that correction is not made here, as task plans are outside this role's
+authority; it is flagged here as a direct consequence of this ruling so it is
+not lost.
+
+**Decision authority.** Component heading treatment and the presentational
+class a card-level `legend` takes are UI-detail decisions within this
+document's own UX direction — the Designer's decision authority per this
+role's skill definition. Which of two conflicting clauses in a document this
+role authored governs is likewise this role's call, per the escalation rule
+that routes a design-spec self-conflict back to the Designer rather than to
+the Senior Developer who correctly followed one of the two readings. Neither
+ruling changes a requirement, invents UI no user story calls for, or reopens
+any user-visible outcome the design gate approved: Screen 1 already showed
+five stacked cards with two single-`fieldset` cards among them; this amendment
+only removes the ambiguity in how one of their two headings is styled.
+
+**Date:** 2026-08-29.
+
+**Author of this amendment:** Designer, in response to Review-17 Finding 1
+(Major).
+
+**Status of this amendment: self-certified by the Designer**, per `CLAUDE.md`'s
+routing for doc corrections ("doc corrections → the owning role updates the
+doc") and per the design gate's own delegation. This document's `## Status`
+stays **Approved** — this is an amendment resolving an internal ambiguity and
+self-conflict the gate did not catch, not a change of intent, and it does not
+reopen the design gate.
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| `## Grouping proposal` | **Corrected** — "that same visual weight" is now stated as the exact class, `class="text-base font-semibold"`, with an explicit carve-out that the two `legend`s nested inside the Delivery card are unaffected and keep `class="text-sm font-medium"`. |
+| `## Screens & States` Screen 1, Destinations card | **Corrected** — the `legend`'s class is now named directly; "unchanged internals" is narrowed to describe `DestinationRows.vue`'s behavior only, not its `legend`'s presentational class. |
+
+**Not changed, and deliberately so:** every other line of `## Grouping
+proposal` and Screen 1; every other screen and flow in this document; the
+Sensitive fields `legend` in `ProxyForm.vue`, which this ruling also governs
+but which needed no clause correction since nothing in Screen 1 called it
+"unchanged"; and every prior approval record and amendment in this document,
+all of which remain history and are not rewritten.
+
+### For the Senior Developer
+
+Two single-utility-class edits, no behavioral change: set
+`class="text-base font-semibold"` on the Sensitive fields `legend`
+(`ProxyForm.vue:666`, class currently `text-sm font-medium`) and on the
+Destinations `legend` (`DestinationRows.vue:123`, class currently `text-sm
+font-medium`). No other line of either file changes. This needs no re-run of
+the backend gates — `pnpm format:check` and a 360px visual re-check are
+sufficient, per Review-17's own recommended resolution.
+
+### For the Task Planner / Orchestrator
+
+`T6`'s acceptance criterion (zero diff on `DestinationRows.vue`) predates this
+ruling and needs a corresponding correction to permit the one `legend`-class
+edit above. Flagged here as a consequence of Ruling 2; not actioned by this
+role.
+
+## Amendment — tooltip content width cap (2026-08-29)
+
+**What this settles.** `docs/reviews/review-17-proxy-form-information-architecture.md`
+re-review Finding 5 (Major, blocking) found that every `TooltipContent` this
+feature adds renders wider than the 360px minimum supported width this
+document itself states in `## Responsive Behavior`, and that the overflow is
+unreachable — the page has no horizontal scroll at that width, so the clipped
+text cannot be brought into view by any gesture. Measured against a freshly
+host-built bundle, the four tooltips rendered at 892px (Mode), 744px (Backoff
+strategy), 469px ("Always hidden") and 431px (Response Body) against a 360px
+viewport, clipping 16% to 60% of each. This matters more than a cosmetic
+overflow because this document's own `## Rule: form copy vs. tooltip vs. cut`
+moved those four sentences out of the form's wrapping `<p>` elements and into
+tooltips on the strength of the tooltip carrying them. At 360px it did not, so
+on the minimum supported width this feature was a net loss of information
+against the pre-#17 form.
+
+**Root cause.** `resources/js/components/ui/tooltip/TooltipContent.vue` sets
+`w-fit` with no `max-width`, so content never wraps and Reka UI's collision
+handling — which repositions an overflowing tooltip but cannot shrink one —
+does not help. `## Responsive Behavior` had said this document introduces "no
+bespoke width," and note N1 told implementers not to copy
+`ReplayDialog.vue`'s `max-w-xs`, citing it in the same breath as
+`ReplayDialog.vue`'s genuinely wrong non-focusable `span` trigger. The Senior
+Developer followed both instructions exactly, which is why no call site in
+`ProxyForm.vue` carries a width class. Neither instruction was implemented
+wrongly; `## Responsive Behavior` and N1 were themselves wrong on this one
+point.
+
+**Ruling 1 — `## Responsive Behavior` yields a width cap for tooltip content;
+the exact class is `max-w-xs`.** Every `TooltipContent` call site this
+document adds in `ProxyForm.vue` — Mode, Backoff strategy, "Always hidden,"
+Response Body — takes `class="max-w-xs"`, passed at the call site (Reka
+UI's `TooltipContent` wrapper forwards `props.class` and merges it with its
+own `w-fit`, so the two compose rather than conflict; `w-fit` still governs
+width below the cap, `max-w-xs` governs it above). This is the identical
+class `ReplayDialog.vue` already carries, not a new value invented for this
+ruling. `max-w-xs` resolves to 320px, which forces the longest string —
+Mode's, 892px unconstrained — to wrap well inside the 360px minimum supported
+width with margin for the tooltip's own position; the other three, all
+narrower unconstrained, wrap the same way. This is now stated directly in
+`## Responsive Behavior` above, replacing "no bespoke width or placement
+handling is introduced."
+
+**Ruling 2 — N1 is corrected; its two criticisms of `ReplayDialog.vue` are
+split and given opposite verdicts.** N1 rejected `ReplayDialog.vue` as
+precedent on two grounds bundled as one: a non-focusable `span` trigger, and
+a bespoke `max-w-xs` on `TooltipContent`. The trigger rejection stands — a
+`span` is not keyboard-focusable, and this document's `## Accessibility`
+section is right to require a real focusable `button` instead. The width
+rejection was wrong: `max-w-xs` is not a flaw to avoid but the codebase's
+only existing guard against a sentence-length tooltip overflowing its
+viewport, and `ReplayDialog.vue` is the only prior `TooltipContent` consumer
+that ever carried a sentence rather than a two-word label — the one prior
+component that had actually met this exact problem. Rejecting it by
+association with the trigger defect removed the only precedent that would
+have caught Finding 5 before it shipped. N1 is corrected above, in place, to
+carry both verdicts separately.
+
+**Why the fix is a call-site class, not a primitive change.**
+`TooltipContent.vue` lives under `resources/js/components/ui/`, which
+`docs/standards/coding.md` → Project structure identifies as generated code
+that is never hand-edited. A width cap can therefore only be applied where
+the primitive already accepts a `class` prop from its caller — at the four
+`ProxyForm.vue` call sites — which is exactly the pattern `ReplayDialog.vue`
+already used and exactly what the now-corrected N1 permits. No change to any
+`.vue` file is made by this document; that is the Senior Developer's task.
+
+**Decision authority.** Tooltip content sizing is a UI-detail decision within
+this document's own UX direction and this role's decision authority. Whether
+`## Responsive Behavior`'s existing "no bespoke width" line was itself
+correct, and whether N1's bundled rejection should be split, are both
+questions about how to read and correct this document's own prior sections —
+the Designer's call, per the same escalation rule the first amendment cited
+for a design-spec self-conflict the review caught. This ruling does not
+change a requirement, does not invent UI no user story calls for, and does
+not narrow the 360px minimum supported width — it is the correction that lets
+the form continue to meet that width without losing the four sentences this
+document already decided belong in tooltips.
+
+**Date:** 2026-08-29.
+
+**Author of this amendment:** Designer, in response to Review-17 Finding 5
+(Major).
+
+**Status of this amendment: self-certified by the Designer**, per `CLAUDE.md`'s
+routing for doc corrections ("doc corrections → the owning role updates the
+doc") and per the design gate's own delegation. This document's `## Status`
+stays **Approved** — this is an amendment correcting an internal error the
+review caught, not a change of intent, and it does not reopen the design
+gate.
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| `## Responsive Behavior` | **Corrected** — the tooltip content bullet no longer claims "no bespoke width or placement handling is introduced"; it now requires `class="max-w-xs"` on every `TooltipContent` call site this document adds, and states why Reka's collision handling alone does not cover this case. |
+| Note **N1** | **Corrected** — the bundled rejection of `ReplayDialog.vue` is split into two independently-verdicted criticisms: the non-focusable `span` trigger (rejection stands) and the `max-w-xs` width cap (rejection withdrawn; now required). |
+
+**Not changed, and deliberately so:** every other line of `## Responsive
+Behavior`; every other note under `### Non-blocking notes`; every screen,
+flow, and prior amendment in this document, all of which remain history and
+are not rewritten.
+
+### For the Senior Developer
+
+Four single-utility-class additions, no behavioral change: add
+`class="max-w-xs"` to the `TooltipContent` at each of the four tooltip call
+sites this feature added in `ProxyForm.vue` — Mode, Backoff strategy,
+"Always hidden," Response Body. No other line of any file changes.
+Re-verification per Review-17's recommended resolution: re-run the four
+360px width measurements and require every rendered `TooltipContent` width to
+be `<= document.documentElement.clientWidth`, not eyeballed.
+
+### For the Task Planner / Orchestrator
+
+A task applying `class="max-w-xs"` to the four `TooltipContent` call sites in
+`ProxyForm.vue` is owed, with a re-verification step per Review-17's
+recommended resolution above. Flagged here as a consequence of this
+amendment; not actioned by this role.

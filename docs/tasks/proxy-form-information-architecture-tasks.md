@@ -118,7 +118,29 @@
   a host-built production bundle (`pnpm build` on host, not in Sail): the Details card renders with
   only Name inside it; submitting the form with Name blank still shows the existing validation error
   and still moves focus to Name (unchanged `onError` handler in `submit()`).
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Wrapped the Name field in a new first `Card`
+  (`gap-6 p-6`) headed `<h2 class="text-base font-semibold">Details</h2>`, containing only Name, no
+  nested `fieldset`. Removed the `id="name-help"` paragraph ("A name to recognise this proxy.")
+  entirely from the template — not relocated to a tooltip. Updated Name's `Input` `aria-describedby`
+  from `"name-help name-error"` to `"name-error"`. `v-model="form.name"`, placeholder, `:disabled`,
+  and validation/error wiring are untouched. Also introduced the outer `<div class="space-y-6">`
+  stacking wrapper around all cards (needed to keep the file well-formed once Details became its
+  own `Card` distinct from the rest of the still-unrestructured form) and moved the Actions row
+  (Submit/Cancel) to sit outside the card stack, at the form's end, inside a `<div class="mt-6
+  flex items-center gap-3">` — anticipates the T7 AC on final structure; re-verified at T7 once
+  Response/Delivery/Sensitive fields/Destinations are each split into their own cards too.
+  Everything other than Details/Actions is temporarily grouped into a second, as-yet-unheaded
+  `Card` pending T2–T6.
+  Verification: no Playwright/browser access available to this agent (dev-team sub-agents don't
+  carry that tool); verified structurally instead by reading the rendered template and confirming
+  the `aria-describedby` change matches the AC, plus `pnpm build` (host) succeeding with no
+  compile errors. A real browser pass (Tab to Name, submit blank, confirm validation error and
+  focus land on Name) is left for the Reviewer/QA gate — recorded here rather than claimed.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, `pnpm lint:check` — 0 errors in
+  `ProxyForm.vue` itself (confirmed via scoped `npx eslint resources/js/pages/proxies/ProxyForm.vue`;
+  the full `lint:check` run reports unrelated errors from stale `.claude/worktrees/agent-*`
+  checkouts, per this project's known lint gotcha). `composer lint` and `composer types:check` both
+  green (0 diff to any backend file, as expected — this is a frontend-only task).
 
 ## T2 — Response card: own `Card`, moved second, copy rewrite, Body tooltip (`## Grouping proposal`; `## Copy rewrite pass` → Response; N2)
 
@@ -155,7 +177,35 @@
   still disables and blanks Body; the Body tooltip opens on Tab-focus and on hover and closes on
   blur/Escape; an accessibility spot-check (axe DevTools or a screen reader) confirms the tooltip's
   content is exposed as the trigger button's accessible description.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Created the second `Card`, headed "Response" (`h2`,
+  no nested `fieldset`), positioned directly after Details and before Delivery. Relocated the
+  Status code and Body fields out of their old position (between the Retry policy `fieldset` and
+  the Sensitive fields `fieldset`) into this new card — an actual move, not a reflow (N2):
+  confirmed by grep that "Upstream response" no longer appears anywhere near the Retry
+  policy/Sensitive fields boundary. Relabelled "Response status code" → "Status code"; help now
+  reads exactly "Sent immediately, before delivery — independent of destination outcome."; no
+  tooltip on Status code. Relabelled "Response body" → "Body"; help now reads exactly "Optional.
+  Disabled when Status code is 204."; added a Tooltip on Body — trigger is a real `Button`
+  (`variant="ghost" size="icon-sm"`) wrapping the already-imported `Info` icon, `as-child` inside
+  `TooltipTrigger`/`TooltipProvider` (the `teams/Edit.vue` precedent, not `ReplayDialog.vue`'s bare
+  `span`), `aria-label="More about the response body"`, content "Useful for a verification
+  challenge echo some senders require during setup." reka-ui's `TooltipTrigger` sets
+  `aria-describedby` to the content's id automatically while open (verified by reading
+  `node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js`), so no manual id-wiring was needed —
+  matches the same auto-linking the `teams/Edit.vue` precedent relies on. `statusSelect`,
+  `selectedStatus`, `bodyDisabled`, the 204-forces-empty-body `watch`, and both fields'
+  `v-model`/validation/error wiring are byte-for-byte unchanged (only label/help text and
+  container moved).
+  Verification: no Playwright/browser access available to this agent; verified structurally by
+  reading the rendered template (card order, exact copy strings, tooltip composition) and by
+  `pnpm build` (host) succeeding. A live pass — selecting 204 still disables/blanks Body, the
+  tooltip opens on Tab-focus and hover and closes on blur/Escape, and an axe/screen-reader check
+  that the tooltip content is exposed as the trigger's accessible description — is left for the
+  Reviewer/QA gate, not claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors (one import-order violation from adding the
+  Tooltip import was caught and fixed with `--fix` before commit). `composer lint`/`composer
+  types:check` green, 0 diff to any backend file.
 
 ## T3 — Delivery card shell + "Mode and processing" fieldset (correction C1; `## Copy rewrite pass` → Delivery)
 
@@ -199,7 +249,34 @@
   Delivery card; on an Edit form for a currently-Enhanced proxy, switching to Simple still shows the
   downgrade disclosure with its exact existing text, now positioned inside "Mode and processing"; the
   Mode tooltip opens on Tab-focus.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Created the third `Card`, headed "Delivery" (`h2`),
+  directly after Response. Inside it, wrapped Mode, the downgrade disclosure `Alert`, and
+  Processing in a new `fieldset` legended "Mode and processing" (correction C1); relocated the
+  existing Retry policy `fieldset` (still `v-if="isEnhanced"`) into the same Delivery `Card`, as a
+  sibling — its own content untouched here (copy pass is T4). Mode's help now reads exactly
+  "Enhanced stores what was actually dispatched and unlocks the retry settings below."; added a
+  Tooltip on Mode (same `Button`/`TooltipTrigger as-child`/`TooltipProvider` shape as T2's Body
+  tooltip) carrying "Automatic retry, payload capture, retention, and replay all apply regardless
+  of Mode — this only affects dispatched-payload storage and the retry settings below." Processing's
+  help now reads exactly "Async (default) delivers in parallel, no order guaranteed. FIFO preserves
+  order, at lower throughput. Set independently of Mode." — no tooltip. The downgrade `Alert`'s
+  three-bullet text, including the interpolated `defaultAttemptLimit`/`defaultBackoffStrategyLower`
+  values, is unchanged character-for-character (confirmed via `git diff`: only surrounding
+  indentation moved, no text inside the `<li>`s changed) and still gated on `isDowngrading`.
+  `isEnhanced`, `isDowngrading`, and the Enhanced↔Simple discard-and-reseed `watch` are unchanged.
+  Closed the Delivery `Card` immediately after the Retry policy `fieldset` and opened a new,
+  as-yet-unheaded `Card` to hold Sensitive fields + Destinations pending T5/T6 — same "keep the file
+  well-formed at every commit" approach used at T1 for the Details/rest split.
+  Verification: no Playwright/browser access available to this agent; verified structurally (card
+  boundaries, exact copy strings, `git diff` confirming the downgrade Alert's `<li>` text is
+  byte-identical) plus `pnpm build` (host) succeeding. A live pass — switching Mode to Enhanced
+  reveals Retry policy directly under "Mode and processing" in the same card; on an Edit form for a
+  currently-Enhanced proxy, switching to Simple shows the downgrade disclosure inside "Mode and
+  processing"; the Mode tooltip opens on Tab-focus — is left for the Reviewer/QA gate, not claimed
+  here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors. `composer lint`/`composer types:check` green,
+  0 diff to any backend file.
 
 ## T4 — Retry policy fieldset copy pass (correction C5; `## Copy rewrite pass` → Delivery)
 
@@ -237,7 +314,32 @@
 - **Testing:** pnpm gates green. Manual verification (host production build): Attempts' help and the
   fieldset help above it display the identical number; leaving Attempts blank and saving still persists
   `null` (system default), exactly as today; the Backoff strategy tooltip opens on Tab-focus.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Retry policy fieldset help cut to exactly "Simple-mode
+  proxies use the fixed default ({{ defaultAttemptLimit }} attempts, {{ defaultBackoffStrategyLower
+  }})." — the first sentence about applying to automatic re-attempts is gone, both interpolations
+  kept live. Correction C5 applied: Attempts help changed from the hard-coded "Leave blank to use
+  the default (5). Maximum 10." to "Default {{ defaultAttemptLimit }}. Max 10." — reads the same
+  `RETRY_DEFAULT_ATTEMPT_LIMIT`-derived constant the fieldset help above it already reads, so no
+  literal `5` remains anywhere in this fieldset; confirmed via grep that no bare "5" string exists
+  in the Retry policy block. Backoff strategy's help `<p id="retry-backoff-strategy-help">` is
+  removed from the template entirely (confirmed via grep — the id no longer appears anywhere in the
+  file); its content moved to a Tooltip next to the "Backoff strategy" label, same
+  `Button`/`TooltipTrigger as-child`/`TooltipProvider` shape as T2/T3, `aria-label="More about
+  Backoff strategy"`, content exactly "Exponential increases the wait each attempt; fixed interval
+  stays constant. Always bounded well inside the 30-day retention window." Updated the Backoff
+  strategy `Select`'s `SelectTrigger` `aria-describedby` from `"retry-backoff-strategy-help
+  retry-backoff-strategy-error"` to `"retry-backoff-strategy-error"` — no reference to the removed
+  id remains. `retryStrategySelect`, the `RETRY_STRATEGY_DEFAULT` sentinel handling, and both
+  fields' validation/error wiring are unchanged.
+  Verification: no Playwright/browser access available to this agent; verified structurally by
+  reading the exact rendered copy strings and confirming via grep that the old help id is gone and
+  no stale literal `5` remains, plus `pnpm build` (host) succeeding. A live pass — Attempts' help and
+  the fieldset help above it showing the identical number, leaving Attempts blank still persisting
+  `null`, and the Backoff strategy tooltip opening on Tab-focus — is left for the Reviewer/QA gate,
+  not claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors. `composer lint`/`composer types:check` green,
+  0 diff to any backend file.
 
 ## T5 — Sensitive fields card, copy rewrite, "Always hidden" tooltip (`## Grouping proposal`, correction C4; `## Copy rewrite pass` → Sensitive fields)
 
@@ -269,7 +371,28 @@
 - **Testing:** pnpm gates green. Manual verification (host production build): default badges still
   render literally and wrap correctly at 360px; adding/removing an addition still works in-session with
   no server round trip until save; the new tooltip opens on Tab-focus and its wording matches exactly.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Wrapped the existing "Sensitive fields" `fieldset` in
+  its own fourth `Card` — no `h2`, the `legend` carries the heading weight (correction C4). Section
+  help trimmed to exactly "Hidden wherever this proxy's payloads are shown. Storage and delivery are
+  unaffected." The "Case and separators don't matter…" paragraph is removed from the template
+  entirely (confirmed via grep — no remaining occurrence anywhere in the file); its content moved to
+  a Tooltip on the "Always hidden" label, same `Button`/`TooltipTrigger as-child`/`TooltipProvider`
+  shape as T2–T4, `aria-label="More about matching for Always hidden fields"`, content exactly
+  "Matches password, Password, pass_word, etc. — case and separators don't matter." All default
+  badges (`defaultSensitiveFieldNames`, one per entry), the additions list, `addSensitiveField`/
+  `removeSensitiveField`, and the no-enable/disable-obfuscation-control invariant are unchanged —
+  only the section help paragraph, the removed paragraph, and the new tooltip were touched.
+  Closed the Sensitive fields `Card` right after its `fieldset` and left `<DestinationRows>` +
+  its `InputError` as bare (un-Carded) siblings for now, explicitly commented "T6 wraps this in its
+  own Card" — kept T5's diff to Sensitive fields only rather than pre-empting T6's own AC.
+  Verification: no Playwright/browser access available to this agent; verified structurally by
+  reading the exact copy strings and confirming via grep that the cut paragraph is gone, plus
+  `pnpm build` (host) succeeding. A live pass — default badges rendering literally and wrapping at
+  360px, add/remove working in-session with no server round trip, and the new tooltip opening on
+  Tab-focus with exact wording — is left for the Reviewer/QA gate, not claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors. `composer lint`/`composer types:check` green,
+  0 diff to any backend file.
 
 ## T6 — Destinations card: structural wrap only, `DestinationRows.vue` untouched (`## Grouping proposal`; correction C2)
 
@@ -287,7 +410,14 @@
 - **Acceptance Criteria:**
   - The fifth `Card` wraps `<DestinationRows>` with no `h2` inside the `Card` (same C4-style rule as
     Sensitive fields — the component's own `legend` carries the heading weight).
-  - `resources/js/components/DestinationRows.vue` has zero diff from its currently shipped content.
+  - `resources/js/components/DestinationRows.vue`'s only permitted change from what T6 itself shipped
+    is the `legend`'s `class` attribute at line 123, corrected by T9 from `class="text-sm font-medium"`
+    to `class="text-base font-semibold"` per the Designer's 2026-08-29 amendment to `design-17`
+    (`## Amendment — card-level legend heading weight ruling`, Ruling 1). No other line, attribute,
+    string, or piece of markup in the file changes: `id="destinations-help"` and every destination
+    row's `aria-describedby="destinations-help"` wiring stay exactly as shipped, and every copy
+    string — the fieldset's help paragraph and the Credential subsection's two sentences — is
+    unchanged.
   - `id="destinations-help"` is present exactly once, on the fieldset's help paragraph, and every
     destination row's URL `input` still points at it via `aria-describedby="destinations-help"` when
     that row has no error.
@@ -297,7 +427,35 @@
   destination row, and replacing/removing a row's credential, all behave exactly as before; a
   deliberately invalid destination URL still swaps that row's `aria-describedby` to its own error id
   instead of `destinations-help`.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Wrapped `<DestinationRows>` and its sibling
+  `InputError` in a new fifth (last) `Card`, no `h2` — same single-`fieldset`-card rule as Sensitive
+  fields. `git diff --stat resources/js/components/DestinationRows.vue` produces no output — zero
+  diff, confirmed, not assumed: its own `fieldset`/`legend`, its help paragraph, `id=
+  "destinations-help"`, and every row's `aria-describedby="destinations-help"` wiring (verified
+  present at `DestinationRows.vue` lines 124 and 152) are all exactly as shipped. The Destinations
+  Credential subsection copy was not touched, per the task's own instruction that it already meets
+  the standard.
+  Verification: no Playwright/browser access available to this agent; verified structurally (zero
+  diff to `DestinationRows.vue`, the `destinations-help` id and its wiring still present, unchanged)
+  plus `pnpm build` (host) succeeding. A live pass — add/remove a destination row and
+  replace/remove a credential behaving exactly as before, and a deliberately invalid destination URL
+  swapping that row's `aria-describedby` to its own error id — is left for the Reviewer/QA gate, not
+  claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue` 0 errors.
+  `composer lint`/`composer types:check` green, 0 diff to any backend file.
+- **Task Planner correction note (2026-08-29), added post-review:** The acceptance criterion above
+  was rewritten after Review-17 Finding 1 (Major) and the Designer's amendment
+  `## Amendment — card-level legend heading weight ruling` (2026-08-29); the original criterion
+  required zero diff to `DestinationRows.vue`, which conflicts with the design's own heading-weight
+  rule once the Designer ruled that "unchanged internals" never governed the `legend`'s presentational
+  class. Separately: both this task's and T5's completion notes above describe the relevant `legend`
+  as carrying "the heading weight." At the time each task closed, the shipped class on both was
+  `text-sm font-medium` — unchanged from `main` and identical to the Delivery card's two subordinate
+  `legend`s — which Review-17 found indistinguishable from a subordinate heading. Those completion
+  notes are left exactly as the Senior Developer wrote them; this note exists only so the plan does
+  not now read as though that class already satisfied the design's heading-weight rule when T5 and T6
+  closed. T9 makes the class change the design actually requires.
 
 ## T7 — Cross-cutting accessibility and structure verification sweep
 
@@ -330,7 +488,42 @@
   host-built production bundle against both `/proxies/create` and an existing proxy's
   `/proxies/{id}/edit`, in both light and dark mode, tabbing through every field and every tooltip
   trigger.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Swept the assembled file at the source level (no code
+  change needed — no gap found):
+  - Exactly five `Card`s (`grep -n "<Card class"` → 5 matches), stacked inside one `<div
+    class="space-y-6">`, order Details → Response → Delivery → Sensitive fields → Destinations.
+  - Every `fieldset` has a `legend`: "Mode and processing" (Delivery), "Retry policy" (Delivery,
+    `v-if="isEnhanced"`), "Sensitive fields", and "Destinations" (inside `DestinationRows.vue`,
+    confirmed untouched by T6).
+  - All four Tooltip triggers (Response Body, Mode, Backoff strategy, Sensitive fields "Always
+    hidden") use the identical shape: `TooltipTrigger as-child` wrapping a real `Button` (`variant=
+    "ghost" size="icon-sm"`) with a discernible `aria-label`, `Info` icon — none is a bare
+    `span`/`div` (the `ReplayDialog.vue`/N1 anti-pattern does not appear in this file, confirmed via
+    grep for `TooltipTrigger` — every occurrence is immediately followed by `as-child` and a
+    `<Button`). `reka-ui`'s `TooltipTrigger` sets `aria-describedby` to the content id automatically
+    while open (`node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js`), so all four are linked with
+    no manual id-wiring, matching the `teams/Edit.vue` precedent.
+  - No dangling `aria-describedby`: diffed every `id="..."` in the file against every
+    `aria-describedby="..."` reference — every referenced id exists, and neither `name-help` nor
+    `retry-backoff-strategy-help` (both removed) is referenced anywhere.
+  - `Create.vue`/`Edit.vue`: confirmed via `git diff main..HEAD --stat` that both files carry zero
+    diff across every commit in this feature — both remain thin wrappers passing `initial`/props
+    straight into `ProxyForm.vue`, exactly as the plan's header predicted.
+  - Outer wrapper (`mx-auto w-full max-w-3xl`) and the Actions row (`<div class="mt-6 flex
+    items-center gap-3">`) sit outside the `space-y-6` card stack, at the form's end, unchanged from
+    T1 onward.
+  No fix was needed at this task; every obligation named in the plan's header notes and restated in
+  this task's own ACs was already satisfied by T1–T6.
+  Verification: no Playwright/browser access available to this agent, so the two AC items that are
+  inherently browser-only — actual Tab-focus/open-on-focus/close-on-Escape behaviour of the four
+  tooltips, and un-clipped rendering at 360px width in both light and dark mode on both
+  `/proxies/create` and an existing proxy's `/proxies/{id}/edit` — are **not verified here** and are
+  explicitly left for the Reviewer/QA gate. Everything else in this task's ACs is a static/source
+  check, completed and recorded above, not a claim about runtime behaviour I could not observe.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue` 0 errors,
+  `pnpm build` (host) succeeds. `composer lint`/`composer types:check` green, 0 diff to any backend
+  file. No source file changed by this task — completion notes only.
 
 ## T8 — Full regression sweep and gates
 
@@ -359,17 +552,293 @@
     finding above), it is updated here, and the update — which test, what changed, why — is recorded in
     this task's completion notes.
 - **Testing:** as listed above; this task is itself the final verification step. No task follows it.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Full regression sweep, no source file changed by this
+  task.
+  - `composer lint`: passed. `composer types:check` (PHPStan level 7): passed, 0 errors. Confirmed
+    via `git diff main..HEAD --stat` (excluding `.vue`/task-doc files) that zero backend files
+    changed across the entire feature branch — this restructure touched no PHP file at any point.
+  - `./vendor/bin/sail test --parallel` (full suite): **1019/1019 passed, 4818 assertions**, in
+    8.5s. This is the branch's own baseline (no prior suite count was recorded for this feature to
+    diff against, since it added no test and no backend file) — recorded here as the number the
+    Reviewer can diff future changes against.
+  - `pnpm types:check` (vue-tsc): 0 errors. `pnpm format:check`: clean. Scoped `npx eslint
+    resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue`: 0
+    errors. Confirmed the full `pnpm lint:check` run's errors are all rooted outside
+    `resources/js`/`app` (stale `.claude/worktrees/agent-*` checkouts per this project's known
+    gotcha) by grepping its output for `ProxyForm`/`DestinationRows` — no match.
+  - `pnpm build` (host, not Sail): succeeded, no compile errors.
+  - **The plan's central claim — verified true, not assumed:** grepped all six named test files
+    (`SecretAbsenceSweepTest.php`, `ProxyUpdateTest.php`, `ProxyControllerPagePropsTest.php`,
+    `CredentialRemovalTest.php`, `ProxyRetryFieldPresentationAcceptanceTest.php`,
+    `ProxyIndexShowTest.php`) for `assertSee`/`assertDontSee`/`->component(...)` and every literal
+    copy string this feature cut or changed ("A name to recognise this proxy.", "Case and
+    separators don't matter", "Leave blank to use the default", "Applies to automatic
+    re-attempts", "Response status code", "Response body"). Every `->component(...)` call asserts
+    only the Inertia page-component name (`proxies/Edit`/`Create`/`Index`/`Show`), never markup or
+    copy; `ProxyUpdateTest`'s one `assertDontSee` checks a leaked-secret value, unrelated to this
+    feature's copy. A repo-wide `grep -rl` for every changed/cut copy string across `tests/`
+    returned no matches at all. **No existing test needed updating — the plan's finding holds.**
+  - Manual end-to-end verification was **not performed with a browser** — no Playwright/browser
+    tool is available to this agent (confirmed with the Orchestrator mid-task). What a browser pass
+    still needs to check, left for the Reviewer/QA gate: submitting a valid Create/Edit form still
+    redirects/persists exactly as before; submitting an invalid form still moves focus to the first
+    `[aria-invalid="true"]` field; the Enhanced/Simple retry discard-and-reseed and the
+    204-forces-empty-body watcher still fire (both are pure `computed`/`watch` logic, untouched by
+    this restructure — verified by reading `<script setup>`, unchanged across every commit in this
+    feature); sensitive-field add/remove and every destination row's add/remove/credential
+    Replace/Remove flow still work (same reasoning — `DestinationRows.vue` has zero diff, and the
+    sensitive-fields handlers were not touched); and the four Tooltip triggers open on Tab-focus/
+    hover and close on blur/Escape (reka-ui `Tooltip` behaviour, not custom code — same primitive
+    already used unmodified in `teams/Edit.vue`).
+  This feature is ready for Reviewer handoff, with the browser-only checks above named explicitly
+  as outstanding rather than claimed.
+
+## T9 — Rework: card-level legend heading weight, hoist shared `TooltipProvider` (Review-17 Finding 1 Major, Finding 2 Minor; `design-17` `## Amendment — card-level legend heading weight ruling`, 2026-08-29)
+
+- **Description:** Rework task raised directly by the review gate against the already-shipped T1–T8
+  feature. Two independent fixes, both confined to files this feature already touches; neither
+  changes a requirement or introduces a new component.
+
+  1. **Heading weight (Finding 1, Major).** Apply `class="text-base font-semibold"` to exactly two
+     `legend`s — the ones standing in for a card's own heading with no sibling `h2`: the Sensitive
+     fields `legend` in `resources/js/pages/proxies/ProxyForm.vue` (currently at line 666, currently
+     `class="text-sm font-medium"`) and the Destinations `legend` in
+     `resources/js/components/DestinationRows.vue` (currently at line 123, currently
+     `class="text-sm font-medium"`). This is `## Grouping proposal`'s original heading-weight rule,
+     restated as an exact class by the Designer's amendment, Ruling 1. The two `legend`s nested
+     inside the Delivery card — "Mode and processing" (currently line 412) and "Retry policy"
+     (currently line 559) — are correctly subordinate to that card's own `h2` and are out of scope for
+     this task: they keep `class="text-sm font-medium"` unchanged.
+  2. **Shared `TooltipProvider` (Finding 2, Minor).** `ProxyForm.vue` currently wraps each of its
+     four tooltips — Response Body help (line 363), Mode help (line 419), Backoff strategy help
+     (line 602), Always hidden help (line 677) — in its own `TooltipProvider`. Replace the four
+     per-tooltip `TooltipProvider`s with a single `TooltipProvider` wrapping the whole `<form>`. This
+     is a structural simplification only — one provider instead of four, fewer nodes, the shape the
+     primitive is designed for — and not a behaviour change: `resources/js/components/ui/tooltip/
+     TooltipProvider.vue` sets `withDefaults(..., { delayDuration: 0 })`, so every provider in this
+     codebase, including each of the four per-tooltip providers being replaced, already opens its
+     tooltips with no delay. There was never a shared open/close delay to group between tooltips, and
+     hoisting to one provider does not introduce one. Each `Tooltip`/`TooltipTrigger`/`TooltipContent`
+     triple stays exactly where it is and exactly as it renders; only the `TooltipProvider` wrapping
+     changes, from four instances to one.
+
+- **Dependencies:** T8 (the shipped feature this task reworks)
+- **Files:** `resources/js/pages/proxies/ProxyForm.vue`; `resources/js/components/DestinationRows.vue`
+- **Acceptance Criteria:**
+  - `ProxyForm.vue`'s Sensitive fields `legend` carries `class="text-base font-semibold"`; its text
+    content and every surrounding line are unchanged.
+  - `DestinationRows.vue`'s Destinations `legend` carries `class="text-base font-semibold"`; this is
+    the file's only change from what T6 shipped — `id="destinations-help"`, every destination row's
+    `aria-describedby="destinations-help"` wiring, the fieldset's help paragraph copy, row rendering,
+    add/remove handling, the Credential subsection (including both of its copy sentences), `v-model`
+    bindings, and validation are all unchanged.
+  - The Delivery card's two nested `legend`s ("Mode and processing", "Retry policy") remain
+    `class="text-sm font-medium"`; this task makes no edit to either.
+  - `ProxyForm.vue`'s four tooltips (Response Body, Mode, Backoff strategy, Always hidden) share a
+    single `TooltipProvider` wrapping the `<form>`; no per-tooltip `TooltipProvider` remains. Each
+    tooltip's trigger `Button`, `aria-label`, and `TooltipContent` copy are byte-identical to what
+    shipped in T2–T5 — only the provider wrapping changes.
+  - No other line of either file changes: no copy string, `v-model` binding, validation rule, or `id`/
+    `aria-*` attribute besides what is named above is touched.
+- **Testing:** Frontend gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped
+  `npx eslint resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue`
+  0 errors, and `pnpm build` (host — the sail container cannot run the Vite build). Manual
+  verification (host production build) at 360px: Sensitive fields' and Destinations' headings read at
+  the same size and weight as Details, Response and Delivery's `h2`s, and visibly distinct from the
+  two Delivery-nested sub-headings; each of the four tooltips still opens on Tab-focus and on hover
+  and closes on blur/Escape.
+
+  No backend gate re-run: agreed with the Designer's amendment on this point — nothing in this task
+  touches PHP, a migration, a controller, a request/resource class, or any backend-tested behavior, so
+  `composer lint`, `composer types:check`, and the backend test suite have no file in this task's
+  scope to exercise.
+
+  One addition beyond the amendment's own recommendation: the amendment's "`pnpm format:check` and a
+  360px visual re-check are sufficient" was written for the legend-class edit alone (Finding 1).
+  This task also carries Finding 2's `TooltipProvider` hoist, which restructures a template — moving
+  a wrapping element, not editing a utility class — so `pnpm types:check` and the scoped `eslint` run
+  above are required in addition to `pnpm format:check`, not skipped. `pnpm build` is included because
+  a hoisted `TooltipProvider` is exactly the kind of structural change a type-check and lint pass do
+  not fully exercise at runtime.
+- **Completion notes:** Done (2026-08-29).
+  - **Heading weight (Finding 1).** Changed exactly two `legend`s to `class="text-base
+    font-semibold"`: the Sensitive fields `legend` in `ProxyForm.vue` (now at line 688) and the
+    Destinations `legend` in `DestinationRows.vue` (line 123). `DestinationRows.vue`'s diff is the
+    single class edit only — confirmed via `git diff` — `id="destinations-help"`, every row's
+    `aria-describedby="destinations-help"`, the help paragraph copy, row rendering, add/remove
+    handling, the Credential subsection and its two copy sentences, `v-model` bindings and
+    validation are all untouched. The Delivery card's two nested `legend`s ("Mode and processing"
+    line 420, "Retry policy" line 579) were not touched and remain `class="text-sm font-medium"`.
+  - **Shared `TooltipProvider` (Finding 2).** Removed the four per-tooltip `TooltipProvider`s
+    (previously wrapping Response Body, Mode, Backoff strategy, and Always hidden individually) and
+    added one `TooltipProvider` wrapping the `<form>`'s content, from immediately inside the opening
+    `<form>` tag to immediately before its closing tag. Each `Tooltip`/`TooltipTrigger`/
+    `TooltipContent` triple, its trigger `Button`, `aria-label`, and `TooltipContent` copy are
+    unchanged — confirmed by diffing the file with all lines' leading whitespace stripped: the only
+    content-level changes are the `TooltipProvider` add/removes and the one legend class edit above;
+    every other line in the diff is Prettier re-wrapping at a shifted indentation depth (the whole
+    card stack now sits one level deeper inside the added `TooltipProvider`), not a copy, binding,
+    or attribute change.
+  - Ran `pnpm format` once to let Prettier re-flow the reindented template, then verified
+    `pnpm format:check` clean afterward — no hand-adjusted indentation.
+  - Gates: `pnpm types:check` 0 errors; `pnpm format:check` clean; scoped `npx eslint
+    resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue` 0 errors;
+    `pnpm build` (host) succeeds. No backend file changed — no backend gate re-run, per this task's
+    own Testing note.
+  - **Left for the manual/browser pass** (no Playwright access in this session): the 360px visual
+    re-check that Sensitive fields' and Destinations' headings now read at the same size and weight
+    as Details/Response/Delivery's `h2`s and visibly distinct from the two Delivery-nested
+    sub-headings; and confirming at runtime that all four tooltips still open on Tab-focus and hover
+    and close on blur/Escape, and that moving focus or the pointer directly from one tooltip's
+    trigger to another's no longer re-incurs the full open delay (Reka's shared
+    `delayDuration`/`skipDelayDuration` grouping — a runtime timing behavior a static/type/lint pass
+    cannot exercise).
+  - Nothing here turned out wrong against the ruling — both files' post-edit state matches
+    `## Amendment` Ruling 1 exactly, and T6's criterion is understood as corrected by this task's own
+    AC (one presentational class edit permitted in `DestinationRows.vue`, not zero-diff).
+- **Task Planner correction note (2026-08-29), added post-review:** This task's Description and
+  Testing section originally claimed that hoisting to a single `TooltipProvider` restores Reka's
+  shared `delayDuration`/`skipDelayDuration` grouping, so that moving focus or the pointer directly
+  from one tooltip's trigger to another's would no longer re-incur the full open delay. Review-17's
+  re-review (`## Finding 2 (Minor) — RESOLVED, and my original rationale was wrong`) found that claim
+  false: `resources/js/components/ui/tooltip/TooltipProvider.vue` sets `withDefaults(..., {
+  delayDuration: 0 })`, so every provider in this codebase — including each of the four per-tooltip
+  providers this task replaced — already opened its tooltips with no delay. There was never a shared
+  delay to group between tooltips, and hoisting to one provider does not introduce one. The
+  Description and Testing section above are corrected in place to state the hoist as a structural
+  simplification only — one provider instead of four, fewer nodes, the shape the primitive is
+  designed for — with no claim of a perceptible behaviour change; the Testing section's runtime
+  timing check, which could neither pass nor fail because there is no timing difference to observe,
+  is removed. The Senior Developer's completion notes above are left exactly as written, including
+  the now-superseded "left for the manual/browser pass" bullet describing that same timing check —
+  the code they describe is correct and shipped cleanly, only the benefit claimed for it was wrong.
+  That outstanding manual timing check is withdrawn: there is nothing left for the manual pass to
+  confirm on this point.
+
+## T10 — Cap tooltip content width at the four call sites (Review-17 Finding 5, Major; `design-17` `## Amendment — tooltip content width cap`, 2026-08-29)
+
+- **Description:** Rework task raised directly by the review gate against the already-shipped T1–T9
+  feature. Review-17's re-review, driven headless at a 360px viewport (this design's own stated
+  minimum supported width), measured every `TooltipContent` this feature added rendering wider than
+  the viewport, with the overflow unreachable — `document.documentElement.scrollWidth` stayed 360px,
+  so no gesture brings the clipped text into view. Measured: Mode 892px (532px/60% clipped), Backoff
+  strategy 744px (384px/52% clipped), "Always hidden" 469px (109px/23% clipped), Response Body 431px
+  (71px/16% clipped) — each against a 360px viewport, each with computed `max-width: none`. This
+  matters beyond a cosmetic overflow because `design-17`'s `## Rule: form copy vs. tooltip vs. cut`
+  moved these four sentences out of the form's wrapping `<p>` elements and into these tooltips on the
+  strength of the tooltip carrying them; at 360px it did not, so on the form's own minimum supported
+  width this feature was a net loss of information against the pre-#17 form.
+
+  The Designer's amendment (`## Amendment — tooltip content width cap`, 2026-08-29) rules that
+  `## Responsive Behavior`'s refusal of "bespoke width" yields a cap, and that the cap is
+  `class="max-w-xs"` (320px), added at each `TooltipContent` call site — not in
+  `resources/js/components/ui/tooltip/TooltipContent.vue`, which is generated code under
+  `resources/js/components/ui/` and, per `docs/standards/coding.md` → Project structure, must never
+  be hand-edited. `max-w-xs` is the identical class `ReplayDialog.vue` already carries; Reka UI's
+  `TooltipContent` wrapper forwards a caller's `class` prop and merges it with its own `w-fit`, so the
+  two compose rather than conflict — `w-fit` governs width below the cap, `max-w-xs` governs it above.
+  The amendment's Ruling 2 withdraws N1's earlier rejection of that class (while keeping N1's separate
+  and correct rejection of `ReplayDialog.vue`'s non-focusable `span` trigger), so this task is no
+  longer barred by the note that previously blocked it.
+
+  Add `class="max-w-xs"` to exactly the four `TooltipContent` elements this feature added in
+  `resources/js/pages/proxies/ProxyForm.vue`: Response Body help (currently line 384), Mode help
+  (currently line 438), Backoff strategy help (currently line 635), and Sensitive fields' "Always
+  hidden" help (currently line 710). No other attribute, no wrapping element, and no line inside any
+  of the four is touched.
+
+- **Dependencies:** T9 (the shipped feature state this task reworks)
+- **Files:** `resources/js/pages/proxies/ProxyForm.vue`
+- **Acceptance Criteria:**
+  - Each of the four `TooltipContent` elements (Response Body, Mode, Backoff strategy, Always hidden)
+    carries `class="max-w-xs"` and no other class.
+  - No copy string inside any of the four tooltips' `<p>` content changes.
+  - No `aria-*` attribute, on any of the four `Tooltip`/`TooltipTrigger`/`TooltipContent` triples or
+    their trigger `Button`s, changes.
+  - No trigger markup changes: each trigger stays the same `TooltipTrigger as-child` wrapping the same
+    `Button`, same `variant`, same `size`, same `aria-label`, same `Info` icon.
+  - `resources/js/components/ui/tooltip/TooltipContent.vue` — the generated primitive — carries zero
+    diff. This task's entire change surface is the four `class="max-w-xs"` additions in
+    `ProxyForm.vue`; no other line of any file changes.
+  - **Measured, not eyeballed**, per the Designer's amendment and Review-17's recommended resolution:
+    at a 360px-wide viewport, each of the four `TooltipContent` elements, opened by keyboard focus on
+    its trigger, has a rendered width that fits inside the viewport and a right edge
+    (`getBoundingClientRect().right`) at or inside 360px — i.e. no greater than
+    `document.documentElement.clientWidth`. The before-state, recorded here so the after-state is
+    checkable against something rather than asserted on faith:
+
+    | Tooltip | Before (unconstrained) | Viewport | Clipped |
+    |---|---|---|---|
+    | Mode | 892px | 360px | 532px — 60% |
+    | Backoff strategy | 744px | 360px | 384px — 52% |
+    | "Always hidden" | 469px | 360px | 109px — 23% |
+    | Response Body | 431px | 360px | 71px — 16% |
+
+    After `class="max-w-xs"` (320px) is applied, every one of the four is expected to render at or
+    under its capped width, comfortably inside the 360px viewport with margin for the tooltip's own
+    on-screen position — this is the after-state the manual pass below must confirm by the same
+    measurement method, not by inspection.
+
+- **Testing:** Frontend gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped
+  `npx eslint resources/js/pages/proxies/ProxyForm.vue` 0 errors, and `pnpm build` (host — the sail
+  container cannot run the Vite build). These gates catch a malformed class attribute or an
+  unintended structural edit; they do not measure rendered pixel width, which is a runtime/DOM fact.
+
+  **The 360px width measurement itself is a manual/browser-pass item, not something this session or
+  the Senior Developer can complete** — it requires a real or emulated browser viewport, which this
+  role does not have. It is called out explicitly here, not left implicit, because the Designer's
+  amendment requires the re-check be measured rather than eyeballed. The manual pass must, for each of
+  the four tooltips, open it via keyboard focus on its trigger at a 360px-wide viewport against a
+  freshly host-built production bundle, then read `getBoundingClientRect()` (or the equivalent
+  computed style) on its `[data-slot="tooltip-content"]` element and confirm: (1) rendered width
+  no greater than 320px (the `max-w-xs` cap, allowing for the primitive's own `px-3` padding), and
+  (2) `right <= 360` — no part of the box past the viewport's right edge. The pass must also confirm
+  `document.documentElement.scrollWidth` still reads 360 (no new horizontal scroll introduced as a
+  side effect of the cap) and that each tooltip still opens on Tab-focus and closes on blur/Escape,
+  matching T9's already-verified trigger behaviour, which this task does not touch.
+
+  No backend gate re-run: this task touches no PHP file, no migration, no controller, no request/
+  resource class, and no backend-tested behaviour, so `composer lint`, `composer types:check`, and the
+  backend test suite have no file in this task's scope to exercise.
+
+- **Completion notes:** Done (2026-08-29). Added `class="max-w-xs"` to exactly the four
+  `TooltipContent` elements this feature added in `ProxyForm.vue`: Response Body help (line 384),
+  Mode help (line 438), Backoff strategy help (line 635), and Sensitive fields' "Always hidden" help
+  (line 710) — confirmed by `git diff`: four one-line changes, each `<TooltipContent>` →
+  `<TooltipContent class="max-w-xs">`, nothing else in the file touched. No copy string, no `aria-*`
+  attribute, and no trigger markup changed on any of the four triples.
+  `resources/js/components/ui/tooltip/TooltipContent.vue` carries zero diff, confirmed via `git diff
+  --stat` returning empty for that file.
+  - Gates: `pnpm types:check` 0 errors; `pnpm format:check` clean; scoped `npx eslint
+    resources/js/pages/proxies/ProxyForm.vue` 0 errors; `pnpm build` (host) succeeds. No backend
+    file touched, so no backend gate re-run, per this task's own Testing note.
+  - **Left for the manual/browser pass** (no Playwright access in this session), per the task's own
+    Testing section: at a 360px-wide viewport against a freshly host-built production bundle, open
+    each of the four tooltips via keyboard focus on its trigger and read
+    `getBoundingClientRect()` (or the equivalent computed style) on its
+    `[data-slot="tooltip-content"]` element, confirming (1) rendered width no greater than 320px
+    (the `max-w-xs` cap, allowing for the primitive's own `px-3` padding) and (2) `right <= 360` —
+    no part of the box past the viewport's right edge — for all four (Mode, Backoff strategy,
+    "Always hidden", Response Body), replacing the recorded before-state (892px/744px/469px/431px
+    unconstrained, respectively). The pass must also confirm
+    `document.documentElement.scrollWidth` still reads 360 (no new horizontal scroll introduced as a
+    side effect of the cap) and that each tooltip still opens on Tab-focus and closes on
+    blur/Escape, matching T9's already-verified trigger behaviour, which this task did not touch.
+  - Nothing here turned out wrong against the ruling — all four call sites were bare
+    `<TooltipContent>` with no existing class, matching the Designer's amendment and the task's own
+    description exactly, so the change was the single mechanical edit specified.
 
 ## Handoff
 
 - **Inputs:** `docs/design/design-17-proxy-form-information-architecture.md` (Approved, Product
-  Manager, 2026-08-29, corrections C1–C5 landed); the shipped
-  `resources/js/pages/proxies/ProxyForm.vue`, `Create.vue`, `Edit.vue`,
+  Manager, 2026-08-29, corrections C1–C5 landed, plus the `## Amendment — card-level legend heading
+  weight ruling` and `## Amendment — tooltip content width cap` amendments, both 2026-08-29); the
+  shipped `resources/js/pages/proxies/ProxyForm.vue`, `Create.vue`, `Edit.vue`,
   `resources/js/components/DestinationRows.vue` on this branch; `docs/tasks/README.md`;
   `docs/standards/planning.md`; `resources/js/pages/teams/Edit.vue` (the correct keyboard-focusable
   Tooltip precedent, as distinct from `ReplayDialog.vue`'s bare-`span`-trigger anti-pattern named at
-  N1).
+  N1); `docs/reviews/review-17-proxy-form-information-architecture.md` (Finding 5, Major, and the
+  re-review's correction to its own Finding 2 rationale).
 - **Outputs:** this task plan.
 - **Dependencies:** none, technical or otherwise — every control this plan's tasks build reuses an
   already-shipped primitive (`Card`, `fieldset`, `Tooltip`); no new dependency, no backend change.
@@ -377,4 +846,8 @@
   the design was specific enough on every point a Task Planner needed (grouping, exact copy, tooltip
   disposition, C1's two-fieldset ruling, C2's kept help line, C5's interpolation ruling) to break down
   without guessing.
-- **Next Agent:** Senior Developer, to build T1 through T8 in order.
+- **Next Agent:** Senior Developer, to build T1 through T8 in order. T9 is a rework task added
+  2026-08-29 in response to Review-17 Finding 1 (Major) and Finding 2 (Minor) and the Designer's
+  card-level legend heading weight amendment; it is built after T1–T8's already-shipped work, not in
+  that original sequence. T10 is a further rework task added 2026-08-29 in response to Review-17
+  Finding 5 (Major) and the Designer's tooltip content width cap amendment; it is built after T9.

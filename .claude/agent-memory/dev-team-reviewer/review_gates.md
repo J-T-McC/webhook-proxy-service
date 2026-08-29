@@ -10,10 +10,17 @@ Backend gates (all runnable): `composer lint` (Pint, emits `{"tool":"pint","resu
 default output is one JSON line `{"tool":"phpunit",...,"tests":N,"assertions":N}` — read the
 task output file, not a verbose summary).
 
-Frontend gates (all runnable, clean exit): `pnpm types:check` (vue-tsc --noEmit),
-`pnpm lint:check` (eslint .), `pnpm format:check` (prettier --check resources/),
-`pnpm run build` (vite, ~1 s). **The old "build unrunnable, Node 21 < 22" note is dead** —
-host Node is now v22.23.2 (sail's is v24), satisfying `engines.node >= 22`. Verified 2026-08-22.
+Frontend gates: `pnpm types:check` (vue-tsc --noEmit), `pnpm format:check` (prettier --check
+resources/), `pnpm run build` (vite, ~2 s). **The old "build unrunnable, Node 21 < 22" note is
+dead** — host Node is v22.23.2 (sail's is v24), satisfying `engines.node >= 22`.
+
+**`pnpm lint:check` (eslint .) NO LONGER exits clean and that is not the branch's fault** — stale
+untracked `.claude/worktrees/agent-*` checkouts contribute hundreds of `import/order` errors that
+are absent in CI (730 errors / 354 files at review-17). Judge it by the tracked tree, and prove
+the noise is entirely external rather than asserting it:
+`pnpm lint:check 2>&1 | grep -E '^/Users' | grep -vc '.claude/worktrees'` must print `0`. Then run
+`npx eslint resources/` (silent = clean) plus a run scoped to the feature's own files. A completion
+note claiming "lint green" is accurate under this reading — do not raise it as a finding.
 
 No JS test framework exists (deferred backlog item T31) — but **a live browser check IS
 available and is the right standard for accessible-name findings, and for any client-side
@@ -45,10 +52,36 @@ outcome the same screen falsifies on a path the approved design names, with real
 pre-existing (review-07 Finding 1) — route it to the role whose ruling forbids the fix (there,
 the Principal Engineer), not to the Senior Developer.
 
+**Live-check setup corrections (verified 2026-08-29, review-17 re-review) — the old recipe wastes
+three round trips without these.** The app serves on **port 80**, not the `APP_URL=http://localhost:8000`
+in `.env` (nothing listens on 8000; `curl` port 80 returns 200). Proxy routes are **team-scoped**:
+`/{team-slug}/proxies/create`, not `/proxies/create` — get the slug from the team row, or
+`artisan route:list --path=proxies` to see the `{current_team}` segment. Seeding a QA user:
+`User::factory()->create()` **already creates a personal team** and sets `current_team_id`, so do not
+build one — `Team::factory()` fails anyway (`teams` has no `created_by` column). `User` has **no
+SoftDeletes**, so `User::withTrashed()` throws; use `find()` + `forceDelete()`, and delete the
+`team_members` row plus the team first. Check `public/hot` before trusting a build: when it is absent
+`@vite` serves `public/build`, so a host `pnpm build` genuinely is what the browser runs.
+
 **Live-browser tooling:** the project has **no** playwright dependency; the skill at
 `/Users/tyson/.claude/skills/playwright` carries its own `node_modules` — run a script with
 `cd /Users/tyson/.claude/skills/playwright && node run.js /abs/path/script.js`. Browsers live in
 `~/Library/Caches/ms-playwright`, not `~/.cache`.
+
+**Proving a copy/IA pass over a Vue SFC — two techniques that beat reading the diff.**
+- *Normalized visible-text diff* settles every copy disposition at once, including the negative
+  ("a string ruled CUT still renders somewhere"), which eyeballing cannot. Split the file at
+  `<template>`, strip `<!-- -->`, `re.split(r'(<[^>]*>)')`, keep the non-tag runs, collapse
+  whitespace, and `difflib.unified_diff` `git show main:<file>` against the working copy. Output is
+  exactly the copy delta across the whole branch; every line must map to a design ruling. At
+  review-17 this proved all ten cut strings gone, all eight kept strings verbatim, all four tooltip
+  bodies verbatim, and the downgrade `Alert` byte-identical — the `Alert` simply never appears in
+  the diff, which is the proof.
+- *Whitespace-insensitive per-commit diff* separates substance from Prettier reflow. A task that
+  adds one wrapper `div` re-indents the entire template: review-17's T1 showed 706 changed lines
+  for "Details gets its own Card". `git show <rev> -w --ignore-blank-lines -- <file>` collapsed it
+  to six real edits. Run this before believing a large diff hides something, and before believing
+  it does not.
 
 **Two verification techniques worth reusing:**
 - *Runtime A/B to prove a client fix is causal.* For a one-line frontend fix, "it works now" is
