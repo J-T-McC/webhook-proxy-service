@@ -314,7 +314,32 @@
 - **Testing:** pnpm gates green. Manual verification (host production build): Attempts' help and the
   fieldset help above it display the identical number; leaving Attempts blank and saving still persists
   `null` (system default), exactly as today; the Backoff strategy tooltip opens on Tab-focus.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Retry policy fieldset help cut to exactly "Simple-mode
+  proxies use the fixed default ({{ defaultAttemptLimit }} attempts, {{ defaultBackoffStrategyLower
+  }})." — the first sentence about applying to automatic re-attempts is gone, both interpolations
+  kept live. Correction C5 applied: Attempts help changed from the hard-coded "Leave blank to use
+  the default (5). Maximum 10." to "Default {{ defaultAttemptLimit }}. Max 10." — reads the same
+  `RETRY_DEFAULT_ATTEMPT_LIMIT`-derived constant the fieldset help above it already reads, so no
+  literal `5` remains anywhere in this fieldset; confirmed via grep that no bare "5" string exists
+  in the Retry policy block. Backoff strategy's help `<p id="retry-backoff-strategy-help">` is
+  removed from the template entirely (confirmed via grep — the id no longer appears anywhere in the
+  file); its content moved to a Tooltip next to the "Backoff strategy" label, same
+  `Button`/`TooltipTrigger as-child`/`TooltipProvider` shape as T2/T3, `aria-label="More about
+  Backoff strategy"`, content exactly "Exponential increases the wait each attempt; fixed interval
+  stays constant. Always bounded well inside the 30-day retention window." Updated the Backoff
+  strategy `Select`'s `SelectTrigger` `aria-describedby` from `"retry-backoff-strategy-help
+  retry-backoff-strategy-error"` to `"retry-backoff-strategy-error"` — no reference to the removed
+  id remains. `retryStrategySelect`, the `RETRY_STRATEGY_DEFAULT` sentinel handling, and both
+  fields' validation/error wiring are unchanged.
+  Verification: no Playwright/browser access available to this agent; verified structurally by
+  reading the exact rendered copy strings and confirming via grep that the old help id is gone and
+  no stale literal `5` remains, plus `pnpm build` (host) succeeding. A live pass — Attempts' help and
+  the fieldset help above it showing the identical number, leaving Attempts blank still persisting
+  `null`, and the Backoff strategy tooltip opening on Tab-focus — is left for the Reviewer/QA gate,
+  not claimed here.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, scoped `npx eslint
+  resources/js/pages/proxies/ProxyForm.vue` 0 errors. `composer lint`/`composer types:check` green,
+  0 diff to any backend file.
 
 ## T5 — Sensitive fields card, copy rewrite, "Always hidden" tooltip (`## Grouping proposal`, correction C4; `## Copy rewrite pass` → Sensitive fields)
 

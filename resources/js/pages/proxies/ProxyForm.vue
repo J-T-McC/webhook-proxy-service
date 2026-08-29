@@ -558,12 +558,10 @@ function submit(): void {
                 <fieldset v-if="isEnhanced" class="grid gap-4">
                     <legend class="text-sm font-medium">Retry policy</legend>
                     <p class="text-sm text-muted-foreground">
-                        Applies to automatic re-attempts after a failed delivery
-                        to a destination. Available on Enhanced-mode proxies;
-                        Simple-mode proxies use the fixed system default ({{
+                        Simple-mode proxies use the fixed default ({{
                             defaultAttemptLimit
                         }}
-                        attempts, {{ defaultBackoffStrategyLower }} backoff).
+                        attempts, {{ defaultBackoffStrategyLower }}).
                     </p>
 
                     <div class="grid gap-2">
@@ -587,7 +585,7 @@ function submit(): void {
                             id="retry-attempt-limit-help"
                             class="text-sm text-muted-foreground"
                         >
-                            Leave blank to use the default (5). Maximum 10.
+                            Default {{ defaultAttemptLimit }}. Max 10.
                         </p>
                         <span id="retry-attempt-limit-error">
                             <InputError
@@ -597,9 +595,33 @@ function submit(): void {
                     </div>
 
                     <div class="grid gap-2">
-                        <Label for="retry_backoff_strategy"
-                            >Backoff strategy</Label
-                        >
+                        <div class="flex items-center gap-2">
+                            <Label for="retry_backoff_strategy"
+                                >Backoff strategy</Label
+                            >
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon-sm"
+                                            aria-label="More about Backoff strategy"
+                                        >
+                                            <Info class="size-3.5" />
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>
+                                            Exponential increases the wait each
+                                            attempt; fixed interval stays
+                                            constant. Always bounded well inside
+                                            the 30-day retention window.
+                                        </p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
                         <Select
                             v-model="retryStrategySelect"
                             :disabled="form.processing"
@@ -612,7 +634,7 @@ function submit(): void {
                                         ? 'true'
                                         : undefined
                                 "
-                                aria-describedby="retry-backoff-strategy-help retry-backoff-strategy-error"
+                                aria-describedby="retry-backoff-strategy-error"
                             >
                                 <SelectValue />
                             </SelectTrigger>
@@ -629,15 +651,6 @@ function submit(): void {
                                 </SelectItem>
                             </SelectContent>
                         </Select>
-                        <p
-                            id="retry-backoff-strategy-help"
-                            class="text-sm text-muted-foreground"
-                        >
-                            Exponential increases the wait between attempts each
-                            time; fixed interval waits the same amount every
-                            time. Either way, retries are always bounded well
-                            inside your team's 30-day payload retention window.
-                        </p>
                         <span id="retry-backoff-strategy-error">
                             <InputError
                                 :message="form.errors.retry_backoff_strategy"
