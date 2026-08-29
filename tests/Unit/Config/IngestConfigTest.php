@@ -141,4 +141,71 @@ class IngestConfigTest extends TestCase
 
         (new AdvanceProxyFifoQueue)->getJobMiddleware(1);
     }
+
+    // --- Delivery loop guard: max_hops (docs/briefs/delivery-loop-guard.md) ---
+
+    public function test_max_hops_defaults_to_3_when_env_not_set(): void
+    {
+        $this->assertSame(3, config('ingest.max_hops'));
+    }
+
+    public function test_max_hops_uses_env_override_when_set(): void
+    {
+        putenv('INGEST_MAX_HOPS=5');
+
+        try {
+            $resolved = require base_path('config/ingest.php');
+        } finally {
+            putenv('INGEST_MAX_HOPS');
+        }
+
+        $this->assertSame(5, $resolved['max_hops']);
+    }
+
+    /**
+     * Review finding: `env()`'s default argument only applies when the key
+     * is absent, never when it is present-and-blank. `INGEST_MAX_HOPS=`
+     * casts to `(int) '' === 0`, and a limit of 0 would reject every inbound
+     * request with 508 before capture — a silent, total ingest outage. The
+     * config clamps to a floor of 1 rather than throwing (keeping webhooks
+     * flowing is the safe direction on the ingest path).
+     */
+    public function test_max_hops_clamps_to_1_when_env_value_is_blank(): void
+    {
+        putenv('INGEST_MAX_HOPS=');
+
+        try {
+            $resolved = require base_path('config/ingest.php');
+        } finally {
+            putenv('INGEST_MAX_HOPS');
+        }
+
+        $this->assertSame(1, $resolved['max_hops']);
+    }
+
+    public function test_max_hops_clamps_to_1_when_env_value_is_non_numeric(): void
+    {
+        putenv('INGEST_MAX_HOPS=not-a-number');
+
+        try {
+            $resolved = require base_path('config/ingest.php');
+        } finally {
+            putenv('INGEST_MAX_HOPS');
+        }
+
+        $this->assertSame(1, $resolved['max_hops']);
+    }
+
+    public function test_max_hops_clamps_to_1_when_env_value_is_negative(): void
+    {
+        putenv('INGEST_MAX_HOPS=-5');
+
+        try {
+            $resolved = require base_path('config/ingest.php');
+        } finally {
+            putenv('INGEST_MAX_HOPS');
+        }
+
+        $this->assertSame(1, $resolved['max_hops']);
+    }
 }
