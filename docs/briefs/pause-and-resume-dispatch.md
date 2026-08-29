@@ -81,6 +81,21 @@ Criteria` (lines 149-254) and
   `cleaned` via the existing three-state payload signal, unchanged). Resume
   needs no confirmation (AC10).
 
+## Side effect: two migration tests were rolling back the wrong migration
+
+`add_paused_at_to_proxies_table` is now the newest migration. Two existing
+isolated-migration tests (`RemoveInboundVerificationMigrationTest`,
+`SensitiveDataHandlingSchemaTest`) targeted "the migration under test" via a
+bare `Artisan::call('migrate:rollback', ['--step' => N])`, which selects the
+N most-recently-run migrations by position, not by name. Adding any
+migration on top of theirs made `--step` silently roll back the wrong file
+instead (confirmed: 3 of 5 assertions in the first file failed run in
+isolation). Fixed both to combine a wide-enough `--step` with `--path`
+restricted to the named migration file(s) — `rollbackMigrations` skips
+(leaves applied) any selected migration outside the given path, so this is
+robust to any number of future migrations landing on top. Not a pause/resume
+change; recorded here because this migration is what exposed it.
+
 ## Known ceiling
 
 Async resume is poll-free but not driven by a single atomic release like
@@ -92,3 +107,7 @@ dispatch marker, same shape as `fifo_dispatches`.
 
 Migration + guards + livelock fix + retention bypass + UI landed, tests
 green, `composer lint`/`types:check` clean, `pnpm` gates clean for touched JS.
+
+**Status: done.** `./vendor/bin/sail test --parallel` — 1040 passed, 4876
+assertions. `composer lint`/`types:check` clean. `pnpm types:check`/
+`format:check`, scoped `eslint`, and `pnpm build` (host) all clean.
