@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
+use App\Http\Controllers\EventQueueController;
 use App\Http\Controllers\ProxyController;
 use App\Http\Controllers\ProxyEventController;
 use App\Http\Controllers\ProxyEventPayloadController;
@@ -20,6 +21,11 @@ Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class, ApplyTeamScope::class])
     ->group(function () {
         Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+        // Team-wide event queue: every captured event across every proxy the
+        // team owns (distinct from `proxies.events.index`, which is scoped to
+        // one proxy).
+        Route::get('events', [EventQueueController::class, 'index'])->name('events.index');
 
         // Proxy management (team-scoped; route-model binding resolves through the
         // team global scope, so a cross-team id 404s).

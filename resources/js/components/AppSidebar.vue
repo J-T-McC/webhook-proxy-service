@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { FolderGit2, LayoutGrid, Webhook } from '@lucide/vue';
+import { FolderGit2, LayoutGrid, ListOrdered, Webhook } from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
@@ -17,6 +17,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import events from '@/routes/events';
 import proxies from '@/routes/proxies';
 import type { NavItem } from '@/types';
 
@@ -40,6 +41,11 @@ const mainNavItems = computed<NavItem[]>(() => {
             title: 'Proxies',
             href: proxies.index(page.props.currentTeam.slug).url,
             icon: Webhook,
+        });
+        items.push({
+            title: 'Event queue',
+            href: events.index(page.props.currentTeam.slug).url,
+            icon: ListOrdered,
         });
     }
 

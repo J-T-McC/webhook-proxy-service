@@ -3,6 +3,7 @@ import type { ProxyPayloadState } from '@/data/proxyPayloadStates';
 import type { ProcessingMode } from '@/data/proxyProcessingModes';
 import type { ProxyResponseStatus } from '@/data/proxyResponseStatuses';
 import type { RetryBackoffStrategy } from '@/data/proxyRetryBackoffStrategies';
+import type { WebhookQueueStatus } from '@/data/webhookQueueStates';
 
 export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
@@ -277,3 +278,22 @@ export interface WebhookEventListItem {
 
 /** Same resource shape as {@link WebhookEventListItem} (T25's single resource, both endpoints). */
 export type WebhookEventDetail = WebhookEventListItem;
+
+/**
+ * One row on the team-wide event queue view (mirrors
+ * `WebhookEventQueueResource` exactly). `status` is the three-value DISPLAY
+ * status computed server-side (`WebhookQueueStatus` in
+ * `@/data/webhookQueueStates`), not the raw two-value backend column.
+ */
+export interface WebhookEventQueueItem {
+    id: number;
+    received_at: string;
+    byte_size: number;
+    content_type: string | null;
+    status: WebhookQueueStatus;
+    proxy: {
+        id: number;
+        name: string | null;
+        paused: boolean;
+    };
+}

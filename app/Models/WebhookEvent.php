@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\BelongsToCurrentTeam;
+use App\Enums\WebhookEventStatus;
 use Database\Factories\WebhookEventFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Collection;
@@ -25,6 +26,12 @@ use Illuminate\Support\Carbon;
  * (ADR-014 Decision 7, binding) — `App\Services\StoredPayloadLookup` is the
  * only resolver of the cleaned state.
  *
+ * `status` (event queue view) is written in exactly one place —
+ * `ProcessIngestedWebhook::handle()`, only for the original dispatch — never
+ * mass-assignable and never touched by the retention expiry pass. It does
+ * NOT encode "expired"; a caller deriving the queue's displayed status reads
+ * `payload_cleaned_at` for that, same as everywhere else.
+ *
  * @property int $id
  * @property int $team_id
  * @property int $proxy_id
@@ -36,6 +43,7 @@ use Illuminate\Support\Carbon;
  * @property int $byte_size
  * @property Carbon $received_at
  * @property Carbon|null $payload_cleaned_at
+ * @property WebhookEventStatus $status
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read Proxy $proxy
@@ -99,6 +107,9 @@ class WebhookEvent extends Model
             // The AC21 cleaned-state signal. NOT added to #[Fillable] — the expiry pass
             // writes it through the query builder only, never mass assignment.
             'payload_cleaned_at' => 'datetime',
+            // The event queue's dispatch-progress signal. NOT added to #[Fillable] —
+            // ProcessIngestedWebhook writes it through the query builder only.
+            'status' => WebhookEventStatus::class,
         ];
     }
 }

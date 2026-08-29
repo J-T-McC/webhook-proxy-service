@@ -116,4 +116,26 @@ class ProxyPolicyTest extends TestCase
         $this->assertFalse(Gate::forUser($outsider)->allows('update', $proxy));
         $this->assertFalse(Gate::forUser($outsider)->allows('delete', $proxy));
     }
+
+    public function test_all_roles_may_view_the_event_queue(): void
+    {
+        $team = Team::factory()->createQuietly();
+
+        foreach ([TeamRole::Owner, TeamRole::Admin, TeamRole::Member] as $role) {
+            $user = $this->member($team, $role);
+
+            $this->assertTrue(Gate::forUser($user)->allows('viewEventQueue', Proxy::class), "{$role->value} may view the event queue");
+        }
+    }
+
+    public function test_a_user_with_no_current_team_may_not_view_the_event_queue(): void
+    {
+        $user = User::factory()->createQuietly();
+        $user->forceFill(['current_team_id' => null])->save();
+
+        // `switchTeam()` (run by the factory) caches the `currentTeam` relation
+        // directly on the instance (`setRelation`), independent of the FK
+        // column just nulled — refetch so the policy sees the real state.
+        $this->assertFalse(Gate::forUser($user->fresh())->allows('viewEventQueue', Proxy::class));
+    }
 }

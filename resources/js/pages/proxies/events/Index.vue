@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Info, RefreshCw, RefreshCwOff } from '@lucide/vue';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import ReplayDialog from '@/components/ReplayDialog.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useAutoRefreshPolling } from '@/composables/useAutoRefreshPolling';
 import { formatSeriesDate, windowLabel } from '@/data/analyticsLabels';
 import {
     proxyAggregateDeliveryState,
@@ -187,53 +188,13 @@ function openReplay(event: WebhookEventListItem): void {
     replayDialogOpen.value = true;
 }
 
-/**
- * Skipping the poll while the replay dialog is open is deliberate: refreshing
- * the rows underneath it can change what the user is about to act on.
- *
- * The on/off preference is per tab rather than per account — a viewing choice,
- * not a setting.
- */
-const POLL_INTERVAL_MS = 5000;
-
-const POLLING_STORAGE_KEY = 'proxy-events:polling';
-
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-
-const pollingEnabled = ref(
-    typeof sessionStorage === 'undefined' ||
-        sessionStorage.getItem(POLLING_STORAGE_KEY) !== 'off',
+// Skipping a tick while the replay dialog is open is deliberate: refreshing
+// the rows underneath it can change what the user is about to act on.
+const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
+    'proxy-events:polling',
+    ['events', 'fifoHeldByRetry'],
+    () => replayDialogOpen.value,
 );
-
-function togglePolling(): void {
-    pollingEnabled.value = !pollingEnabled.value;
-
-    if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem(
-            POLLING_STORAGE_KEY,
-            pollingEnabled.value ? 'on' : 'off',
-        );
-    }
-}
-
-function pollEvents(): void {
-    if (!pollingEnabled.value || document.hidden || replayDialogOpen.value) {
-        return;
-    }
-
-    router.reload({ only: ['events', 'fifoHeldByRetry'] });
-}
-
-onMounted(() => {
-    pollTimer = setInterval(pollEvents, POLL_INTERVAL_MS);
-});
-
-onBeforeUnmount(() => {
-    if (pollTimer !== null) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-    }
-});
 </script>
 
 <template>
