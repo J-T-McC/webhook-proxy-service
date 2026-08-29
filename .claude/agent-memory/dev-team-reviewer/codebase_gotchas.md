@@ -180,3 +180,33 @@ metadata:
   on it is sound and needs no expiry comparison — do not raise "compares a timestamp by truthiness"
   against these surfaces. What it *is* is a mount-time snapshot: a second tab, or a failed partial
   reload, can leave an overlap-running proxy rendering its no-overlap state.
+- **A write-only secret field's "absent means leave unchanged" idiom silently swallows the
+  non-secret fields sitting in the same block.** `ProxyController::destinationCredentialAttributes()`
+  returns `[]` — a total no-op — whenever `credential_secret === ''`, which correctly preserves the
+  stored secret but also discards an edited `credential_header_name`, even though the form renders
+  that input editable in exactly that state (design-10 Screen 3, "visible + editable always").
+  Raised Major at review-10. **Generalise: wherever a form groups a write-only secret with an
+  ordinary editable sibling, walk the "changed the sibling, did not touch the secret" path.** The
+  existing test almost certainly resubmits the *same* sibling value and so proves nothing —
+  `CredentialValidationTest` did exactly that (lines 79 and 96, `X-Api-Key` → `X-Api-Key`).
+- **`OutboundHeaders::build()` resolves case-insensitive collisions between the added set and the
+  FORWARDED set, but not WITHIN the added set.** Credential is assigned first, signing headers are
+  spread over it, so a credential header named `webhookproxy-signature` emits two headers of that
+  name and one named `WebhookProxy-Signature` silently loses the credential. R9's duplicate-header
+  hazard, half-discharged. Minor at review-10 (needs deliberate misconfiguration to reach).
+- **`JsonResource`'s `removeMissingValues()` `array_values()`s any nested array whose keys are ALL
+  numeric**, recursively, silently turning an id-keyed map into an unkeyed list. `#[PreserveKeys]`
+  on the resource class is the fix and is load-bearing wherever a resource returns a
+  `Record<id, …>` map (`ProxySecurityResource::destinations`). A unit-level `toArray()` assertion
+  looks correct and hides this — assert against a real `->response()->getContent()`.
+- **`router.delete()` defaults `preserveState: true`** (`@inertiajs/core/dist/index.js:3068` spreads
+  `{ preserveState: true, ...options, method: 'delete' }`), as do `post`/`put`/`patch` — the plain
+  `visit()` default of `false` does NOT apply to them. So component-local refs survive a delete, and
+  a dialog mounted unconditionally (no `v-if`) keeps in-session state across close/reopen. Check the
+  adapter source before ruling that in-session state is lost — the Vue3 adapter remounts by changing
+  `key.value = Date.now()` only when `preserveState` is false.
+- **`STRIPPED_HEADERS` is now exactly ten, transport-scoped only** (ADR-026 Decision A): `host`,
+  `content-length`, and the eight RFC 7230 §6.1 hop-by-hop fields. `authorization`, `cookie` and the
+  five provider-signature names are deliberately FORWARDED. `proxy-authorization` stays on
+  hop-by-hop grounds alone — do not read its presence beside `authorization`'s absence as an
+  inconsistency. Count against the RFC, not against a completion note.

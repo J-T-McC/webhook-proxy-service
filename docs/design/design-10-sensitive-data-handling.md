@@ -29,18 +29,28 @@
   Decision B and § *Documents*, which routes the withdrawal to the Designer through the
   Product Manager. It re-points Screen 3's shape reference away from the withdrawn Screen
   1, restates correction B2 for its one surviving surface, and corrects Flow G step 5's
-  outbound signing header names. **This amendment is written and awaits Product Manager
-  re-approval**, the same delegated gate the amendment above went through; until then it
-  governs where it conflicts with the spec body, exactly as the first amendment's own rule
-  states, and every other approval recorded above is unchanged by it.
+  outbound signing header names. **This amendment was approved by the Product Manager on
+  2026-08-28 with no required corrections** — see § Approval record — inbound-verification
+  withdrawal gate (2026-08-28), the third, separate gate entry. It governs where it
+  conflicts with the spec body, exactly as the first amendment's own rule states, and every
+  other approval recorded above is unchanged by it.
+  **`## Amendment — Screen 6 DialogDescription inbound-verification claim withdrawn
+  (2026-08-28)` corrects one member-facing copy line that claimed this product verifies
+  incoming requests** — a claim ADR-026 Decision B had already removed from the product. It
+  was self-certified by the Designer as a doc correction and **confirmed by the Product
+  Manager on 2026-08-28** at § Approval record — Screen 6 `DialogDescription` gate
+  (2026-08-28), the fourth gate entry. **No design gate on this document is open.**
 - **Author:** Designer
 - **PRD:** `docs/product/prd-10-sensitive-data-handling.md` (**APPROVED** by the
   Project Owner, 2026-08-27, as amended — `## Amendment A` **and** `## Amendment B`,
   both ratified whole; 64 acceptance criteria, nothing renumbered)
-- **Approved by / date:** **Product Manager, 2026-08-27, at the original gate — and
-  Product Manager, 2026-08-27, at the amendment gate (corrections B1–B4, § Approval
-  record — amendment gate).** The original gate's record below is unchanged and describes
-  what that gate considered.
+- **Approved by / date:** **Product Manager, 2026-08-27, at the original gate; Product
+  Manager, 2026-08-27, at the amendment gate (corrections B1–B4, § Approval record —
+  amendment gate); Product Manager, 2026-08-28, at the inbound-verification withdrawal
+  gate (no corrections); and Product Manager, 2026-08-28, at the Screen 6
+  `DialogDescription` gate (no corrections, confirming a Designer self-certification).**
+  Each gate's record below is unchanged by the ones after it and describes what that gate
+  considered.
   Verified against PRD-10's 64 acceptance criteria as they stood before Amendment B:
   every UI-bearing criterion traces to a screen, state or flow; the UX Direction is
   honoured, including all seven of its "not the Designer's to decide" rulings; **no path
@@ -50,9 +60,8 @@
   criteria. See **§ Approval record (design gate)** at the end of this document for the
   coverage trace, the rulings on the four flagged design calls, the ten required
   corrections, the five non-blocking notes, and the three items carried forward to the
-  Principal Engineer — **all unchanged by, and pre-dating, the amendment below.** **The
-  amendment itself has not yet been approved** — see `## Amendment` and the Handoff's
-  Next Agent note.
+  Principal Engineer — **all unchanged by, and pre-dating, the amendments below.** Each
+  amendment's own approval is recorded in its own gate entry, listed above.
 
 > **Scope note.** #10 adds **no new page and no new navigation entry.** It extends
 > four existing surfaces: **(1)** the proxy create/edit form (`ProxyForm.vue`) gains
@@ -900,9 +909,10 @@ rendering separate state — see Screen 4b immediately below.
 ### Screen 4b — Proxy Show — Signing card (NEW) *(Amendment — added; displaces the
 per-destination surface Screens 5 and 6 carried pre-amendment. See `## Amendment`
 at the end of this document.)*
-Placement: alongside the Verification card (Screen 4), in the same card-stack
-position (pipeline/security cards, grouped together, before the destination-facing
-Destinations table). Same `Card` shape as every other Show-page card.
+Placement: immediately after the Destinations table and before Retry policy —
+the Verification card's former card-stack position *(Amendment — corrected; see
+`## Amendment — Screen 4b placement clause resolved (2026-08-28)` at the end of
+this document.)*. Same `Card` shape as every other Show-page card.
 
 ```
 Card
@@ -2263,8 +2273,13 @@ which were stale against ADR-025 Decision 2.
 
 **Author of this amendment:** Designer, in response to ADR-026 § *Documents*.
 
-**Status of this amendment: WRITTEN, awaiting Product Manager re-approval** — the same delegated
-design gate the two amendments above went through (`CLAUDE.md`: "design → product-manager").
+**Status of this amendment: APPROVED by the Product Manager on 2026-08-28, with no required
+corrections** — see § *Approval record — inbound-verification withdrawal gate (2026-08-28)*
+immediately below, the third, separate gate entry on this document. *(Pre-approval status line,
+retained: "**Status of this amendment: WRITTEN, awaiting Product Manager re-approval** — the same
+delegated design gate the two amendments above went through". On the "two amendments" count, see
+note N-D2 in that gate record: only one prior amendment went through this gate.)* The delegated
+design gate is `CLAUDE.md`'s ("design → product-manager").
 **The original design gate's record and the amendment gate's record above are both retained
 exactly as written and are not rewritten by this amendment** — they record what each of those
 gates considered, and neither considered this withdrawal, per `docs/standards/documentation.md`
@@ -2384,6 +2399,108 @@ nothing further is owed to the Principal Engineer beyond the screens and flows t
 withdraws or corrects; `plan-10` and `docs/tasks/sensitive-data-handling-tasks.md` are ADR-026's
 own concern, ruled there and not by this amendment.
 
+## Approval record — inbound-verification withdrawal gate (2026-08-28)
+
+**Approved by: Product Manager · 2026-08-28 · with no required corrections.**
+
+This is a **third, separate gate entry**, for `## Amendment — inbound verification withdrawn
+(2026-08-28)` only. **The original gate's record (§ *Approval record (design gate)*, ten corrections
+C1–C10) and the amendment gate's record (§ *Approval record — amendment gate (2026-08-27)*, four
+corrections B1–B4) are history and are not rewritten by this one.** Neither of them considered this
+withdrawal, and both remain readable as evidence of what they did consider.
+
+**Why this gate is unusually contained, and what it therefore asks.** The amendment only *withdraws*
+surfaces — Screen 1, Screen 4, Flow A, Flow B and Flow C — and specifies nothing new to build. Its
+substance is already approved by the Project Owner through
+`docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
+Decision B (Accepted, Project Owner, 2026-08-28), whose § *Owner-approval flags* records none
+outstanding, and through PRD-10 `## Amendment C`, which records that same ruling rather than
+proposing it. The question at this gate is therefore not whether the withdrawal is right — the Owner
+has ruled, and this gate cannot revisit that — but whether this document now renders the withdrawal
+completely, and whether anything that is still to be built depends on a surface the amendment
+removes. Four checks, below, and it passes all four.
+
+### Check 1 — the withdrawal is rendered everywhere it has to be read
+
+Five withdrawal markers are in place, each dated 2026-08-28 and each naming ADR-026 Decision B as
+its authority: Flow A, Flow B, Flow C, Screen 1's heading and Screen 4's heading. Each states that
+the section describes nothing to build and is retained as history rather than as a live surface,
+which is the correct treatment under `docs/standards/documentation.md` and this document's own
+practice of retaining approval records intact. Screen 3's two references to Screen 1 as the
+write-only field's shape precedent now state the shape directly, with a dated parenthetical pointing
+at the amendment — the behaviour Screen 3 describes is unchanged, exactly as ADR-026 required. The
+pure-insertion pointer above correction B2 is present in § *Approval record — amendment gate
+(2026-08-27)*, and it does not edit B2's own text. Flow G step 5 now names `WebhookProxy-Id`,
+`WebhookProxy-Timestamp` and `WebhookProxy-Signature` with the Standard Webhooks *value format*,
+which is what ADR-025 Decision 2 left standing. The inbound header-name copy inside Screen 1 is
+correctly left untouched, since it sits within a section withdrawn as a whole.
+
+### Check 2 — no surviving acceptance criterion loses its only surface
+
+The design gate's coverage trace was cross-checked against PRD-10 `## Amendment C`'s withdrawal set.
+Every criterion that trace placed on Screen 1, Screen 4, Flow A, Flow B or Flow C — **AC23, AC24,
+AC25, AC26, AC27, AC28, AC46, AC50, AC51, AC52 and AC53** — is a criterion Amendment C withdraws.
+The withdrawn-surface set and the withdrawn-criterion set coincide exactly; nothing is left
+surfaceless.
+
+The one criterion spanning both directions is **AC29**, which Amendment C narrows rather than
+withdraws. Its inbound half goes with Screen 1 and Flow B step 2. Its surviving half is Screen 6
+state 4 together with Flow H step 2, which this amendment leaves untouched in substance and which
+correction B2 itself required. That is a complete and sufficient discharge. § *Correction B2,
+restated for one surface* is approved as written and is the most load-bearing paragraph in the
+amendment: it is what stops a later reviewer or task-writer reading B2's original "on **both**
+surfaces" wording as an outstanding gap when only one surface exists. **AC55** and **AC60** sit on
+Screen 6, as do AC54 and AC56–AC58; **AC38, AC43, AC44 and AC64** carry no surface at all, by the
+design gate's own finding. None of them is touched by this withdrawal.
+
+### Check 3 — nothing still to be built depends on a withdrawn surface
+
+Live surfaces do still cite withdrawn ones as precedent: Screen 4b's "the same rotation line and
+action Screen 4 uses" and its `canUpdate` cross-reference, and Flow H's citations of Screen 1's C5
+note. None of these is a *content* dependency. Screen 4b states its own copy literally for every one
+of its states, and Flow H states its own disclosure; the citations carry rationale, not the text
+being built. The cited material is retained in place, unedited, under a marker that says
+unmistakably that it is not to be built. The references resolve, and they resolve to history that is
+labelled as history. Recorded as **note N-D1** below rather than as a required correction.
+
+### Check 4 — no requirement invented, none dropped silently
+
+The amendment renders ADR-026 § *Documents* and nothing beyond it, plus one factual correction (Flow
+G step 5) found in the same audit and disclosed as such. It adds no screen, no state, no flow and no
+member-facing copy. It raises no open question and answers none. Its own account of what it changed
+matches what the document now contains, section by section, including its statement that Screens 2,
+4b, 5, 6 and 7 and Flows D–I are unaffected — as qualified by the Screen 6 `DialogDescription`
+pointer it carries.
+
+### Notes (non-blocking)
+
+**(N-D1) Prose cross-references from live surfaces into withdrawn ones are left as they are.**
+ADR-026 named Screen 3's reference specifically and named no other, and re-pointing rationale prose
+on surfaces that have already shipped would buy no product effect while re-opening settled text. A
+reader who follows one of these references meets a dated withdrawal marker first, which is the
+outcome the marker exists to produce. One such reference was genuinely ambiguous rather than merely
+cosmetic — Screen 4b's placement clause, anchored on the withdrawn Verification card. The Designer
+has since settled it under separate cover at `## Amendment — Screen 4b placement clause resolved
+(2026-08-28)`. **This gate takes no view on that amendment, which is not before it**; it records only
+that the ambiguity that amendment settles originated here.
+
+**(N-D2) One factual slip in the amendment's own status line, corrected on the record rather than by
+edit.** The pre-approval status line called this gate "the same delegated design gate the two
+amendments above went through". Only **one** amendment above went through this gate: `## Amendment —
+outbound signing re-grained to the proxy (2026-08-27)`, approved 2026-08-27 with corrections B1–B4.
+`## Amendment — Screen 6 state 3's ordinary-branch disclosure (2026-08-28)` was self-certified by the
+Designer under the wording authority PRD-10 AC29 ruling 2a delegates and never came to this gate. The
+slip overstates how many prior gates exist and changes nothing about this one, so the amendment's
+text stands as written and the correct count is recorded here.
+
+### Handoff
+
+**Next Agent: none.** This gate closes; nothing is owed to the Designer, and nothing new is owed to
+the Principal Engineer, who already holds ADR-026's own rulings on `plan-10` and the task file.
+Review finding 9 (Minor) of `docs/reviews/review-10-sensitive-data-handling.md` is discharged by this
+record. The `docs/status.md` line describing design-10 as approved as amended is now accurate;
+maintaining that line is the Orchestrator's, not this document's.
+
 ## Amendment — Screen 6 DialogDescription inbound-verification claim withdrawn (2026-08-28)
 
 **What this settles.** Task **T49**'s manual verification pass over Flows D–I, walked in a real
@@ -2454,3 +2571,105 @@ record and amendment in this document, all of which remain history and are not r
 The only code change this amendment calls for is the `DialogDescription` string in
 `resources/js/components/ProxySigningDialog.vue` (T49 cites lines 266–272), replaced verbatim with
 the copy quoted above. No component structure, prop, state, or other copy in that file changes.
+
+## Approval record — Screen 6 `DialogDescription` gate (2026-08-28)
+
+**Approved by: Product Manager · 2026-08-28 · with no required corrections.**
+
+This is a **fourth, separate gate entry**, for `## Amendment — Screen 6 DialogDescription
+inbound-verification claim withdrawn (2026-08-28)` only. The three gate records above are history and
+are not rewritten by this one.
+
+**What this record is, and what it is not.** The Designer self-certified this amendment as a doc
+correction under `CLAUDE.md`'s routing ("doc corrections → the owning role updates the doc"), and the
+amendment states that it invites, but does not require, the Product Manager's scrutiny. That scrutiny
+is given here so that both open items on this document close in one pass. **This record confirms the
+self-certification; it does not reopen it.** The amendment took effect when it was written, not now,
+and the corrected copy was already implemented and verified on screen before this gate ran.
+
+**What was checked.**
+
+- **The removed clause was false, not merely stale.** It told a member that this product "can also
+  verify incoming requests" under the Standard Webhooks specification. ADR-026 Decision B removed
+  that capability from the product in full. Member-facing copy asserting a capability the product
+  does not have is a defect in the surface, and correcting it is right.
+- **The replacement copy keeps every claim that is still true and adds none that is not.** It states
+  what signing does for a destination, that one secret covers all of this proxy's destinations
+  including any added later — the proxy grain AC55 requires and AC63's default rests on — and that
+  the value format is the Standard Webhooks one. It claims that specification for the signature
+  **format** only and never for the header names, which is correct under ADR-025 Decision 2's rename
+  to `WebhookProxy-Id`, `WebhookProxy-Timestamp` and `WebhookProxy-Signature`. Copy reading "the
+  Standard Webhooks headers" would have reintroduced exactly the error Flow G step 5 carried and the
+  amendment above corrects.
+- **No acceptance criterion is reopened and no requirement is made.** Member-facing wording within
+  the UX Direction is the Designer's to choose; this amendment removes a claim the Owner's own ruling
+  had already eliminated at the product level and restates the remaining meaning.
+- **What ships matches what is specified.** `resources/js/components/ProxySigningDialog.vue`
+  lines 266–272 carry the amendment's quoted copy word for word, and Screen 6's own body carries the
+  corrected copy with a dated pointer to this amendment.
+- **The rest of the member-facing surface was swept for the same class of claim.** No other string
+  under `resources/js` asserts that this product verifies incoming requests. The remaining matches on
+  "verif" are email verification, passkeys, and the decoupled-response help text's example of a
+  static body a *sender* might expect — none of them a claim about inbound webhook verification.
+
+**Status of this amendment after this gate: APPROVED, confirming the Designer's self-certification.**
+
+### Handoff
+
+**Next Agent: none.** No code change follows from this gate — the copy it approves is already
+shipped. Nothing is owed to the Designer, the Principal Engineer or the Senior Developer.
+
+## Amendment — Screen 4b placement clause resolved (2026-08-28)
+
+**What this settles.** Review finding 6 of `docs/reviews/review-10-sensitive-data-handling.md` flagged
+that Screen 4b's placement clause — "alongside the Verification card (Screen 4), in the same
+card-stack position (pipeline/security cards, grouped together, before the destination-facing
+Destinations table)" — is no longer univocal. Screen 4 (the inbound Verification card) is withdrawn
+by `## Amendment — inbound verification withdrawn (2026-08-28)` above, so the clause's anchor no
+longer exists. The two halves of the clause point different directions: the shipped Signing card
+sits exactly where the Verification card used to sit (`proxies/Show.vue` order: Ingest URL →
+Response → Destinations → Signing → Retry policy), which satisfies "alongside the Verification
+card, in the same card-stack position" read literally against the pre-amendment baseline; it does
+not satisfy "before the destination-facing Destinations table," because Destinations preceded
+Verification in that same pre-amendment baseline (confirmed at `ffd2bd5~1`: Destinations →
+Verification → Signing). The parenthetical was never true of the card order this feature inherited.
+
+**Ruling.** The primary clause — position relative to the Verification card's former slot — is the
+operative instruction; the parenthetical was descriptive elaboration of that anchor's expected
+effect, not an independent requirement to reorder cards the anchor never touched. Since the anchor
+card's own pre-existing position never honoured the parenthetical, holding the parenthetical now
+would mean moving Signing (and implicitly Destinations) into an order no version of this product has
+shipped, on a Minor finding that no acceptance criterion touches and that has no functional
+consequence. Screen 4b's placement clause is corrected to describe what shipped: the Signing card
+sits immediately after Destinations and before Retry policy, in the Verification card's former
+card-stack position. This is a pure documentation correction. **It creates no code work** — the
+Senior Developer makes no change on account of this amendment.
+
+**Decision authority.** Card layout/placement is the Designer's decision within the PRD's UX
+direction (see this role's Decision authority in its own skill definition). This amendment resolves
+an ambiguity created when a different amendment withdrew the clause's anchor; it makes no requirement
+or technical decision and reopens no PRD-10 acceptance criterion.
+
+**Date:** 2026-08-28.
+
+**Author of this amendment:** Designer, in response to Review finding 6 (Minor).
+
+**Status of this amendment: self-certified by the Designer**, per `CLAUDE.md`'s routing for doc
+corrections ("doc corrections → the owning role updates the doc") — this corrects a placement clause
+against the product's actual, already-shipped card order; it is not a new decision and does not
+reopen the design gate.
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| Screen 4b, "Placement" | **Corrected** — now reads: the Signing card sits immediately after the Destinations table and before Retry policy, occupying the Verification card's former card-stack position; the withdrawn "before the destination-facing Destinations table" language is removed |
+
+**Not changed, and deliberately so:** every other line of Screen 4b (the States block, copy,
+gating); every other screen and flow in this document; PRD-10; `plan-10`; and every prior approval
+record and amendment in this document, all of which remain history and are not rewritten.
+
+### For the Senior Developer
+
+No code change. The shipped card order (Ingest URL → Response → Destinations → Signing → Retry
+policy) already matches the corrected placement clause; nothing in `proxies/Show.vue` moves.
