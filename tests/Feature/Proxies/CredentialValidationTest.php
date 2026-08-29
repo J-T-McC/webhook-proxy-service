@@ -108,6 +108,43 @@ class CredentialValidationTest extends TestCase
         $this->assertTrue($originalChangedAt->equalTo($fresh->credential_set_at));
     }
 
+    public function test_a_changed_header_name_with_a_blank_secret_persists_the_new_name_and_leaves_the_secret_and_changed_at_unchanged(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $destination = Destination::factory()->for($proxy)->createQuietly();
+        $destination->credential_header_name = 'Authorization';
+        $destination->credential_secret = 'original-secret';
+        $destination->credential_set_at = now();
+        $destination->save();
+        $originalChangedAt = $destination->credential_set_at;
+
+        $response = $this->actingAs($user)->put(
+            route('proxies.update', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]),
+            [
+                'name' => $proxy->name,
+                'mode' => 'simple',
+                'processing_mode' => 'async',
+                'destinations' => [
+                    [
+                        'id' => $destination->id,
+                        'url' => $destination->url,
+                        'http_method' => $destination->http_method->value,
+                        'credential_header_name' => 'X-Api-Key',
+                        'credential_secret' => '',
+                    ],
+                ],
+            ],
+        );
+
+        $response->assertRedirect();
+
+        $fresh = $destination->fresh();
+        $this->assertSame('X-Api-Key', $fresh->credential_header_name);
+        $this->assertSame('original-secret', $fresh->credential_secret);
+        $this->assertTrue($originalChangedAt->equalTo($fresh->credential_set_at));
+    }
+
     public function test_a_new_destination_row_added_this_session_persists_its_credential_exactly_like_a_replacement(): void
     {
         $user = $this->actingUser();

@@ -187,6 +187,24 @@
   "ProxyStoreTest|ProxyUpdateTest|ProxyRequestValidationTest|SensitiveFieldsPersistenceTest|CredentialValidationTest"`
   all green (78 tests, 253 assertions); full-suite run deferred to the end of this batch (T26-T33).
 
+  **Rework (review-10 finding 4).** `destinationCredentialAttributes()`'s blank-secret branch was a
+  total no-op, so an edited `credential_header_name` was silently discarded unless the secret was also
+  replaced — but `design-10` Screen 3 keeps the Header name input visible and editable in the
+  credential-set state, and `DestinationRows.vue`/`ProxyForm.vue` submit the edited value regardless.
+  Gave the method a `bool $hasExistingCredential` parameter (true only for an `update()` row matched to
+  an existing `Destination` whose `credential_set_at` is not null; the `store()` call site and the
+  new-row branch of `update()` always pass the `false` default, since neither has an existing credential
+  to preserve). The blank-secret branch now writes `credential_header_name` alone when
+  `$hasExistingCredential` is true and the submitted name is non-empty, leaving `credential_secret` and
+  `credential_set_at` untouched — a header-name-only edit does not count as (re)setting the credential,
+  so it does not bump `credential_set_at` and does not make the Show page's "Credential set — changed
+  {date}" line lie in either direction; only a non-empty secret still moves that date. A destination with
+  no credential yet still gets `[]` for a blank secret regardless of header name, so a row can still
+  never come to rest holding a header name with no secret. Added
+  `test_a_changed_header_name_with_a_blank_secret_persists_the_new_name_and_leaves_the_secret_and_changed_at_unchanged`
+  to `CredentialValidationTest`, alongside the existing same-name preservation test. `composer lint`,
+  `composer types:check`, and the full suite (`./vendor/bin/sail test --parallel`, 1019 tests) all green.
+
 ## T30 — Screen 3: `DestinationRows.vue` Credential disclosure (AC30, AC33; Flow F; plan § Architecture E)
 - **Description:** Each destination row gains a `Collapsible` — trigger label "Add credential" /
   "Credential: set", default **expanded** only when already set (flagged design call 2). Expanded

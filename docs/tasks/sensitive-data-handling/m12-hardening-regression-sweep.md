@@ -344,6 +344,16 @@ Flows A–C and folds in T44.
   `OutboundHeadersTest` (the AC37/AC63 byte-identical regressions) re-run green against the narrowed
   `STRIPPED_HEADERS` (T55); `composer lint` and `composer types:check` both clean.
 
+  **Rework (review-10 finding 8).** Two docblocks this sweep's own grep pass should have caught were
+  missed: `app/Pipeline/DeliveryUnit.php:57` and `app/Services/DeliveryUnitResolver.php:38` both still
+  described `$dispatchUuid` as the ingredient `OutboundHeaders` "derives `webhook-id`" from, after
+  T50's rename to `WebhookProxy-Id` — comment-only, no header of the old name is emitted anywhere any
+  more. Corrected both to name `WebhookProxy-Id`. `StandardWebhooks.php:51`'s `webhook-signature`
+  reference is unrelated and correct as written — it documents `verify()`, the receiver-side oracle,
+  where `webhook-signature` is the Standard Webhooks specification's own inbound name. `composer lint`,
+  `composer types:check`, and the full suite all green (no test asserts docblock text, so no test
+  needed updating).
+
   **Open observation for a future task, not a defect this pass acts on:** a soft-deleted destination
   row retains its `credential_secret` ciphertext, exactly as it retains its URL and method; no
   Acceptance Criterion or ruling requires a purge on removal, so this pass records the fact rather than

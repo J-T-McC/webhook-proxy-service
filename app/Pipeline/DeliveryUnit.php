@@ -54,7 +54,7 @@ final class DeliveryUnit
      * @param  array<string, list<string|null>>  $headers  inbound headers
      * @param  int  $deliveryId  the `deliveries` row this attempt belongs to (ADR-015 Decision 1)
      * @param  string  $dispatchUuid  the owning `Delivery`'s natural-key half (T34; ADR-023 Decision
-     *                                3) — with {@see self::$destination}'s id, derives `webhook-id`
+     *                                3) — with {@see self::$destination}'s id, derives `WebhookProxy-Id`
      *                                without a new column. Defaulted to `''` so every pre-#10
      *                                construction site (delivery-path tests unrelated to #10) stays
      *                                valid unchanged.

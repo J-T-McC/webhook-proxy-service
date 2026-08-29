@@ -238,7 +238,7 @@ class ProxyController extends Controller
                     $existing->update([
                         'url' => $row['url'],
                         'http_method' => $row['http_method'],
-                        ...$this->destinationCredentialAttributes($row),
+                        ...$this->destinationCredentialAttributes($row, $existing->credential_set_at !== null),
                     ]);
                     $keptIds[] = $existing->id;
 
@@ -395,19 +395,36 @@ class ProxyController extends Controller
 
     /**
      * The mass-assignable credential attributes for one destination row
-     * (AC30, AC33; T29) — `[]` (a no-op, preserving whatever is already
-     * stored) whenever no non-empty `credential_secret` was submitted for
-     * this row, matching binding constraint 8: a present-but-empty secret
-     * field never clears a stored secret. A non-empty secret always sets
-     * `credential_set_at` to the moment of this save, and defaults the
-     * header name to `Authorization` only as a defensive fallback — the
-     * form itself always supplies a header name once a secret is present
-     * (T29's own `required_with` validation rule).
+     * (AC30, AC33; T29). A non-empty `credential_secret` always replaces the
+     * secret, sets `credential_set_at` to the moment of this save, and
+     * writes the header name alongside it (defaulting to `Authorization`
+     * only as a defensive fallback — T29's own `required_with` validation
+     * rule normally guarantees a header name accompanies a secret).
+     *
+     * A blank `credential_secret` never touches the stored secret (binding
+     * constraint 8) — but design-10 Screen 3 keeps the header name field
+     * visible and editable even once a credential is set (its per-row
+     * states table's "Header name (editable)" row), so a changed name has
+     * to persist on its own. `$hasExistingCredential` (review-10 Finding 4)
+     * is how this method tells that case apart from a destination that has
+     * never had a credential: only when one is already stored does a
+     * blank-secret row write `credential_header_name` alone, leaving
+     * `credential_secret` and `credential_set_at` untouched — a
+     * header-name-only edit does not count as (re)setting the credential,
+     * so the Show page's "Credential set — changed {date}" line keeps
+     * reporting when the *secret* last changed, never the header name. A
+     * destination with no stored credential yet always gets `[]` for a
+     * blank secret regardless of header name, so a row can never come to
+     * rest holding a header name with no secret.
      *
      * @param  array{credential_header_name: string, credential_secret: string, remove_credential: bool}  $row
+     * @param  bool  $hasExistingCredential  whether this destination already has a credential
+     *                                       stored (review-10 Finding 4) — true only for an
+     *                                       `update()` row matched to an existing `Destination`
+     *                                       whose `credential_set_at` is not null.
      * @return array{credential_header_name?: string|null, credential_secret?: string|null, credential_set_at?: CarbonImmutable|null}
      */
-    private function destinationCredentialAttributes(array $row): array
+    private function destinationCredentialAttributes(array $row, bool $hasExistingCredential = false): array
     {
         // T31 (ruling 15) — checked first: validation's `prohibited_if`
         // already guarantees `credential_secret` is empty whenever this flag
@@ -424,6 +441,10 @@ class ProxyController extends Controller
         }
 
         if ($row['credential_secret'] === '') {
+            if ($hasExistingCredential && $row['credential_header_name'] !== '') {
+                return ['credential_header_name' => $row['credential_header_name']];
+            }
+
             return [];
         }
 

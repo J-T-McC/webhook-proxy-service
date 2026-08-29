@@ -35,7 +35,7 @@ use App\Pipeline\DeliveryUnit;
  *
  * Also carries `$delivery->dispatch_uuid` (T34; ADR-023 Decision 3) — with
  * the destination's id, the ingredients `OutboundHeaders` derives
- * `webhook-id` from at send time, needing no new column.
+ * `WebhookProxy-Id` from at send time, needing no new column.
  *
  * Asks `SecretStore` for the proxy's live `signing` secret set (T36; plan-10
  * Technical ruling 14) once per resolve, so `OutboundHeaders` (T34) has what

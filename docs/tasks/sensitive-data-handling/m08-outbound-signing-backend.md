@@ -76,6 +76,24 @@
   (43 tests, 151 assertions — confirming no regression on T26/T27/T28's existing coverage) all green;
   full-suite run deferred to the end of this batch (T34-T40).
 
+  **Rework (review-10 finding 5).** `build()`'s `withoutNames()` call only resolved a collision between
+  `$added` and the *forwarded* set (AC38/R9's stated hazard) — nothing resolved a collision *within*
+  `$added` itself, so a credential header named after a signing header produced either two headers of
+  the same name (different casing, both survive as distinct PHP array keys) or a silently dropped
+  credential (identical casing, the spread overwrites). Precedence rule decided and now enforced: a
+  signing header always wins a name collision with the credential header, case-insensitively — signing
+  headers carry AC58-AC60's structural guarantees, `credential_header_name`'s validation does not forbid
+  a `WebhookProxy-*` name, so the collision is only ever an accident (nothing invites it), never a
+  deliberate integration choice, and letting an arbitrary member-supplied name silently break or
+  duplicate the signature would be worse than dropping an oddly-named credential header. Implemented by
+  running the credential entry through the same `withoutNames()` helper against the signing headers'
+  keys before merging, reusing the existing collision mechanism rather than adding a new one; stated in
+  the class docblock, both at the top-level composition-order description and inline at the call site.
+  Added two tests to `OutboundHeadersSigningTest`: different-casing collision emits exactly one header
+  of that name, and identical-casing collision confirms the signature value wins (byte-identical to the
+  no-credential case) rather than the credential's literal value leaking into it.
+  `composer lint`, `composer types:check`, and the full suite all green.
+
 ## T35 — AC63 byte-identical regression, dedicated (AC63; plan § Test strategy, "the regression that matters most") — **delivery path**
 - **Description:** The signing-surface counterpart to T26's AC37 test, named separately per `plan-10`'s
   own instruction that this class of regression "must be its own named task" — a partial landing here

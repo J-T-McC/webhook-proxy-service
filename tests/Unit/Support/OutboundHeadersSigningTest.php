@@ -130,6 +130,41 @@ class OutboundHeadersSigningTest extends TestCase
     }
 
     #[Test]
+    public function a_credential_header_named_after_a_signing_header_in_different_casing_does_not_duplicate_the_header(): void
+    {
+        $unit = $this->unit();
+
+        $result = OutboundHeaders::build($unit, 'webhookproxy-signature', 'Bearer creds', ['whsec_secret']);
+
+        $names = array_keys($result);
+        $matching = array_filter($names, fn (string $name): bool => strtolower($name) === 'webhookproxy-signature');
+
+        $this->assertCount(1, $matching, 'exactly one header of that name, case-insensitively');
+        $this->assertStringStartsWith('v1,', $result['WebhookProxy-Signature']);
+    }
+
+    #[Test]
+    public function a_credential_header_named_identically_to_a_signing_header_does_not_silently_drop_the_credential(): void
+    {
+        $unit = $this->unit();
+
+        Carbon::setTestNow(Carbon::createFromTimestamp(1_700_000_000));
+        $withoutCredential = OutboundHeaders::build($unit, null, null, ['whsec_secret']);
+        $result = OutboundHeaders::build($unit, 'WebhookProxy-Signature', 'Bearer creds', ['whsec_secret']);
+        Carbon::setTestNow();
+
+        // The signing header wins the collision — the credential value never
+        // reaches the request, and the emitted signature is byte-identical
+        // to the unsigned-credential case, not the literal credential value.
+        $this->assertSame($withoutCredential['WebhookProxy-Signature'], $result['WebhookProxy-Signature']);
+        $this->assertNotSame('Bearer creds', $result['WebhookProxy-Signature']);
+        $this->assertCount(1, array_filter(
+            array_keys($result),
+            fn (string $name): bool => strtolower($name) === 'webhookproxy-signature',
+        ));
+    }
+
+    #[Test]
     public function an_inbound_webhook_signature_header_never_reaches_a_destination_as_the_proxys_own(): void
     {
         $unit = $this->unit(headers: [

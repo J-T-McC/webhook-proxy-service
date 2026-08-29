@@ -11,9 +11,15 @@ use App\Pipeline\DeliveryUnit;
  * (`DeliveryUnit::forwardHeaders()`), (2) the destination's credential
  * header sent verbatim with no scheme prefix added (AC30) plus the proxy's
  * Standard Webhooks signing headers (T34; one `v1,<sig>` entry per live
- * signing secret, AC58) when the proxy has a live `signing` secret set, (3)
- * displacing any forwarded header whose lowercased name collides with an
- * added one (AC38, AC64, R9), (4) merge.
+ * signing secret, AC58) when the proxy has a live `signing` secret set —
+ * a credential header whose lowercased name collides with one of the
+ * three signing headers is itself displaced by the signing header
+ * (review-10 Finding 5; nothing in `credential_header_name`'s validation
+ * forbids a `WebhookProxy-*` name, so this collision is only ever an
+ * accident, never an integration's deliberate choice, and the branded
+ * signing contract wins rather than being duplicated or silently
+ * dropped) — (3) displacing any forwarded header whose lowercased name
+ * collides with an added one (AC38, AC64, R9), (4) merge.
  *
  * `DeliveryUnit::STRIPPED_HEADERS` is deliberately untouched by this class
  * (plan-10 Implementation Note 4) — it is the fixed ADR-008/ADR-026 list,
@@ -49,7 +55,17 @@ final class OutboundHeaders
         }
 
         if ($signingSecrets !== []) {
-            $added = [...$added, ...self::signingHeaders($unit, $signingSecrets)];
+            $signing = self::signingHeaders($unit, $signingSecrets);
+
+            // A credential header named after one of this service's own
+            // signing headers is displaced by the signing header,
+            // case-insensitively — the same rule (3) below applies to the
+            // forwarded set, applied here within $added itself (review-10
+            // Finding 5). Without this, a same-cased collision would let the
+            // spread below silently drop the credential, and a
+            // differently-cased one would survive as a second PHP array key
+            // and emit two headers of the same name over the wire.
+            $added = [...self::withoutNames($added, array_keys($signing)), ...$signing];
         }
 
         $headers = self::withoutNames($unit->forwardHeaders(), array_keys($added));
