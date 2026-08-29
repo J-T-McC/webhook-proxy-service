@@ -405,9 +405,8 @@ useCanvasIllustration<ThemeVisuals, RenderState>({
 <template>
     <div class="flex flex-col items-center">
         <p class="sr-only">
-            A delivery is attempted, fails, and is retried after a wait that
-            grows each time. Once retries are exhausted it is marked terminally
-            failed, and can then be replayed by hand and delivered.
+            A delivery failing, retrying, failing for good, and then being
+            replayed.
         </p>
 
         <div

@@ -301,7 +301,7 @@ function computeGeometry(width: number, height: number): Geometry {
     // scaling everything down.
     const compact = width < 520;
     const nodeW = width * (compact ? 0.4 : 0.13);
-    const nodeH = height * (compact ? 0.12 : 0.14);
+    const nodeH = height * (compact ? 0.12 : 0.17);
 
     return {
         width,
@@ -339,7 +339,7 @@ function computeGeometry(width: number, height: number): Geometry {
         ],
         nodeW,
         nodeH,
-        junctionR: height * (compact ? 0.014 : 0.018),
+        junctionR: height * (compact ? 0.014 : 0.022),
         cornerR: Math.min(nodeW, nodeH) * 0.2,
     };
 }
@@ -954,14 +954,13 @@ useCanvasIllustration<ThemeVisuals, RenderState>({
 <template>
     <div class="flex flex-col items-center">
         <p class="sr-only">
-            The diagram alternates between two processing modes. Async delivers
-            an event to every destination at once. FIFO processes one event at a
-            time per proxy, in the order received.
+            One event fanning out to three destinations, alternating between
+            Async and FIFO.
         </p>
 
         <div
             ref="container"
-            class="mx-auto aspect-square w-full max-w-6xl overflow-hidden rounded-2xl border border-border sm:aspect-[2/1]"
+            class="mx-auto aspect-square w-full max-w-6xl overflow-hidden rounded-2xl border border-border sm:aspect-[5/2]"
         >
             <canvas
                 ref="canvas"
