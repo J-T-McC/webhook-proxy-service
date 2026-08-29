@@ -86,15 +86,34 @@ class EventQueueIndexTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('events.data.0.status', 'dispatched'));
     }
 
-    public function test_a_cleaned_events_status_is_expired_regardless_of_the_stored_column(): void
+    public function test_an_event_cleaned_before_it_ever_dispatched_reads_as_expired(): void
     {
         $user = $this->actingUser();
         $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
-        WebhookEvent::factory()->cleaned()->createQuietly(['proxy_id' => $proxy->id, 'team_id' => $proxy->team_id]);
+        WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'status' => WebhookEventStatus::Pending,
+        ]);
 
         $this->actingAs($user)
             ->get(route('events.index', ['current_team' => $user->currentTeam->slug]))
             ->assertInertia(fn (Assert $page) => $page->where('events.data.0.status', 'expired'));
+    }
+
+    public function test_an_event_cleaned_after_it_dispatched_still_reads_as_dispatched(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        WebhookEvent::factory()->cleaned()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+            'status' => WebhookEventStatus::Dispatched,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('events.index', ['current_team' => $user->currentTeam->slug]))
+            ->assertInertia(fn (Assert $page) => $page->where('events.data.0.status', 'dispatched'));
     }
 
     public function test_the_proxy_column_carries_name_and_paused_state_without_an_n_plus_one(): void

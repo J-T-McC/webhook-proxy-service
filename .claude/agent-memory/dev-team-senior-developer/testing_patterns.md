@@ -206,3 +206,8 @@ rules live in `docs/standards/testing.md`, not repeated here.
   `$hidden` guard), independently. Cheaper and less fragile than overriding `Route::bind()` for the
   parameter name to inject an eager-loaded instance into the real controller path, and proves the same
   two guards. Established for item #10 T48 (`SecretAbsenceSweepTest`).
+
+- `switchTeam()` (HasTeams) caches the `currentTeam` relation on the instance via `setRelation()`,
+  independent of the `current_team_id` FK column. Nulling that column with `forceFill()->save()` and
+  then re-reading `$user->currentTeam` on the SAME instance still returns the stale cached team — a
+  "no current team" test must call `$user->fresh()` (or `unsetRelation('currentTeam')`) before asserting.
