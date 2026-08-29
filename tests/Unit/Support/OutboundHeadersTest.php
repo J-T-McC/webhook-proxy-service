@@ -87,4 +87,52 @@ class OutboundHeadersTest extends TestCase
 
         $this->assertSame('Bearer abc123', $result['X-Api-Key']);
     }
+
+    // --- Delivery-loop guard hop counter (docs/briefs/delivery-loop-guard.md) ---
+
+    #[Test]
+    public function an_absent_inbound_hop_header_is_stamped_outbound_as_1(): void
+    {
+        $unit = $this->unit(['Content-Type' => ['application/json']]);
+
+        $result = OutboundHeaders::build($unit, null, null);
+
+        $this->assertSame('1', $result['WebhookProxy-Hops']);
+    }
+
+    #[Test]
+    public function an_inbound_hop_count_is_stamped_outbound_as_one_more(): void
+    {
+        $unit = $this->unit(['WebhookProxy-Hops' => ['2']]);
+
+        $result = OutboundHeaders::build($unit, null, null);
+
+        $this->assertSame('3', $result['WebhookProxy-Hops']);
+    }
+
+    #[Test]
+    public function a_non_numeric_inbound_hop_value_is_treated_as_0_and_stamped_outbound_as_1(): void
+    {
+        $unit = $this->unit(['WebhookProxy-Hops' => ['not-a-number']]);
+
+        $result = OutboundHeaders::build($unit, null, null);
+
+        $this->assertSame('1', $result['WebhookProxy-Hops']);
+    }
+
+    #[Test]
+    public function a_forwarded_inbound_hop_header_is_displaced_not_duplicated(): void
+    {
+        $unit = $this->unit([
+            'Content-Type' => ['application/json'],
+            'webhookproxy-hops' => ['2'],
+        ]);
+
+        $result = OutboundHeaders::build($unit, null, null);
+
+        $names = array_filter(array_keys($result), fn (string $name): bool => strtolower($name) === 'webhookproxy-hops');
+
+        $this->assertCount(1, $names, 'exactly one hop header, case-insensitively');
+        $this->assertSame('3', $result['WebhookProxy-Hops']);
+    }
 }
