@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Info } from '@lucide/vue';
+import { Info, RefreshCw, RefreshCwOff } from '@lucide/vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ReplayDialog from '@/components/ReplayDialog.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -196,17 +196,47 @@ function openReplay(event: WebhookEventListItem): void {
  * `router.reload` preserves scroll position and component state by default, so
  * a refresh neither throws the reader back to the top of a long list nor resets
  * the replay dialog's own refs.
- * Polling is skipped entirely while the tab is hidden or the replay dialog is
- * open — the first to avoid a background tab hammering the endpoint, the
- * second because refreshing the rows under an open dialog can change what the
- * user is about to act on.
+ * Polling is skipped while the tab is hidden and while the replay dialog is
+ * open — the first to avoid a background tab hammering the endpoint, the second
+ * because refreshing the rows under an open dialog can change what the user is
+ * about to act on.
+ *
+ * It runs on every page, not only the first. Past page 1 the list is ordered
+ * newest first, so an arriving event pushes older ones down and across page
+ * boundaries and the rows under the reader shift. That is offset pagination
+ * behaving normally rather than a defect, and the answer to it is the control
+ * below rather than a rule about which page may refresh: a reader who wants the
+ * list to hold still turns polling off.
+ *
+ * The preference lives in `sessionStorage`, so it survives navigation within the
+ * tab — including to another proxy's events and back — and is gone when the tab
+ * is closed. It is a per-reader viewing choice, not an account setting, so it
+ * deliberately does not persist further than that.
  */
 const POLL_INTERVAL_MS = 5000;
 
+const POLLING_STORAGE_KEY = 'proxy-events:polling';
+
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+const pollingEnabled = ref(
+    typeof sessionStorage === 'undefined' ||
+        sessionStorage.getItem(POLLING_STORAGE_KEY) !== 'off',
+);
+
+function togglePolling(): void {
+    pollingEnabled.value = !pollingEnabled.value;
+
+    if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(
+            POLLING_STORAGE_KEY,
+            pollingEnabled.value ? 'on' : 'off',
+        );
+    }
+}
+
 function pollEvents(): void {
-    if (document.hidden || replayDialogOpen.value) {
+    if (!pollingEnabled.value || document.hidden || replayDialogOpen.value) {
         return;
     }
 
@@ -229,9 +259,32 @@ onBeforeUnmount(() => {
     <Head :title="`Events for ${props.proxy.name}`" />
 
     <div class="mx-auto flex h-full w-full max-w-6xl flex-1 flex-col gap-6 p-4">
-        <h1 class="text-xl font-semibold">
-            Events for &ldquo;{{ props.proxy.name }}&rdquo;
-        </h1>
+        <div class="flex items-start justify-between gap-4">
+            <h1 class="text-xl font-semibold">
+                Events for &ldquo;{{ props.proxy.name }}&rdquo;
+            </h1>
+
+            <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                :aria-pressed="pollingEnabled"
+                :aria-label="
+                    pollingEnabled
+                        ? 'Turn off auto-refresh'
+                        : 'Turn on auto-refresh'
+                "
+                :title="
+                    pollingEnabled
+                        ? 'Auto-refreshing every 5 seconds'
+                        : 'Auto-refresh is off'
+                "
+                @click="togglePolling"
+            >
+                <RefreshCw v-if="pollingEnabled" class="size-4" />
+                <RefreshCwOff v-else class="size-4 text-muted-foreground" />
+            </Button>
+        </div>
 
         <Alert
             v-if="props.fifoHeldByRetry"
