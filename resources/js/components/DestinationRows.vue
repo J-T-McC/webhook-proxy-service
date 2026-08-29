@@ -120,7 +120,7 @@ const inputClass =
 
 <template>
     <fieldset class="grid gap-3">
-        <legend class="text-sm font-medium">Destinations</legend>
+        <legend class="text-base font-semibold">Destinations</legend>
         <p id="destinations-help" class="text-sm text-muted-foreground">
             The webhook is delivered to every destination below.
         </p>

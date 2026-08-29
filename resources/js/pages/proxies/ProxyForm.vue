@@ -295,72 +295,81 @@ function submit(): void {
         class="mx-auto w-full max-w-3xl"
         @submit.prevent="submit"
     >
-        <div class="space-y-6">
-            <!-- Details -->
-            <Card class="gap-6 p-6">
-                <h2 class="text-base font-semibold">Details</h2>
-                <div class="grid gap-2">
-                    <Label for="name">Name</Label>
-                    <Input
-                        id="name"
-                        v-model="form.name"
-                        type="text"
-                        placeholder="Stripe → billing services"
-                        :disabled="form.processing"
-                        :aria-invalid="form.errors.name ? 'true' : undefined"
-                        aria-describedby="name-error"
-                    />
-                    <span id="name-error">
-                        <InputError :message="form.errors.name" />
-                    </span>
-                </div>
-            </Card>
-
-            <!-- Response -->
-            <Card class="gap-6 p-6">
-                <h2 class="text-base font-semibold">Response</h2>
-                <div class="grid gap-2">
-                    <Label for="response_status">Status code</Label>
-                    <Select v-model="statusSelect" :disabled="form.processing">
-                        <SelectTrigger
-                            id="response_status"
-                            class="w-full sm:w-64"
+        <TooltipProvider>
+            <div class="space-y-6">
+                <!-- Details -->
+                <Card class="gap-6 p-6">
+                    <h2 class="text-base font-semibold">Details</h2>
+                    <div class="grid gap-2">
+                        <Label for="name">Name</Label>
+                        <Input
+                            id="name"
+                            v-model="form.name"
+                            type="text"
+                            placeholder="Stripe → billing services"
+                            :disabled="form.processing"
                             :aria-invalid="
-                                form.errors.response_status ? 'true' : undefined
+                                form.errors.name ? 'true' : undefined
                             "
-                            aria-describedby="response-status-help response-status-error"
-                        >
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem :value="STATUS_DEFAULT">
-                                {{ PROXY_RESPONSE_STATUS_DEFAULT_LABEL }}
-                            </SelectItem>
-                            <SelectItem
-                                v-for="status in PROXY_RESPONSE_STATUSES"
-                                :key="status.value"
-                                :value="status.value.toString()"
-                            >
-                                {{ status.label }}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <p
-                        id="response-status-help"
-                        class="text-sm text-muted-foreground"
-                    >
-                        Sent immediately, before delivery — independent of
-                        destination outcome.
-                    </p>
-                    <span id="response-status-error">
-                        <InputError :message="form.errors.response_status" />
-                    </span>
-                </div>
+                            aria-describedby="name-error"
+                        />
+                        <span id="name-error">
+                            <InputError :message="form.errors.name" />
+                        </span>
+                    </div>
+                </Card>
 
-                <div class="grid gap-2">
-                    <div class="flex items-center gap-2">
-                        <Label for="response_body">Body</Label>
-                        <TooltipProvider>
+                <!-- Response -->
+                <Card class="gap-6 p-6">
+                    <h2 class="text-base font-semibold">Response</h2>
+                    <div class="grid gap-2">
+                        <Label for="response_status">Status code</Label>
+                        <Select
+                            v-model="statusSelect"
+                            :disabled="form.processing"
+                        >
+                            <SelectTrigger
+                                id="response_status"
+                                class="w-full sm:w-64"
+                                :aria-invalid="
+                                    form.errors.response_status
+                                        ? 'true'
+                                        : undefined
+                                "
+                                aria-describedby="response-status-help response-status-error"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem :value="STATUS_DEFAULT">
+                                    {{ PROXY_RESPONSE_STATUS_DEFAULT_LABEL }}
+                                </SelectItem>
+                                <SelectItem
+                                    v-for="status in PROXY_RESPONSE_STATUSES"
+                                    :key="status.value"
+                                    :value="status.value.toString()"
+                                >
+                                    {{ status.label }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p
+                            id="response-status-help"
+                            class="text-sm text-muted-foreground"
+                        >
+                            Sent immediately, before delivery — independent of
+                            destination outcome.
+                        </p>
+                        <span id="response-status-error">
+                            <InputError
+                                :message="form.errors.response_status"
+                            />
+                        </span>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <div class="flex items-center gap-2">
+                            <Label for="response_body">Body</Label>
                             <Tooltip>
                                 <TooltipTrigger as-child>
                                     <Button
@@ -379,44 +388,42 @@ function submit(): void {
                                     </p>
                                 </TooltipContent>
                             </Tooltip>
-                        </TooltipProvider>
+                        </div>
+                        <Input
+                            id="response_body"
+                            v-model="form.response_body"
+                            type="text"
+                            placeholder="(empty)"
+                            :disabled="form.processing || bodyDisabled"
+                            :aria-invalid="
+                                form.errors.response_body ? 'true' : undefined
+                            "
+                            aria-describedby="response-body-help response-body-error"
+                        />
+                        <p
+                            id="response-body-help"
+                            class="text-sm text-muted-foreground"
+                        >
+                            Optional. Disabled when Status code is 204.
+                        </p>
+                        <span id="response-body-error">
+                            <InputError :message="form.errors.response_body" />
+                        </span>
                     </div>
-                    <Input
-                        id="response_body"
-                        v-model="form.response_body"
-                        type="text"
-                        placeholder="(empty)"
-                        :disabled="form.processing || bodyDisabled"
-                        :aria-invalid="
-                            form.errors.response_body ? 'true' : undefined
-                        "
-                        aria-describedby="response-body-help response-body-error"
-                    />
-                    <p
-                        id="response-body-help"
-                        class="text-sm text-muted-foreground"
-                    >
-                        Optional. Disabled when Status code is 204.
-                    </p>
-                    <span id="response-body-error">
-                        <InputError :message="form.errors.response_body" />
-                    </span>
-                </div>
-            </Card>
+                </Card>
 
-            <!-- Delivery -->
-            <Card class="gap-6 p-6">
-                <h2 class="text-base font-semibold">Delivery</h2>
+                <!-- Delivery -->
+                <Card class="gap-6 p-6">
+                    <h2 class="text-base font-semibold">Delivery</h2>
 
-                <fieldset class="grid gap-4">
-                    <legend class="text-sm font-medium">
-                        Mode and processing
-                    </legend>
+                    <fieldset class="grid gap-4">
+                        <legend class="text-sm font-medium">
+                            Mode and processing
+                        </legend>
 
-                    <div class="grid gap-2">
-                        <div class="flex items-center gap-2">
-                            <Label for="mode">Mode</Label>
-                            <TooltipProvider>
+                        <div class="grid gap-2">
+                            <div class="flex items-center gap-2">
+                                <Label for="mode">Mode</Label>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
                                         <Button
@@ -438,168 +445,182 @@ function submit(): void {
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>
-                            </TooltipProvider>
+                            </div>
+                            <Select
+                                v-model="form.mode"
+                                :disabled="form.processing"
+                            >
+                                <SelectTrigger
+                                    id="mode"
+                                    class="w-full sm:w-64"
+                                    :aria-invalid="
+                                        form.errors.mode ? 'true' : undefined
+                                    "
+                                    aria-describedby="mode-help mode-error"
+                                >
+                                    <SelectValue placeholder="Select a mode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="simple"
+                                        >Simple</SelectItem
+                                    >
+                                    <SelectItem value="enhanced">
+                                        Enhanced
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p
+                                id="mode-help"
+                                class="text-sm text-muted-foreground"
+                            >
+                                Enhanced stores what was actually dispatched and
+                                unlocks the retry settings below.
+                            </p>
+                            <span id="mode-error">
+                                <InputError :message="form.errors.mode" />
+                            </span>
                         </div>
-                        <Select v-model="form.mode" :disabled="form.processing">
-                            <SelectTrigger
-                                id="mode"
-                                class="w-full sm:w-64"
-                                :aria-invalid="
-                                    form.errors.mode ? 'true' : undefined
-                                "
-                                aria-describedby="mode-help mode-error"
+
+                        <!-- Downgrade disclosure (Enhanced → Simple edit only, AC13/AC14(c)) -->
+                        <div aria-live="polite">
+                            <Alert
+                                v-if="isDowngrading"
+                                class="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-100 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400"
                             >
-                                <SelectValue placeholder="Select a mode" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="simple">Simple</SelectItem>
-                                <SelectItem value="enhanced">
-                                    Enhanced
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p id="mode-help" class="text-sm text-muted-foreground">
-                            Enhanced stores what was actually dispatched and
-                            unlocks the retry settings below.
+                                <Info class="size-4" />
+                                <AlertTitle
+                                    >Switching to Simple mode</AlertTitle
+                                >
+                                <AlertDescription
+                                    class="text-blue-900 dark:text-blue-100"
+                                >
+                                    <ul class="list-disc space-y-1 pl-4">
+                                        <li>
+                                            Enhanced-only steps — payload
+                                            storage and retry configuration —
+                                            stop running for events processed
+                                            after you save. Automatic retry,
+                                            payload capture, retention, and
+                                            replay are unaffected; they apply to
+                                            every proxy regardless of mode.
+                                        </li>
+                                        <li>
+                                            Dispatched payloads already stored
+                                            for this proxy's past events are
+                                            kept, unchanged, and expire on their
+                                            normal 30-day schedule — the same as
+                                            always. Nothing is deleted by this
+                                            switch.
+                                        </li>
+                                        <li>
+                                            Any retry configuration you've saved
+                                            for this proxy is kept but stops
+                                            applying while it's Simple — the
+                                            system default ({{
+                                                defaultAttemptLimit
+                                            }}
+                                            attempts,
+                                            {{ defaultBackoffStrategyLower }})
+                                            governs meanwhile. It applies again,
+                                            with the same values, if you turn
+                                            Enhanced back on.
+                                        </li>
+                                    </ul>
+                                </AlertDescription>
+                            </Alert>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <Label for="processing_mode">Processing</Label>
+                            <Select
+                                v-model="form.processing_mode"
+                                :disabled="form.processing"
+                            >
+                                <SelectTrigger
+                                    id="processing_mode"
+                                    class="w-full sm:w-64"
+                                    :aria-invalid="
+                                        form.errors.processing_mode
+                                            ? 'true'
+                                            : undefined
+                                    "
+                                    aria-describedby="processing-help processing-error"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem
+                                        v-for="option in PROXY_PROCESSING_MODES"
+                                        :key="option.value"
+                                        :value="option.value"
+                                    >
+                                        {{ option.label }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p
+                                id="processing-help"
+                                class="text-sm text-muted-foreground"
+                            >
+                                Async (default) delivers in parallel, no order
+                                guaranteed. FIFO preserves order, at lower
+                                throughput. Set independently of Mode.
+                            </p>
+                            <span id="processing-error">
+                                <InputError
+                                    :message="form.errors.processing_mode"
+                                />
+                            </span>
+                        </div>
+                    </fieldset>
+
+                    <!-- Retry policy (enhanced mode only, Flow F) -->
+                    <fieldset v-if="isEnhanced" class="grid gap-4">
+                        <legend class="text-sm font-medium">
+                            Retry policy
+                        </legend>
+                        <p class="text-sm text-muted-foreground">
+                            Simple-mode proxies use the fixed default ({{
+                                defaultAttemptLimit
+                            }}
+                            attempts, {{ defaultBackoffStrategyLower }}).
                         </p>
-                        <span id="mode-error">
-                            <InputError :message="form.errors.mode" />
-                        </span>
-                    </div>
 
-                    <!-- Downgrade disclosure (Enhanced → Simple edit only, AC13/AC14(c)) -->
-                    <div aria-live="polite">
-                        <Alert
-                            v-if="isDowngrading"
-                            class="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-100 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400"
-                        >
-                            <Info class="size-4" />
-                            <AlertTitle>Switching to Simple mode</AlertTitle>
-                            <AlertDescription
-                                class="text-blue-900 dark:text-blue-100"
-                            >
-                                <ul class="list-disc space-y-1 pl-4">
-                                    <li>
-                                        Enhanced-only steps — payload storage
-                                        and retry configuration — stop running
-                                        for events processed after you save.
-                                        Automatic retry, payload capture,
-                                        retention, and replay are unaffected;
-                                        they apply to every proxy regardless of
-                                        mode.
-                                    </li>
-                                    <li>
-                                        Dispatched payloads already stored for
-                                        this proxy's past events are kept,
-                                        unchanged, and expire on their normal
-                                        30-day schedule — the same as always.
-                                        Nothing is deleted by this switch.
-                                    </li>
-                                    <li>
-                                        Any retry configuration you've saved for
-                                        this proxy is kept but stops applying
-                                        while it's Simple — the system default
-                                        ({{ defaultAttemptLimit }} attempts,
-                                        {{ defaultBackoffStrategyLower }})
-                                        governs meanwhile. It applies again,
-                                        with the same values, if you turn
-                                        Enhanced back on.
-                                    </li>
-                                </ul>
-                            </AlertDescription>
-                        </Alert>
-                    </div>
-
-                    <div class="grid gap-2">
-                        <Label for="processing_mode">Processing</Label>
-                        <Select
-                            v-model="form.processing_mode"
-                            :disabled="form.processing"
-                        >
-                            <SelectTrigger
-                                id="processing_mode"
-                                class="w-full sm:w-64"
+                        <div class="grid gap-2">
+                            <Label for="retry_attempt_limit">Attempts</Label>
+                            <Input
+                                id="retry_attempt_limit"
+                                v-model="form.retry_attempt_limit"
+                                type="number"
+                                min="1"
+                                max="10"
+                                class="w-full sm:w-32"
+                                :disabled="form.processing"
                                 :aria-invalid="
-                                    form.errors.processing_mode
+                                    form.errors.retry_attempt_limit
                                         ? 'true'
                                         : undefined
                                 "
-                                aria-describedby="processing-help processing-error"
+                                aria-describedby="retry-attempt-limit-help retry-attempt-limit-error"
+                            />
+                            <p
+                                id="retry-attempt-limit-help"
+                                class="text-sm text-muted-foreground"
                             >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem
-                                    v-for="option in PROXY_PROCESSING_MODES"
-                                    :key="option.value"
-                                    :value="option.value"
+                                Default {{ defaultAttemptLimit }}. Max 10.
+                            </p>
+                            <span id="retry-attempt-limit-error">
+                                <InputError
+                                    :message="form.errors.retry_attempt_limit"
+                                />
+                            </span>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <div class="flex items-center gap-2">
+                                <Label for="retry_backoff_strategy"
+                                    >Backoff strategy</Label
                                 >
-                                    {{ option.label }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p
-                            id="processing-help"
-                            class="text-sm text-muted-foreground"
-                        >
-                            Async (default) delivers in parallel, no order
-                            guaranteed. FIFO preserves order, at lower
-                            throughput. Set independently of Mode.
-                        </p>
-                        <span id="processing-error">
-                            <InputError
-                                :message="form.errors.processing_mode"
-                            />
-                        </span>
-                    </div>
-                </fieldset>
-
-                <!-- Retry policy (enhanced mode only, Flow F) -->
-                <fieldset v-if="isEnhanced" class="grid gap-4">
-                    <legend class="text-sm font-medium">Retry policy</legend>
-                    <p class="text-sm text-muted-foreground">
-                        Simple-mode proxies use the fixed default ({{
-                            defaultAttemptLimit
-                        }}
-                        attempts, {{ defaultBackoffStrategyLower }}).
-                    </p>
-
-                    <div class="grid gap-2">
-                        <Label for="retry_attempt_limit">Attempts</Label>
-                        <Input
-                            id="retry_attempt_limit"
-                            v-model="form.retry_attempt_limit"
-                            type="number"
-                            min="1"
-                            max="10"
-                            class="w-full sm:w-32"
-                            :disabled="form.processing"
-                            :aria-invalid="
-                                form.errors.retry_attempt_limit
-                                    ? 'true'
-                                    : undefined
-                            "
-                            aria-describedby="retry-attempt-limit-help retry-attempt-limit-error"
-                        />
-                        <p
-                            id="retry-attempt-limit-help"
-                            class="text-sm text-muted-foreground"
-                        >
-                            Default {{ defaultAttemptLimit }}. Max 10.
-                        </p>
-                        <span id="retry-attempt-limit-error">
-                            <InputError
-                                :message="form.errors.retry_attempt_limit"
-                            />
-                        </span>
-                    </div>
-
-                    <div class="grid gap-2">
-                        <div class="flex items-center gap-2">
-                            <Label for="retry_backoff_strategy"
-                                >Backoff strategy</Label
-                            >
-                            <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
                                         <Button
@@ -620,61 +641,61 @@ function submit(): void {
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>
-                            </TooltipProvider>
-                        </div>
-                        <Select
-                            v-model="retryStrategySelect"
-                            :disabled="form.processing"
-                        >
-                            <SelectTrigger
-                                id="retry_backoff_strategy"
-                                class="w-full sm:w-64"
-                                :aria-invalid="
-                                    form.errors.retry_backoff_strategy
-                                        ? 'true'
-                                        : undefined
-                                "
-                                aria-describedby="retry-backoff-strategy-error"
+                            </div>
+                            <Select
+                                v-model="retryStrategySelect"
+                                :disabled="form.processing"
                             >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem :value="RETRY_STRATEGY_DEFAULT">
-                                    {{ RETRY_STRATEGY_DEFAULT_LABEL }}
-                                </SelectItem>
-                                <SelectItem
-                                    v-for="strategy in PROXY_RETRY_BACKOFF_STRATEGIES"
-                                    :key="strategy.value"
-                                    :value="strategy.value"
+                                <SelectTrigger
+                                    id="retry_backoff_strategy"
+                                    class="w-full sm:w-64"
+                                    :aria-invalid="
+                                        form.errors.retry_backoff_strategy
+                                            ? 'true'
+                                            : undefined
+                                    "
+                                    aria-describedby="retry-backoff-strategy-error"
                                 >
-                                    {{ strategy.label }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <span id="retry-backoff-strategy-error">
-                            <InputError
-                                :message="form.errors.retry_backoff_strategy"
-                            />
-                        </span>
-                    </div>
-                </fieldset>
-            </Card>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem :value="RETRY_STRATEGY_DEFAULT">
+                                        {{ RETRY_STRATEGY_DEFAULT_LABEL }}
+                                    </SelectItem>
+                                    <SelectItem
+                                        v-for="strategy in PROXY_RETRY_BACKOFF_STRATEGIES"
+                                        :key="strategy.value"
+                                        :value="strategy.value"
+                                    >
+                                        {{ strategy.label }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <span id="retry-backoff-strategy-error">
+                                <InputError
+                                    :message="
+                                        form.errors.retry_backoff_strategy
+                                    "
+                                />
+                            </span>
+                        </div>
+                    </fieldset>
+                </Card>
 
-            <Card class="gap-6 p-6">
-                <!-- Sensitive fields (Screen 2; AC12, AC13, AC19, C4, N4) -->
-                <fieldset class="grid gap-4">
-                    <legend class="text-sm font-medium">
-                        Sensitive fields
-                    </legend>
-                    <p class="text-sm text-muted-foreground">
-                        Hidden wherever this proxy's payloads are shown. Storage
-                        and delivery are unaffected.
-                    </p>
+                <Card class="gap-6 p-6">
+                    <!-- Sensitive fields (Screen 2; AC12, AC13, AC19, C4, N4) -->
+                    <fieldset class="grid gap-4">
+                        <legend class="text-base font-semibold">
+                            Sensitive fields
+                        </legend>
+                        <p class="text-sm text-muted-foreground">
+                            Hidden wherever this proxy's payloads are shown.
+                            Storage and delivery are unaffected.
+                        </p>
 
-                    <div class="grid gap-2">
-                        <div class="flex items-center gap-2">
-                            <p class="text-sm font-medium">Always hidden</p>
-                            <TooltipProvider>
+                        <div class="grid gap-2">
+                            <div class="flex items-center gap-2">
+                                <p class="text-sm font-medium">Always hidden</p>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
                                         <Button
@@ -694,100 +715,104 @@ function submit(): void {
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>
-                            </TooltipProvider>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <Badge
-                                v-for="name in defaultSensitiveFieldNames"
-                                :key="name"
-                                variant="secondary"
-                            >
-                                {{ name }}
-                            </Badge>
-                        </div>
-                    </div>
-
-                    <div class="grid gap-2">
-                        <p class="text-sm font-medium">
-                            Also hidden for this proxy
-                        </p>
-                        <div
-                            v-if="form.sensitive_fields.length > 0"
-                            class="flex flex-wrap gap-2"
-                        >
-                            <Badge
-                                v-for="(name, index) in form.sensitive_fields"
-                                :key="`${name}-${index}`"
-                                variant="outline"
-                                class="gap-1 pr-1.5"
-                            >
-                                {{ name }}
-                                <button
-                                    type="button"
-                                    class="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    :aria-label="`Remove ${name}`"
-                                    :disabled="form.processing"
-                                    @click="removeSensitiveField(index)"
-                                >
-                                    <X class="size-3" />
-                                </button>
-                            </Badge>
-                        </div>
-
-                        <div class="flex gap-2">
-                            <div class="grid flex-1 gap-1">
-                                <Label
-                                    for="sensitive-field-add"
-                                    class="sr-only"
-                                >
-                                    Add field name
-                                </Label>
-                                <Input
-                                    id="sensitive-field-add"
-                                    v-model="sensitiveFieldInput"
-                                    type="text"
-                                    placeholder="e.g. ssn_last4"
-                                    :disabled="form.processing"
-                                    aria-describedby="sensitive-fields-error"
-                                    @keydown.enter.prevent="addSensitiveField"
-                                />
                             </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                :disabled="form.processing"
-                                @click="addSensitiveField"
-                            >
-                                Add
-                            </Button>
+                            <div class="flex flex-wrap gap-2">
+                                <Badge
+                                    v-for="name in defaultSensitiveFieldNames"
+                                    :key="name"
+                                    variant="secondary"
+                                >
+                                    {{ name }}
+                                </Badge>
+                            </div>
                         </div>
-                        <span id="sensitive-fields-error">
-                            <InputError
-                                :message="form.errors.sensitive_fields"
-                            />
-                        </span>
-                    </div>
-                </fieldset>
-            </Card>
 
-            <!-- Destinations -->
-            <Card class="gap-6 p-6">
-                <DestinationRows
-                    v-model="form.destinations"
-                    :errors="form.errors"
-                    :disabled="form.processing"
-                />
-                <InputError :message="form.errors.destinations" />
-            </Card>
-        </div>
+                        <div class="grid gap-2">
+                            <p class="text-sm font-medium">
+                                Also hidden for this proxy
+                            </p>
+                            <div
+                                v-if="form.sensitive_fields.length > 0"
+                                class="flex flex-wrap gap-2"
+                            >
+                                <Badge
+                                    v-for="(
+                                        name, index
+                                    ) in form.sensitive_fields"
+                                    :key="`${name}-${index}`"
+                                    variant="outline"
+                                    class="gap-1 pr-1.5"
+                                >
+                                    {{ name }}
+                                    <button
+                                        type="button"
+                                        class="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        :aria-label="`Remove ${name}`"
+                                        :disabled="form.processing"
+                                        @click="removeSensitiveField(index)"
+                                    >
+                                        <X class="size-3" />
+                                    </button>
+                                </Badge>
+                            </div>
 
-        <div class="mt-6 flex items-center gap-3">
-            <Button type="submit" :disabled="form.processing">
-                {{ submitLabel }}
-            </Button>
-            <Button variant="ghost" as-child>
-                <Link :href="cancelHref">Cancel</Link>
-            </Button>
-        </div>
+                            <div class="flex gap-2">
+                                <div class="grid flex-1 gap-1">
+                                    <Label
+                                        for="sensitive-field-add"
+                                        class="sr-only"
+                                    >
+                                        Add field name
+                                    </Label>
+                                    <Input
+                                        id="sensitive-field-add"
+                                        v-model="sensitiveFieldInput"
+                                        type="text"
+                                        placeholder="e.g. ssn_last4"
+                                        :disabled="form.processing"
+                                        aria-describedby="sensitive-fields-error"
+                                        @keydown.enter.prevent="
+                                            addSensitiveField
+                                        "
+                                    />
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    :disabled="form.processing"
+                                    @click="addSensitiveField"
+                                >
+                                    Add
+                                </Button>
+                            </div>
+                            <span id="sensitive-fields-error">
+                                <InputError
+                                    :message="form.errors.sensitive_fields"
+                                />
+                            </span>
+                        </div>
+                    </fieldset>
+                </Card>
+
+                <!-- Destinations -->
+                <Card class="gap-6 p-6">
+                    <DestinationRows
+                        v-model="form.destinations"
+                        :errors="form.errors"
+                        :disabled="form.processing"
+                    />
+                    <InputError :message="form.errors.destinations" />
+                </Card>
+            </div>
+
+            <div class="mt-6 flex items-center gap-3">
+                <Button type="submit" :disabled="form.processing">
+                    {{ submitLabel }}
+                </Button>
+                <Button variant="ghost" as-child>
+                    <Link :href="cancelHref">Cancel</Link>
+                </Button>
+            </div>
+        </TooltipProvider>
     </form>
 </template>

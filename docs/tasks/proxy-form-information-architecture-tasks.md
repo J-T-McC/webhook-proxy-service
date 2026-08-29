@@ -657,7 +657,42 @@
   above are required in addition to `pnpm format:check`, not skipped. `pnpm build` is included because
   a hoisted `TooltipProvider` is exactly the kind of structural change a type-check and lint pass do
   not fully exercise at runtime.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29).
+  - **Heading weight (Finding 1).** Changed exactly two `legend`s to `class="text-base
+    font-semibold"`: the Sensitive fields `legend` in `ProxyForm.vue` (now at line 688) and the
+    Destinations `legend` in `DestinationRows.vue` (line 123). `DestinationRows.vue`'s diff is the
+    single class edit only — confirmed via `git diff` — `id="destinations-help"`, every row's
+    `aria-describedby="destinations-help"`, the help paragraph copy, row rendering, add/remove
+    handling, the Credential subsection and its two copy sentences, `v-model` bindings and
+    validation are all untouched. The Delivery card's two nested `legend`s ("Mode and processing"
+    line 420, "Retry policy" line 579) were not touched and remain `class="text-sm font-medium"`.
+  - **Shared `TooltipProvider` (Finding 2).** Removed the four per-tooltip `TooltipProvider`s
+    (previously wrapping Response Body, Mode, Backoff strategy, and Always hidden individually) and
+    added one `TooltipProvider` wrapping the `<form>`'s content, from immediately inside the opening
+    `<form>` tag to immediately before its closing tag. Each `Tooltip`/`TooltipTrigger`/
+    `TooltipContent` triple, its trigger `Button`, `aria-label`, and `TooltipContent` copy are
+    unchanged — confirmed by diffing the file with all lines' leading whitespace stripped: the only
+    content-level changes are the `TooltipProvider` add/removes and the one legend class edit above;
+    every other line in the diff is Prettier re-wrapping at a shifted indentation depth (the whole
+    card stack now sits one level deeper inside the added `TooltipProvider`), not a copy, binding,
+    or attribute change.
+  - Ran `pnpm format` once to let Prettier re-flow the reindented template, then verified
+    `pnpm format:check` clean afterward — no hand-adjusted indentation.
+  - Gates: `pnpm types:check` 0 errors; `pnpm format:check` clean; scoped `npx eslint
+    resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue` 0 errors;
+    `pnpm build` (host) succeeds. No backend file changed — no backend gate re-run, per this task's
+    own Testing note.
+  - **Left for the manual/browser pass** (no Playwright access in this session): the 360px visual
+    re-check that Sensitive fields' and Destinations' headings now read at the same size and weight
+    as Details/Response/Delivery's `h2`s and visibly distinct from the two Delivery-nested
+    sub-headings; and confirming at runtime that all four tooltips still open on Tab-focus and hover
+    and close on blur/Escape, and that moving focus or the pointer directly from one tooltip's
+    trigger to another's no longer re-incurs the full open delay (Reka's shared
+    `delayDuration`/`skipDelayDuration` grouping — a runtime timing behavior a static/type/lint pass
+    cannot exercise).
+  - Nothing here turned out wrong against the ruling — both files' post-edit state matches
+    `## Amendment` Ruling 1 exactly, and T6's criterion is understood as corrected by this task's own
+    AC (one presentational class edit permitted in `DestinationRows.vue`, not zero-diff).
 
 ## Handoff
 
