@@ -22,9 +22,9 @@ export interface ProxyDeliveryStateOption extends DataOption<string> {
  * spent), so it renders as "Terminally failed", never a transient failure.
  */
 export const PROXY_DELIVERY_STATUSES = [
-    { value: 'succeeded', label: 'Delivered', variant: 'secondary' },
-    { value: 'retrying', label: 'Retrying', variant: 'outline' },
-    { value: 'pending', label: 'Retrying', variant: 'outline' },
+    { value: 'succeeded', label: 'Delivered', variant: 'moved' },
+    { value: 'retrying', label: 'Retrying', variant: 'waiting' },
+    { value: 'pending', label: 'Retrying', variant: 'waiting' },
     { value: 'failed', label: 'Terminally failed', variant: 'destructive' },
 ] as const satisfies readonly ProxyDeliveryStateOption[];
 
@@ -64,8 +64,8 @@ export function proxyDeliveryStatusIsTerminal(
  * aggregated, since the row itself is not a delivery.
  */
 export const PROXY_AGGREGATE_DELIVERY_STATES = [
-    { value: 'delivered', label: 'Delivered', variant: 'secondary' },
-    { value: 'retrying', label: 'Retrying', variant: 'outline' },
+    { value: 'delivered', label: 'Delivered', variant: 'moved' },
+    { value: 'retrying', label: 'Retrying', variant: 'waiting' },
     { value: 'failed', label: 'Failed', variant: 'destructive' },
 ] as const satisfies readonly ProxyDeliveryStateOption[];
 

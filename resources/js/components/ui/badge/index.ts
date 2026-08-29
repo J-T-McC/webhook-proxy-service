@@ -16,6 +16,20 @@ export const badgeVariants = cva(
          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
           "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+        // Status variants. Colour on a badge means state, never configuration:
+        // `waiting` for work that has not moved yet, `moved` for work that has.
+        // A proxy's mode or processing strategy is a setting and stays neutral,
+        // so a hue on screen is always something happening.
+        waiting:
+          "border-transparent bg-status-waiting text-status-waiting-foreground",
+        moved:
+          "border-transparent bg-status-moved text-status-moved-foreground",
+        // A qualifier on something else — a paused proxy named beside its own
+        // events — rather than that row's own state. Carries the waiting hue so
+        // the association is obvious, at an outline's weight so it never
+        // out-shouts the status column it sits next to.
+        waitingOutline:
+          "border-status-waiting-strong/40 text-status-waiting-strong",
       },
     },
     defaultVariants: {

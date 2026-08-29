@@ -122,7 +122,7 @@ const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
                                 </Link>
                                 <Badge
                                     v-if="event.proxy.paused"
-                                    variant="outline"
+                                    variant="waitingOutline"
                                 >
                                     Paused
                                 </Badge>
