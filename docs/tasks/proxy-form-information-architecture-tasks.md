@@ -533,7 +533,46 @@
     finding above), it is updated here, and the update — which test, what changed, why — is recorded in
     this task's completion notes.
 - **Testing:** as listed above; this task is itself the final verification step. No task follows it.
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Full regression sweep, no source file changed by this
+  task.
+  - `composer lint`: passed. `composer types:check` (PHPStan level 7): passed, 0 errors. Confirmed
+    via `git diff main..HEAD --stat` (excluding `.vue`/task-doc files) that zero backend files
+    changed across the entire feature branch — this restructure touched no PHP file at any point.
+  - `./vendor/bin/sail test --parallel` (full suite): **1019/1019 passed, 4818 assertions**, in
+    8.5s. This is the branch's own baseline (no prior suite count was recorded for this feature to
+    diff against, since it added no test and no backend file) — recorded here as the number the
+    Reviewer can diff future changes against.
+  - `pnpm types:check` (vue-tsc): 0 errors. `pnpm format:check`: clean. Scoped `npx eslint
+    resources/js/pages/proxies/ProxyForm.vue resources/js/components/DestinationRows.vue`: 0
+    errors. Confirmed the full `pnpm lint:check` run's errors are all rooted outside
+    `resources/js`/`app` (stale `.claude/worktrees/agent-*` checkouts per this project's known
+    gotcha) by grepping its output for `ProxyForm`/`DestinationRows` — no match.
+  - `pnpm build` (host, not Sail): succeeded, no compile errors.
+  - **The plan's central claim — verified true, not assumed:** grepped all six named test files
+    (`SecretAbsenceSweepTest.php`, `ProxyUpdateTest.php`, `ProxyControllerPagePropsTest.php`,
+    `CredentialRemovalTest.php`, `ProxyRetryFieldPresentationAcceptanceTest.php`,
+    `ProxyIndexShowTest.php`) for `assertSee`/`assertDontSee`/`->component(...)` and every literal
+    copy string this feature cut or changed ("A name to recognise this proxy.", "Case and
+    separators don't matter", "Leave blank to use the default", "Applies to automatic
+    re-attempts", "Response status code", "Response body"). Every `->component(...)` call asserts
+    only the Inertia page-component name (`proxies/Edit`/`Create`/`Index`/`Show`), never markup or
+    copy; `ProxyUpdateTest`'s one `assertDontSee` checks a leaked-secret value, unrelated to this
+    feature's copy. A repo-wide `grep -rl` for every changed/cut copy string across `tests/`
+    returned no matches at all. **No existing test needed updating — the plan's finding holds.**
+  - Manual end-to-end verification was **not performed with a browser** — no Playwright/browser
+    tool is available to this agent (confirmed with the Orchestrator mid-task). What a browser pass
+    still needs to check, left for the Reviewer/QA gate: submitting a valid Create/Edit form still
+    redirects/persists exactly as before; submitting an invalid form still moves focus to the first
+    `[aria-invalid="true"]` field; the Enhanced/Simple retry discard-and-reseed and the
+    204-forces-empty-body watcher still fire (both are pure `computed`/`watch` logic, untouched by
+    this restructure — verified by reading `<script setup>`, unchanged across every commit in this
+    feature); sensitive-field add/remove and every destination row's add/remove/credential
+    Replace/Remove flow still work (same reasoning — `DestinationRows.vue` has zero diff, and the
+    sensitive-fields handlers were not touched); and the four Tooltip triggers open on Tab-focus/
+    hover and close on blur/Escape (reka-ui `Tooltip` behaviour, not custom code — same primitive
+    already used unmodified in `teams/Edit.vue`).
+  This feature is ready for Reviewer handoff, with the browser-only checks above named explicitly
+  as outstanding rather than claimed.
 
 ## Handoff
 
