@@ -4,8 +4,13 @@
   ruling, quoted verbatim in § *The product position this ADR renders*, recorded here rather than
   proposed here. See § *Owner-approval flags (✋)*, which carries no outstanding item and explains
   why the data-model change it would ordinarily gate is already approved by the words of the ruling.
+  - **Amended 2026-08-29 — see § *Amendment A*: `design-17` was re-based, not withdrawn.** The
+    amendment corrects one entry in § *Impact → Documents*, rules on the Owner-directed sign-off
+    gate that entry had recorded as lapsed, and corrects one sentence about `docs/status.md`.
+    **No decision in this ADR changes**, no superseded position is disturbed, no constraint is
+    altered and no approval is reopened. The walk is in § *Amendment A*, ruling A3.
 - **Author:** Principal Engineer
-- **Date:** 2026-08-28
+- **Date:** 2026-08-28 (amended 2026-08-29 — see § *Amendment A*)
 - **Feature:** cross-cutting. There is no PRD behind this ADR. It removes a capability that
   PRD-10 introduced and that ADR-022 designed, and it completes a header-policy change that ADR-025
   began, because the product position below changes what this service is for.
@@ -737,7 +742,11 @@ it. Neither is edited here.
   surfaces, now has one surface. Its signing half (Screen 6 state 4, Flow H step 2) stands. Its
   inbound half goes with Screen 1.
 
-**Withdrawn entirely, and neither is amended because neither was ever approved:**
+**Withdrawn entirely, and not amended, because it was never approved:**
+
+*(Amended 2026-08-29 — Amendment A. This list originally held two withdrawn documents. `design-17`
+is no longer one of them; it was re-based rather than withdrawn, and it now has its own entry below.
+PRD-16's withdrawal is unchanged and its bullet stands exactly as written.)*
 
 - **`docs/product/prd-16-configurable-inbound-verification.md`** — Draft, 54 acceptance criteria, a
   member-configurable template model for inbound verification. **It is withdrawn, not amended.**
@@ -745,12 +754,6 @@ it. Neither is edited here.
   construction for a capability the product no longer has. Withdrawing a Draft PRD is the Product
   Manager's act, and the substance of the withdrawal is not in question — the ADR records that the
   document's entire subject is removed.
-- **`design-17`**, the proxy-form restructure on branch `design/proxy-form-restructure` — a
-  mid-revision, never-approved design written against PRD-16 and its feasibility study. **It is
-  withdrawn, not amended**, for the same reason and by the Designer. It also carried an
-  Owner-directed extra gate, a Principal Engineer technical sign-off on the design; that gate lapses
-  with the document and no sign-off is owed. The branch is not on this tree and nothing here edits
-  it.
 - **`docs/architecture/prd-16-template-model-feasibility.md` is retained**, and is mine to rule on.
   It keeps its filename and its twenty-one provider findings, which are ADR-025 Decision 1's and
   Decision A's evidence base and are about verification **constructions**, not about the template
@@ -758,8 +761,51 @@ it. Neither is edited here.
   be marked so, and the numbered questions it routed to the Product Manager lapse with PRD-16. A
   short status note on the study is the only edit it needs.
 
-**`docs/status.md`** needs the item #10 row updated and rows for ADR-026 and for the withdrawal of
-PRD-16 and design-17. That is the Orchestrator's upkeep and is not done here.
+**Re-based against this ADR rather than withdrawn — the Designer's act, recorded here.**
+
+*(Added 2026-08-29 — Amendment A, replacing this document's original entry in the withdrawn list
+above, which said `design-17` was withdrawn. It was not.)*
+
+- **`design-17`**, the proxy-form restructure on branch `design/proxy-form-restructure`. This ADR
+  originally recorded it as withdrawn alongside PRD-16, on the reasoning that it was a
+  mid-revision, never-approved design written against PRD-16 and its feasibility study. The Project
+  Owner directed on 2026-08-29 that it be re-based instead, and the Designer carried that out in
+  commit `6c6bdb9` on that branch, which also carries `main` merged in at `a9d6ca2` and therefore
+  contains the shipped item #10. **The document is alive, and its status stays Draft** — an
+  unapproved proposal awaiting a Project Owner ruling, with nothing in it authorized. The branch is
+  still not on this tree; this ADR reads it at `6c6bdb9` and edits nothing on it.
+  - **What was deleted** is the PRD-16-dependent material, and only that: the "Webhook secret" copy
+    table, `## The Inbound control — from two schemes to a template model`, and
+    `## Custom-template entry UX`. The re-basing removed 578 lines against 294 added, taking the
+    document from 823 lines to 539.
+  - **What was kept, untouched,** is everything that never depended on PRD-16 and that answers the
+    Owner's original "too jumbled and overwhelming" brief: the five-container grouping in pipeline
+    order, the copy-rewrite pass for Details, Delivery, Sensitive fields and Destinations, and the
+    form-wide `## Rule: form copy vs. tooltip vs. cut`. None of it turns on whether inbound
+    verification exists.
+  - **One rename follows Decision B.** The grouping proposal's container 2 is renamed from "Inbound"
+    to "Response", because with Verification removed the container holds only the synchronous
+    response. Five containers and the pipeline-order placement stand.
+  - **Three of its four Open Questions are closed.** Questions 1 and 2 are ruled **moot rather than
+    reopened**: each presupposed a live scheme choice on a Verification control that Decision B
+    removes outright, which is a stronger outcome than either question's own "if PRD-16 is declined"
+    contingency anticipated. Question 4 is closed because `design-16` will never be written.
+  - **Question 3 stays open, routed to the Product Manager**, because it crosses into the approved
+    `design-10`: whether renaming the form's "Verification" legend also renames the proxy Show
+    page's card. The Designer's finding — that merged `main` has no "Verification" card on the Show
+    page at all, `design-10`'s own amendment having withdrawn Screen 4 in full, leaving only
+    "Signing" — is recorded there as a finding and not as a ruling on another role's document. That
+    is the right boundary, and this ADR does not rule it either.
+  - **The Owner-directed Principal Engineer technical sign-off on the design is ruled in
+    § *Amendment A*, ruling A2.** The original entry said the gate lapsed with the document; with
+    the document alive that no longer follows on its own, so it is ruled on its own merits there
+    rather than inherited.
+
+**`docs/status.md`** needs the item #10 row updated, a row for ADR-026, a row for the withdrawal of
+PRD-16, and a row for `design-17` recording it as **re-based and still Draft — not withdrawn**.
+*(Amended 2026-08-29 — Amendment A. The original sentence asked for rows "for the withdrawal of
+PRD-16 and design-17"; half of that is no longer what happened.)* That is the Orchestrator's upkeep
+and is not done here.
 
 ### The existing task plan — what stands, what narrows, what is wasted
 
@@ -850,3 +896,102 @@ schema. No backfill runs, and no default is written to any existing row.
 Decision A and not carried here as a question: **a forwarded `Authorization` or `Cookie` header
 reaches every destination of the proxy.** It is stated in full at § *Decision A*, in the terms an
 objection would use, and ruled as instructed.
+
+---
+
+## Amendment A (2026-08-29): `design-17` was re-based, not withdrawn
+
+The Project Owner directed on 2026-08-29 that `design-17`, the proxy-form restructure, be re-based
+against this ADR instead of withdrawn with PRD-16, and the Designer carried that out in commit
+`6c6bdb9` on branch `design/proxy-form-restructure`. This ADR had recorded the document as
+withdrawn. That entry is now false, and it is corrected in § *Impact → Documents*, where the
+document's own entry now sits.
+
+This amendment exists because a document this ADR declared dead is alive, and because one obligation
+was recorded as lapsing with it. Three rulings follow from that, and nothing else in this ADR is
+touched.
+
+### A1. Ruling — the entry stands on its own, in neither list it might have joined
+
+Neither existing list describes it honestly, so it gets its own entry.
+
+The **"Amended by this ADR"** list holds `plan-10`, a document of mine to which this ADR directs a
+specific revision. Nothing here directs anything about `design-17`: the re-basing was the Designer's
+act on the Owner's direction, not a consequence of this ADR being worked out, and this ADR has no
+authority over a design specification in any case. The **"Withdrawn entirely"** list is now about
+PRD-16 alone. PRD-16's bullet is untouched; its withdrawal is not in question and nothing in this
+amendment bears on it.
+
+The separate entry also lets the record say the awkward thing plainly, which neither list would
+allow. `design-17` is a never-approved proposal that lost roughly a third of its content and kept
+the rest. It is not a clean amendment, because a third of it was deleted rather than revised. It is
+not a withdrawal, because what remains is the substance the Owner commissioned in the first place.
+Filing it as either would mislead a reader who has to decide later what standing the document has.
+
+### A2. Ruling — the Principal Engineer technical sign-off stays lapsed, and only the Project Owner can reinstate it
+
+The original entry said the gate "lapses with the document and no sign-off is owed." That reasoning
+died with the withdrawal it rested on. The gate is therefore ruled again here, on its merits rather
+than by inheritance.
+
+**It stays lapsed. No Principal Engineer technical sign-off is owed on `design-17` as it now
+stands, and I am not asking for one.** Three reasons:
+
+1. **The material that would have needed an engineer's read is exactly the material that was
+   deleted.** The gate attached to a document proposing a member-facing template model for
+   expressing verification constructions, a custom-template entry UX, and an editable header-name
+   field — a design with real technical shape, which is why an extra technical gate on it made
+   sense. Decision B removed the capability all of that described, and the re-basing removed the
+   design for it. What remains is container grouping, ordering and copy.
+2. **What remains proposes no technical decision.** Every control it proposes reuses an
+   already-shipped primitive; it proposes no data-model change, no API change and no dispatch-time
+   behaviour change; and its own Handoff records its dependencies as "none, technical or otherwise."
+   I have read the document at `6c6bdb9` and I agree with that characterisation. A sign-off on it
+   would certify nothing that is not already true of the shipped form.
+3. **The re-based document does not carry the gate.** Its Handoff routes to the Product Manager and
+   names no Principal Engineer sign-off anywhere. Nothing is outstanding and no role is waiting on
+   me.
+
+**If the Project Owner wants the sign-off back, it is theirs to reinstate, and I will carry it.**
+The gate was Owner-directed. I can rule that none is owed on the current text and decline to invent
+one, but I cannot re-create an Owner's gate on their behalf any more than I could discharge one on
+their behalf. This paragraph is here so that a later reader does not read A2 as the gate being
+quietly dropped: it is ruled lapsed, on stated grounds, and one sentence from the Owner reverses it.
+
+Two things this ruling does **not** say. It does not say `design-17` needs no approval — it needs
+the Project Owner's ruling to be anything at all, and the design gate that `CLAUDE.md` delegates to
+the Product Manager is unaffected by this amendment. And it does not offer the ordinary pipeline as
+a substitute for the Owner's gate: if the proposal is accepted, the implementation is planned by me
+in the normal way, which is engineering involvement by structure, not a gate discharged early.
+Should the amendments to the approved specs turn out to have a technical shape the current text does
+not show, that routes to me as a question document rather than reviving a gate.
+
+### A3. Ruling — no decision in this ADR is affected
+
+`design-17` is downstream of this ADR and was never an input to it. It appears here only in
+§ *Impact → Documents*, which records what this ADR's decisions do to other documents; a consequence
+is not a premise. Walked one by one, so that "considered, not overlooked" is checkable:
+
+- **Decision A** — the outbound strip list reducing to `host`, `content-length` and the RFC 7230
+  §6.1 hop-by-hop set. Unaffected. `design-17` says nothing about outbound headers.
+- **Decision B** — the complete removal set for inbound verification. Unaffected. The re-based
+  `design-17` is *consistent* with Decision B, deleting its Verification material and renaming the
+  container that held it, but consistency is not influence: had the Designer withdrawn the document
+  instead, not one word of Decision B would read differently.
+- **Decisions 3, 4, 5 and 6** — the `SecretStore` boundary, the migration, the Standard Webhooks
+  construction, and the sequencing and build order. Unaffected. None of them has a surface
+  `design-17` touches, and the removal they specify is already built and merged.
+- **§ *Positions superseded*** — unaffected. Every superseded position belongs to ADR-008, ADR-022,
+  ADR-023 or ADR-025, and none of those documents cites `design-17`.
+- **§ *Constrained, carried forward*** — unaffected. All eight constraints are code-level and hold
+  exactly as written.
+- **§ *Owner-approval flags (✋)*** — **still none outstanding.** The data-model change this ADR
+  makes is approved by the words of the Owner's ruling, as recorded there. This amendment adds no
+  flag: it corrects a record and rules a lapsed gate, and neither is a decision to put to the Owner.
+- **§ *Evidence base*, and the retention of `prd-16-template-model-feasibility.md`** — unaffected.
+  The study is still retained, for the reason already given.
+
+The only thing that changes beyond `design-17`'s own entry is the `docs/status.md` sentence in
+§ *Impact → Documents*, which asked the Orchestrator for a row recording a withdrawal that did not
+happen. It is corrected in place. `docs/status.md` itself is the Orchestrator's upkeep and is not
+edited here.
