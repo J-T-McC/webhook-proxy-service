@@ -15,9 +15,10 @@ use Lorisleiva\Actions\Concerns\AsAction;
  *      An unexpired claim is left untouched. An `awaiting_retry` row has no lease
  *      and is structurally invisible to this pass — never reaped.
  *  (b) Idle-proxy nudge — for each distinct proxy with ≥1 `pending` row, no live
- *      claim, AND no `awaiting_retry` row (held, not idle), dispatches exactly one
- *      {@see AdvanceProxyFifoQueue} to restart its line (covers a self-dispatch that
- *      was dropped by the WithoutOverlapping reducer).
+ *      claim, no `awaiting_retry` row (held, not idle), AND not paused (item #15,
+ *      Q-15-01(1) — a paused proxy is held by the pause, not idle), dispatches
+ *      exactly one {@see AdvanceProxyFifoQueue} to restart its line (covers a
+ *      self-dispatch that was dropped by the WithoutOverlapping reducer).
  *  (c) Stuck-hold release — an `awaiting_retry` row whose dispatch has zero
  *      non-terminal `deliveries` left (the crash window between a
  *      `DeliverToDestination` execution — attempt 1 or a retry, ADR-020 Decision
@@ -48,9 +49,15 @@ class SweepStalledFifoDispatches
 
         // (b) Nudge idle proxies: distinct proxy_id with >=1 pending row, no live
         // claim, and no held (awaiting_retry) row. One dispatch per proxy (not per
-        // pending row).
+        // pending row). Item #15, Q-15-01(1): a paused proxy sits in exactly this
+        // shape (pending, no claim, no hold) and must NOT be treated as idle —
+        // without this exclusion the nudge would silently lift the pause within
+        // one tick.
         $proxyIds = FifoDispatch::query()
             ->where('status', FifoDispatchStatus::Pending)
+            ->whereNotIn('proxy_id', function ($query): void {
+                $query->select('id')->from('proxies')->whereNotNull('paused_at');
+            })
             ->whereNotIn('proxy_id', function ($query) use ($now): void {
                 $query->select('proxy_id')
                     ->from('fifo_dispatches')

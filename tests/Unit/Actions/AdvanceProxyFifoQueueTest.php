@@ -137,6 +137,57 @@ class AdvanceProxyFifoQueueTest extends TestCase
         AdvanceProxyFifoQueue::assertNotPushed();
     }
 
+    public function test_does_not_claim_or_dispatch_for_a_paused_proxy(): void
+    {
+        // Item #15, Q-15-01(2): a paused proxy's rows must never be claimed.
+        Queue::fake();
+        Http::fake();
+
+        [$proxy, $dispatches] = $this->fifoProxyWithPending(2);
+        // `paused_at` is deliberately not mass-assignable (only the pause action
+        // writes it) — forceFill stands in for that action here.
+        $proxy->forceFill(['paused_at' => now()])->save();
+
+        AdvanceProxyFifoQueue::run($proxy->id);
+
+        $this->assertSame(FifoDispatchStatus::Pending, $dispatches[0]->fresh()->status);
+        $this->assertSame(FifoDispatchStatus::Pending, $dispatches[1]->fresh()->status);
+        Http::assertNothingSent();
+        AdvanceProxyFifoQueue::assertNotPushed();
+    }
+
+    public function test_resuming_a_paused_proxy_drains_its_backlog_in_the_same_order_it_would_have_used(): void
+    {
+        // AC5: order derives from the atomic claim, not from timing — a proxy
+        // paused for a while drains in the same order it would have.
+        Queue::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        [$proxy, $dispatches] = $this->fifoProxyWithPending(3);
+        $proxy->forceFill(['paused_at' => now()->subDays(7)])->save();
+
+        // While paused, repeated advancer attempts (e.g. a stray self-dispatch
+        // or sweeper nudge racing the pause) claim nothing.
+        AdvanceProxyFifoQueue::run($proxy->id);
+        $this->assertSame(FifoDispatchStatus::Pending, $dispatches[0]->fresh()->status);
+
+        $proxy->forceFill(['paused_at' => null])->save();
+
+        foreach (['evt-1', 'evt-2', 'evt-3'] as $position => $expectedIngestId) {
+            AdvanceProxyFifoQueue::run($proxy->id);
+            $this->drainQueuedDeliveries();
+
+            $settled = $dispatches[$position]->fresh();
+            $this->assertSame(FifoDispatchStatus::Settled, $settled->status);
+            $this->assertDatabaseHas('delivery_attempts', ['ingest_id' => $expectedIngestId]);
+        }
+
+        $this->assertSame(
+            ['evt-1', 'evt-2', 'evt-3'],
+            DeliveryAttempt::orderBy('id')->pluck('ingest_id')->all(),
+        );
+    }
+
     public function test_the_claim_commits_before_the_outbound_delivery_fires(): void
     {
         Queue::fake();
