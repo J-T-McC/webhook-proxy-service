@@ -10,8 +10,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * One rotating secret for a proxy (ADR-021 Decision 2) — verification or
- * signing. `App\Services\SecretStore` is the single reader and writer of this
+ * One rotating secret for a proxy (ADR-021 Decision 2) — outbound signing,
+ * the only purpose remaining after ADR-026 Decision B removed inbound
+ * verification. `App\Services\SecretStore` is the single reader and writer of this
  * table (plan-10 Technical ruling 14); no other class queries `proxy_secrets`
  * directly. `value` is `encrypted` at rest and additionally `$hidden`, so an
  * accidental eager-load into a resource still never serializes a plaintext

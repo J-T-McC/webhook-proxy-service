@@ -11,8 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *
  * Carries the credential's status fields (T30; AC30, AC33) directly — never
  * the value, never its length. This rides on `DestinationResource` itself
- * rather than the sibling `security` prop: unlike verification/signing
- * status (SecretStore-derived, plan-10 Technical ruling 3), the credential
+ * rather than the sibling `security` prop: unlike signing status
+ * (SecretStore-derived, plan-10 Technical ruling 3), the credential
  * is a plain column on `destinations`, and the Edit form (the only consumer
  * of these three keys) already receives this resource's live-only
  * destinations through `ProxyFormResource`. The Show page's Destinations

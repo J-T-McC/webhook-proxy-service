@@ -106,8 +106,10 @@ export interface ProxyDestination {
  * them even if submitted). `credential_replacing`/`credential_removed` are
  * local UI-only state (T30's per-row Replace click, T31's Remove credential
  * click — distinct from `credential_secret` itself, since a proxy can have
- * many destination rows unlike Screen 1's single verification secret) —
- * neither is read server-side; `remove_credential` (the real, submitted
+ * many destination rows unlike the proxy's single outbound signing secret,
+ * Screen 6, ADR-026 having withdrawn the inbound verification secret this
+ * comment once compared against) — neither is read server-side;
+ * `remove_credential` (the real, submitted
  * signal T31 derives from `credential_removed` at submit time, plan-10
  * § Revision A technical ruling 15) is added by `ProxyForm.vue`'s
  * `transform()`, not carried on this type, since it is never part of the
