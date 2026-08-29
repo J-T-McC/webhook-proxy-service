@@ -162,7 +162,10 @@ function confirmDelete(): void {
                                 >
                                     {{ proxy.name }}
                                 </Link>
-                                <Badge v-if="proxy.paused_at" variant="outline">
+                                <Badge
+                                    v-if="proxy.paused_at"
+                                    variant="waitingOutline"
+                                >
                                     Paused
                                 </Badge>
                             </div>

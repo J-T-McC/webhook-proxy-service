@@ -20,8 +20,8 @@ export interface WebhookQueueStatusOption extends DataOption<string> {
  * `payload_cleaned_at`.
  */
 export const WEBHOOK_QUEUE_STATUSES = [
-    { value: 'pending', label: 'Pending', variant: 'outline' },
-    { value: 'dispatched', label: 'Dispatched', variant: 'secondary' },
+    { value: 'pending', label: 'Pending', variant: 'waiting' },
+    { value: 'dispatched', label: 'Dispatched', variant: 'moved' },
     { value: 'expired', label: 'Expired', variant: 'outline' },
 ] as const satisfies readonly WebhookQueueStatusOption[];
 

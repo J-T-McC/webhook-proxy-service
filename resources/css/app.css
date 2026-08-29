@@ -58,6 +58,12 @@
     --color-muted: var(--muted);
     --color-muted-foreground: var(--muted-foreground);
 
+    --color-brand: var(--brand);
+    --color-brand-accent: var(--brand-accent);
+    --color-status-waiting: var(--status-waiting);
+    --color-status-waiting-foreground: var(--status-waiting-foreground);
+    --color-status-moved: var(--status-moved);
+    --color-status-moved-foreground: var(--status-moved-foreground);
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
 
@@ -119,8 +125,8 @@
     --card-foreground: hsl(0 0% 3.9%);
     --popover: hsl(0 0% 100%);
     --popover-foreground: hsl(0 0% 3.9%);
-    --primary: hsl(0 0% 9%);
-    --primary-foreground: hsl(0 0% 98%);
+    --primary: var(--brand);
+    --primary-foreground: hsl(0 0% 100%);
     --secondary: hsl(0 0% 92.1%);
     --secondary-foreground: hsl(0 0% 9%);
     --muted: hsl(0 0% 96.1%);
@@ -131,7 +137,7 @@
     --destructive-foreground: hsl(0 0% 98%);
     --border: hsl(0 0% 92.8%);
     --input: hsl(0 0% 89.8%);
-    --ring: hsl(0 0% 3.9%);
+    --ring: var(--brand);
     --chart-1: hsl(12 76% 61%);
     --chart-2: hsl(173 58% 39%);
     --chart-3: hsl(197 37% 24%);
@@ -152,8 +158,25 @@
        the app UI palette above stays greyscale by design and is untouched.
        Light values are deeper and less luminous than dark so they hold contrast
        against a white field instead of blooming out. */
-    --illustration-from: hsl(258 72% 54%);
-    --illustration-to: hsl(190 82% 42%);
+    --illustration-from: var(--brand);
+    --illustration-to: var(--brand-accent);
+
+    /* The product's two brand hues. Violet carries identity — primary
+       actions, focus rings, the active nav item. Cyan carries motion: a
+       dispatch in flight on the landing canvases, a dispatched event in the
+       queue. They were already the illustration accents and nothing else;
+       promoting them is what stops the app reading as an unstyled install.
+
+       Status hues below are a separate axis and mean one thing each: amber
+       waits, cyan moved, grey is inert, red failed. Configuration — a proxy's
+       mode, its processing strategy — deliberately gets none of them, so a
+       colour on screen always means state rather than setting. */
+    --brand: hsl(258 72% 54%);
+    --brand-accent: hsl(190 82% 42%);
+    --status-waiting: hsl(38 95% 30%);
+    --status-waiting-foreground: hsl(38 96% 97%);
+    --status-moved: hsl(190 88% 26%);
+    --status-moved-foreground: hsl(190 92% 97%);
 }
 
 .dark {
@@ -163,8 +186,8 @@
     --card-foreground: hsl(0 0% 98%);
     --popover: hsl(0 0% 3.9%);
     --popover-foreground: hsl(0 0% 98%);
-    --primary: hsl(0 0% 98%);
-    --primary-foreground: hsl(0 0% 9%);
+    --primary: var(--brand);
+    --primary-foreground: hsl(258 90% 10%);
     --secondary: hsl(0 0% 14.9%);
     --secondary-foreground: hsl(0 0% 98%);
     --muted: hsl(0 0% 16.08%);
@@ -175,7 +198,7 @@
     --destructive-foreground: hsl(0 0% 98%);
     --border: hsl(0 0% 14.9%);
     --input: hsl(0 0% 14.9%);
-    --ring: hsl(0 0% 83.1%);
+    --ring: var(--brand);
     --chart-1: hsl(220 70% 50%);
     --chart-2: hsl(160 60% 45%);
     --chart-3: hsl(30 80% 55%);
@@ -193,8 +216,17 @@
 
     /* Landing-illustration accents — brighter and more saturated than light,
        since they sit on a near-black field and carry the bloom. */
-    --illustration-from: hsl(258 90% 68%);
-    --illustration-to: hsl(190 95% 58%);
+    --illustration-from: var(--brand);
+    --illustration-to: var(--brand-accent);
+
+    /* Brighter and more saturated than light: these sit on a near-black
+       field and carry the bloom. */
+    --brand: hsl(258 90% 68%);
+    --brand-accent: hsl(190 95% 58%);
+    --status-waiting: hsl(38 96% 62%);
+    --status-waiting-foreground: hsl(38 90% 10%);
+    --status-moved: hsl(190 95% 58%);
+    --status-moved-foreground: hsl(190 90% 10%);
 }
 
 @layer base {
