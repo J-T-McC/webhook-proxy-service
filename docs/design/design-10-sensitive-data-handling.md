@@ -1036,15 +1036,19 @@ Dialog
   DialogHeader
     DialogTitle "Signing for {proxy.name}"
     DialogDescription "Lets every destination this proxy dispatches to verify
-      that a dispatch really came from this proxy, using the same Standard
-      Webhooks specification this product can also verify incoming requests
-      under. One secret is used for all of this proxy's destinations,
-      including any added later."
+      that a dispatch really came from this proxy, using the Standard Webhooks
+      specification's signature format. One secret is used for all of this
+      proxy's destinations, including any added later."
   [state block — see States]
   DialogFooter
     DialogClose as-child → Button variant="ghost" "Close"
     [state-dependent primary action(s) — see States]
 ```
+
+**This `DialogDescription` copy is corrected** *(Amendment — corrected 2026-08-28; the withdrawn
+clause claimed this product can also verify incoming requests under the same specification, a
+capability ADR-026 Decision B removed in full; see `## Amendment — Screen 6 DialogDescription
+inbound-verification claim withdrawn (2026-08-28)` at the end of this document)*.
 
 **States.**
 1. **Not enabled (default for every proxy today, AC63):**
@@ -2282,7 +2286,11 @@ itself.
 | Flow G step 5 | Corrected: the copy read "carries the Standard Webhooks signature headers"; the header **names** are this product's own (`WebhookProxy-Id`, `WebhookProxy-Timestamp`, `WebhookProxy-Signature`, per ADR-025 Decision 2, standing under ADR-026) and only the **value format** remains the Standard Webhooks one. See § *The Flow G step 5 correction* below. |
 
 **Not changed, and deliberately so:** Screens 2, 4b, 5, 6 and 7, and Flows D, E, F, G (beyond the
-one line above), H and I, per ADR-026 § *Documents*: "unaffected." Every AC12–AC22, AC30–AC39 and
+one line above), H and I, per ADR-026 § *Documents*: "unaffected." **This statement, made here about
+Screen 6's states and behaviour, missed one line of Screen 6's own copy — its `DialogDescription`
+carried a stale inbound-verification claim under the same Decision B this amendment renders; that
+is corrected separately, dated the same day, at `## Amendment — Screen 6 DialogDescription
+inbound-verification claim withdrawn (2026-08-28)` below.** Every AC12–AC22, AC30–AC39 and
 AC54–AC64 UI consequence stands exactly as the amendment gate above left it. **Screen 6 state 4
 and Flow H step 2 — the signing half of correction B2 — are untouched in substance**; only their
 status as the *sole* surviving surface for AC29's ruling-2a disclosure is newly true, and that is
@@ -2375,3 +2383,74 @@ routing instruction directly, with no requirement gap and no feasibility doubt. 
 nothing further is owed to the Principal Engineer beyond the screens and flows this amendment
 withdraws or corrects; `plan-10` and `docs/tasks/sensitive-data-handling-tasks.md` are ADR-026's
 own concern, ruled there and not by this amendment.
+
+## Amendment — Screen 6 DialogDescription inbound-verification claim withdrawn (2026-08-28)
+
+**What this settles.** Task **T49**'s manual verification pass over Flows D–I, walked in a real
+browser against a production build, found that Screen 6 (Manage proxy signing dialog)'s
+`DialogDescription` — rendered verbatim in `resources/js/components/ProxySigningDialog.vue`,
+confirmed on screen in both themes at 360px — still told the member this product's signing lets a
+destination verify a dispatch "using the same Standard Webhooks specification this product can also
+verify incoming requests under." That clause claims a live inbound-verification capability. **ADR-026
+Decision B** (`docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`,
+Accepted, Project Owner, 2026-08-28) removed that capability from the product in full: "inbound
+verification is removed from the product in full — no verification scheme, no verification secret,
+no verification header name, no rejection path, no verification surface." The claim is therefore
+live, member-facing, and false, not a doc-hygiene issue.
+
+**Why this was missed by `## Amendment — inbound verification withdrawn (2026-08-28)` above.** That
+amendment's own "Not changed, and deliberately so" line named Screen 6 as unaffected by Decision B,
+per ADR-026 § *Documents*, which lists Screen 6 among the screens it calls "unaffected." That
+statement was true of Screen 6's states and behaviour — nothing about when a member sees state 1
+through 5, or what any footer action does, changes. It did not audit Screen 6's own descriptive copy
+line by line, and this clause is a copy line, not a state or a behaviour. The pointer added to that
+amendment's "Not changed" statement, above, directs a reader from that statement to this one.
+
+**Ruling.** The `DialogDescription` is corrected to drop the inbound-verification clause and keep
+the rest of the sentence's meaning intact: what signing does for destinations, that the value format
+is the Standard Webhooks one, and that one secret covers all of this proxy's destinations including
+any added later. No other line of Screen 6, and no other screen or flow, is touched by this
+amendment — this is a single copy string, corrected under the same Decision B authority the amendment
+above already renders for this document.
+
+**The exact replacement copy**, to be implemented verbatim in
+`resources/js/components/ProxySigningDialog.vue` (currently lines 266–272):
+
+> "Lets every destination this proxy dispatches to verify that a dispatch really came from this
+> proxy, using the Standard Webhooks specification's signature format. One secret is used for all of
+> this proxy's destinations, including any added later."
+
+**Decision authority.** UI copy is the Designer's decision within the PRD's UX direction (see this
+role's Decision authority in its own skill definition); this amendment makes no requirement or
+technical decision — it removes a claim ADR-026 Decision B already ruled out at the product level and
+restates the remaining, still-true meaning in the Designer's own words. It reopens no PRD-10
+acceptance criterion and no prior gate.
+
+**Date:** 2026-08-28.
+
+**Author of this amendment:** Designer, in response to task T49's manual verification finding.
+
+**Status of this amendment: self-certified by the Designer**, per `CLAUDE.md`'s routing for doc
+corrections ("doc corrections → the owning role updates the doc") — this is a correction of stale
+copy against an already-Owner-approved decision (ADR-026 Decision B), not a new decision, and it
+does not reopen the design gate, the amendment gate, or `## Amendment — inbound verification
+withdrawn (2026-08-28)`'s own pending Product Manager re-approval; all three stand exactly as
+written. If the Product Manager wants this copy re-checked when re-approving the amendment above,
+that is additional scrutiny this amendment invites, not one it requires to take effect.
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| Screen 6 `DialogDescription` | **Corrected** — the inbound-verification clause is removed; the exact replacement copy is given above, with a pointer left in place at Screen 6 itself |
+| `## Amendment — inbound verification withdrawn (2026-08-28)`, "Not changed, and deliberately so" | Gains a pure-insertion pointer to this amendment; its own text is otherwise untouched |
+
+**Not changed, and deliberately so:** every other line of Screen 6 (states 1–5, the loading/error
+paragraph); Flows D through I; Screens 2, 4b, 5 and 7; PRD-10; `plan-10`; and every prior approval
+record and amendment in this document, all of which remain history and are not rewritten.
+
+### For the Senior Developer
+
+The only code change this amendment calls for is the `DialogDescription` string in
+`resources/js/components/ProxySigningDialog.vue` (T49 cites lines 266–272), replaced verbatim with
+the copy quoted above. No component structure, prop, state, or other copy in that file changes.

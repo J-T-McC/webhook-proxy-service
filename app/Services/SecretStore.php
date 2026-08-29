@@ -16,8 +16,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * **The single reader and writer of `proxy_secrets`** (plan-10 Technical
  * ruling 14, ADR-021 Decision 3). No other class queries this table
- * directly — `InboundVerifier`, the signing endpoints and the delivery
- * resolver all go through this service.
+ * directly — the signing endpoints and the delivery resolver go through
+ * this service. `InboundVerifier` once did too; ADR-026 Decision B removed
+ * it, and every other class, from the product in full.
  *
  * `replace()` is the whole of AC29 in one operation: it deletes any
  * already-superseded row before demoting the current one to a 24-hour

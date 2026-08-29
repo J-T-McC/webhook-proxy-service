@@ -5,22 +5,36 @@ namespace App\Support;
 /**
  * The Standard Webhooks specification (https://www.standardwebhooks.com/),
  * implemented in-house against the spec text rather than a Composer package
- * (AC52, AC55; plan-10 Technical ruling 6, ADR-022 § Alternatives — read
- * 2026-08-27). Pure class, no DB: `sign()`/`verify()` are deterministic given
- * their arguments, and the one place this class reads the wall clock is the
- * tolerance check inside `verify()` (AC53), which the spec itself defines
- * relative to "now".
+ * (plan-10 Technical ruling 6, ADR-022 § Alternatives — read 2026-08-27, since
+ * superseded in full by ADR-026 Decision B). Pure class, no DB: `sign()`/
+ * `verify()` are deterministic given their arguments, and the one place this
+ * class reads the wall clock is the tolerance check inside `verify()`, which
+ * the spec itself defines relative to "now".
  *
- * Shared by inbound verification (`StandardWebhooksScheme`, T17) and outbound
- * signing (T34) — AC55's "one implementation serves both directions".
+ * `sign()` is the outbound signing implementation (T7) — it is what
+ * `OutboundHeaders` calls to emit the `WebhookProxy-Signature` header on
+ * every attempt to a signing-enabled proxy's destinations. Inbound
+ * verification was removed from the product in full (ADR-026 Decision B):
+ * `StandardWebhooksScheme`, the class that once called `verify()` on the
+ * receiving side, no longer exists. `verify()` itself is not dead code — it
+ * survives as the receiver-side oracle the outbound signing tests use to
+ * prove what this service emits is verifiable by a conforming recipient
+ * (`tests/Unit/Support/StandardWebhooksTest.php`,
+ * `tests/Unit/Support/OutboundHeadersSigningTest.php`). ADR-026 § *What
+ * stays, and why* names this class as the one a developer following a
+ * `verification` thread is most likely to over-delete, precisely because
+ * `verify()` has no inbound caller any more.
  */
 class StandardWebhooks
 {
     /**
      * The specification's reference tolerance, applied as an absolute
-     * difference either side of `now()`. A class constant, not config — AC53
-     * makes the tolerance the specification's, not a per-proxy or
-     * environment setting.
+     * difference either side of `now()`. A class constant, not config —
+     * ADR-026 § *The Standard Webhooks construction, restated* makes the
+     * tolerance the specification's, not a per-proxy or environment setting
+     * (AC53, which stated this originally, was withdrawn by PRD-10 Amendment
+     * C; the property itself is unaffected and this is now its normative
+     * record).
      */
     final public const TOLERANCE_SECONDS = 300;
 
