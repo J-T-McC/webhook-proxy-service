@@ -56,7 +56,7 @@ defineOptions({
 <template>
     <Head :title="`Edit ${props.proxy.name}`" />
 
-    <div class="p-4">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4">
         <ProxyForm
             method="put"
             :action="

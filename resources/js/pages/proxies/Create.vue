@@ -37,7 +37,7 @@ defineOptions({
 <template>
     <Head title="New proxy" />
 
-    <div class="p-4">
+    <div class="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4">
         <ProxyForm
             method="post"
             :action="proxyRoutes.store(teamSlug).url"
