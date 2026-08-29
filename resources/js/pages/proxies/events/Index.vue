@@ -188,30 +188,11 @@ function openReplay(event: WebhookEventListItem): void {
 }
 
 /**
- * Poll the events list so a page left open keeps showing what has arrived
- * since. Only `events` and `fifoHeldByRetry` change over time; `proxy`,
- * `filters` and `permissions` are re-read from the same request the user
- * already made, so the reload is scoped to the two that move.
+ * Skipping the poll while the replay dialog is open is deliberate: refreshing
+ * the rows underneath it can change what the user is about to act on.
  *
- * `router.reload` preserves scroll position and component state by default, so
- * a refresh neither throws the reader back to the top of a long list nor resets
- * the replay dialog's own refs.
- * Polling is skipped while the tab is hidden and while the replay dialog is
- * open — the first to avoid a background tab hammering the endpoint, the second
- * because refreshing the rows under an open dialog can change what the user is
- * about to act on.
- *
- * It runs on every page, not only the first. Past page 1 the list is ordered
- * newest first, so an arriving event pushes older ones down and across page
- * boundaries and the rows under the reader shift. That is offset pagination
- * behaving normally rather than a defect, and the answer to it is the control
- * below rather than a rule about which page may refresh: a reader who wants the
- * list to hold still turns polling off.
- *
- * The preference lives in `sessionStorage`, so it survives navigation within the
- * tab — including to another proxy's events and back — and is gone when the tab
- * is closed. It is a per-reader viewing choice, not an account setting, so it
- * deliberately does not persist further than that.
+ * The on/off preference is per tab rather than per account — a viewing choice,
+ * not a setting.
  */
 const POLL_INTERVAL_MS = 5000;
 
