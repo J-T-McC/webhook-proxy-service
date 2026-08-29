@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Info } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import ReplayDialog from '@/components/ReplayDialog.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -186,6 +186,43 @@ function openReplay(event: WebhookEventListItem): void {
     replayEventId.value = event.id;
     replayDialogOpen.value = true;
 }
+
+/**
+ * Poll the events list so a page left open keeps showing what has arrived
+ * since. Only `events` and `fifoHeldByRetry` change over time; `proxy`,
+ * `filters` and `permissions` are re-read from the same request the user
+ * already made, so the reload is scoped to the two that move.
+ *
+ * `router.reload` preserves scroll position and component state by default, so
+ * a refresh neither throws the reader back to the top of a long list nor resets
+ * the replay dialog's own refs.
+ * Polling is skipped entirely while the tab is hidden or the replay dialog is
+ * open — the first to avoid a background tab hammering the endpoint, the
+ * second because refreshing the rows under an open dialog can change what the
+ * user is about to act on.
+ */
+const POLL_INTERVAL_MS = 5000;
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+function pollEvents(): void {
+    if (document.hidden || replayDialogOpen.value) {
+        return;
+    }
+
+    router.reload({ only: ['events', 'fifoHeldByRetry'] });
+}
+
+onMounted(() => {
+    pollTimer = setInterval(pollEvents, POLL_INTERVAL_MS);
+});
+
+onBeforeUnmount(() => {
+    if (pollTimer !== null) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+});
 </script>
 
 <template>
