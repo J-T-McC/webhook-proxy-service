@@ -28,7 +28,8 @@ export const badgeVariants = cva(
         // events — rather than that row's own state. Carries the waiting hue so
         // the association is obvious, at an outline's weight so it never
         // out-shouts the status column it sits next to.
-        waitingOutline: "border-status-waiting text-status-waiting",
+        waitingOutline:
+          "border-status-waiting-strong/40 text-status-waiting-strong",
       },
     },
     defaultVariants: {

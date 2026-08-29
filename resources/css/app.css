@@ -61,6 +61,7 @@
     --color-brand: var(--brand);
     --color-brand-accent: var(--brand-accent);
     --color-status-waiting: var(--status-waiting);
+    --color-status-waiting-strong: var(--status-waiting-strong);
     --color-status-waiting-foreground: var(--status-waiting-foreground);
     --color-status-moved: var(--status-moved);
     --color-status-moved-foreground: var(--status-moved-foreground);
@@ -170,13 +171,21 @@
        Status hues below are a separate axis and mean one thing each: amber
        waits, cyan moved, grey is inert, red failed. Configuration — a proxy's
        mode, its processing strategy — deliberately gets none of them, so a
-       colour on screen always means state rather than setting. */
+       colour on screen always means state rather than setting.
+
+       Each is a chip plus its own text colour, inverted per theme: a pale chip
+       with dark text on white, a deep chip with white text on near-black.
+       Carrying one saturated fill across both themes forces the light version
+       dark enough to hold white text, which turns the amber brown. The
+       `-strong` variant is the same hue at text weight, for the outline badge
+       that has no fill behind it. */
     --brand: hsl(258 72% 54%);
     --brand-accent: hsl(190 82% 42%);
-    --status-waiting: hsl(38 95% 30%);
-    --status-waiting-foreground: hsl(38 96% 97%);
-    --status-moved: hsl(190 88% 26%);
-    --status-moved-foreground: hsl(190 92% 97%);
+    --status-waiting: hsl(38 96% 86%);
+    --status-waiting-foreground: hsl(30 92% 24%);
+    --status-moved: hsl(190 88% 88%);
+    --status-moved-foreground: hsl(194 92% 22%);
+    --status-waiting-strong: hsl(30 92% 32%);
 }
 
 .dark {
@@ -227,10 +236,11 @@
        field and carry the bloom. */
     --brand: hsl(258 90% 68%);
     --brand-accent: hsl(190 95% 58%);
-    --status-waiting: hsl(38 96% 62%);
-    --status-waiting-foreground: hsl(38 90% 10%);
-    --status-moved: hsl(190 95% 58%);
-    --status-moved-foreground: hsl(190 90% 10%);
+    --status-waiting: hsl(35 72% 32%);
+    --status-waiting-foreground: hsl(0 0% 100%);
+    --status-moved: hsl(191 72% 30%);
+    --status-moved-foreground: hsl(0 0% 100%);
+    --status-waiting-strong: hsl(38 96% 62%);
 }
 
 @layer base {
