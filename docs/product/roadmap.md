@@ -207,6 +207,11 @@ and awaits the Owner's approval separately.
    Questions to settle at this item's PRD (see M1, M2). Test payloads (#14) will
    exercise this mapping and its selection.
 
+   **Owner ruling, 2026-08-29: on hold indefinitely.** Not needed for MVP. The
+   artifacts are parked rather than withdrawn and no implementation exists, so the
+   hold unwinds nothing in code. It is not scheduled, and anything that names #8 as
+   a dependency should assume it is not coming rather than wait for it.
+
 9. **Multi-format ingestion** — A proxy can accept XML and form-encoded incoming
    payloads and present them as JSON for mapping. *(Vision: "Payload mapping /
    reshaping" — "Accept XML and form-encoded incoming payloads, but visualize
@@ -215,6 +220,18 @@ and awaits the Owner's approval separately.
    JSON representation the mapping editor (#8) and change detection (#12) already
    use, so there is no second mapping or comparison path. (Vision: "visualize them
    as JSON.")
+
+   **Owner ruling, 2026-08-29: cancelled.** The ingest-and-forward half already
+   works and has since #1: `webhook_events.content_type` records the incoming type,
+   the body is stored as received, `Content-Type` is forwarded rather than stripped
+   (`DeliveryUnit::STRIPPED_HEADERS`), and delivery sends the exact bytes back out
+   unmapped. Any format already round-trips today.
+   What was never built is *parsing* non-JSON into a canonical JSON representation —
+   and that only ever existed to feed the mapping editor (#8) and change detection
+   (#12), both of which are now on hold indefinitely. With no consumer, the
+   normalization work has no purpose, so the line is cancelled rather than deferred.
+   The one live consequence: sensitive-field obfuscation is JSON-only and non-JSON
+   payloads bypass it by design (PRD-10 AC22). That stands as shipped behaviour.
 
 10. **Sensitive data handling** — Stored payloads are encrypted, known and
     user-defined sensitive fields are visually obfuscated, and incoming webhooks
@@ -237,6 +254,11 @@ and awaits the Owner's approval separately.
     emit attempt records rather than have #11 reconstruct them later. Dashboard
     scope stays deferred (V7) and throughput targets unset (V8).
 
+    **Owner ruling, 2026-08-29: Done.** Shipped in PR #17 (`d9fed9c`). The
+    independent Review gate was never run — the Owner merged on the implementation's
+    own self-verification — and that remains a recorded gap rather than outstanding
+    work.
+
 12. **Change detection** — The system detects when an incoming payload's
     structure changes from what a proxy expects. *(Vision: "Change detection".
     Depends on #8.)*
@@ -244,6 +266,9 @@ and awaits the Owner's approval separately.
     the expected/known structure captured at #8 (and normalized by #9), and must
     emit an event the notifications system (#13) consumes — a result event, not
     just UI state.
+
+    **Owner ruling, 2026-08-29: on hold indefinitely.** It depends on #8, which is
+    itself on hold. Not scheduled.
 
 13. **Notifications (in-app & email)** — Users receive in-app notifications and,
     for urgent events, email as well, with per-channel opt-out. *(Vision:
