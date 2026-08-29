@@ -15,6 +15,7 @@ use App\Models\FifoDispatch;
 use App\Pipeline\DeliveryUnit;
 use App\Services\DeliveryUnitResolver;
 use App\Services\RetryPolicy;
+use App\Support\OutboundHeaders;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -195,13 +196,45 @@ class DeliverToDestination
     /**
      * Perform the outbound send, settle the given attempt row in place, and
      * transition the parent delivery row accordingly.
+     *
+     * The outbound header set is built here, through `OutboundHeaders` (T26,
+     * T34) — the one build point (plan-10 § Architecture C) — so the
+     * credential and signing headers apply identically to attempt 1
+     * (`asJob()`), every retry (`RetryDelivery`), and every replay, all of
+     * which funnel into this same method.
+     * `$unit->destination->credential_secret` decrypts via the model's
+     * `encrypted` cast at read time here, in the send path, never earlier;
+     * `$unit->signingSecrets` (T36) is already resolved by the time this
+     * runs — only the signature itself, over the exact dispatched bytes and
+     * this attempt's timestamp, is computed here.
      */
     private function send(DeliveryUnit $unit, DeliveryAttempt $attempt): void
     {
         $startedAt = now();
 
         try {
-            $response = Http::withHeaders($unit->forwardHeaders())
+            // T39, AC11's all-or-none rule: a signing secret that failed to
+            // decrypt (deferred by `DeliveryUnitResolver`, T36, so the
+            // `DeliveryAttempt` row above still gets created) fails THIS
+            // destination's attempt here, before any header is built and
+            // before any HTTP request is made — never a silent fallback to
+            // an unsigned dispatch. Every destination of the same proxy
+            // reads the identical corrupted `proxy_secrets` row through its
+            // own independent `resolve()` call, so this is reached
+            // identically by each of them; no shared state is needed to
+            // coordinate "the whole proxy fails together".
+            if ($unit->signingSecretsUnavailable !== null) {
+                throw $unit->signingSecretsUnavailable;
+            }
+
+            $headers = OutboundHeaders::build(
+                $unit,
+                $unit->destination->credential_header_name,
+                $unit->destination->credential_secret,
+                $unit->signingSecrets,
+            );
+
+            $response = Http::withHeaders($headers)
                 ->timeout(self::TIMEOUT_SECONDS)
                 ->send($unit->method, $unit->destination->url, ['body' => $unit->payload]);
 

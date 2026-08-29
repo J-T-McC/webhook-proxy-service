@@ -72,7 +72,14 @@ class AnalyticsIndexesTest extends TestCase
     {
         $migration = '2026_08_26_000001_add_analytics_indexes_to_delivery_tables';
 
-        Artisan::call('migrate:rollback', ['--step' => 1]);
+        // Roll back this migration and everything that ran after it, rather than a
+        // fixed `--step=1` — `migrate:rollback --step` walks the last N migrations by
+        // run order, not by name, so a fixed step of 1 silently rolls back the wrong
+        // migration once a later one exists (as #10's migration now does). Both
+        // rolled-back migrations are reapplied below, so the round trip is unaffected.
+        $stepsToReachThisMigration = DB::table('migrations')->where('migration', '>=', $migration)->count();
+
+        Artisan::call('migrate:rollback', ['--step' => $stepsToReachThisMigration]);
 
         $deliveryAttemptsIndexes = array_values($this->indexColumnsFor('delivery_attempts'));
         $deliveriesIndexes = array_values($this->indexColumnsFor('deliveries'));

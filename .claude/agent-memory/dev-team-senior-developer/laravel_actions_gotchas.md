@@ -56,6 +56,15 @@ metadata:
   case" to a test that wants to observe a real `afterCommit()` dispatch's side effects; it isn't
   needed and, if added, faking recording semantics differ from a real dispatch (see the entries
   above and below).
+- **A DTO/value-object field fed from an Eloquent model's `datetime`-cast property should be typed
+  `Carbon\CarbonInterface`, not `Illuminate\Support\Carbon`** — even though `AppServiceProvider`'s
+  `Date::use(CarbonImmutable::class)` makes every such property `CarbonImmutable` at runtime,
+  Larastan's own inference of a model's date-cast property still widens to a
+  `CarbonImmutable|Illuminate\Support\Carbon` union, so a constructor param typed as the plain
+  mutable `Carbon` fails PHPStan level 7 with an `argument.type` error the moment you pass it a
+  value straight from a model property. `CarbonInterface` (implemented by both) is what runtime and
+  static analysis agree on without a suppression (found building `App\Data\SecretStatus`, item #10
+  T22).
 - **PHPStan level 7's "remembering/forgetting returned values" flags a private method that queries
   the DB and is deliberately called twice expecting a possibly-different answer** (a check, a
   mutation, a re-check) as `booleanNot.alwaysFalse` on the second call — it assumes the method is

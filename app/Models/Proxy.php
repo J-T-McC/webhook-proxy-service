@@ -31,6 +31,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $response_body
  * @property string $ingest_token_hash
  * @property string $ingest_token
+ * @property list<string>|null $sensitive_fields
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -39,6 +40,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Destination> $destinations
  * @property-read Collection<int, DeliveryAttempt> $deliveryAttempts
  * @property-read Collection<int, WebhookEvent> $webhookEvents
+ * @property-read Collection<int, ProxySecret> $secrets
  */
 #[Fillable([
     'team_id',
@@ -49,6 +51,7 @@ use Illuminate\Support\Carbon;
     'retry_backoff_strategy',
     'response_status',
     'response_body',
+    'sensitive_fields',
 ])]
 class Proxy extends Model
 {
@@ -99,6 +102,19 @@ class Proxy extends Model
     }
 
     /**
+     * The proxy's rotating secrets (signing). `SecretStore` is the single
+     * reader and writer of this relation's underlying table (plan-10
+     * Technical ruling 14) — nothing else queries `proxy_secrets` directly,
+     * and this relation is never eager-loaded onto a resource.
+     *
+     * @return HasMany<ProxySecret, $this>
+     */
+    public function secrets(): HasMany
+    {
+        return $this->hasMany(ProxySecret::class);
+    }
+
+    /**
      * Map the `{event}` route parameter to the `webhookEvents()` relation for
      * scoped bindings (T24). Eloquent's own convention would otherwise guess
      * `events()` (`Str::plural(Str::camel($childType))` on the route parameter
@@ -145,6 +161,7 @@ class Proxy extends Model
             'retry_backoff_strategy' => RetryBackoffStrategy::class,
             'response_status' => 'integer',
             'ingest_token' => 'encrypted',
+            'sensitive_fields' => 'array',
         ];
     }
 }

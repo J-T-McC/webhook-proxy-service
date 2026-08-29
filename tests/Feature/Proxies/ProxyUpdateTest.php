@@ -47,6 +47,40 @@ class ProxyUpdateTest extends TestCase
             );
     }
 
+    /**
+     * T30 — `DestinationResource`'s credential status fields (AC30, AC33):
+     * presence, header name and changed-at are readable on the Edit form's
+     * live destinations, and the secret value itself never reaches the
+     * response under any key.
+     */
+    public function test_edit_prefill_carries_credential_status_but_never_the_secret_value(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+        $withCredential = Destination::factory()->for($proxy)->createQuietly();
+        $withCredential->credential_header_name = 'X-Api-Key';
+        $withCredential->credential_secret = 'do-not-leak-this-value';
+        $withCredential->credential_set_at = now();
+        $withCredential->save();
+        $withoutCredential = Destination::factory()->for($proxy)->createQuietly();
+
+        $response = $this->actingAs($user)
+            ->get(route('proxies.edit', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('proxies/Edit')
+                ->where('proxy.destinations.0.has_credential', true)
+                ->where('proxy.destinations.0.credential_header_name', 'X-Api-Key')
+                ->where('proxy.destinations.0.credential_changed_at', fn (?string $value) => $value !== null)
+                ->where('proxy.destinations.1.has_credential', false)
+                ->where('proxy.destinations.1.credential_header_name', null)
+                ->where('proxy.destinations.1.credential_changed_at', null)
+            );
+
+        $response->assertDontSee('do-not-leak-this-value', false);
+        $this->assertStringNotContainsString('credential_secret', $response->getContent() ?: '');
+    }
+
     public function test_update_changes_name_mode_and_reconciles_destinations(): void
     {
         $user = $this->actingUser();

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import AlertError from '@/components/AlertError.vue';
 import CopyField from '@/components/CopyField.vue';
+import ProxySigningDialog from '@/components/ProxySigningDialog.vue';
 import TrendChart from '@/components/TrendChart.vue';
 import {
     AlertDialog,
@@ -21,6 +23,7 @@ import {
     CollapsibleContent,
     CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
     TableBody,
@@ -63,6 +66,7 @@ import {
     proxyRetryAttemptLimitDisplay,
     proxyRetryBackoffStrategyDisplay,
 } from '@/data/proxyRetryBackoffStrategies';
+import { formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
 import type { Team } from '@/types';
@@ -71,13 +75,20 @@ import type {
     DestinationBreakdownRow,
     StatisticsPanel,
 } from '@/types/analytics';
-import type { ProxyDetail, ProxyPermissions } from '@/types/proxies';
+import type {
+    ProxyDetail,
+    ProxyPermissions,
+    ProxySecurity,
+} from '@/types/proxies';
 
 const props = defineProps<{
     proxy: ProxyDetail;
     permissions: ProxyPermissions;
     statistics: StatisticsPanel;
     destinations: DestinationBreakdownRow[];
+    /** Status-only signing and destination-credential state (T22) — never a
+     * value, never a length. */
+    security: ProxySecurity;
 }>();
 
 // Edit/delete visibility derives from the shared page-level permissions + the
@@ -228,6 +239,18 @@ function viewEventsHref(destination: DestinationBreakdownRow) {
 }
 
 /**
+ * Screen 5's `Credential` badge (T33; AC30; plan Technical ruling 4) — looked
+ * up by the row's existing id in the `security.destinations` map (T32),
+ * never a field on `DestinationBreakdownRow` itself (that DTO is untouched
+ * by this feature). Defaults to `false` for an id the map doesn't carry
+ * (there is none in practice — T32's map is built `withTrashed()` over every
+ * destination the proxy has — but this keeps the lookup total).
+ */
+function hasCredential(destination: DestinationBreakdownRow): boolean {
+    return props.security.destinations[destination.id]?.has_credential ?? false;
+}
+
+/**
  * The Trend table's per-day, per-unit drill-through target (Flow C step 3;
  * design-11 Flow E entry-point table; T23/Revision A, `Q-11-04`, plan
  * Technical ruling 10) — proxy (current) · window (still carried, ruling 10)
@@ -251,6 +274,48 @@ function trendDayHref(date: string, unit: 'delivery' | 'attempt') {
                 date,
                 outcome:
                     unit === 'delivery' ? 'delivery_failed' : 'attempt_failed',
+            },
+        },
+    );
+}
+
+// Signing card — Screen 4b (AC54, AC57, AC63; Flows G, I). Proxy-wide status
+// only, driven entirely by `security.signing` (T38); the mutating actions
+// (Enable/Manage signing, End overlap now) are `canUpdate`-gated, the status
+// itself always renders.
+const signingOverlapStatus = computed(() => {
+    const expiresAt = props.security.signing.overlap_expires_at;
+
+    return expiresAt ? formatTimestamp(expiresAt) : null;
+});
+const signingGeneratedStatus = computed(() =>
+    props.security.signing.generated_at
+        ? `Enabled — generated ${formatTimestamp(props.security.signing.generated_at)}`
+        : null,
+);
+
+const signingDialogOpen = ref(false);
+const signingOverlapBusy = ref(false);
+const signingOverlapError = ref<string | null>(null);
+
+function endSigningOverlap(): void {
+    signingOverlapBusy.value = true;
+    signingOverlapError.value = null;
+
+    router.delete(
+        proxyRoutes.signing.overlap.destroy({
+            current_team: teamSlug.value,
+            proxy: props.proxy.id,
+        }).url,
+        {
+            preserveScroll: true,
+            only: ['security'],
+            onError: () => {
+                signingOverlapError.value =
+                    'Could not end the rotation overlap. Try again.';
+            },
+            onFinish: () => {
+                signingOverlapBusy.value = false;
             },
         },
     );
@@ -735,6 +800,12 @@ function confirmDeleteProxy(): void {
                                 <span class="truncate font-mono text-sm">{{
                                     destination.url
                                 }}</span>
+                                <Badge
+                                    v-if="hasCredential(destination)"
+                                    variant="outline"
+                                >
+                                    Credential
+                                </Badge>
                             </div>
                         </TableCell>
                         <TableCell>{{
@@ -764,6 +835,84 @@ function confirmDeleteProxy(): void {
                     </TableRow>
                 </TableBody>
             </Table>
+        </Card>
+
+        <!-- Signing card (Screen 4b; AC54, AC57, AC63; Flows G, I) — the
+             proxy-wide outbound signing status. No per-destination badge
+             anywhere (Amendment B ruling 1) and no trust-domain warning
+             (ruling 2b) — this card states the proxy-wide fact once, where
+             the setting lives. -->
+        <Card class="gap-4 p-6">
+            <h2 class="text-base font-semibold">Signing</h2>
+            <p class="text-sm text-muted-foreground">
+                Whether this proxy signs its dispatches so every destination it
+                sends to can verify the request really came from this proxy.
+            </p>
+
+            <template v-if="!props.security.signing.enabled">
+                <p class="text-sm text-muted-foreground">
+                    This proxy does not sign its dispatches yet.
+                </p>
+                <Button
+                    v-if="canUpdate"
+                    variant="outline"
+                    class="w-fit"
+                    @click="signingDialogOpen = true"
+                >
+                    Enable signing
+                </Button>
+            </template>
+
+            <template v-else>
+                <dl class="flex flex-col gap-3">
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
+                    >
+                        <dt class="text-sm text-muted-foreground">Status</dt>
+                        <dd class="text-sm">{{ signingGeneratedStatus }}</dd>
+                    </div>
+                </dl>
+
+                <!-- Rotation status always renders for anyone who can view
+                     this proxy; only the mutating actions are canUpdate-gated. -->
+                <template v-if="signingOverlapStatus">
+                    <p class="text-sm">
+                        A rotation is in progress — your previous secret is
+                        still honoured until {{ signingOverlapStatus }}.
+                    </p>
+                    <div class="flex items-center gap-2">
+                        <Button
+                            v-if="canUpdate"
+                            variant="outline"
+                            :disabled="signingOverlapBusy"
+                            @click="endSigningOverlap"
+                        >
+                            <Spinner v-if="signingOverlapBusy" />
+                            End overlap now
+                        </Button>
+                        <Button
+                            v-if="canUpdate"
+                            variant="ghost"
+                            @click="signingDialogOpen = true"
+                        >
+                            Manage signing
+                        </Button>
+                    </div>
+                    <AlertError
+                        v-if="signingOverlapError"
+                        :errors="[signingOverlapError]"
+                        title="Could not end the rotation overlap"
+                    />
+                </template>
+                <Button
+                    v-else-if="canUpdate"
+                    variant="ghost"
+                    class="w-fit"
+                    @click="signingDialogOpen = true"
+                >
+                    Manage signing
+                </Button>
+            </template>
         </Card>
 
         <!-- Retry policy card -->
@@ -796,6 +945,17 @@ function confirmDeleteProxy(): void {
             </p>
         </Card>
     </div>
+
+    <!-- Manage proxy signing dialog (Screen 6; Flows G, H, I) -->
+    <ProxySigningDialog
+        :open="signingDialogOpen"
+        :team-slug="teamSlug"
+        :proxy-id="props.proxy.id"
+        :proxy-name="props.proxy.name"
+        :signing="props.security.signing"
+        :can-update="canUpdate"
+        @update:open="(value) => (signingDialogOpen = value)"
+    />
 
     <!-- Delete proxy confirmation -->
     <AlertDialog

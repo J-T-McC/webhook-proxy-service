@@ -69,16 +69,20 @@ class IngestFanOutTest extends TestCase
             'Stripe-Signature' => 't=1,v1=abc',
         ])->assertStatus(202);
 
+        // ADR-026 Decision A (T55): the strip list is transport-scoped only —
+        // `Cookie`, `Authorization` and every provider signature header now
+        // forward unchanged; only the RFC 7230 §6.1 hop-by-hop set (here,
+        // `Connection`) remains stripped.
         Http::assertSent(function ($r) {
             return $r->url() === 'https://dest.test/hook'
                 // Forwarded:
                 && $r->hasHeader('Content-Type')
                 && $r->hasHeader('X-Custom-Event')
+                && $r->hasHeader('Cookie', 'session=secret')
+                && $r->hasHeader('Authorization', 'Bearer inbound-secret')
+                && $r->hasHeader('Stripe-Signature', 't=1,v1=abc')
                 // Stripped:
-                && ! $r->hasHeader('Cookie')
-                && ! $r->hasHeader('Authorization')
-                && ! $r->hasHeader('Connection')
-                && ! $r->hasHeader('Stripe-Signature');
+                && ! $r->hasHeader('Connection');
         });
     }
 

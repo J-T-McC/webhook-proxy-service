@@ -9,10 +9,13 @@ use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
 use App\Http\Resources\ProxyFormResource;
 use App\Http\Resources\ProxyResource;
+use App\Http\Resources\ProxySecurityResource;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\DeliveryStatistics;
 use App\Services\IngestTokenService;
+use App\Support\SensitiveFields;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,7 +61,13 @@ class ProxyController extends Controller
     {
         $this->authorize('create', Proxy::class);
 
-        return Inertia::render('proxies/Create');
+        // Single-sourced from SensitiveFields::DEFAULTS (T4), never a hand-typed
+        // copy — create() renders no ProxyResource at all, so this is a page
+        // prop on both create() and edit() rather than a resource key
+        // (plan-10 Technical ruling 3).
+        return Inertia::render('proxies/Create', [
+            'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
+        ]);
     }
 
     /**
@@ -93,6 +102,9 @@ class ProxyController extends Controller
             // than relying on mass-assignment omission.
             $proxy = Proxy::make(array_merge(
                 $data,
+                [
+                    'sensitive_fields' => $this->sensitiveFieldAdditions($data),
+                ],
                 $data['mode'] === ProxyMode::Enhanced->value ? [
                     'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
                     'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
@@ -106,6 +118,7 @@ class ProxyController extends Controller
                     'team_id' => $proxy->team_id,
                     'url' => $destination['url'],
                     'http_method' => $destination['http_method'],
+                    ...$this->destinationCredentialAttributes($destination),
                 ]);
             }
 
@@ -149,6 +162,9 @@ class ProxyController extends Controller
             'permissions' => $this->proxyPermissions($request),
             'statistics' => $this->statistics->forProxy($proxy, $window),
             'destinations' => $this->statistics->destinationBreakdown($proxy, $window),
+            // Status-only signing/credential state (plan-10 Technical ruling
+            // 3) — a sibling prop, never a ProxyResource key.
+            'security' => ProxySecurityResource::make($proxy),
         ]);
     }
 
@@ -164,6 +180,11 @@ class ProxyController extends Controller
         // a dormant policy. No other caller may use it (AC14(b)).
         return Inertia::render('proxies/Edit', [
             'proxy' => ProxyFormResource::make($proxy->loadMissing('destinations')),
+            'defaultSensitiveFieldNames' => SensitiveFields::DEFAULTS,
+            // Same sibling prop as show() (plan-10 Technical ruling 3) —
+            // create() renders no proxy resource at all, so it never gets
+            // this prop.
+            'security' => ProxySecurityResource::make($proxy),
         ]);
     }
 
@@ -199,6 +220,7 @@ class ProxyController extends Controller
                 'processing_mode' => $data['processing_mode'],
                 'response_status' => $data['response_status'] ?? null,
                 'response_body' => $data['response_body'] ?? null,
+                'sensitive_fields' => $this->sensitiveFieldAdditions($data),
                 ...($data['mode'] === ProxyMode::Enhanced->value ? [
                     'retry_attempt_limit' => $data['retry_attempt_limit'] ?? null,
                     'retry_backoff_strategy' => $data['retry_backoff_strategy'] ?? null,
@@ -213,7 +235,11 @@ class ProxyController extends Controller
                     : null;
 
                 if ($existing !== null) {
-                    $existing->update(['url' => $row['url'], 'http_method' => $row['http_method']]);
+                    $existing->update([
+                        'url' => $row['url'],
+                        'http_method' => $row['http_method'],
+                        ...$this->destinationCredentialAttributes($row, $existing->credential_set_at !== null),
+                    ]);
                     $keptIds[] = $existing->id;
 
                     continue;
@@ -223,6 +249,7 @@ class ProxyController extends Controller
                     'team_id' => $proxy->team_id,
                     'url' => $row['url'],
                     'http_method' => $row['http_method'],
+                    ...$this->destinationCredentialAttributes($row),
                 ]);
                 $keptIds[] = $created->id;
             }
@@ -289,10 +316,50 @@ class ProxyController extends Controller
     }
 
     /**
+     * Trim each submitted AC13 addition and de-duplicate by normalised form
+     * (T4's `SensitiveFields::normalise()`) before persistence — the first
+     * occurrence's original spelling is kept. The default list is never
+     * stored per-proxy at all (it's code, not data), so this only ever
+     * touches this proxy's own additions (AC13's per-proxy grain).
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<string>
+     */
+    private function sensitiveFieldAdditions(array $data): array
+    {
+        $submitted = $data['sensitive_fields'] ?? [];
+        $seenNormalised = [];
+        $additions = [];
+
+        foreach (is_array($submitted) ? $submitted : [] as $name) {
+            if (! is_string($name)) {
+                continue;
+            }
+
+            $trimmed = trim($name);
+
+            if ($trimmed === '') {
+                continue;
+            }
+
+            $normalised = SensitiveFields::normalise($trimmed);
+
+            if (isset($seenNormalised[$normalised])) {
+                continue;
+            }
+
+            $seenNormalised[$normalised] = true;
+            $additions[] = $trimmed;
+        }
+
+        return $additions;
+    }
+
+    /**
      * Normalise the validated destinations payload into typed rows.
      *
      * @param  array<string, mixed>  $data
-     * @return list<array{id: int|null, url: string, http_method: string}>
+     * @return list<array{id: int|null, url: string, http_method: string, credential_header_name: string, credential_secret: string, remove_credential: bool}>
      */
     private function destinationRows(array $data): array
     {
@@ -306,9 +373,85 @@ class ProxyController extends Controller
                 'id' => isset($row['id']) && is_numeric($row['id']) ? (int) $row['id'] : null,
                 'url' => isset($row['url']) && is_string($row['url']) ? $row['url'] : '',
                 'http_method' => isset($row['http_method']) && is_string($row['http_method']) ? $row['http_method'] : '',
+                // Write-only (AC33, T29): present-but-empty is normalised here
+                // to the same '' the "leave unchanged"/"nothing configured"
+                // branch of destinationCredentialAttributes() checks for —
+                // isset() is deliberately used (not array_key_exists()), so a
+                // submitted explicit null also normalises to ''.
+                'credential_header_name' => isset($row['credential_header_name']) && is_string($row['credential_header_name']) ? $row['credential_header_name'] : '',
+                'credential_secret' => isset($row['credential_secret']) && is_string($row['credential_secret']) ? $row['credential_secret'] : '',
+                // The Remove credential signal (T31; ruling 15) — read
+                // positively, so presence-versus-absence of the key is never
+                // load-bearing (isset() would be false for an explicit null,
+                // which is exactly the hazard ruling 15 exists to avoid on
+                // this key's own design; reading positively against `?? false`
+                // sidesteps it entirely).
+                'remove_credential' => ($row['remove_credential'] ?? false) === true,
             ];
         }
 
         return $normalised;
+    }
+
+    /**
+     * The mass-assignable credential attributes for one destination row
+     * (AC30, AC33; T29). A non-empty `credential_secret` always replaces the
+     * secret, sets `credential_set_at` to the moment of this save, and
+     * writes the header name alongside it (defaulting to `Authorization`
+     * only as a defensive fallback — T29's own `required_with` validation
+     * rule normally guarantees a header name accompanies a secret).
+     *
+     * A blank `credential_secret` never touches the stored secret (binding
+     * constraint 8) — but design-10 Screen 3 keeps the header name field
+     * visible and editable even once a credential is set (its per-row
+     * states table's "Header name (editable)" row), so a changed name has
+     * to persist on its own. `$hasExistingCredential` (review-10 Finding 4)
+     * is how this method tells that case apart from a destination that has
+     * never had a credential: only when one is already stored does a
+     * blank-secret row write `credential_header_name` alone, leaving
+     * `credential_secret` and `credential_set_at` untouched — a
+     * header-name-only edit does not count as (re)setting the credential,
+     * so the Show page's "Credential set — changed {date}" line keeps
+     * reporting when the *secret* last changed, never the header name. A
+     * destination with no stored credential yet always gets `[]` for a
+     * blank secret regardless of header name, so a row can never come to
+     * rest holding a header name with no secret.
+     *
+     * @param  array{credential_header_name: string, credential_secret: string, remove_credential: bool}  $row
+     * @param  bool  $hasExistingCredential  whether this destination already has a credential
+     *                                       stored (review-10 Finding 4) — true only for an
+     *                                       `update()` row matched to an existing `Destination`
+     *                                       whose `credential_set_at` is not null.
+     * @return array{credential_header_name?: string|null, credential_secret?: string|null, credential_set_at?: CarbonImmutable|null}
+     */
+    private function destinationCredentialAttributes(array $row, bool $hasExistingCredential = false): array
+    {
+        // T31 (ruling 15) — checked first: validation's `prohibited_if`
+        // already guarantees `credential_secret` is empty whenever this flag
+        // is true, so there is no ordering ambiguity between the two
+        // branches below. All three columns are nulled together, so a row
+        // can never come to rest holding a header name with no secret — the
+        // result is byte-identical to a destination that never had one.
+        if ($row['remove_credential']) {
+            return [
+                'credential_header_name' => null,
+                'credential_secret' => null,
+                'credential_set_at' => null,
+            ];
+        }
+
+        if ($row['credential_secret'] === '') {
+            if ($hasExistingCredential && $row['credential_header_name'] !== '') {
+                return ['credential_header_name' => $row['credential_header_name']];
+            }
+
+            return [];
+        }
+
+        return [
+            'credential_header_name' => $row['credential_header_name'] !== '' ? $row['credential_header_name'] : 'Authorization',
+            'credential_secret' => $row['credential_secret'],
+            'credential_set_at' => now(),
+        ];
     }
 }

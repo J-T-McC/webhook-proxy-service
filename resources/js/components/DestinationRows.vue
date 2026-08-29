@@ -5,12 +5,18 @@ import type { ComponentPublicInstance } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { formatTimestamp } from '@/lib/format';
 import type { DestinationRow } from '@/types/proxies';
 
 const model = defineModel<DestinationRow[]>({ required: true });
@@ -31,19 +37,30 @@ function setUrlRef(
     }
 }
 
+type DestinationField =
+    'url' | 'http_method' | 'credential_header_name' | 'credential_secret';
+
 function fieldError(
     index: number,
-    field: 'url' | 'http_method',
+    field: DestinationField,
 ): string | undefined {
     return props.errors?.[`destinations.${index}.${field}`];
 }
 
-function errorId(index: number, field: 'url' | 'http_method'): string {
+function errorId(index: number, field: DestinationField): string {
     return `destination-${index}-${field}-error`;
 }
 
 async function addRow(): Promise<void> {
-    model.value = [...model.value, { url: '', http_method: 'POST' }];
+    model.value = [
+        ...model.value,
+        {
+            url: '',
+            http_method: 'POST',
+            credential_header_name: 'Authorization',
+            credential_secret: '',
+        },
+    ];
     await nextTick();
     urlRefs.value[model.value.length - 1]?.focus();
 }
@@ -60,6 +77,41 @@ async function removeRow(index: number): Promise<void> {
     await nextTick();
     // Focus a sensible neighbour: the previous row's URL (or the first row).
     urlRefs.value[Math.max(0, index - 1)]?.focus();
+}
+
+// Screen 3's Credential subsection (T30; AC30, AC33). The write-only shape
+// is per-row rather than per-proxy: `credentialIsSet()` governs whether the
+// collapsed "Credential set" status line renders or the blank input does,
+// and `credential_replacing`/`credential_removed` (kept on the row object
+// itself, not a parallel index-keyed structure, so they always travel with
+// their row through add/remove) track whether this row's Replace/Remove
+// credential has been clicked this session.
+function credentialIsSet(row: DestinationRow): boolean {
+    return (
+        (row.has_credential ?? false) &&
+        !row.credential_replacing &&
+        !row.credential_removed
+    );
+}
+
+function startReplacingCredential(row: DestinationRow): void {
+    row.credential_replacing = true;
+    row.credential_secret = '';
+}
+
+// Remove credential (T31; correction B3; plan-10 § Revision A, technical
+// ruling 15). Resets this row to the unconfigured in-session presentation —
+// header name back to the default, secret status back to unset — exactly
+// like an unconfigured row (design-10 Screen 3's states table). Nothing is
+// sent to the server until the form saves; `ProxyForm.vue`'s `transform()`
+// reads `credential_removed` at submit time to decide the `remove_credential`
+// signal, superseding it if the member has since typed a new secret into the
+// now-blank field.
+function removeCredential(row: DestinationRow): void {
+    row.credential_removed = true;
+    row.credential_replacing = false;
+    row.credential_header_name = 'Authorization';
+    row.credential_secret = '';
 }
 
 const inputClass =
@@ -142,6 +194,140 @@ const inputClass =
             >
                 <Trash2 />
             </Button>
+
+            <!-- Credential subsection (Screen 3; T30; AC30, AC33) -->
+            <Collapsible
+                :default-open="row.has_credential === true"
+                class="grid gap-2 sm:col-span-3"
+            >
+                <CollapsibleTrigger as-child>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        class="w-fit"
+                        :disabled="disabled"
+                    >
+                        {{
+                            row.has_credential && !row.credential_removed
+                                ? 'Credential: set'
+                                : 'Add credential'
+                        }}
+                    </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent
+                    class="grid gap-3 rounded-md border border-dashed p-3"
+                >
+                    <div class="grid gap-1">
+                        <label
+                            :for="`destination-${index}-credential-header`"
+                            class="text-sm font-medium"
+                        >
+                            Header name
+                        </label>
+                        <input
+                            :id="`destination-${index}-credential-header`"
+                            v-model="row.credential_header_name"
+                            type="text"
+                            placeholder="Authorization"
+                            :class="inputClass"
+                            :disabled="disabled"
+                            :aria-invalid="
+                                fieldError(index, 'credential_header_name')
+                                    ? 'true'
+                                    : undefined
+                            "
+                            :aria-describedby="
+                                errorId(index, 'credential_header_name')
+                            "
+                        />
+                        <div :id="errorId(index, 'credential_header_name')">
+                            <InputError
+                                :message="
+                                    fieldError(index, 'credential_header_name')
+                                "
+                            />
+                        </div>
+                    </div>
+
+                    <div class="grid gap-1">
+                        <label
+                            :for="`destination-${index}-credential-secret`"
+                            class="text-sm font-medium"
+                        >
+                            Secret value
+                        </label>
+
+                        <template v-if="credentialIsSet(row)">
+                            <p class="text-sm">
+                                Credential set — changed
+                                {{
+                                    formatTimestamp(
+                                        row.credential_changed_at as string,
+                                    )
+                                }}
+                            </p>
+                            <div class="flex gap-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    class="w-fit"
+                                    :aria-label="`Replace credential for ${row.url}`"
+                                    :disabled="disabled"
+                                    @click="startReplacingCredential(row)"
+                                >
+                                    Replace
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    class="w-fit"
+                                    :aria-label="`Remove credential for ${row.url}`"
+                                    :disabled="disabled"
+                                    @click="removeCredential(row)"
+                                >
+                                    Remove credential
+                                </Button>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <input
+                                :id="`destination-${index}-credential-secret`"
+                                v-model="row.credential_secret"
+                                type="password"
+                                autocomplete="off"
+                                :class="inputClass"
+                                :disabled="disabled"
+                                :aria-invalid="
+                                    fieldError(index, 'credential_secret')
+                                        ? 'true'
+                                        : undefined
+                                "
+                                :aria-describedby="
+                                    errorId(index, 'credential_secret')
+                                "
+                            />
+                        </template>
+                        <div :id="errorId(index, 'credential_secret')">
+                            <InputError
+                                :message="
+                                    fieldError(index, 'credential_secret')
+                                "
+                            />
+                        </div>
+                    </div>
+
+                    <p class="text-sm text-muted-foreground">
+                        Sent verbatim on every dispatch to this destination —
+                        the product adds no scheme prefix (e.g. enter "Bearer
+                        abc123" yourself if your destination expects one).
+                        Replacing takes effect on the next dispatch — there's no
+                        transition period.
+                    </p>
+                </CollapsibleContent>
+            </Collapsible>
         </div>
 
         <div>

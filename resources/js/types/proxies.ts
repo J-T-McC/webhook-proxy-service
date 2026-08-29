@@ -7,6 +7,40 @@ import type { RetryBackoffStrategy } from '@/data/proxyRetryBackoffStrategies';
 export type ProxyMode = 'simple' | 'enhanced';
 export type HttpMethod = 'POST' | 'PUT';
 
+/**
+ * The `security` prop (mirrors `ProxySecurityResource` exactly, T22/T32) —
+ * status only, never a value, never a length (AC20, AC33).
+ * Present only on `show()`/`edit()` (Technical ruling 3); `Create.vue` never
+ * receives this prop at all (`ProxyForm.vue`'s `security` prop is optional).
+ * `destinations` (T32; Technical ruling 4) is keyed by destination id and
+ * covers every destination the proxy has, including a soft-deleted one with
+ * historical traffic — the same id set `Show.vue`'s analytics-sourced
+ * Destinations table (T33) can render.
+ */
+export interface ProxySecurity {
+    /**
+     * Outbound signing status (T38; mirrors `ProxySecurityResource`'s
+     * `signing` key exactly) — one object on the shared prop, never a value
+     * and never a per-destination field (PRD-10 `## Amendment B` ruling 1:
+     * signing is proxy-level, shared by every destination). `enabled` plays a
+     * presence-only role; a proxy that was enabled and then disabled reads
+     * identically to one that was never enabled (`SecretStore::disable()`
+     * deletes every row).
+     */
+    signing: {
+        enabled: boolean;
+        generated_at: string | null;
+        overlap_expires_at: string | null;
+    };
+    destinations: Record<
+        number,
+        {
+            has_credential: boolean;
+            credential_changed_at: string | null;
+        }
+    >;
+}
+
 // Re-exported so existing `@/types/proxies` imports keep working; each union is
 // derived from its shared data const (single source of truth) — `ProcessingMode`
 // from `@/data/proxyProcessingModes`, `ProxyResponseStatus` from
@@ -49,6 +83,9 @@ export interface ProxyListItem {
      */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
+    /** This proxy's own AC13 additions to the fixed AC12 default list — never
+     * the default list itself (T10/T12). */
+    sensitive_fields: string[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
 }
@@ -59,11 +96,35 @@ export interface ProxyDestination {
     http_method: HttpMethod;
 }
 
-/** A destination row as edited in the create/edit form (id absent for new rows). */
+/**
+ * A destination row as edited in the create/edit form (id absent for new
+ * rows). `credential_header_name`/`credential_secret` are the two writable
+ * credential fields (T29, T30); `has_credential`/`credential_changed_at` are
+ * mount-seeded, read-only display flags (T30, mirrors `DestinationResource`)
+ * — never mutated in-session and never meaningfully read server-side (no
+ * validation rule matches either key, so `FormRequest::validated()` drops
+ * them even if submitted). `credential_replacing`/`credential_removed` are
+ * local UI-only state (T30's per-row Replace click, T31's Remove credential
+ * click — distinct from `credential_secret` itself, since a proxy can have
+ * many destination rows unlike the proxy's single outbound signing secret,
+ * Screen 6, ADR-026 having withdrawn the inbound verification secret this
+ * comment once compared against) — neither is read server-side;
+ * `remove_credential` (the real, submitted
+ * signal T31 derives from `credential_removed` at submit time, plan-10
+ * § Revision A technical ruling 15) is added by `ProxyForm.vue`'s
+ * `transform()`, not carried on this type, since it is never part of the
+ * in-session row shape itself.
+ */
 export interface DestinationRow {
     id?: number | null;
     url: string;
     http_method: string;
+    credential_header_name?: string;
+    credential_secret?: string;
+    has_credential?: boolean;
+    credential_changed_at?: string | null;
+    credential_replacing?: boolean;
+    credential_removed?: boolean;
 }
 
 export interface ProxyDetail {
@@ -84,6 +145,9 @@ export interface ProxyDetail {
      */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
+    /** This proxy's own AC13 additions to the fixed AC12 default list — never
+     * the default list itself (T10/T12). */
+    sensitive_fields: string[];
     destinations: ProxyDestination[];
     /** Did the acting user create this proxy (snake_case — a Resource field, ADR-009 Amendment B). */
     is_creator: boolean;
@@ -111,6 +175,9 @@ export interface ProxyFormProxy {
     /** Raw persisted values, regardless of mode (Amendment A) — never null-suppressed. */
     retry_attempt_limit: number | null;
     retry_backoff_strategy: RetryBackoffStrategy | null;
+    /** This proxy's own AC13 additions to the fixed AC12 default list — never
+     * the default list itself (T10/T12). */
+    sensitive_fields: string[];
     destinations: DestinationRow[];
 }
 

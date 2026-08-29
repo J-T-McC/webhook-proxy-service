@@ -4,10 +4,15 @@ import { computed } from 'vue';
 import ProxyForm from '@/pages/proxies/ProxyForm.vue';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
-import type { ProxyFormProxy } from '@/types/proxies';
+import type { ProxyFormProxy, ProxySecurity } from '@/types/proxies';
 
 const props = defineProps<{
     proxy: ProxyFormProxy;
+    /** The fixed AC12 default list, single-sourced from
+     * `SensitiveFields::DEFAULTS` (T11) — rendered literally, never summarised. */
+    defaultSensitiveFieldNames: string[];
+    /** The `security` prop (T22) — status only, never a value/length. */
+    security: ProxySecurity;
 }>();
 
 const page = usePage();
@@ -67,6 +72,8 @@ defineOptions({
                     proxy: props.proxy.id,
                 }).url
             "
+            :default-sensitive-field-names="props.defaultSensitiveFieldNames"
+            :security="props.security"
             :initial="{
                 name: props.proxy.name,
                 mode: props.proxy.mode,
@@ -75,6 +82,7 @@ defineOptions({
                 responseBody: props.proxy.response_body,
                 retryAttemptLimit: props.proxy.retry_attempt_limit,
                 retryBackoffStrategy: props.proxy.retry_backoff_strategy,
+                sensitiveFields: props.proxy.sensitive_fields,
                 destinations: props.proxy.destinations,
             }"
         />
