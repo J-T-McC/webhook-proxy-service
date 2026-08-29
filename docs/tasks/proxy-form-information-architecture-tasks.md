@@ -118,7 +118,29 @@
   a host-built production bundle (`pnpm build` on host, not in Sail): the Details card renders with
   only Name inside it; submitting the form with Name blank still shows the existing validation error
   and still moves focus to Name (unchanged `onError` handler in `submit()`).
-- **Completion notes:** _pending_
+- **Completion notes:** Done (2026-08-29). Wrapped the Name field in a new first `Card`
+  (`gap-6 p-6`) headed `<h2 class="text-base font-semibold">Details</h2>`, containing only Name, no
+  nested `fieldset`. Removed the `id="name-help"` paragraph ("A name to recognise this proxy.")
+  entirely from the template — not relocated to a tooltip. Updated Name's `Input` `aria-describedby`
+  from `"name-help name-error"` to `"name-error"`. `v-model="form.name"`, placeholder, `:disabled`,
+  and validation/error wiring are untouched. Also introduced the outer `<div class="space-y-6">`
+  stacking wrapper around all cards (needed to keep the file well-formed once Details became its
+  own `Card` distinct from the rest of the still-unrestructured form) and moved the Actions row
+  (Submit/Cancel) to sit outside the card stack, at the form's end, inside a `<div class="mt-6
+  flex items-center gap-3">` — anticipates the T7 AC on final structure; re-verified at T7 once
+  Response/Delivery/Sensitive fields/Destinations are each split into their own cards too.
+  Everything other than Details/Actions is temporarily grouped into a second, as-yet-unheaded
+  `Card` pending T2–T6.
+  Verification: no Playwright/browser access available to this agent (dev-team sub-agents don't
+  carry that tool); verified structurally instead by reading the rendered template and confirming
+  the `aria-describedby` change matches the AC, plus `pnpm build` (host) succeeding with no
+  compile errors. A real browser pass (Tab to Name, submit blank, confirm validation error and
+  focus land on Name) is left for the Reviewer/QA gate — recorded here rather than claimed.
+  Gates: `pnpm types:check` 0 errors, `pnpm format:check` clean, `pnpm lint:check` — 0 errors in
+  `ProxyForm.vue` itself (confirmed via scoped `npx eslint resources/js/pages/proxies/ProxyForm.vue`;
+  the full `lint:check` run reports unrelated errors from stale `.claude/worktrees/agent-*`
+  checkouts, per this project's known lint gotcha). `composer lint` and `composer types:check` both
+  green (0 diff to any backend file, as expected — this is a frontend-only task).
 
 ## T2 — Response card: own `Card`, moved second, copy rewrite, Body tooltip (`## Grouping proposal`; `## Copy rewrite pass` → Response; N2)
 

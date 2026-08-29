@@ -289,394 +289,418 @@ function submit(): void {
         class="mx-auto w-full max-w-3xl"
         @submit.prevent="submit"
     >
-        <Card class="gap-6 p-6">
+        <div class="space-y-6">
             <!-- Details -->
-            <div class="grid gap-2">
-                <Label for="name">Name</Label>
-                <Input
-                    id="name"
-                    v-model="form.name"
-                    type="text"
-                    placeholder="Stripe → billing services"
-                    :disabled="form.processing"
-                    :aria-invalid="form.errors.name ? 'true' : undefined"
-                    aria-describedby="name-help name-error"
-                />
-                <p id="name-help" class="text-sm text-muted-foreground">
-                    A name to recognise this proxy.
-                </p>
-                <span id="name-error">
-                    <InputError :message="form.errors.name" />
-                </span>
-            </div>
-
-            <div class="grid gap-2">
-                <Label for="mode">Mode</Label>
-                <Select v-model="form.mode" :disabled="form.processing">
-                    <SelectTrigger
-                        id="mode"
-                        class="w-full sm:w-64"
-                        :aria-invalid="form.errors.mode ? 'true' : undefined"
-                        aria-describedby="mode-help mode-error"
-                    >
-                        <SelectValue placeholder="Select a mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="simple">Simple</SelectItem>
-                        <SelectItem value="enhanced">Enhanced</SelectItem>
-                    </SelectContent>
-                </Select>
-                <p id="mode-help" class="text-sm text-muted-foreground">
-                    Enhanced mode stores the payload actually dispatched,
-                    separately from the payload received, and lets this proxy
-                    configure its own retry attempts and backoff strategy below.
-                    Automatic retry, payload capture, retention, and replay
-                    apply to every proxy regardless of Mode.
-                </p>
-                <span id="mode-error">
-                    <InputError :message="form.errors.mode" />
-                </span>
-            </div>
-
-            <!-- Downgrade disclosure (Enhanced → Simple edit only, AC13/AC14(c)) -->
-            <div aria-live="polite">
-                <Alert
-                    v-if="isDowngrading"
-                    class="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-100 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400"
-                >
-                    <Info class="size-4" />
-                    <AlertTitle>Switching to Simple mode</AlertTitle>
-                    <AlertDescription class="text-blue-900 dark:text-blue-100">
-                        <ul class="list-disc space-y-1 pl-4">
-                            <li>
-                                Enhanced-only steps — payload storage and retry
-                                configuration — stop running for events
-                                processed after you save. Automatic retry,
-                                payload capture, retention, and replay are
-                                unaffected; they apply to every proxy regardless
-                                of mode.
-                            </li>
-                            <li>
-                                Dispatched payloads already stored for this
-                                proxy's past events are kept, unchanged, and
-                                expire on their normal 30-day schedule — the
-                                same as always. Nothing is deleted by this
-                                switch.
-                            </li>
-                            <li>
-                                Any retry configuration you've saved for this
-                                proxy is kept but stops applying while it's
-                                Simple — the system default ({{
-                                    defaultAttemptLimit
-                                }}
-                                attempts, {{ defaultBackoffStrategyLower }})
-                                governs meanwhile. It applies again, with the
-                                same values, if you turn Enhanced back on.
-                            </li>
-                        </ul>
-                    </AlertDescription>
-                </Alert>
-            </div>
-
-            <div class="grid gap-2">
-                <Label for="processing_mode">Processing</Label>
-                <Select
-                    v-model="form.processing_mode"
-                    :disabled="form.processing"
-                >
-                    <SelectTrigger
-                        id="processing_mode"
-                        class="w-full sm:w-64"
-                        :aria-invalid="
-                            form.errors.processing_mode ? 'true' : undefined
-                        "
-                        aria-describedby="processing-help processing-error"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem
-                            v-for="option in PROXY_PROCESSING_MODES"
-                            :key="option.value"
-                            :value="option.value"
-                        >
-                            {{ option.label }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-                <p id="processing-help" class="text-sm text-muted-foreground">
-                    Independent of the Mode setting above. Async (default)
-                    delivers this proxy's events to its destinations in
-                    parallel, with no guaranteed order — the right choice for
-                    most, higher-throughput traffic. FIFO delivers this proxy's
-                    events in the order they were received; it trades throughput
-                    for strict ordering, so FIFO is necessarily more serialized
-                    and slower than Async, not a free upgrade.
-                </p>
-                <span id="processing-error">
-                    <InputError :message="form.errors.processing_mode" />
-                </span>
-            </div>
-
-            <!-- Retry policy (enhanced mode only, Flow F) -->
-            <fieldset v-if="isEnhanced" class="grid gap-4">
-                <legend class="text-sm font-medium">Retry policy</legend>
-                <p class="text-sm text-muted-foreground">
-                    Applies to automatic re-attempts after a failed delivery to
-                    a destination. Available on Enhanced-mode proxies;
-                    Simple-mode proxies use the fixed system default ({{
-                        defaultAttemptLimit
-                    }}
-                    attempts, {{ defaultBackoffStrategyLower }} backoff).
-                </p>
-
+            <Card class="gap-6 p-6">
+                <h2 class="text-base font-semibold">Details</h2>
                 <div class="grid gap-2">
-                    <Label for="retry_attempt_limit">Attempts</Label>
+                    <Label for="name">Name</Label>
                     <Input
-                        id="retry_attempt_limit"
-                        v-model="form.retry_attempt_limit"
-                        type="number"
-                        min="1"
-                        max="10"
-                        class="w-full sm:w-32"
+                        id="name"
+                        v-model="form.name"
+                        type="text"
+                        placeholder="Stripe → billing services"
                         :disabled="form.processing"
-                        :aria-invalid="
-                            form.errors.retry_attempt_limit ? 'true' : undefined
-                        "
-                        aria-describedby="retry-attempt-limit-help retry-attempt-limit-error"
+                        :aria-invalid="form.errors.name ? 'true' : undefined"
+                        aria-describedby="name-error"
                     />
-                    <p
-                        id="retry-attempt-limit-help"
-                        class="text-sm text-muted-foreground"
-                    >
-                        Leave blank to use the default (5). Maximum 10.
+                    <span id="name-error">
+                        <InputError :message="form.errors.name" />
+                    </span>
+                </div>
+            </Card>
+
+            <Card class="gap-6 p-6">
+                <div class="grid gap-2">
+                    <Label for="mode">Mode</Label>
+                    <Select v-model="form.mode" :disabled="form.processing">
+                        <SelectTrigger
+                            id="mode"
+                            class="w-full sm:w-64"
+                            :aria-invalid="
+                                form.errors.mode ? 'true' : undefined
+                            "
+                            aria-describedby="mode-help mode-error"
+                        >
+                            <SelectValue placeholder="Select a mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="simple">Simple</SelectItem>
+                            <SelectItem value="enhanced">Enhanced</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p id="mode-help" class="text-sm text-muted-foreground">
+                        Enhanced mode stores the payload actually dispatched,
+                        separately from the payload received, and lets this
+                        proxy configure its own retry attempts and backoff
+                        strategy below. Automatic retry, payload capture,
+                        retention, and replay apply to every proxy regardless of
+                        Mode.
                     </p>
-                    <span id="retry-attempt-limit-error">
-                        <InputError
-                            :message="form.errors.retry_attempt_limit"
-                        />
+                    <span id="mode-error">
+                        <InputError :message="form.errors.mode" />
                     </span>
                 </div>
 
+                <!-- Downgrade disclosure (Enhanced → Simple edit only, AC13/AC14(c)) -->
+                <div aria-live="polite">
+                    <Alert
+                        v-if="isDowngrading"
+                        class="border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/50 dark:text-blue-100 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400"
+                    >
+                        <Info class="size-4" />
+                        <AlertTitle>Switching to Simple mode</AlertTitle>
+                        <AlertDescription
+                            class="text-blue-900 dark:text-blue-100"
+                        >
+                            <ul class="list-disc space-y-1 pl-4">
+                                <li>
+                                    Enhanced-only steps — payload storage and
+                                    retry configuration — stop running for
+                                    events processed after you save. Automatic
+                                    retry, payload capture, retention, and
+                                    replay are unaffected; they apply to every
+                                    proxy regardless of mode.
+                                </li>
+                                <li>
+                                    Dispatched payloads already stored for this
+                                    proxy's past events are kept, unchanged, and
+                                    expire on their normal 30-day schedule — the
+                                    same as always. Nothing is deleted by this
+                                    switch.
+                                </li>
+                                <li>
+                                    Any retry configuration you've saved for
+                                    this proxy is kept but stops applying while
+                                    it's Simple — the system default ({{
+                                        defaultAttemptLimit
+                                    }}
+                                    attempts, {{ defaultBackoffStrategyLower }})
+                                    governs meanwhile. It applies again, with
+                                    the same values, if you turn Enhanced back
+                                    on.
+                                </li>
+                            </ul>
+                        </AlertDescription>
+                    </Alert>
+                </div>
+
                 <div class="grid gap-2">
-                    <Label for="retry_backoff_strategy">Backoff strategy</Label>
+                    <Label for="processing_mode">Processing</Label>
                     <Select
-                        v-model="retryStrategySelect"
+                        v-model="form.processing_mode"
                         :disabled="form.processing"
                     >
                         <SelectTrigger
-                            id="retry_backoff_strategy"
+                            id="processing_mode"
                             class="w-full sm:w-64"
                             :aria-invalid="
-                                form.errors.retry_backoff_strategy
-                                    ? 'true'
-                                    : undefined
+                                form.errors.processing_mode ? 'true' : undefined
                             "
-                            aria-describedby="retry-backoff-strategy-help retry-backoff-strategy-error"
+                            aria-describedby="processing-help processing-error"
                         >
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem :value="RETRY_STRATEGY_DEFAULT">
-                                {{ RETRY_STRATEGY_DEFAULT_LABEL }}
-                            </SelectItem>
                             <SelectItem
-                                v-for="strategy in PROXY_RETRY_BACKOFF_STRATEGIES"
-                                :key="strategy.value"
-                                :value="strategy.value"
+                                v-for="option in PROXY_PROCESSING_MODES"
+                                :key="option.value"
+                                :value="option.value"
                             >
-                                {{ strategy.label }}
+                                {{ option.label }}
                             </SelectItem>
                         </SelectContent>
                     </Select>
                     <p
-                        id="retry-backoff-strategy-help"
+                        id="processing-help"
                         class="text-sm text-muted-foreground"
                     >
-                        Exponential increases the wait between attempts each
-                        time; fixed interval waits the same amount every time.
-                        Either way, retries are always bounded well inside your
-                        team's 30-day payload retention window.
+                        Independent of the Mode setting above. Async (default)
+                        delivers this proxy's events to its destinations in
+                        parallel, with no guaranteed order — the right choice
+                        for most, higher-throughput traffic. FIFO delivers this
+                        proxy's events in the order they were received; it
+                        trades throughput for strict ordering, so FIFO is
+                        necessarily more serialized and slower than Async, not a
+                        free upgrade.
                     </p>
-                    <span id="retry-backoff-strategy-error">
-                        <InputError
-                            :message="form.errors.retry_backoff_strategy"
-                        />
+                    <span id="processing-error">
+                        <InputError :message="form.errors.processing_mode" />
                     </span>
                 </div>
-            </fieldset>
 
-            <!-- Upstream response (acknowledgement, returned before delivery) -->
-            <div class="grid gap-2">
-                <Label for="response_status">Response status code</Label>
-                <Select v-model="statusSelect" :disabled="form.processing">
-                    <SelectTrigger
-                        id="response_status"
-                        class="w-full sm:w-64"
-                        :aria-invalid="
-                            form.errors.response_status ? 'true' : undefined
-                        "
-                        aria-describedby="response-status-help response-status-error"
-                    >
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem :value="STATUS_DEFAULT">
-                            {{ PROXY_RESPONSE_STATUS_DEFAULT_LABEL }}
-                        </SelectItem>
-                        <SelectItem
-                            v-for="status in PROXY_RESPONSE_STATUSES"
-                            :key="status.value"
-                            :value="status.value.toString()"
-                        >
-                            {{ status.label }}
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-                <p
-                    id="response-status-help"
-                    class="text-sm text-muted-foreground"
-                >
-                    The HTTP status returned to the sender the moment the
-                    webhook is received — an acknowledgement, sent immediately
-                    and independently of whether delivery to your destinations
-                    succeeds. Choose 200, 202, or 204; 204 (No Content) sends an
-                    empty body. Leave as Default to return 202 Accepted.
-                </p>
-                <span id="response-status-error">
-                    <InputError :message="form.errors.response_status" />
-                </span>
-            </div>
-
-            <div class="grid gap-2">
-                <Label for="response_body">Response body</Label>
-                <Input
-                    id="response_body"
-                    v-model="form.response_body"
-                    type="text"
-                    placeholder="(empty)"
-                    :disabled="form.processing || bodyDisabled"
-                    :aria-invalid="
-                        form.errors.response_body ? 'true' : undefined
-                    "
-                    aria-describedby="response-body-help response-body-error"
-                />
-                <p
-                    id="response-body-help"
-                    class="text-sm text-muted-foreground"
-                >
-                    An optional fixed body returned with the acknowledgement
-                    (for example a verification challenge echo). It is a static
-                    reply, not a delivery report, and never reflects your
-                    destinations' responses. Leave blank for an empty body; 204
-                    (No Content) always sends an empty body, so this field is
-                    disabled when 204 is selected.
-                </p>
-                <span id="response-body-error">
-                    <InputError :message="form.errors.response_body" />
-                </span>
-            </div>
-
-            <!-- Sensitive fields (Screen 2; AC12, AC13, AC19, C4, N4) -->
-            <fieldset class="grid gap-4">
-                <legend class="text-sm font-medium">Sensitive fields</legend>
-                <p class="text-sm text-muted-foreground">
-                    Values in these fields are hidden wherever this proxy's
-                    stored payloads are shown. This never changes what's stored
-                    or what's delivered — see a payload's Reveal to check.
-                </p>
-
-                <div class="grid gap-2">
-                    <p class="text-sm font-medium">Always hidden</p>
-                    <div class="flex flex-wrap gap-2">
-                        <Badge
-                            v-for="name in defaultSensitiveFieldNames"
-                            :key="name"
-                            variant="secondary"
-                        >
-                            {{ name }}
-                        </Badge>
-                    </div>
+                <!-- Retry policy (enhanced mode only, Flow F) -->
+                <fieldset v-if="isEnhanced" class="grid gap-4">
+                    <legend class="text-sm font-medium">Retry policy</legend>
                     <p class="text-sm text-muted-foreground">
-                        Case and separators don't matter — password, Password
-                        and pass_word are all this same name.
+                        Applies to automatic re-attempts after a failed delivery
+                        to a destination. Available on Enhanced-mode proxies;
+                        Simple-mode proxies use the fixed system default ({{
+                            defaultAttemptLimit
+                        }}
+                        attempts, {{ defaultBackoffStrategyLower }} backoff).
                     </p>
+
+                    <div class="grid gap-2">
+                        <Label for="retry_attempt_limit">Attempts</Label>
+                        <Input
+                            id="retry_attempt_limit"
+                            v-model="form.retry_attempt_limit"
+                            type="number"
+                            min="1"
+                            max="10"
+                            class="w-full sm:w-32"
+                            :disabled="form.processing"
+                            :aria-invalid="
+                                form.errors.retry_attempt_limit
+                                    ? 'true'
+                                    : undefined
+                            "
+                            aria-describedby="retry-attempt-limit-help retry-attempt-limit-error"
+                        />
+                        <p
+                            id="retry-attempt-limit-help"
+                            class="text-sm text-muted-foreground"
+                        >
+                            Leave blank to use the default (5). Maximum 10.
+                        </p>
+                        <span id="retry-attempt-limit-error">
+                            <InputError
+                                :message="form.errors.retry_attempt_limit"
+                            />
+                        </span>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <Label for="retry_backoff_strategy"
+                            >Backoff strategy</Label
+                        >
+                        <Select
+                            v-model="retryStrategySelect"
+                            :disabled="form.processing"
+                        >
+                            <SelectTrigger
+                                id="retry_backoff_strategy"
+                                class="w-full sm:w-64"
+                                :aria-invalid="
+                                    form.errors.retry_backoff_strategy
+                                        ? 'true'
+                                        : undefined
+                                "
+                                aria-describedby="retry-backoff-strategy-help retry-backoff-strategy-error"
+                            >
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem :value="RETRY_STRATEGY_DEFAULT">
+                                    {{ RETRY_STRATEGY_DEFAULT_LABEL }}
+                                </SelectItem>
+                                <SelectItem
+                                    v-for="strategy in PROXY_RETRY_BACKOFF_STRATEGIES"
+                                    :key="strategy.value"
+                                    :value="strategy.value"
+                                >
+                                    {{ strategy.label }}
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p
+                            id="retry-backoff-strategy-help"
+                            class="text-sm text-muted-foreground"
+                        >
+                            Exponential increases the wait between attempts each
+                            time; fixed interval waits the same amount every
+                            time. Either way, retries are always bounded well
+                            inside your team's 30-day payload retention window.
+                        </p>
+                        <span id="retry-backoff-strategy-error">
+                            <InputError
+                                :message="form.errors.retry_backoff_strategy"
+                            />
+                        </span>
+                    </div>
+                </fieldset>
+
+                <!-- Upstream response (acknowledgement, returned before delivery) -->
+                <div class="grid gap-2">
+                    <Label for="response_status">Response status code</Label>
+                    <Select v-model="statusSelect" :disabled="form.processing">
+                        <SelectTrigger
+                            id="response_status"
+                            class="w-full sm:w-64"
+                            :aria-invalid="
+                                form.errors.response_status ? 'true' : undefined
+                            "
+                            aria-describedby="response-status-help response-status-error"
+                        >
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem :value="STATUS_DEFAULT">
+                                {{ PROXY_RESPONSE_STATUS_DEFAULT_LABEL }}
+                            </SelectItem>
+                            <SelectItem
+                                v-for="status in PROXY_RESPONSE_STATUSES"
+                                :key="status.value"
+                                :value="status.value.toString()"
+                            >
+                                {{ status.label }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p
+                        id="response-status-help"
+                        class="text-sm text-muted-foreground"
+                    >
+                        The HTTP status returned to the sender the moment the
+                        webhook is received — an acknowledgement, sent
+                        immediately and independently of whether delivery to
+                        your destinations succeeds. Choose 200, 202, or 204; 204
+                        (No Content) sends an empty body. Leave as Default to
+                        return 202 Accepted.
+                    </p>
+                    <span id="response-status-error">
+                        <InputError :message="form.errors.response_status" />
+                    </span>
                 </div>
 
                 <div class="grid gap-2">
-                    <p class="text-sm font-medium">
-                        Also hidden for this proxy
-                    </p>
-                    <div
-                        v-if="form.sensitive_fields.length > 0"
-                        class="flex flex-wrap gap-2"
+                    <Label for="response_body">Response body</Label>
+                    <Input
+                        id="response_body"
+                        v-model="form.response_body"
+                        type="text"
+                        placeholder="(empty)"
+                        :disabled="form.processing || bodyDisabled"
+                        :aria-invalid="
+                            form.errors.response_body ? 'true' : undefined
+                        "
+                        aria-describedby="response-body-help response-body-error"
+                    />
+                    <p
+                        id="response-body-help"
+                        class="text-sm text-muted-foreground"
                     >
-                        <Badge
-                            v-for="(name, index) in form.sensitive_fields"
-                            :key="`${name}-${index}`"
-                            variant="outline"
-                            class="gap-1 pr-1.5"
-                        >
-                            {{ name }}
-                            <button
-                                type="button"
-                                class="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                :aria-label="`Remove ${name}`"
-                                :disabled="form.processing"
-                                @click="removeSensitiveField(index)"
-                            >
-                                <X class="size-3" />
-                            </button>
-                        </Badge>
-                    </div>
-
-                    <div class="flex gap-2">
-                        <div class="grid flex-1 gap-1">
-                            <Label for="sensitive-field-add" class="sr-only">
-                                Add field name
-                            </Label>
-                            <Input
-                                id="sensitive-field-add"
-                                v-model="sensitiveFieldInput"
-                                type="text"
-                                placeholder="e.g. ssn_last4"
-                                :disabled="form.processing"
-                                aria-describedby="sensitive-fields-error"
-                                @keydown.enter.prevent="addSensitiveField"
-                            />
-                        </div>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            :disabled="form.processing"
-                            @click="addSensitiveField"
-                        >
-                            Add
-                        </Button>
-                    </div>
-                    <span id="sensitive-fields-error">
-                        <InputError :message="form.errors.sensitive_fields" />
+                        An optional fixed body returned with the acknowledgement
+                        (for example a verification challenge echo). It is a
+                        static reply, not a delivery report, and never reflects
+                        your destinations' responses. Leave blank for an empty
+                        body; 204 (No Content) always sends an empty body, so
+                        this field is disabled when 204 is selected.
+                    </p>
+                    <span id="response-body-error">
+                        <InputError :message="form.errors.response_body" />
                     </span>
                 </div>
-            </fieldset>
 
-            <!-- Destinations -->
-            <DestinationRows
-                v-model="form.destinations"
-                :errors="form.errors"
-                :disabled="form.processing"
-            />
-            <InputError :message="form.errors.destinations" />
+                <!-- Sensitive fields (Screen 2; AC12, AC13, AC19, C4, N4) -->
+                <fieldset class="grid gap-4">
+                    <legend class="text-sm font-medium">
+                        Sensitive fields
+                    </legend>
+                    <p class="text-sm text-muted-foreground">
+                        Values in these fields are hidden wherever this proxy's
+                        stored payloads are shown. This never changes what's
+                        stored or what's delivered — see a payload's Reveal to
+                        check.
+                    </p>
 
-            <!-- Actions -->
-            <div class="flex items-center gap-3">
-                <Button type="submit" :disabled="form.processing">
-                    {{ submitLabel }}
-                </Button>
-                <Button variant="ghost" as-child>
-                    <Link :href="cancelHref">Cancel</Link>
-                </Button>
-            </div>
-        </Card>
+                    <div class="grid gap-2">
+                        <p class="text-sm font-medium">Always hidden</p>
+                        <div class="flex flex-wrap gap-2">
+                            <Badge
+                                v-for="name in defaultSensitiveFieldNames"
+                                :key="name"
+                                variant="secondary"
+                            >
+                                {{ name }}
+                            </Badge>
+                        </div>
+                        <p class="text-sm text-muted-foreground">
+                            Case and separators don't matter — password,
+                            Password and pass_word are all this same name.
+                        </p>
+                    </div>
+
+                    <div class="grid gap-2">
+                        <p class="text-sm font-medium">
+                            Also hidden for this proxy
+                        </p>
+                        <div
+                            v-if="form.sensitive_fields.length > 0"
+                            class="flex flex-wrap gap-2"
+                        >
+                            <Badge
+                                v-for="(name, index) in form.sensitive_fields"
+                                :key="`${name}-${index}`"
+                                variant="outline"
+                                class="gap-1 pr-1.5"
+                            >
+                                {{ name }}
+                                <button
+                                    type="button"
+                                    class="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    :aria-label="`Remove ${name}`"
+                                    :disabled="form.processing"
+                                    @click="removeSensitiveField(index)"
+                                >
+                                    <X class="size-3" />
+                                </button>
+                            </Badge>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <div class="grid flex-1 gap-1">
+                                <Label
+                                    for="sensitive-field-add"
+                                    class="sr-only"
+                                >
+                                    Add field name
+                                </Label>
+                                <Input
+                                    id="sensitive-field-add"
+                                    v-model="sensitiveFieldInput"
+                                    type="text"
+                                    placeholder="e.g. ssn_last4"
+                                    :disabled="form.processing"
+                                    aria-describedby="sensitive-fields-error"
+                                    @keydown.enter.prevent="addSensitiveField"
+                                />
+                            </div>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                :disabled="form.processing"
+                                @click="addSensitiveField"
+                            >
+                                Add
+                            </Button>
+                        </div>
+                        <span id="sensitive-fields-error">
+                            <InputError
+                                :message="form.errors.sensitive_fields"
+                            />
+                        </span>
+                    </div>
+                </fieldset>
+
+                <!-- Destinations -->
+                <DestinationRows
+                    v-model="form.destinations"
+                    :errors="form.errors"
+                    :disabled="form.processing"
+                />
+                <InputError :message="form.errors.destinations" />
+            </Card>
+        </div>
+
+        <div class="mt-6 flex items-center gap-3">
+            <Button type="submit" :disabled="form.processing">
+                {{ submitLabel }}
+            </Button>
+            <Button variant="ghost" as-child>
+                <Link :href="cancelHref">Cancel</Link>
+            </Button>
+        </div>
     </form>
 </template>
