@@ -40,6 +40,19 @@ class ProxyPolicy
     }
 
     /**
+     * Determine whether the user can view the team-wide event queue (every
+     * proxy the team owns, not one). Same permission {@see view()} gates a
+     * single proxy on, checked at the team level directly since this ability
+     * has no single `Proxy` instance to resolve a team from.
+     */
+    public function viewEventQueue(User $user): bool
+    {
+        $team = $user->currentTeam;
+
+        return $team !== null && $user->hasTeamPermission($team, TeamPermission::ViewProxy);
+    }
+
+    /**
      * Determine whether the user can create proxies on their acting team.
      */
     public function create(User $user): bool
