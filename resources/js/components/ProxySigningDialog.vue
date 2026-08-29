@@ -264,11 +264,11 @@ function handleEndOverlap(): void {
             <DialogHeader>
                 <DialogTitle>Signing for {{ props.proxyName }}</DialogTitle>
                 <DialogDescription>
-                    Lets every destination this proxy dispatches to verify
-                    that a dispatch really came from this proxy, using the
-                    Standard Webhooks specification's signature format. One
-                    secret is used for all of this proxy's destinations,
-                    including any added later.
+                    Lets every destination this proxy dispatches to verify that
+                    a dispatch really came from this proxy, using the Standard
+                    Webhooks specification's signature format. One secret is
+                    used for all of this proxy's destinations, including any
+                    added later.
                 </DialogDescription>
             </DialogHeader>
 
