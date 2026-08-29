@@ -470,8 +470,14 @@ control left for it to describe.
   rules.
 - **Tooltip content** uses Reka UI's default `TooltipContent` positioning/
   collision handling (the same defaults `docs/standards/design.md` already relies
-  on for `Dialog`/`AlertDialog` sizing) — no bespoke width or placement handling
-  is introduced.
+  on for `Dialog`/`AlertDialog` sizing) for placement — collision handling
+  repositions an overflowing tooltip but cannot shrink one, so it does not by
+  itself keep content within the viewport. **Width is capped**: every
+  `TooltipContent` call site in `ProxyForm.vue` takes `class="max-w-xs"`, the
+  same class `ReplayDialog.vue` already applies to its own sentence-length
+  tooltip. This is the one bespoke width this document introduces, corrected
+  2026-08-29 in response to Review-17 Finding 5 — see `## Amendment — tooltip
+  content width cap (2026-08-29)` below for why.
 - **Minimum supported width:** 360px, the standing default from
   `docs/standards/design.md` — no feature-specific override; nothing in this
   restructuring narrows the form below what it already tolerates today.
@@ -806,14 +812,29 @@ Each is recorded in place, at the section it corrects.
 
 ### Non-blocking notes
 
-- **N1 — do not copy `ReplayDialog.vue` as the tooltip pattern.** Its
-  `TooltipTrigger` wraps a bare `span`, which is not keyboard-focusable, and it
-  sets a bespoke `max-w-xs` on `TooltipContent`. This document's `## Accessibility`
-  section already requires a real focusable `button` with a discernible
-  `aria-label` and `aria-describedby`-linked content, and its
-  `## Responsive Behavior` section already declines bespoke widths. Both are
-  right. The note exists only so a Task Planner searching for precedent does not
-  find the weaker one first and follow it.
+- **N1 — `ReplayDialog.vue` as tooltip precedent: two separate criticisms,
+  corrected 2026-08-29.** This note originally rejected `ReplayDialog.vue` as a
+  whole, on two grounds bundled together: its `TooltipTrigger` wraps a bare
+  `span`, which is not keyboard-focusable, and it sets `max-w-xs` on
+  `TooltipContent`. Review-17 Finding 5 found that these two grounds deserved
+  opposite verdicts, and it was right. Split:
+  - **Trigger — rejection stands.** A bare `span` is not keyboard-focusable.
+    This document's `## Accessibility` section correctly requires a real
+    focusable `button` with a discernible `aria-label` and
+    `aria-describedby`-linked content instead. Do not copy
+    `ReplayDialog.vue`'s trigger.
+  - **Width cap — rejection was wrong; withdrawn.** `max-w-xs` is not a defect
+    to avoid; it is the one guard in this codebase against a sentence-length
+    tooltip rendering wider than the viewport, and `ReplayDialog.vue` is the
+    only prior `TooltipContent` consumer carrying a sentence rather than a
+    two-word label — the only precedent that had actually met this problem.
+    `## Responsive Behavior` does not decline bespoke tooltip widths as of this
+    amendment; it now requires this exact one. Copy `ReplayDialog.vue`'s
+    `max-w-xs` on every `TooltipContent` this document adds.
+  The note exists so a Task Planner searching for precedent adopts the
+  focusable-trigger correction and the width cap together, rather than finding
+  the original bundled note and, in trying to avoid the trigger defect,
+  discarding the width guard along with it.
 - **N2 — Response's move is the one change of substance, and it should survive
   task breakdown intact.** Everything else here can be described as "same fields,
   new boxes, shorter copy." Response moving to second in the stack is not that: it
@@ -952,3 +973,124 @@ sufficient, per Review-17's own recommended resolution.
 ruling and needs a corresponding correction to permit the one `legend`-class
 edit above. Flagged here as a consequence of Ruling 2; not actioned by this
 role.
+
+## Amendment — tooltip content width cap (2026-08-29)
+
+**What this settles.** `docs/reviews/review-17-proxy-form-information-architecture.md`
+re-review Finding 5 (Major, blocking) found that every `TooltipContent` this
+feature adds renders wider than the 360px minimum supported width this
+document itself states in `## Responsive Behavior`, and that the overflow is
+unreachable — the page has no horizontal scroll at that width, so the clipped
+text cannot be brought into view by any gesture. Measured against a freshly
+host-built bundle, the four tooltips rendered at 892px (Mode), 744px (Backoff
+strategy), 469px ("Always hidden") and 431px (Response Body) against a 360px
+viewport, clipping 16% to 60% of each. This matters more than a cosmetic
+overflow because this document's own `## Rule: form copy vs. tooltip vs. cut`
+moved those four sentences out of the form's wrapping `<p>` elements and into
+tooltips on the strength of the tooltip carrying them. At 360px it did not, so
+on the minimum supported width this feature was a net loss of information
+against the pre-#17 form.
+
+**Root cause.** `resources/js/components/ui/tooltip/TooltipContent.vue` sets
+`w-fit` with no `max-width`, so content never wraps and Reka UI's collision
+handling — which repositions an overflowing tooltip but cannot shrink one —
+does not help. `## Responsive Behavior` had said this document introduces "no
+bespoke width," and note N1 told implementers not to copy
+`ReplayDialog.vue`'s `max-w-xs`, citing it in the same breath as
+`ReplayDialog.vue`'s genuinely wrong non-focusable `span` trigger. The Senior
+Developer followed both instructions exactly, which is why no call site in
+`ProxyForm.vue` carries a width class. Neither instruction was implemented
+wrongly; `## Responsive Behavior` and N1 were themselves wrong on this one
+point.
+
+**Ruling 1 — `## Responsive Behavior` yields a width cap for tooltip content;
+the exact class is `max-w-xs`.** Every `TooltipContent` call site this
+document adds in `ProxyForm.vue` — Mode, Backoff strategy, "Always hidden,"
+Response Body — takes `class="max-w-xs"`, passed at the call site (Reka
+UI's `TooltipContent` wrapper forwards `props.class` and merges it with its
+own `w-fit`, so the two compose rather than conflict; `w-fit` still governs
+width below the cap, `max-w-xs` governs it above). This is the identical
+class `ReplayDialog.vue` already carries, not a new value invented for this
+ruling. `max-w-xs` resolves to 320px, which forces the longest string —
+Mode's, 892px unconstrained — to wrap well inside the 360px minimum supported
+width with margin for the tooltip's own position; the other three, all
+narrower unconstrained, wrap the same way. This is now stated directly in
+`## Responsive Behavior` above, replacing "no bespoke width or placement
+handling is introduced."
+
+**Ruling 2 — N1 is corrected; its two criticisms of `ReplayDialog.vue` are
+split and given opposite verdicts.** N1 rejected `ReplayDialog.vue` as
+precedent on two grounds bundled as one: a non-focusable `span` trigger, and
+a bespoke `max-w-xs` on `TooltipContent`. The trigger rejection stands — a
+`span` is not keyboard-focusable, and this document's `## Accessibility`
+section is right to require a real focusable `button` instead. The width
+rejection was wrong: `max-w-xs` is not a flaw to avoid but the codebase's
+only existing guard against a sentence-length tooltip overflowing its
+viewport, and `ReplayDialog.vue` is the only prior `TooltipContent` consumer
+that ever carried a sentence rather than a two-word label — the one prior
+component that had actually met this exact problem. Rejecting it by
+association with the trigger defect removed the only precedent that would
+have caught Finding 5 before it shipped. N1 is corrected above, in place, to
+carry both verdicts separately.
+
+**Why the fix is a call-site class, not a primitive change.**
+`TooltipContent.vue` lives under `resources/js/components/ui/`, which
+`docs/standards/coding.md` → Project structure identifies as generated code
+that is never hand-edited. A width cap can therefore only be applied where
+the primitive already accepts a `class` prop from its caller — at the four
+`ProxyForm.vue` call sites — which is exactly the pattern `ReplayDialog.vue`
+already used and exactly what the now-corrected N1 permits. No change to any
+`.vue` file is made by this document; that is the Senior Developer's task.
+
+**Decision authority.** Tooltip content sizing is a UI-detail decision within
+this document's own UX direction and this role's decision authority. Whether
+`## Responsive Behavior`'s existing "no bespoke width" line was itself
+correct, and whether N1's bundled rejection should be split, are both
+questions about how to read and correct this document's own prior sections —
+the Designer's call, per the same escalation rule the first amendment cited
+for a design-spec self-conflict the review caught. This ruling does not
+change a requirement, does not invent UI no user story calls for, and does
+not narrow the 360px minimum supported width — it is the correction that lets
+the form continue to meet that width without losing the four sentences this
+document already decided belong in tooltips.
+
+**Date:** 2026-08-29.
+
+**Author of this amendment:** Designer, in response to Review-17 Finding 5
+(Major).
+
+**Status of this amendment: self-certified by the Designer**, per `CLAUDE.md`'s
+routing for doc corrections ("doc corrections → the owning role updates the
+doc") and per the design gate's own delegation. This document's `## Status`
+stays **Approved** — this is an amendment correcting an internal error the
+review caught, not a change of intent, and it does not reopen the design
+gate.
+
+### What changed, section by section
+
+| Section | Change |
+|---|---|
+| `## Responsive Behavior` | **Corrected** — the tooltip content bullet no longer claims "no bespoke width or placement handling is introduced"; it now requires `class="max-w-xs"` on every `TooltipContent` call site this document adds, and states why Reka's collision handling alone does not cover this case. |
+| Note **N1** | **Corrected** — the bundled rejection of `ReplayDialog.vue` is split into two independently-verdicted criticisms: the non-focusable `span` trigger (rejection stands) and the `max-w-xs` width cap (rejection withdrawn; now required). |
+
+**Not changed, and deliberately so:** every other line of `## Responsive
+Behavior`; every other note under `### Non-blocking notes`; every screen,
+flow, and prior amendment in this document, all of which remain history and
+are not rewritten.
+
+### For the Senior Developer
+
+Four single-utility-class additions, no behavioral change: add
+`class="max-w-xs"` to the `TooltipContent` at each of the four tooltip call
+sites this feature added in `ProxyForm.vue` — Mode, Backoff strategy,
+"Always hidden," Response Body. No other line of any file changes.
+Re-verification per Review-17's recommended resolution: re-run the four
+360px width measurements and require every rendered `TooltipContent` width to
+be `<= document.documentElement.clientWidth`, not eyeballed.
+
+### For the Task Planner / Orchestrator
+
+A task applying `class="max-w-xs"` to the four `TooltipContent` call sites in
+`ProxyForm.vue` is owed, with a re-verification step per Review-17's
+recommended resolution above. Flagged here as a consequence of this
+amendment; not actioned by this role.
