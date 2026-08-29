@@ -13,6 +13,32 @@ use Tests\TestCase;
 class SensitiveDataHandlingSchemaTest extends TestCase
 {
     /**
+     * Roll back exactly the given migrations, however many later ones now sit
+     * on top (item #15's `add_paused_at_to_proxies_table` is one). `--step`
+     * alone selects the N most-recently-run migrations by position, not by
+     * name; combining a wide-enough `--step` with `--path` restricted to
+     * these files rolls back only them — `rollbackMigrations` skips (leaves
+     * applied) any selected migration whose file isn't in the given path, so
+     * every later migration is left untouched.
+     *
+     * @param  list<string>  $migrations
+     */
+    private function rollbackOnly(array $migrations): void
+    {
+        $positions = DB::table('migrations')->orderByDesc('id')->pluck('migration');
+
+        $steps = collect($migrations)
+            ->map(fn (string $migration) => $positions->search($migration))
+            ->map(fn ($position) => $position === false ? 1 : $position + 1)
+            ->max();
+
+        Artisan::call('migrate:rollback', [
+            '--path' => array_map(fn (string $migration) => "database/migrations/{$migration}.php", $migrations),
+            '--step' => $steps,
+        ]);
+    }
+
+    /**
      * @return array<string, string> column name => lowercase DATA_TYPE
      */
     private function columnTypesFor(string $table): array
@@ -159,7 +185,7 @@ class SensitiveDataHandlingSchemaTest extends TestCase
         $t1Migration = '2026_08_27_000001_add_sensitive_data_handling_schema';
         $t54Migration = '2026_08_28_000001_remove_inbound_verification';
 
-        Artisan::call('migrate:rollback', ['--step' => 2]);
+        $this->rollbackOnly([$t1Migration, $t54Migration]);
 
         $this->assertFalse(Schema::hasTable('proxy_secrets'));
         $this->assertFalse(Schema::hasColumn('proxies', 'verification_scheme'));
