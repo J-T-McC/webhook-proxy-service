@@ -82,7 +82,7 @@ const reliabilitySteps = [
 
         <main>
             <!-- Hero -->
-            <section class="mx-auto max-w-6xl px-6 pt-6 pb-16 lg:pb-20">
+            <section class="mx-auto max-w-6xl px-6 pt-6 pb-10 lg:pb-12">
                 <p class="text-sm font-medium text-muted-foreground">
                     Webhook Proxy Service
                 </p>
@@ -110,15 +110,15 @@ const reliabilitySteps = [
                     </template>
                 </div>
 
-                <FanOutIllustration class="mt-16" />
+                <FanOutIllustration class="mt-10" />
             </section>
 
             <!-- How it works -->
-            <section class="mx-auto max-w-6xl px-6 py-16 lg:py-20">
+            <section class="mx-auto max-w-6xl px-6 py-10 lg:py-12">
                 <h2 class="text-2xl font-semibold tracking-tight">
                     How it works
                 </h2>
-                <div class="mt-10 grid gap-10 md:grid-cols-3">
+                <div class="mt-6 grid gap-8 md:grid-cols-3">
                     <div v-for="step in howItWorks" :key="step.title">
                         <component
                             :is="step.icon"
@@ -136,7 +136,7 @@ const reliabilitySteps = [
             </section>
 
             <!-- Reliability -->
-            <section class="mx-auto max-w-6xl px-6 py-16 lg:py-20">
+            <section class="mx-auto max-w-6xl px-6 py-10 lg:py-12">
                 <h2
                     class="max-w-2xl text-2xl font-semibold tracking-tight text-balance"
                 >
@@ -147,7 +147,7 @@ const reliabilitySteps = [
                     is kept.
                 </p>
 
-                <div class="mt-10 grid gap-10 lg:grid-cols-2 lg:items-center">
+                <div class="mt-8 grid gap-10 lg:grid-cols-2 lg:items-center">
                     <ol class="space-y-6">
                         <li
                             v-for="(step, index) in reliabilitySteps"
