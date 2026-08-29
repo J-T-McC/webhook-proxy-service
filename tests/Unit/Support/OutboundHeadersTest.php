@@ -32,7 +32,7 @@ class OutboundHeadersTest extends TestCase
     }
 
     #[Test]
-    public function ac37_a_destination_with_no_credential_and_no_signing_secret_is_byte_identical_to_the_pre_10_baseline(): void
+    public function ac37_a_destination_with_no_credential_and_no_signing_secret_is_byte_identical_to_the_pre_10_baseline_plus_the_hop_header(): void
     {
         $headers = [
             'Content-Type' => ['application/json'],
@@ -41,8 +41,11 @@ class OutboundHeadersTest extends TestCase
         ];
         $unit = $this->unit($headers);
 
+        // Delivery-loop guard (docs/briefs/delivery-loop-guard.md): the ONE
+        // addition to the AC37 baseline is the always-stamped hop header —
+        // nothing else changes with no credential and no signing secret.
         $this->assertSame(
-            $unit->forwardHeaders(),
+            [...$unit->forwardHeaders(), 'WebhookProxy-Hops' => '1'],
             OutboundHeaders::build($unit, null, null),
         );
     }
@@ -71,7 +74,8 @@ class OutboundHeadersTest extends TestCase
 
         $this->assertSame('Bearer abc123', $result['Authorization']);
         $this->assertArrayNotHasKey('authorization', $result);
-        $this->assertCount(2, $result);
+        // Content-Type, Authorization, and the always-stamped hop header.
+        $this->assertCount(3, $result);
     }
 
     #[Test]

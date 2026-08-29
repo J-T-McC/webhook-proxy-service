@@ -6,6 +6,7 @@ use App\Enums\HttpMethod;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
+use App\Rules\NotSelfReferencingDestinationUrl;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -65,7 +66,10 @@ class StoreProxyRequest extends FormRequest
             'sensitive_fields' => ['nullable', 'array', 'max:100'],
             'sensitive_fields.*' => ['string', 'max:128', 'regex:/\S/'],
             'destinations' => ['required', 'array', 'min:1'],
-            'destinations.*.url' => ['required', 'string', 'url:https'],
+            // Delivery-loop guard (docs/briefs/delivery-loop-guard.md): a host equal
+            // to this service's own ingest host, or an IP-literal host, is rejected
+            // here as well as being re-checked at send time.
+            'destinations.*.url' => ['required', 'string', 'url:https', new NotSelfReferencingDestinationUrl],
             'destinations.*.http_method' => ['required', Rule::enum(HttpMethod::class)],
             // Per-destination credential (AC30, AC33; plan-10 §Validation, T29).
             // The header name defaults to `Authorization` on the form, not here

@@ -30,8 +30,22 @@ use App\Pipeline\DeliveryUnit;
  *
  * A destination with no credential, on a proxy with no signing secret
  * configured, produces a result byte-identical to
- * `DeliveryUnit::forwardHeaders()` alone (AC37, AC63) — nothing here changes
- * behaviour unless a credential or a signing secret is actually configured.
+ * `DeliveryUnit::forwardHeaders()` alone plus the `WebhookProxy-Hops` header
+ * (AC37, AC63, narrowed by the delivery-loop guard — see below) — nothing
+ * else here changes behaviour unless a credential or a signing secret is
+ * actually configured.
+ *
+ * **Delivery-loop guard addition (`docs/briefs/delivery-loop-guard.md`):**
+ * `WebhookProxy-Hops` is stamped on step (2) above on EVERY delivery, unlike
+ * the credential/signing headers, which are conditional — inbound value
+ * (absent/non-numeric = 0, `HopCount::inboundFrom()`) plus one. It goes
+ * through the same displacement rules as the credential/signing headers: an
+ * `$added` entry of the same name is displaced by it (an accidental
+ * collision, never a deliberate integration choice), and step (3)'s
+ * forwarded-set displacement means a forwarded inbound copy of this header
+ * can never reach a destination alongside ours — the receiving proxy's own
+ * ingest, if this response happens to be itself, reads only our stamped
+ * value.
  */
 final class OutboundHeaders
 {
@@ -67,6 +81,14 @@ final class OutboundHeaders
             // and emit two headers of the same name over the wire.
             $added = [...self::withoutNames($added, array_keys($signing)), ...$signing];
         }
+
+        // Delivery-loop guard (docs/briefs/delivery-loop-guard.md): stamped on
+        // every delivery, not just credentialed/signed ones. Same displacement
+        // rule as above, so an accidental same-named credential/signing entry
+        // never survives alongside it, and so the forwarded-set displacement
+        // below strips a forwarded inbound copy of this header too.
+        $hop = [HopCount::HEADER => (string) (HopCount::inboundFrom($unit->headers) + 1)];
+        $added = [...self::withoutNames($added, array_keys($hop)), ...$hop];
 
         $headers = self::withoutNames($unit->forwardHeaders(), array_keys($added));
 

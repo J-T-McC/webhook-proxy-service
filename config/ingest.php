@@ -97,4 +97,23 @@ return [
 
     'webhooks_queue' => env('INGEST_WEBHOOKS_QUEUE', 'webhooks'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Delivery Loop Guard: Max Hops
+    |--------------------------------------------------------------------------
+    |
+    | The delivery-loop guard's indirect-cycle bound (docs/briefs/delivery-loop
+    | -guard.md): the `WebhookProxy-Hops` header this app stamps on every
+    | outbound delivery (App\Support\OutboundHeaders::build(), inbound value
+    | plus one) is compared here on ingest. A request arriving with an inbound
+    | hop count at or above this limit is rejected with 508 Loop Detected,
+    | before capture — no `webhook_event` row, no dispatch. Read via
+    | App\Support\HopCount and IngestController; a blank/non-numeric env value
+    | falls back to the default like every other `(int) env(...)` cast in this
+    | file.
+    |
+    */
+
+    'max_hops' => (int) env('INGEST_MAX_HOPS', 3),
+
 ];
