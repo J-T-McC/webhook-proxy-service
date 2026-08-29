@@ -176,8 +176,7 @@ sending mail. Suite 880/880, `composer lint` and `composer types:check` clean.
 Work the Project Owner commissioned directly, outside the roadmap. `docs/product/roadmap.md`
 remains the source of truth for roadmap lines, and nothing here adds one.
 
-**`design-17`, proxy create/edit form restructure — branch
-`feat/design-17-form-restructure`, not merged.** Commissioned by the Project Owner on
+**`design-17`, proxy create/edit form restructure — merged.** Commissioned by the Project Owner on
 2026-08-28 after direct criticism that the form is "too jumbled and overwhelming." There is no
 PRD-17; the requirements basis is the Owner's brief, quoted in the design. The document was
 drafted against PRD-16, and when the Owner withdrew PRD-16 the Designer re-based it on
@@ -186,13 +185,13 @@ and copy-rewrite pass kept.
 `docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
 `## Amendment A` (merged, `c891974`) records the re-basing and rules that the Owner-directed
 Principal Engineer sign-off gate **stays lapsed**, so no engineering sign-off is owed; only the
-Project Owner can reinstate it. The design and its task plan are merged to `main` (`17fb9a8`,
-PR #37); the implementation is not.
+Project Owner can reinstate it. The design and its task plan merged first (`17fb9a8`, PR #37),
+the implementation second (`5689a1d`, PR #38).
 
-- **Phase:** implementation complete, reviewed and re-reviewed. The Reviewer recommends
-  **Approve with follow-ups** after three rework cycles. No Blocker or Major remains open and
-  no rework is owed.
-- **Current agent:** — (Project Owner merges).
+- **Phase:** Done. Reviewed and re-reviewed to **Approve with follow-ups** after three rework
+  cycles, with no Blocker or Major left open, and merged to `main` as `5689a1d` (PR #38) on
+  2026-08-29.
+- **Current agent:** —
 - **Blockers:** none. Three follow-ups are carried, none blocking: the design's
   `## Consequences` amendments to six approved specs, which the design says the Owner directs;
   this status block's own upkeep; and a note that `max-w-xs` now sits at four call sites, so
