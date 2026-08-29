@@ -28,13 +28,16 @@ use RuntimeException;
  * `UPDATE`. Nothing is ever deleted anywhere.
  *
  * Holds: **H0** `payload_cleaned_at IS NULL`; **H1** `created_at <= cutoff`;
- * **H2** no `fifo_dispatches` row for the event with a non-`settled` status;
+ * **H2** no `fifo_dispatches` row for the event with a non-`settled` status
+ * AND an unpaused proxy (item #15 AC9 narrows H2 for a paused proxy — that is
+ * exactly the "no hold from pause" case);
  * **H3** no `delivery_attempts` row for the event's `ingest_id` with status
  * `dispatched`; **H4** if the event has zero `delivery_attempts` rows, it must
  * be older than `retention.dispatch_horizon_minutes`; **H5** (ADR-015 Decision
- * 7) no `deliveries` row for the event with status `retrying`, or status
- * `pending` younger than `retention.dispatch_horizon_minutes` — terminal
- * (`succeeded`/`failed`) deliveries hold nothing (AC18). `fifo_dispatches`,
+ * 7) no `deliveries` row for the event with status `retrying` on an unpaused
+ * proxy (same item #15 AC9 narrowing), or status `pending` younger than
+ * `retention.dispatch_horizon_minutes` — terminal (`succeeded`/`failed`)
+ * deliveries hold nothing (AC18). `fifo_dispatches`,
  * `delivery_attempts`, and `deliveries` are read-only here (ADR-012
  * Decision 5).
  *
@@ -244,10 +247,20 @@ class PurgeExpiredPayloads
             ->whereNull('payload_cleaned_at') // H0
             ->where('created_at', '<=', $cutoff) // H1
             ->whereNotExists(function (Builder $q): void {
+                // Item #15 (pause and resume dispatch) AC9: pause creates no
+                // hold. An unsettled row whose proxy is currently paused does
+                // not count as an H2 hold — that row is exactly the "waiting
+                // behind a pause" case AC9 says must still expire on schedule.
                 $q->select('id')
                     ->from('fifo_dispatches')
                     ->whereColumn('fifo_dispatches.webhook_event_id', 'webhook_events.id')
-                    ->where('status', '!=', FifoDispatchStatus::Settled->value);
+                    ->where('status', '!=', FifoDispatchStatus::Settled->value)
+                    ->whereNotExists(function (Builder $qq): void {
+                        $qq->select('id')
+                            ->from('proxies')
+                            ->whereColumn('proxies.id', 'fifo_dispatches.proxy_id')
+                            ->whereNotNull('proxies.paused_at');
+                    });
             }) // H2
             ->whereNotExists(function (Builder $q): void {
                 $q->select('id')
@@ -267,7 +280,22 @@ class PurgeExpiredPayloads
                     ->from('deliveries')
                     ->whereColumn('deliveries.webhook_event_id', 'webhook_events.id')
                     ->where(function (Builder $qq) use ($horizon): void {
-                        $qq->where('status', DeliveryStatus::Retrying->value)
+                        // Item #15 AC9: a `retrying` delivery held by a pause
+                        // (AC3 — retries do not fire while paused) must not
+                        // hold retention either; PRD-06 AC18's in-flight-retry
+                        // hold is narrowed for exactly this case, per the
+                        // Owner's ruling. A `pending` delivery is unaffected —
+                        // the pause guard in ProcessIngestedWebhook never lets
+                        // one exist while paused in the first place.
+                        $qq->where(function (Builder $retrying): void {
+                            $retrying->where('status', DeliveryStatus::Retrying->value)
+                                ->whereNotExists(function (Builder $qqq): void {
+                                    $qqq->select('id')
+                                        ->from('proxies')
+                                        ->whereColumn('proxies.id', 'deliveries.proxy_id')
+                                        ->whereNotNull('proxies.paused_at');
+                                });
+                        })
                             ->orWhere(function (Builder $qqq) use ($horizon): void {
                                 $qqq->where('status', DeliveryStatus::Pending->value)
                                     ->where('created_at', '>', $horizon);
