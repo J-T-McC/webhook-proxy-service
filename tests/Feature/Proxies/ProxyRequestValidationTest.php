@@ -116,6 +116,24 @@ class ProxyRequestValidationTest extends TestCase
         $this->assertArrayHasKey('destinations.0.url', $validator->errors()->messages());
     }
 
+    /**
+     * Review finding: a fully-qualified domain name's trailing root-label
+     * dot (`ingest.example.com.` resolves identically to
+     * `ingest.example.com`) must not bypass the self-host check.
+     */
+    #[DataProvider('requestClasses')]
+    public function test_a_destination_url_whose_host_is_the_ingest_host_with_a_trailing_fqdn_dot_is_rejected(string $requestClass): void
+    {
+        $ingestHost = parse_url((string) config('ingest.url'), PHP_URL_HOST);
+
+        $validator = $this->validate($requestClass, $this->validData([
+            'destinations' => [['url' => "https://{$ingestHost}./hook", 'http_method' => 'POST']],
+        ]));
+
+        $this->assertTrue($validator->fails());
+        $this->assertArrayHasKey('destinations.0.url', $validator->errors()->messages());
+    }
+
     #[DataProvider('requestClasses')]
     public function test_an_ip_literal_destination_url_host_is_rejected_under_row_url_key(string $requestClass): void
     {

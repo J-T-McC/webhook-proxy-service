@@ -40,13 +40,30 @@ final class IngestHostGuard
 
     /**
      * Whether `$host` matches this service's own ingest host, matched
-     * case-insensitively (hostnames are case-insensitive). False when
-     * `config('ingest.url')` itself has no resolvable host.
+     * case-insensitively (hostnames are case-insensitive) and with a single
+     * trailing root-label dot normalised off both sides first — review
+     * finding: `ingest.example.com.` (a fully-qualified domain name; the
+     * trailing dot resolves identically to `ingest.example.com`) otherwise
+     * bypasses this check entirely, on both the save-time rule and the
+     * send-time backstop. False when `config('ingest.url')` itself has no
+     * resolvable host.
      */
     public static function pointsBackToIngest(string $host): bool
     {
         $ingestHost = self::hostFrom((string) config('ingest.url'));
 
-        return $ingestHost !== null && strcasecmp($host, $ingestHost) === 0;
+        if ($ingestHost === null) {
+            return false;
+        }
+
+        return strcasecmp(self::withoutTrailingDot($host), self::withoutTrailingDot($ingestHost)) === 0;
+    }
+
+    /**
+     * Strips a single trailing root-label dot from an FQDN, if present.
+     */
+    private static function withoutTrailingDot(string $host): string
+    {
+        return str_ends_with($host, '.') ? substr($host, 0, -1) : $host;
     }
 }
