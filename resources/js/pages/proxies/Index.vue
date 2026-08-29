@@ -150,17 +150,22 @@ function confirmDelete(): void {
                 <TableBody>
                     <TableRow v-for="proxy in proxies.data" :key="proxy.id">
                         <TableCell class="font-medium">
-                            <Link
-                                :href="
-                                    proxyRoutes.show({
-                                        current_team: teamSlug,
-                                        proxy: proxy.id,
-                                    })
-                                "
-                                class="hover:underline"
-                            >
-                                {{ proxy.name }}
-                            </Link>
+                            <div class="flex items-center gap-2">
+                                <Link
+                                    :href="
+                                        proxyRoutes.show({
+                                            current_team: teamSlug,
+                                            proxy: proxy.id,
+                                        })
+                                    "
+                                    class="hover:underline"
+                                >
+                                    {{ proxy.name }}
+                                </Link>
+                                <Badge v-if="proxy.paused_at" variant="outline">
+                                    Paused
+                                </Badge>
+                            </div>
                         </TableCell>
                         <TableCell>
                             <Badge variant="secondary">

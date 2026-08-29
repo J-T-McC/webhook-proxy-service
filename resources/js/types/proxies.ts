@@ -71,6 +71,12 @@ export interface ProxyListItem {
     mode: ProxyMode;
     /** Per-proxy processing mode (ADR-011). */
     processing_mode: ProcessingMode;
+    /**
+     * Item #15 (pause and resume dispatch), AC14: null means never
+     * paused/currently resumed; a value is both the two-state signal and
+     * the "since when" timestamp. Shown wherever a proxy is presented.
+     */
+    paused_at: string | null;
     ingest_url: string;
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;
@@ -133,6 +139,12 @@ export interface ProxyDetail {
     mode: ProxyMode;
     /** Per-proxy processing mode (ADR-011). */
     processing_mode: ProcessingMode;
+    /**
+     * Item #15 (pause and resume dispatch), AC14: null means never
+     * paused/currently resumed; a value is both the two-state signal and
+     * the "since when" timestamp.
+     */
+    paused_at: string | null;
     ingest_url: string;
     /** User-defined upstream response config; null = unconfigured (resolver returns 202). */
     response_status: ProxyResponseStatus | null;
