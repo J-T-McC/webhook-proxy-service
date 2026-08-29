@@ -165,22 +165,21 @@ catch (\Throwable $e) { echo ...; }` and `file_put_contents()` any ids you need 
 inside the container, then `sail exec laravel.test cat /tmp/that.json` to read it back — this is the
 reliable way to get seeded ids out of a tinker run.
 
-**This project's primary checkout can have a long-forgotten `pnpm run dev` process running for days**
-(observed: started days earlier, on port 5174 while Sail's own Vite port is 5173) with a stale
-`public/hot` file alongside it — the exact review-07 Finding 8 trap, encountered for real (item #10
-T9/T12). Removing the stale `public/hot` file is safe and does not kill the orphaned node process;
-it just stops Laravel's `@vite()` helper from routing asset requests to that dev server. Do this
-before any `pnpm run build` + browser-verification pass on the primary checkout, not just worktrees.
-
-**When a long-forgotten `pnpm run dev` process (with its `public/hot`) belongs to another
-agent/session you must not disrupt, verifying against that live dev server directly (rather than
-deleting `public/hot` first) is a legitimate fallback** — Vite's dev server serves the current
-source on every request (transformed on the fly, HMR-updated on save), so it is not "stale" the way
-review-07 Finding 8's trap was (a truly stale *build*, silently preferred over a fresh one). Confirm
-it's actually live first (`lsof -p <pid> -a -d cwd` to check it's this project; a `curl` on the
-`public/hot` URL's asset paths, not just `/`, since Vite dev servers often 404 a bare root). State
-plainly in completion notes that verification ran against the live dev server, not a "production
-build" — the two are different claims and only one was actually checked (item #10 T23).
+**This project's primary checkout can have a long-forgotten `pnpm run dev` process running for
+days** (observed: started days earlier, on port 5174 while Sail's own Vite port is 5173) with a
+stale `public/hot` file alongside it — the exact review-07 Finding 8 trap, encountered for real.
+If it's your own session's leftover: removing the stale `public/hot` file is safe and does not
+kill the orphaned node process, it just stops Laravel's `@vite()` helper from routing asset
+requests to that dev server — do this before any `pnpm run build` + browser-verification pass on
+the primary checkout, not just worktrees. If it belongs to another agent/session you must not
+disrupt, verifying against that live dev server directly (rather than deleting `public/hot`) is a
+legitimate fallback — Vite's dev server serves current source on every request (transformed on the
+fly, HMR-updated on save), so it isn't "stale" the way the Finding 8 trap is (a stale *build*
+silently preferred over a fresh one). Confirm it's actually live first (`lsof -p <pid> -a -d cwd`
+to check it's this project; `curl` the `public/hot` URL's asset paths, not just `/`, since Vite dev
+servers often 404 a bare root), and state plainly in completion notes that verification ran
+against the live dev server, not a "production build" — the two are different claims and only one
+was actually checked.
 
 **`Proxy::factory()` needs `created_by`, not `user_id`, for a creator** (`App\Models\Proxy`'s
 `created_by` column, checked by `ProxyPolicy`'s creator-bypass logic) — `Proxy::factory()->for($team)

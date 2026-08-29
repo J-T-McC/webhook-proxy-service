@@ -102,12 +102,6 @@ rules live in `docs/standards/testing.md`, not repeated here.
 - **`abort($code)` for a lifecycle/non-error status renders the app's full HTML error-page body**
   in the test env — if an endpoint's contract requires a genuinely empty body on that status, use
   `return response('', $code);` instead of `abort($code)`.
-- **`Http::fake(['*' => ...])` called a SECOND time in the same test does NOT replace the first
-  stub** — the array/URL-pattern form merges onto `$stubCallbacks`, never clears it; the
-  first-registered matching pattern wins for the rest of the test, silently ignoring the later
-  fake. For "fails N times then succeeds," use one
-  `Http::fakeSequence()->pushStatus(500)->pushStatus(500)->whenEmpty(Http::response('ok', 200))`
-  instead of two sequential `Http::fake([...])` calls.
 - **The test client's `actingAs($user)` authentication PERSISTS across every subsequent request
   within the same test method**, even without re-chaining `actingAs()` — assert the
   guest/unauthenticated case FIRST in a test method, before any `actingAs()` call, or give it its
@@ -165,12 +159,12 @@ rules live in `docs/standards/testing.md`, not repeated here.
   `getContent()`, bypassing route/middleware entirely.
 - **This app's global `ConvertEmptyStringsToNull` middleware (Laravel framework default, active
   here) converts a submitted `""` to `null` before validation runs, for every field, everywhere** —
-  a write-only "leave unchanged" contract keyed on `nullable` + `min:N` (e.g. a secret field) rejects
-  a too-short *string* but silently treats an empty string exactly like an absent key, both taking the
-  "unchanged" branch with no 422. Don't assume a task's own prose ("an absent field, not an empty
-  string, is what 'leave unchanged' reads as") implies the two are validated differently — write the
-  test against actual behaviour first, then adjust the assumption in completion notes if the
-  framework already collapses the distinction (confirmed for item #10 T20's `verification_secret`).
+  a write-only "leave unchanged" contract keyed on `nullable` + `min:N` (e.g. a secret field like
+  `destinations.*.credential_secret`) rejects a too-short *string* but silently treats an empty
+  string exactly like an absent key, both taking the "unchanged" branch with no 422. Don't assume a
+  task's own prose ("an absent field, not an empty string, is what 'leave unchanged' reads as")
+  implies the two are validated differently — write the test against actual behaviour first, then
+  adjust the assumption in completion notes if the framework already collapses the distinction.
 - **`$this->postJson($uri, $data, $headers)`'s raw body is exactly `json_encode($data, 0)`**
   (`Illuminate\Foundation\Testing\Concerns\MakesHttpRequests::json()`, confirmed by reading the
   vendor source, not assumed) — for an HTTP-level test that must sign/HMAC the exact bytes a
@@ -182,14 +176,25 @@ rules live in `docs/standards/testing.md`, not repeated here.
   takes the FIRST matching stub (`->filter()->first()`). A second `Http::fake(['*' => Http::response(...,
   500)])` later in the same test never overrides an earlier `Http::fake(['*' => Http::response(..., 200)])`
   registered against the same pattern — the old stub keeps winning silently (only `Http::recorded()`'s
-  history resets on each `fake()` call, not the stub rules). To change response behaviour mid-test, use
-  one `Http::fake()` closure for the whole method branched on a mutable flag captured `use (&$flag)` — a
-  plain closure, never an arrow `fn`, since `fn` captures enclosing variables BY VALUE at definition time
-  and silently freezes the flag forever. Found for item #10 T40 by dumping actual `Http::recorded()`
-  status codes rather than assuming the second fake took effect.
+  history resets on each `fake()` call, not the stub rules). For "fails N times then succeeds," prefer
+  `Http::fakeSequence()->pushStatus(500)->pushStatus(500)->whenEmpty(Http::response('ok', 200))` over two
+  sequential `Http::fake([...])` calls. To change response behaviour mid-test on a condition rather than a
+  fixed sequence, use one `Http::fake()` closure for the whole method branched on a mutable flag captured
+  `use (&$flag)` — a plain closure, never an arrow `fn`, since `fn` captures enclosing variables BY VALUE
+  at definition time and silently freezes the flag forever. Found by dumping actual `Http::recorded()`
+  status codes rather than assuming a later fake took effect.
 - **A job dispatched inside `ProcessIngestedWebhook::run()` via `::dispatch()->onQueue()->afterCommit()`
   needs `ProcessIngestedWebhook::run($ingestId)` (the direct action call, not `::dispatch()`) to create
   its `Delivery`/`DeliverToDestination`-job side effects while `Queue::fake()` is active** — faking the
   queue BEFORE dispatching `ProcessIngestedWebhook` itself (e.g. via the ingest HTTP endpoint, which
   dispatches it through the queue) prevents it from running at all, so nothing downstream ever gets
   created. Established precedent: `AsyncDispatchAcceptanceTest::test_each_destination_gets_a_separate_job_on_the_webhooks_queue`.
+- **Proving a resource never leaks a `$hidden`/never-queried relation even under a "someone eager-loads
+  it by mistake" scenario:** don't fight route-model-binding to force the mistake through a real HTTP
+  round trip — `$model->load(['relation'])` the model directly, then serialize it straight through the
+  same resource class(es) production uses (`new SomeResource($eagerLoaded))->resolve()`), and assert
+  both that the JSON has no key for the relation at all (the "never serialized" guard) AND that
+  `$eagerLoaded->relation->first()->toArray()` itself has no key for the hidden column (the model's own
+  `$hidden` guard), independently. Cheaper and less fragile than overriding `Route::bind()` for the
+  parameter name to inject an eager-loaded instance into the real controller path, and proves the same
+  two guards. Established for item #10 T48 (`SecretAbsenceSweepTest`).
