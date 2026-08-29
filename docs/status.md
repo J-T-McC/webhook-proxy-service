@@ -4,16 +4,22 @@ Maintained by the **Orchestrator**. One row per feature. Update on every phase
 transition, approval, or blocker change. This is a living document — no approval
 gate is required to keep it current.
 
-Phases: `Requirements → UX Design (UI only) → Technical Design → Task Planning → Implementation → Review → Done`
+Lanes (see `CLAUDE.md`): **Fix** — bugs, chores, doc corrections, no artifact.
+**Brief** — the default for new work: one file under `docs/briefs/`, written and
+built in a single pass, no gates. **Pipeline** — reserved for changes to the data
+model, an external contract or security posture, or anything expensive to
+reverse: `Requirements → UX Design (UI only) → Technical Design → Task Planning →
+Implementation → Review → Done`.
 
 Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-30;
 **15-item backlog** since item #15 was added by the Owner on 2026-08-27). Nothing
 here invents or reorders roadmap items.
 
-**This file carries only what routing needs**: phase, owner, blockers, approvals,
-and a pointer to the artifact that holds the detail. The artifacts are the record —
-a ruling's reasoning lives in the PRD, design, plan, ADR, review or question doc
-that made it, never here. Narrative history of items already **Done** is archived in
+**This file carries only what routing needs**: phase, owner, live blockers, and a
+pointer to the artifact that holds the detail. The artifacts are the record — a
+ruling's reasoning lives in the brief, PRD, design, plan, ADR or review that made
+it, never here. A shipped item keeps one line: where it merged, and anything still
+owed against it. Narrative history of items already **Done** is archived in
 `docs/status-history.md`, which no agent needs to read to route work.
 
 ## Foundational work (cross-cutting, not a roadmap line)
@@ -55,21 +61,21 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 
 | # | Feature | Phase | Current Agent | Blockers | Approvals & artifacts |
 |---|---|---|---|---|---|
-| 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | All four artifacts Approved (2026-07-30); review-01 *Approve with follow-ups*; PR #1 merged (`5aba84b`). Post-merge Index-delete defect fixed and merged (`19e73c7`, 2026-07-31), Owner skipped re-review. Frontend regression harness deferred → **backlog T31** |
-| 2 | Role-based collaboration | Done | — | None | PRD-02 + ADR-009 (incl. Amendments A/B) Approved (Owner, 2026-08-03); review-02 *Approve with follow-ups*; PR #3 merged 2026-08-03 |
-| 3 | Decoupled upstream response | Done | — | None | PRD-03 Approved (Owner, 2026-08-03); ADR-010 Accepted; review-03 *Approve with follow-ups*, both Minors Owner-accepted; PR #4 merged (`3221a1d`, 2026-08-04). Security acknowledgement: **headers stay plaintext until #10** |
-| 4 | Queued processing (FIFO & Async) | Done | — | None. **V3 and V8 remain Owner-deferred against this item** | PRD-04 / design-04 / plan-04 / ADR-011 / tasks-04 Approved; review-04 *Approve with follow-ups*, M-1 fixed; PR #5 merged (`bd4bf4d`, 2026-08-05) |
-| 5 | Payload storage & retention | Done | — | None. Both carried-forward Minors closed 2026-08-25 | PRD-05 Approved + **Amendment A** (erase-in-place) + **Amendment B** ratified 2026-08-25; ADR-012/013/014 Accepted; review-05 *Approve with follow-ups*, M-1 fixed; PR #6 merged (`ed421f1`, 2026-08-05). **Exposure carried to #10 as deferred concern D2, which gates #10's PRD** |
-| 6 | Retry & replay | Done | — | None blocking | PRD-06 Approved (Owner, 2026-08-12); design-06 PM-approved; plan-06 PE-certified; ADR-015/016/017 + 4 data-model changes Owner-approved; tasks-06 T1–T46; review-06 *Approve with follow-ups* — 3 Majors fixed and re-verified; PR #8 merged (`e1c2894`, 2026-08-25). **10 follow-ups carried forward** — see `docs/reviews/review-06-retry-replay.md`. AC19/AC21/AC23/AC24 rest on inspection, not an automated gate |
-| 7 | Enhanced-mode toggle | Done | — | None | PRD-07 Approved (Owner, 2026-08-21) + Amendments A/B (PM, 2026-08-25); design-07 PM-approved; plan-07 PE-certified + **Revision A**; ADR-018 Accepted; tasks-07 T1–T13 + M7; review-07 **Approve** after re-review (2026-08-26) — one Major (persisted retry policy destroyed by an abandoned in-session downgrade) fixed on Owner ruling *keep preservation, fix the re-seed*; PR #14 merged (`13f0da7`, 2026-08-26). **Follow-ups: review-07 Finding 8 (`public/hot` + a live Vite dev server invalidate "verified against a fresh build" claims) and Nits 5–7** |
+| 1 | Walking skeleton: ingest → fan-out delivery | Done | — | None | PR #1 (`5aba84b`), plus the post-merge Index-delete fix (`19e73c7`). Frontend regression harness deferred — backlog **T31** |
+| 2 | Role-based collaboration | Done | — | None | PR #3, 2026-08-03. ADR-009 Accepted |
+| 3 | Decoupled upstream response | Done | — | None | PR #4 (`3221a1d`). ADR-010 Accepted |
+| 4 | Queued processing (FIFO & Async) | Done | — | **V3 and V8 remain Owner-deferred against this item** | PR #5 (`bd4bf4d`). ADR-011 Accepted |
+| 5 | Payload storage & retention | Done | — | None | PR #6 (`ed421f1`). ADR-012/013/014 Accepted |
+| 6 | Retry & replay | Done | — | None blocking. **10 follow-ups carried forward** — `docs/reviews/review-06-retry-replay.md`. AC19/AC21/AC23/AC24 rest on inspection, not an automated gate | PR #8 (`e1c2894`). ADR-015/016/017 Accepted |
+| 7 | Enhanced-mode toggle | Done | — | None blocking. **Follow-ups: review-07 Finding 8 (`public/hot` plus a live Vite dev server invalidate "verified against a fresh build" claims) and Nits 5–7** | PR #14 (`13f0da7`). ADR-018 Accepted |
 | 8 | Payload mapping / reshaping | **Deferred (Owner, 2026-08-26)** | — | **Deferred: not needed for MVP.** Artifacts complete and **parked, not withdrawn**; zero implementation exists (`PipelineFactory` carries only its reserved `#8` comment), so deferral unwinds nothing in code | PRD-08 Approved (Owner, 34 ACs); design-08 PM-approved; plan-08 self-certified **except its two Owner gates, deliberately NOT approved** — a four-table data model must not be approved against a codebase that will have moved by build time; they are re-presented on resumption. ADR-019 **Proposed**. **On resumption see § Item #8 — carried forward** |
-| 9 | Multi-format ingestion | Backlog | — (Product Manager on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
-| 10 | Sensitive data handling | Done | — | None. Review gate run in full and **re-reviewed after rework: Approve** (`docs/reviews/review-10-sensitive-data-handling.md`, 2026-08-28) — 0 Blockers, 0 Majors, 0 Minors, 4 Nits carried forward, none routed. The gate's one Major (an edited credential header name was silently discarded unless the secret was also replaced) and its four Minors are all closed: `55db968` fixed findings 4, 5 and 8, the Designer resolved finding 6 with no code work, and the Product Manager closed finding 9 by running both open design-10 amendment gates. Suite 1019/1019, 4818 assertions; lint and types clean. Review **Approved by the Project Owner, 2026-08-28**; PR #34 merged into `main` (`48fe720`, 2026-08-29) | PRD-10 Approved with Amendments A, B and C (Project Owner, 2026-08-27; Amendment C by the Product Manager, 2026-08-28); `docs/plans/plan-10-sensitive-data-handling.md` fully approved, all four Owner gates; `docs/design/design-10-sensitive-data-handling.md` Approved as amended — **four closed gates, none open** (two 2026-08-27, plus the inbound-verification withdrawal and the Screen 6 `DialogDescription` correction, both gated 2026-08-28; the Screen 4b placement ruling is Designer self-certified); ADR-021, ADR-022, ADR-024 Accepted, ADR-023 Accepted by ratification, ADR-025 and ADR-026 Accepted (2026-08-28); tasks at `docs/tasks/sensitive-data-handling/index.md`, split per milestone, every task carrying completion notes; review-10 *Approve*; Q-10-02, Q-10-03, Q-10-04 and Q-10-05 all RESOLVED |
-| 11 | Analytics / stats | Merged — Review gate not run | — | Merged to `main` (PR #17, `d9fed9c`, 2026-08-26). Depends on #4 (Done). **The independent Review gate was NOT run** — the Owner merged on T29's self-verification, so no `docs/reviews/review-11-*.md` exists. #6 and #7 each surfaced Majors at that gate, so this is a recorded gap, not a completed phase. V7 RESOLVED/closed; **V8 renewed as a deferral, still open against #4 and #11**. See § Item #11 — live detail | PRD-11 Approved (Project Owner, 2026-08-26, 37 ACs) plus Amendments A and B; design-11 fully Approved and re-approved for the Amendment B delta (Product Manager, 2026-08-26); plan-11 fully approved — PE self-certified plus both Owner flags ruled — now at Revision B; `docs/tasks/analytics-tasks.md` self-certified, T1–T32 complete. No ADR: the two gates are themselves the decision record |
-| 12 | Change detection | Backlog | — (Product Manager on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
-| 13 | Notifications (in-app & email) | Backlog | — (Product Manager on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
-| 14 | Test payloads | Backlog | — (Product Manager on start) | Not started; depends on #1 (more useful after #8) | — |
-| 15 | Pause and resume dispatch | Done | — | None | Built in the brief lane, not the pipeline: `docs/briefs/pause-and-resume-dispatch.md` is the only artifact. Merged to `main` as `c6dc42f` (PR #41), 2026-08-29. Guards four dispatch entry points, not the one the draft PRD assumed. `docs/product/prd-15-pause-and-resume-dispatch.md` (Draft, never approved) and `docs/questions/prd-15-q-15-01-pause-dispatch-scheduler-interactions.md` (never answered as such) are retained as background only — the brief supersedes both and neither is maintained |
+| 9 | Multi-format ingestion | Backlog | — (brief on start) | Not started. **#9 does NOT require #8 (Owner correction, 2026-08-26)** — the roadmap's constraint is *consistency*, one canonical JSON representation, not a functional prerequisite. **Two obligations transfer to whoever goes first: define the canonical JSON representation well enough for #8/#12 to inherit without inventing a second, and rule explicitly on what destinations receive (expected: unchanged — reshaping is #8's)** | — |
+| 10 | Sensitive data handling | Done | — | None blocking. 4 Nits carried forward, none routed; a soft-deleted destination keeps its credential ciphertext, ruled correct against AC32 | PR #34 (`48fe720`). `docs/reviews/review-10-sensitive-data-handling.md` (**Approve**); ADR-021 through ADR-026 Accepted |
+| 11 | Analytics / stats | Merged — **Review gate not run** | — | The independent Review gate was never run: the Owner merged on T29's self-verification, so no `docs/reviews/review-11-*.md` exists. #6 and #7 each surfaced Majors at that gate, so this is a recorded gap. **V8 renewed as a deferral, still open against #4 and #11.** See § Item #11 — live detail | PR #17 (`d9fed9c`). No ADR — the two gates are the decision record |
+| 12 | Change detection | Backlog | — (brief on start) | Not started. Dependency on #8 is **real but narrower than the label**: #12 needs only the **expected incoming structure** slice (plus its establish-from-event-or-sample flow), not the mapping editor. That slice is separable and could ship with #9; blocked while #8 is deferred unless it is extracted | — |
+| 13 | Notifications (in-app & email) | Backlog | — (brief on start) | Not started; depends on #12 (usable earlier for failure alerts once #6 exists). **Inherits no threshold — a cost of the V8 deferral** | — |
+| 14 | Test payloads | Backlog | — (brief on start) | Not started; depends on #1 (more useful after #8) | — |
+| 15 | Pause and resume dispatch | Done | — | None | PR #41 (`c6dc42f`). `docs/briefs/pause-and-resume-dispatch.md` is the only artifact — built in the brief lane. PRD-15 and Q-15-01 are retained as background, superseded, unmaintained |
 
 ## Item #11 — live detail
 
@@ -176,35 +182,25 @@ sending mail. Suite 880/880, `composer lint` and `composer types:check` clean.
 Work the Project Owner commissioned directly, outside the roadmap. `docs/product/roadmap.md`
 remains the source of truth for roadmap lines, and nothing here adds one.
 
-**`design-17`, proxy create/edit form restructure — merged.** Commissioned by the Project Owner on
-2026-08-28 after direct criticism that the form is "too jumbled and overwhelming." There is no
-PRD-17; the requirements basis is the Owner's brief, quoted in the design. The document was
-drafted against PRD-16, and when the Owner withdrew PRD-16 the Designer re-based it on
-2026-08-29 — the PRD-16-dependent inbound-verification material deleted, the grouping proposal
-and copy-rewrite pass kept.
-`docs/architecture/adr-026-inbound-verification-removal-and-minimal-outbound-header-strip.md`
-`## Amendment A` (merged, `c891974`) records the re-basing and rules that the Owner-directed
-Principal Engineer sign-off gate **stays lapsed**, so no engineering sign-off is owed; only the
-Project Owner can reinstate it. The design and its task plan merged first (`17fb9a8`, PR #37),
-the implementation second (`5689a1d`, PR #38).
+**`design-17`, proxy create/edit form restructure — Done.** Merged as `5689a1d` (PR #38);
+the design and its task plan merged first (`17fb9a8`, PR #37). Reviewed and re-reviewed to
+**Approve with follow-ups**, no Blocker or Major left open —
+`docs/reviews/review-17-proxy-form-information-architecture.md`.
 
-- **Phase:** Done. Reviewed and re-reviewed to **Approve with follow-ups** after three rework
-  cycles, with no Blocker or Major left open, and merged to `main` as `5689a1d` (PR #38) on
-  2026-08-29.
-- **Current agent:** —
-- **Blockers:** none. Three follow-ups are carried, none blocking: the design's
-  `## Consequences` amendments to six approved specs, which the design says the Owner directs;
-  this status block's own upkeep; and a note that `max-w-xs` now sits at four call sites, so
-  the next tooltip carrying a sentence hits the same clipping defect unless its author
-  remembers — the durable fix is a default in the generated primitive, which cannot be
+Two follow-ups are still owed and neither blocks anything:
+
+- The design's `## Consequences` amendments to six approved specs — `design-01`, `03`, `04`,
+  `06`, `07` and `10` — which still describe copy and containers this restructure changed. The
+  design says the Owner directs these. **The Owner declined them on 2026-08-29** as
+  documentation churn; they are recorded here so the drift is not silently forgotten, not
+  because anyone is waiting on them.
+- `max-w-xs` now sits at four `TooltipContent` call sites rather than in the primitive, so the
+  next tooltip carrying a sentence hits the same 360px clipping defect unless its author
+  remembers. The durable fix is a default in the generated component, which cannot be
   hand-edited.
-- **Artifacts:** `docs/design/design-17-proxy-form-information-architecture.md` (Approved,
-  Product Manager, 2026-08-29, plus two self-certified amendments — the card-level `legend`
-  heading weight and the tooltip content width cap),
-  `docs/tasks/proxy-form-information-architecture-tasks.md` (T1–T10, all built), and
-  `docs/reviews/review-17-proxy-form-information-architecture.md`, which retains its two
-  superseded verdicts alongside the close-out. The rulings, findings and coverage traces live
-  there, not here.
+
+The Owner-directed Principal Engineer sign-off gate on this work **stayed lapsed** per ADR-026
+`## Amendment A`; only the Project Owner can reinstate it.
 
 ## Backlog follow-ups (deferred, not gating any current item)
 
@@ -250,20 +246,6 @@ Open:
   Non-blocking.
 - **Optional T18 mode-switch test consolidation** (review-04). Endpoint paths are covered by
   T19/T20; no action unless consolidating later.
-
-Closed, kept only as a pointer:
-
-- ~~`league/commonmark` 2.8.3 denial-of-service advisories.~~ **CLOSED 2026-08-27** —
-  `docs/fixes/commonmark-dos-advisories.md`. Upgraded to 2.10.0 within the existing `^2.8.1`
-  constraint; `composer audit` clean.
-- ~~The production asset build depends on a third-party font CDN at build time.~~
-  **CLOSED 2026-08-27 — PR #21 (`5d9f75e`).** Fonts vendored at `resources/fonts/`.
-- ~~`docs/stack/stack.md` records "Local/default: SQLite".~~ **CLOSED 2026-08-27 — PR #22
-  (`6bc26a6`).** `stack.md` now records MySQL only and names the MySQL-only DDL that forces it.
-  **The standing constraint is stack.md's to state: the full migration set cannot run against
-  SQLite, so `./vendor/bin/sail test` is in practice the only way this suite runs.**
-- ~~`design-11`'s Components row describes the charting dependency as ungated.~~
-  **CLOSED 2026-08-27 — PR #22 (`6bc26a6`).**
 
 ## Open questions register (roadmap-level, deferred to their gating item)
 
