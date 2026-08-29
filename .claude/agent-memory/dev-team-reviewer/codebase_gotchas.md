@@ -210,3 +210,25 @@ metadata:
   five provider-signature names are deliberately FORWARDED. `proxy-authorization` stays on
   hop-by-hop grounds alone — do not read its presence beside `authorization`'s absence as an
   inconsistency. Count against the RFC, not against a completion note.
+- **`docs/standards/design.md`'s typography passage is STALE and will give you the wrong answer on a
+  heading finding.** It states card headings are `text-sm font-medium` and cites `Show.vue` as the
+  evidence; the shipped `Show.vue` heads all seven of its cards `<h2 class="text-base font-semibold">`.
+  The passage is marked "Proposed default", not ratified, so it cannot ground a standards violation
+  either way — cite the design spec, and check the code before citing the standard. Same section's
+  spacing rules (`space-y-6` stacked-section, `p-6` card padding, 360px minimum) ARE accurate.
+- **`legend` styling is where a "cards + fieldsets" IA restructure quietly fails.** When a design says
+  a single-`fieldset` card's `legend` "carries the heading weight" instead of an `h2`, check the class:
+  in this repo every `legend` is `text-sm font-medium` (`DestinationRows.vue`, `ReplayDialog.vue`,
+  `ProxyForm.vue` ×3), which is also what *subordinate* legends nested under a card's own `h2` use. An
+  implementer reads "the legend is the heading" and changes nothing, so cards headed by a legend render
+  visually subordinate to cards headed by an `h2`. Raised Major at review-17. The half living in a
+  component the plan pins to a zero diff is a Designer conflict, not an implementation defect — route
+  it there.
+- **Reka `TooltipTrigger` sets `aria-describedby` to the content's id automatically while open**
+  (`node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js`), so a tooltip needs no manual id-wiring —
+  but note the description lands on the TRIGGER, not on the field beside it. The correct in-repo
+  pattern is `TooltipTrigger as-child` wrapping a real `Button` with its own `aria-label`
+  (`teams/Edit.vue`, `ProxyForm.vue`); `ReplayDialog.vue` wraps a bare non-focusable `span` and also
+  sets a bespoke `max-w-xs` on `TooltipContent` — design-17 note N1 names it as the anti-pattern.
+  `TooltipProvider` is instantiated per-tooltip everywhere in this repo, so its shared open-delay
+  grouping never actually applies (Minor at review-17, matches precedent — do not grade it higher).
