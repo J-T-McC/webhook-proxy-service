@@ -6,6 +6,7 @@ use App\Enums\SecretPurpose;
 use App\Models\Proxy;
 use App\Models\ProxySecret;
 use App\Models\Team;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -110,5 +111,59 @@ class ProxySecretTest extends TestCase
         $this->assertContains($current->id, $liveIds);
         $this->assertContains($supersededNotExpired->id, $liveIds);
         $this->assertNotContains($supersededExpired->id, $liveIds);
+    }
+
+    /**
+     * The rotation invariant: at most one current secret per proxy per purpose,
+     * enforced by the `proxy_secrets_proxy_id_purpose_is_current_unique` index.
+     * `is_current` is null rather than false on superseded rows precisely so that
+     * MySQL's unique index ignores them, which is what lets an overlap window hold
+     * several superseded secrets at once.
+     */
+    public function test_a_second_current_row_for_the_same_proxy_and_purpose_is_rejected(): void
+    {
+        $proxy = $this->makeProxy();
+
+        DB::table('proxy_secrets')->insert([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'purpose' => 'signing',
+            'value' => 'ciphertext-a',
+            'is_current' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->expectException(QueryException::class);
+
+        DB::table('proxy_secrets')->insert([
+            'team_id' => $proxy->team_id,
+            'proxy_id' => $proxy->id,
+            'purpose' => 'signing',
+            'value' => 'ciphertext-b',
+            'is_current' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    public function test_any_number_of_superseded_rows_with_null_is_current_are_allowed(): void
+    {
+        $proxy = $this->makeProxy();
+
+        for ($i = 0; $i < 3; $i++) {
+            DB::table('proxy_secrets')->insert([
+                'team_id' => $proxy->team_id,
+                'proxy_id' => $proxy->id,
+                'purpose' => 'signing',
+                'value' => "ciphertext-{$i}",
+                'is_current' => null,
+                'expires_at' => now()->addHours(24),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->assertSame(3, DB::table('proxy_secrets')->where('proxy_id', $proxy->id)->count());
     }
 }

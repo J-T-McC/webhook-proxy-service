@@ -135,6 +135,34 @@ Prefer several action-scoped classes over one class per controller.
 slower in CI, because paratest shards by class file and a single large class
 cannot be split across workers.
 
+## No migration-mechanics tests (active)
+
+> Adopted 2026-08-30. `tests/Unit/Migrations/` was deleted under this rule.
+
+Do not write tests that name a migration file, call `migrate:rollback`, or assert
+that a migration's `down()` restores what its `up()` removed. Two reasons:
+
+- **They block squashing.** A migration-mechanics test hardcodes a filename such
+  as `2026_08_27_000001_add_sensitive_data_handling_schema`. Squashing migrations
+  is a routine housekeeping step, and every one of these tests has to be rewritten
+  or deleted when it happens, which is a standing tax on a thing we should be free
+  to do.
+- **They escape the transaction sandbox.** DDL implicitly commits on MySQL, so a
+  test that runs `migrate:rollback` breaks out of `RefreshDatabase`'s per-test
+  transaction. Any row it created survives the test regardless of pass or fail and
+  leaks into every later test sharing that worker's database. The deleted tests
+  handled this with explicit `finally` cleanup, which is a workaround for a
+  problem better avoided.
+
+What is legitimate to test is the **behaviour the schema guarantees**, asserted
+against the current schema without naming any migration. `ProxySecretTest`'s
+`test_a_second_current_row_for_the_same_proxy_and_purpose_is_rejected` is the
+model: it proves the rotation invariant that at most one current secret exists per
+proxy per purpose. It survives any squash, because it never mentions how the index
+came to exist. Put such a test with the model or feature whose invariant it
+guards, not in a directory named for migrations.
+
+
 ## Scope
 
 - Applies going forward to all item-#1 tests and every new/modified test.
