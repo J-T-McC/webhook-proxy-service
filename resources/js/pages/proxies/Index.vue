@@ -1,19 +1,10 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref } from 'vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import CopyField from '@/components/CopyField.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import Pagination from '@/components/Pagination.vue';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -234,30 +225,13 @@ function confirmDelete(): void {
         </template>
     </div>
 
-    <AlertDialog
-        :open="deleteOpen"
-        @update:open="(value) => (deleteOpen = value)"
-    >
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>
-                    Delete &ldquo;{{ deleteTarget?.name }}&rdquo;?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                    Its ingest URL will stop accepting webhooks and all its
-                    destinations are removed. This cannot be undone.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                    class="bg-destructive text-white hover:bg-destructive/90"
-                    :disabled="deleting"
-                    @click="confirmDelete"
-                >
-                    Delete proxy
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+        v-model:open="deleteOpen"
+        :title="`Delete “${deleteTarget?.name}”?`"
+        description="Its ingest URL will stop accepting webhooks and all its destinations are removed. This cannot be undone."
+        confirm-label="Delete proxy"
+        destructive
+        :busy="deleting"
+        @confirm="confirmDelete"
+    />
 </template>
