@@ -26,7 +26,7 @@ use Tests\TestCase;
  * without stalling or reordering it (AC8) — complementing T11's unit-level
  * happy path.
  */
-class RetentionInFlightHoldsAcceptanceTest extends TestCase
+class RetentionInFlightHoldsTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

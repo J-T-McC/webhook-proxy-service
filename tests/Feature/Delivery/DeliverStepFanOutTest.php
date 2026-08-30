@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Unit\Pipeline;
+namespace Tests\Feature\Delivery;
 
 use App\Actions\DeliverStep;
 use App\Enums\HttpMethod;
@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class DeliverStepTest extends TestCase
+class DeliverStepFanOutTest extends TestCase
 {
     private const INGEST_ID = 'ingest-1';
 

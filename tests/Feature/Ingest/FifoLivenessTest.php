@@ -30,7 +30,7 @@ use Tests\TestCase;
  * change needed here; the order-key change itself is unit-tested in
  * `AdvanceProxyFifoQueueTest`.
  */
-class FifoLivenessAcceptanceTest extends TestCase
+class FifoLivenessTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

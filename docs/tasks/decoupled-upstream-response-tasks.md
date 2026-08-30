@@ -442,7 +442,7 @@
   contract, complementing T11's wiring-focused tests with the AC-level assertions from plan §Test
   strategy. No new production code expected; fix any gap in the owning task (T9/T10/T11).
 - **Dependencies:** T11
-- **Files:** `tests/Feature/Ingest/WebhookEventCaptureAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Ingest/IngestEventCaptureTest.php` (new)
 - **Acceptance Criteria:**
   - A valid ingest (simple mode) writes exactly one `webhook_events` row with the raw body,
     `method`, `headers`, `content_type`, `byte_size`, and the **same `ingest_id`** as the request's
@@ -456,7 +456,7 @@
   - **Raw immutability (AC8):** the captured `body` equals the exact received bytes and is
     unchanged after delivery completes (re-read the row post-request and compare).
 - **Testing:** the cases above using `Http::fake()` for delivery outcomes.
-- **Completion notes:** Done (2026-08-04). New `tests/Feature/Ingest/WebhookEventCaptureAcceptanceTest.php`
+- **Completion notes:** Done (2026-08-04). New `tests/Feature/Ingest/IngestEventCaptureTest.php`
   (5 tests), no new production code — all ACs held against the T9–T11 wiring. Uses `$this->call()`
   with an explicit raw body + `CONTENT_TYPE` so the captured bytes/headers/content-type are exact.
   Cases: (1) simple-mode ingest writes exactly one `webhook_events` row with the exact raw body,
@@ -469,7 +469,7 @@
   response_body column), joined to capture only by `ingest_id` (AC9, ADR-003); (5) raw
   immutability — the captured `body` is byte-for-byte unchanged when re-read after synchronous
   delivery completes (AC8). Gates: `composer lint` passed (Pint auto-ordered imports),
-  `composer types:check` 0 errors, `--filter WebhookEventCaptureAcceptanceTest` 5/5, full
+  `composer types:check` 0 errors, `--filter IngestEventCaptureTest` 5/5, full
   `--parallel` 269/269.
 
 ---

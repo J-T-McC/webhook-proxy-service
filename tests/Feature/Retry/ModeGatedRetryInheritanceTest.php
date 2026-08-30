@@ -33,7 +33,7 @@ use Tests\TestCase;
  * ADR-018 exists to prevent, plus the mid-flight downgrade/upgrade switch-
  * safety cases the plan's Test Strategy names for this concern.
  */
-class ModeGatedRetryInheritanceAcceptanceTest extends TestCase
+class ModeGatedRetryInheritanceTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

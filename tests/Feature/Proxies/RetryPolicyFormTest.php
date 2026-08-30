@@ -16,7 +16,7 @@ use Tests\TestCase;
  * controller/resource per-task tests by driving real `store`/`update`
  * requests and following each through to the resource shape.
  */
-class RetryPolicyFormAcceptanceTest extends TestCase
+class RetryPolicyFormTest extends TestCase
 {
     protected function setUp(): void
     {

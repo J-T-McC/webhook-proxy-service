@@ -442,7 +442,7 @@
      `function () use (&$shouldFail) { ... }` closure (by reference) instead.
 
   `composer lint`, `composer types:check` and `./vendor/bin/sail test --filter
-  "OutboundSigningIntegrationTest|SigningAllOrNoneFailureTest|DeliverToDestinationTest|RetryDeliveryTest|DeliveryUnitResolverTest|OutboundHeadersTest|OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|SecretStoreTest|ProxySigningControllerTest|ProxySecurityResourceTest|ReplayAcceptanceTest|AsyncDispatchAcceptanceTest"`
+  "OutboundSigningIntegrationTest|SigningAllOrNoneFailureTest|DeliverToDestinationTest|RetryDeliveryTest|DeliveryUnitResolverTest|OutboundHeadersTest|OutboundHeadersSigningTest|OutboundHeadersSigningRegressionTest|SecretStoreTest|ProxySigningControllerTest|ProxySecurityResourceTest|ReplayTest|AsyncDispatchTest"`
   (100 tests, 491 assertions) all green. **Full suite run at the close of this batch (T34-T40):
   `./vendor/bin/sail test --parallel` green at 1063/1063.**
 

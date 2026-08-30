@@ -31,7 +31,7 @@ use Tests\TestCase;
  * `POST .../events/{event}/replay` endpoint (T24) and the real pipeline —
  * complementing T24's own controller-level tests (`ProxyEventReplayControllerTest`).
  */
-class ReplayAcceptanceTest extends TestCase
+class ReplayTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

@@ -444,7 +444,7 @@
   the queued-dispatch half is wired correctly end-to-end (not just true at the controller-unit
   level, T12). No new production code expected; fix any wiring gap here.
 - **Dependencies:** T12
-- **Files:** `tests/Feature/Ingest/QueuedDispatchAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Ingest/QueuedDispatchTest.php` (new)
 - **Acceptance Criteria:**
   - A valid ingest to an Async or FIFO proxy **dispatches** processing and returns its response
     without running delivery inline — no `DeliveryAttempt` exists at request return, for both modes
@@ -456,7 +456,7 @@
     500 and dispatches nothing for both modes (`Queue::assertNothingPushed()`) (AC3, ADR-010).
 - **Testing:** the cases above using `Queue::fake()` for dispatch assertions and `Http::fake()` for
   destination outcomes.
-- **Completion notes:** New `QueuedDispatchAcceptanceTest`, `#[DataProvider('modes')]` over
+- **Completion notes:** New `QueuedDispatchTest`, `#[DataProvider('modes')]` over
   async+fifo (repo uses the PHPUnit attribute, not the `@dataProvider` docblock). Four ×2 = 8 cases:
   ingest dispatches processing + zero `DeliveryAttempt` at return (AC1); response is the configured
   `200/ACK` independent of a 500-faking destination and of a throwing destination, drained inline
@@ -469,7 +469,7 @@
 - **Description:** End-to-end proof that draining the queue for an Async proxy fans out correctly,
   complementing T8's unit-level branch test.
 - **Dependencies:** T8, T9, T12
-- **Files:** `tests/Feature/Ingest/AsyncDispatchAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Ingest/AsyncDispatchTest.php` (new)
 - **Acceptance Criteria:**
   - A proxy with no explicit `processing_mode` is `async`; existing #1/#3-shaped (factory) rows
     read `async` (AC5).
@@ -481,7 +481,7 @@
 - **Testing:** the cases above using `Queue::fake()` to assert per-destination dispatch, then
   `Queue::assertPushed(...)`-driven manual `handle()` invocation or draining under the `sync` queue
   driver, plus `Http::fake()` for outcomes.
-- **Completion notes:** New `AsyncDispatchAcceptanceTest` (4 cases): a factory proxy (reloaded)
+- **Completion notes:** New `AsyncDispatchTest` (4 cases): a factory proxy (reloaded)
   reads `Async` (AC5); `ProcessIngestedWebhook::run` under `Queue::fake` pushes one
   `DeliverToDestination` per destination onto the webhooks queue (`assertPushedOn(..., 3)`); draining
   inline (sync) yields exactly one payload-free `DeliveryAttempt` + `DeliverySucceeded` per
@@ -495,7 +495,7 @@
 - **Description:** End-to-end proof that a FIFO proxy's events settle in received order and never
   block or are blocked by another proxy, complementing T10's unit-level advancer test.
 - **Dependencies:** T10, T12
-- **Files:** `tests/Feature/Ingest/FifoOrderingAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Ingest/FifoOrderingTest.php` (new)
 - **Acceptance Criteria:**
   - Several events ingested in sequence for a FIFO proxy are delivered to their destinations in the
     **order they were received** — assert delivery order (e.g. via `DeliveryAttempt.started_at` or
@@ -505,7 +505,7 @@
     delivery (AC7).
 - **Testing:** the cases above, draining both proxies' queued work and asserting order/isolation via
   `Http::fake()` call sequencing and `fifo_dispatches`/`DeliveryAttempt` timestamps.
-- **Completion notes:** New `FifoOrderingAcceptanceTest` (3 cases): (1) three sequentially-ingested
+- **Completion notes:** New `FifoOrderingTest` (3 cases): (1) three sequentially-ingested
   raw bodies (`evt-1..3`) settle and are delivered in receive order — asserted via `Http::recorded()`
   body sequence + 3 `settled` rows (AC6); (2) per-proxy isolation — proxy A's line frozen at a live
   claim still lets proxy B ingest and deliver immediately, and A's claim is left untouched (AC7); (3)
@@ -521,7 +521,7 @@
 - **Description:** End-to-end proof of the claim's correctness under contention and the sweeper's
   liveness net, complementing T10/T11's unit-level tests.
 - **Dependencies:** T10, T11
-- **Files:** `tests/Feature/Ingest/FifoLivenessAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Ingest/FifoLivenessTest.php` (new)
 - **Acceptance Criteria:**
   - **Single-advancer under contention:** two `AdvanceProxyFifoQueue` runs dispatched for the same
     proxy claim at most one event between them — assert no two `fifo_dispatches` rows are ever
@@ -532,7 +532,7 @@
 - **Testing:** the cases above — simulate concurrent advancer dispatch (e.g. two direct `::run()`
   calls against the same pre-seeded claim state) and a manually-expired lease row, then assert via
   `fifo_dispatches` row state and delivery outcome.
-- **Completion notes:** New `FifoLivenessAcceptanceTest` (4 cases). Contention (ADR-005 (a)): (1) a
+- **Completion notes:** New `FifoLivenessTest` (4 cases). Contention (ADR-005 (a)): (1) a
   second advancer early-returns on an existing live claim without claiming the next row; (2) the
   strong contention proof — a concurrent `AdvanceProxyFifoQueue::run` is fired from inside the
   `Http::fake` closure (i.e. WHILE advancer #1's event is claimed and in flight, outside the claim
@@ -550,7 +550,7 @@
   held (line stalled, 0 deliveries), then — after the lock expires — a second sweep lets the
   advancer acquire and settle the row (line advances, 1 delivery). Also swapped the three new
   FIFO test files' `FifoDispatch::factory()->create(...)` → `createQuietly(...)` per
-  review-04 finding #3 / testing.md (`FifoLivenessAcceptanceTest`, `AdvanceProxyFifoQueueTest`,
+  review-04 finding #3 / testing.md (`FifoLivenessTest`, `AdvanceProxyFifoQueueTest`,
   `SweepStalledFifoDispatchesTest`). All three checks + FE triad green (354 backend tests).
 
 ## T17 — Idempotency acceptance tests (AC9)
@@ -558,7 +558,7 @@
 - **Description:** End-to-end proof of exactly-once settlement under simulated queue redelivery,
   complementing T9's unit-level test.
 - **Dependencies:** T9
-- **Files:** `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Ingest/DeliveryIdempotencyTest.php` (new)
 - **Acceptance Criteria:** re-running an already-settled `DeliverToDestination` job for the same
   `(ingest_id, destination_id, attempt_number)` — simulating the queue's at-least-once redelivery —
   produces **no** second HTTP send, **no** duplicate settled `DeliveryAttempt` record, and **no**
@@ -566,7 +566,7 @@
   run); the `UNIQUE` index rejects a duplicate raw insert.
 - **Testing:** the case above via `Http::fake()`/`Event::fake()`, driving the job's `handle()` (or
   its queued dispatch) twice for the same unit.
-- **Completion notes:** New `DeliveryIdempotencyAcceptanceTest` (2 cases): a real async ingest drains
+- **Completion notes:** New `DeliveryIdempotencyTest` (2 cases): a real async ingest drains
   one successful delivery, then a reconstructed `DeliveryUnit` with the SAME `(ingest_id,
   destination_id, attempt_number)` is re-run to simulate at-least-once redelivery — asserts still one
   row, one `Http` send, one `DeliverySucceeded` event, row still `Succeeded` (AC9); plus a raw
@@ -579,7 +579,7 @@
   mid-flight is a routine config change with no draining/cancellation, and no accepted event is
   lost, duplicated, or reordered among its own-mode peers.
 - **Dependencies:** T12, T15
-- **Files:** `tests/Feature/Proxies/ProcessingModeSwitchAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Proxies/ProcessingModeSwitchTest.php` (new)
 - **Acceptance Criteria:** switching a proxy `async → fifo` (and back `fifo → async`) persists and
   validates (per T19/T20); events already enqueued as `fifo_dispatches` rows before a `fifo → async`
   switch continue to drain **in order** via the advancer/sweeper after the switch (assert the
@@ -588,7 +588,7 @@
 - **Testing:** the case above — ingest events under one mode, switch the proxy's mode via the
   update endpoint, ingest more events, drain, and assert the pre-switch events settle per their
   original mode's semantics while post-switch events follow the new mode.
-- **Completion notes:** New `ProcessingModeSwitchAcceptanceTest` (4 cases): switch persists both
+- **Completion notes:** New `ProcessingModeSwitchTest` (4 cases): switch persists both
   directions; pre-switch FIFO ordering rows still drain in receive order via the advancer after a
   `fifo → async` switch (asserted via `settled_at` order + delivery now dispatched, not inline);
   post-switch ingests follow the new mode (`fifo → async` → no new fifo row, `ProcessIngestedWebhook`

@@ -19,7 +19,7 @@ use Throwable;
  * touches nothing else, and is atomic across both stores (AC5, AC6, AC9,
  * AC12, AC22b) — complementing T11's unit-level happy path.
  */
-class RetentionErasureCompletenessAcceptanceTest extends TestCase
+class RetentionErasureCompletenessTest extends TestCase
 {
     private function expiredEventFor(Proxy $proxy): WebhookEvent
     {

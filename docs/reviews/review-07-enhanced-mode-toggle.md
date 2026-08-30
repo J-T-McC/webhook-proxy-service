@@ -52,13 +52,13 @@ values are lost too. Plus four Minors and three Nits.
 
 | AC | How verified | Verdict |
 |---|---|---|
-| AC1 mode changeable after creation | `ModeSwitchSafetyAcceptanceTest::test_switching_mode_does_not_recreate_the_proxy_its_destinations_or_its_ingest_url` | ✅ |
+| AC1 mode changeable after creation | `ModeSwitchSafetyTest::test_switching_mode_does_not_recreate_the_proxy_its_destinations_or_its_ingest_url` | ✅ |
 | AC2 settable at create and edit, one attribute | `test_no_separate_mode_change_workflow_exists` (pins absence of `proxies.mode`/`toggle-mode`/`switch-mode`) | ✅ |
 | AC3 Simple is the default | `test_simple_is_the_database_default_...` — asserts against a bare `new Proxy()->save()`, not the factory. Correct choice | ✅ |
 | AC4 existing proxies untouched | Inspection + positive proof: `git diff f72153f..HEAD -- database/migrations/` is empty; re-derived, holds | ✅ |
 | AC5 permission-gated, no new permission | `test_a_member_without_update_permission_cannot_change_a_proxys_mode_but_an_authorized_member_can`; `test_no_new_team_permission_was_added` pins the 14-case list | ✅ |
 | AC6(a) dispatched-output store gated | `test_switching_simple_to_enhanced_composes_capture_for_the_next_event_only`; `PipelineFactory` untouched (0 diff lines) | ✅ |
-| AC6(b) retry configurability gated | `RetryPolicyTest` gate cases + `ModeGatedRetryInheritanceAcceptanceTest` (real attempt schedule through `DeliverToDestination`) | ✅ |
+| AC6(b) retry configurability gated | `RetryPolicyTest` gate cases + `ModeGatedRetryInheritanceTest` (real attempt schedule through `DeliverToDestination`) | ✅ |
 | AC7 mode-independent stays so | Re-derived: `grep ProxyMode::` over `app/` returns exactly the two ADR-018 evaluation points (`PipelineFactory:28,42`; `RetryPolicy:48,59`) plus cast/validation/controller-write CRUD. No new gate | ✅ |
 | AC8 not an entitlement | Inspection — no plan/tier/quota check anywhere in the diff | ✅ |
 | AC9 current mode governs | `PipelineFactory` composes from the live row loaded at processing; nothing snapshots mode (verified by the same grep) | ✅ |
@@ -68,7 +68,7 @@ values are lost too. Plus four Minors and three Nits.
 | AC13 downgrade erases nothing + disclosed | `test_an_expired_events_output_captured_under_enhanced_is_erased_normally_after_a_downgrade`; `test_a_replay_on_a_now_simple_proxy_neither_writes_nor_deletes...`; disclosure bullet 2 | ✅ |
 | AC14 lead — restoration on upgrade | Server half: `test_upgrading_resubmits_the_preserved_values_and_they_persist_unedited`. Client half was **untested and unverified by anyone** — I verified it live: a Simple proxy holding 4/`fixed` renders nothing while Simple, and prefills `4` / `Fixed interval` the moment Enhanced is selected | ✅ (verified by Reviewer) |
 | AC14(a) Simple always resolves the default | `RetryPolicyTest::test_a_simple_proxy_with_a_dormant_policy_resolves_identically_to_one_that_never_had_a_policy` | ✅ |
-| AC14(b) no dormant value on a read surface | `ProxyRetryFieldPresentationAcceptanceTest` (Index, Show, events index, events detail) + the rewritten `ProxyIndexShowTest` case | ✅ |
+| AC14(b) no dormant value on a read surface | `ProxyRetryFieldPresentationTest` (Index, Show, events index, events detail) + the rewritten `ProxyIndexShowTest` case | ✅ |
 | AC14(b)(i)–(iv) form carve-out | (i)(iv) server-tested; (ii)(iii) verified live by me — see AC14 row | ✅ |
 | AC14(c) disclosure states preservation | Disclosure renders verbatim. **Its promise is falsified on one path — Finding 1** | ⚠️ |
 | AC15 two axes independent | Mode help text mentions no ordering/throughput; Processing help text still states independence | ✅ |
@@ -94,9 +94,9 @@ rather than accepted as self-evident; each absence genuinely holds.
 
 | Obligation | Discharged? | Evidence |
 |---|---|---|
-| **Minor 8** — (a) stop clearing **and** (b) mode-gate the resolver, **in one task**; (c) invert *and rename* the T30 test + add Show-page suppression | **Yes, all three.** | (a)+(b) both land in commit `40f4982` (T1) — a single commit, verified by `git show`. (c) `test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null` → `..._preserves_stored_values`, and the previously-unnamed second instance in `ProxyUpdateTest` renamed the same way; Show-page suppression covered server-side by `ProxyRetryFieldPresentationAcceptanceTest`. Note that Minor 8(a)'s *second half* (relax `prohibited_if`) was deliberately **declined** at plan §Technical ruling 2 and ADR-018 Decision 3 — I concur; relaxing it would open the one write path that could overwrite an invisible dormant value |
+| **Minor 8** — (a) stop clearing **and** (b) mode-gate the resolver, **in one task**; (c) invert *and rename* the T30 test + add Show-page suppression | **Yes, all three.** | (a)+(b) both land in commit `40f4982` (T1) — a single commit, verified by `git show`. (c) `test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null` → `..._preserves_stored_values`, and the previously-unnamed second instance in `ProxyUpdateTest` renamed the same way; Show-page suppression covered server-side by `ProxyRetryFieldPresentationTest`. Note that Minor 8(a)'s *second half* (relax `prohibited_if`) was deliberately **declined** at plan §Technical ruling 2 and ADR-018 Decision 3 — I concur; relaxing it would open the one write path that could overwrite an invisible dormant value |
 | **Minor 9** — guard `retry.sweep_grace_seconds` | **Yes.** | `RetryPolicy::sweepGraceSeconds()` returns `positiveConfigInt('sweep_grace_seconds')`; `SweepDueRetries` calls it; the seventh key now sits inside the same seam as the other six. Blank/zero/negative/non-numeric all covered by new `RetryPolicyTest` cases plus a `SweepDueRetriesTest` regression proving the throw happens *instead of* sweeping |
-| **Minor 5** — `DeliveryResource.created_at`, its consumer, and the inverted pin **as one task** | **Yes.** | All three in commit `331f30f` (T12) — the resource field, `events/Show.vue`'s label + ordering switch, and `ReadSurfaceRevealAcceptanceTest.php:95` inverted from `->missing(...)` to a presence assertion. The `sortId` derivation is fully removed, including from the `DeliveryGroup` interface |
+| **Minor 5** — `DeliveryResource.created_at`, its consumer, and the inverted pin **as one task** | **Yes.** | All three in commit `331f30f` (T12) — the resource field, `events/Show.vue`'s label + ordering switch, and `ReadSurfaceRevealTest.php:95` inverted from `->missing(...)` to a presence assertion. The `sortId` derivation is fully removed, including from the `DeliveryGroup` interface |
 | **Ruling 2** — "(a) without (b) is a defect" | **Honoured.** | Single commit, single tree; no intermediate state ever existed where the columns were preserved but the resolver ungated |
 
 Both indivisible-commit requirements (T1 and T12) were genuinely met — verified by `git show`,
@@ -131,7 +131,7 @@ works. Recording it so the coverage gap is on the record even though the outcome
 | 4 | Minor | `plan-07` §Test strategy vs §Architecture C | The plan's Test strategy asks for "no proxy retry-column **key** at all" on non-Edit responses; §Architecture C requires the keys to stay in the payload. The implementation follows Architecture C (asserts the keys are `null`), which is right — the plan contradicts itself |
 | 5 | Nit | `resources/js/pages/proxies/ProxyForm.vue:262-270` | The disclosure renders "(5 attempts, **E**xponential)"; design-07's approved copy reads "(5 attempts, exponential)" and plan-07 promised "the rendered string is identical to the approved copy" |
 | 6 | Nit | `resources/js/pages/proxies/ProxyForm.vue:327-333` | The Retry policy fieldset's help text still hard-codes "(5 attempts, exponential backoff)" — pre-existing from #6, and the one remaining hand-written copy of the default the new disclosure was careful to derive |
-| 7 | Nit | `tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php:64-70` | The Index assertion indexes `proxies.data.0`/`.1` without pinning which proxy is which. Sound here (both are Simple, both must be `null`), but it would not survive a fixture reorder |
+| 7 | Nit | `tests/Feature/Proxies/ProxyRetryFieldPresentationTest.php:64-70` | The Index assertion indexes `proxies.data.0`/`.1` without pinning which proxy is which. Sound here (both are Simple, both must be `null`), but it would not survive a fixture reorder |
 
 ### Finding 1 (Major) — an abandoned downgrade destroys the policy the disclosure just promised to keep
 
@@ -464,7 +464,7 @@ which is the implementation. The self-contradiction is gone.
 Not part of M7 and correctly **not** in the diff (the plan forbade them riding along). They remain
 backlog: the disclosure's capitalised "Exponential" vs. design-07's lowercase (Nit 5), the retry
 fieldset's hand-written "(5 attempts, exponential backoff)" (Nit 6), and the positional
-`proxies.data.0`/`.1` indexing in `ProxyRetryFieldPresentationAcceptanceTest` (Nit 7). Recorded so
+`proxies.data.0`/`.1` indexing in `ProxyRetryFieldPresentationTest` (Nit 7). Recorded so
 the Owner approves with them visible, **not** re-raised as findings.
 
 ### New findings from this pass
@@ -589,7 +589,7 @@ build`'s emitted `ProxyForm-*.js` chunk containing the derived string rather tha
 
 ### Nit 7 — RESOLVED
 
-`tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php`'s Index assertion indexed
+`tests/Feature/Proxies/ProxyRetryFieldPresentationTest.php`'s Index assertion indexed
 `proxies.data.0`/`.1` without pinning which proxy is which. Both fixtures are Simple-mode so the
 assertion was already correct regardless of order, but it would not have survived a fixture
 reorder (or a future third fixture) noticing the difference. Replaced the two indexed `where(...)`
@@ -601,5 +601,5 @@ independent of position. This *is* a meaningful test change — it converts an a
 happened to be order-independent in effect into one that is order-independent by construction, so
 the finding's stated failure mode (a fixture reorder silently going unchecked) cannot recur. Verified
 by running the file directly (`./vendor/bin/sail test --filter
-ProxyRetryFieldPresentationAcceptanceTest`): 5 passed, 76 assertions, and by the full parallel suite
+ProxyRetryFieldPresentationTest`): 5 passed, 76 assertions, and by the full parallel suite
 above.

@@ -42,7 +42,7 @@ use Tests\TestCase;
  * inspection — mirroring `RetryDeliveryTest`'s direct-invocation pattern one
  * layer up.
  */
-class RetryEngineAcceptanceTest extends TestCase
+class RetryEngineTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

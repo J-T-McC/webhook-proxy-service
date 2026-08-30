@@ -29,7 +29,7 @@ use Tests\TestCase;
  * own per-task tests by composing the real controllers/resources together
  * rather than one route/case at a time.
  */
-class ReadSurfaceRevealAcceptanceTest extends TestCase
+class ReadSurfaceRevealTest extends TestCase
 {
     protected function setUp(): void
     {

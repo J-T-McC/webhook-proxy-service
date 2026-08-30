@@ -172,13 +172,13 @@ occurs, and pass vacuously.
 **Result: no such test exists.** Three candidates surfaced and all three are false positives
 on inspection:
 
-- `RetryEngineAcceptanceTest::test_two_destinations_one_fails_only_the_failed_one_is_retried`
+- `RetryEngineTest::test_two_destinations_one_fails_only_the_failed_one_is_retried`
   — no `Queue::fake()` at all; the match came from other methods in the same class. Runs
   inline under the sync driver, so its assertions are genuine.
-- `FifoRetryCompositionAcceptanceTest::test_an_async_proxys_two_events_retries_interleave_freely_and_never_delay_each_other`
+- `FifoRetryCompositionTest::test_an_async_proxys_two_events_retries_interleave_freely_and_never_delay_each_other`
   — the match was the **comment** "No Queue::fake()", which documents precisely why the test
   does not need to drain.
-- `ReplayAcceptanceTest::test_a_redelivered_replay_processing_job_creates_no_duplicate_delivery_rows_or_attempts`
+- `ReplayTest::test_a_redelivered_replay_processing_job_creates_no_duplicate_delivery_rows_or_attempts`
   — likewise no `Queue::fake()`; both attempt-count assertions and the idempotency re-run are
   real.
 
@@ -223,7 +223,7 @@ checked rather than assumed:
   left for a destination to fail with. A test cannot exercise a failure mode the code can no
   longer enter.
 - **The behaviour is still covered where it can actually occur.**
-  `RetryEngineAcceptanceTest::test_two_destinations_one_fails_only_the_failed_one_is_retried`
+  `RetryEngineTest::test_two_destinations_one_fails_only_the_failed_one_is_retried`
   drives a genuine 500 against one of two destinations and asserts the failing delivery
   reaches `Failed` with two attempts while the succeeding one reaches `Succeeded` with one.
   That is the real property, tested end to end, and it runs inline rather than under a fake.

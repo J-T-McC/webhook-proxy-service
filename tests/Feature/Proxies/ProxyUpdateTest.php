@@ -8,6 +8,7 @@ use App\Enums\ProxyMode;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Models\User;
+use App\Support\SensitiveFields;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -305,5 +306,25 @@ class ProxyUpdateTest extends TestCase
 
         // Nothing committed: original destination remains live.
         $this->assertSame(1, $proxy->destinations()->count());
+    }
+
+    /**
+     * T11 — `defaultSensitiveFieldNames` page prop on the edit form (AC12; plan-10
+     * Technical ruling 3): single-sourced from `SensitiveFields::DEFAULTS`. The
+     * create half lives in `ProxyStoreTest`, and its absence from the list page in
+     * `ProxyIndexTest`.
+     */
+    public function test_edit_emits_the_default_sensitive_field_names_prop_exactly(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $this->actingAs($user)
+            ->get(route('proxies.edit', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('proxies/Edit')
+                ->where('defaultSensitiveFieldNames', SensitiveFields::DEFAULTS)
+            );
     }
 }

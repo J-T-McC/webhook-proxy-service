@@ -125,15 +125,15 @@ Per ADR-020 (§Decision, full reasoning and alternatives there):
   job-class fake scoping — `Queue::fake([Class::class])`/`->except([...])` — does not
   match lorisleiva's `JobDecorator` wrapper via `instanceof`, confirmed empirically).
   Added `tests/Concerns/DrainsQueuedDeliveries.php` (generalising a pattern already
-  established in `ProcessingModeSwitchAcceptanceTest`) to run a captured delivery job
+  established in `ProcessingModeSwitchTest`) to run a captured delivery job
   in place, and applied it in: `AdvanceProxyFifoQueueTest`,
-  `FifoLivenessAcceptanceTest`, `FifoRetryCompositionAcceptanceTest`,
-  `RetentionInFlightHoldsAcceptanceTest`, `CleanedStateReaderGuardAcceptanceTest`,
-  `RetryEngineAcceptanceTest`, `ModeGatedRetryInheritanceAcceptanceTest`,
-  `RetryReplayRetentionInterplayAcceptanceTest`, `ReplayAcceptanceTest`,
-  `TerminalStateAcceptanceTest`, `ModeSwitchSafetyAcceptanceTest`,
-  `ProcessingModeSwitchAcceptanceTest`. One test
-  (`FifoRetryCompositionAcceptanceTest::test_the_heads_first_attempt_failing_holds_the_line_and_the_sweeper_leaves_it_alone`)
+  `FifoLivenessTest`, `FifoRetryCompositionTest`,
+  `RetentionInFlightHoldsTest`, `CleanedStateReaderGuardTest`,
+  `RetryEngineTest`, `ModeGatedRetryInheritanceTest`,
+  `RetryReplayRetentionInterplayTest`, `ReplayTest`,
+  `TerminalStateTest`, `ModeSwitchSafetyTest`,
+  `ProcessingModeSwitchTest`. One test
+  (`FifoRetryCompositionTest::test_the_heads_first_attempt_failing_holds_the_line_and_the_sweeper_leaves_it_alone`)
   had silently stopped exercising its own premise (attempt 1 actually failing) without
   going red, because it never asserted the delivery's status — restored the missing
   assertion alongside the drain.

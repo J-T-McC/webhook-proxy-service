@@ -22,7 +22,7 @@ use Tests\TestCase;
  * End-to-end proof of exactly-once settlement under simulated at-least-once queue
  * redelivery (T17, AC9), complementing the DeliverToDestination unit test.
  */
-class DeliveryIdempotencyAcceptanceTest extends TestCase
+class DeliveryIdempotencyTest extends TestCase
 {
     public function test_redelivering_a_settled_unit_produces_no_second_send_row_or_event(): void
     {

@@ -84,7 +84,7 @@ Exactly the Principal Engineer's Option 3, implemented as specified:
    exposure, it does not scrub or encrypt anything; that is roadmap #10's work.
 
 ### Consequence for the existing H4 acceptance test
-`RetentionInFlightHoldsAcceptanceTest::test_h4_horizon_hold_blocks_erasure_until_past_the_dispatch_horizon_when_no_attempts_exist`
+`RetentionInFlightHoldsTest::test_h4_horizon_hold_blocks_erasure_until_past_the_dispatch_horizon_when_no_attempts_exist`
 manufactured its scenario by setting the horizon (35 days) *above* the retention
 window (30 days) to decouple the two — exactly the configuration
 `requireHorizonBelowWindow()` now refuses to run with. This is not a numeric
@@ -106,7 +106,7 @@ this is test-only.
 - `routes/console.php` — added the `queue:prune-failed --hours=168` daily schedule
   entry.
 - Checked every other consumer of `retention.dispatch_horizon_minutes`
-  (`RetentionInFlightHoldsAcceptanceTest`, `RetryReplayRetentionInterplayAcceptanceTest`,
+  (`RetentionInFlightHoldsTest`, `RetryReplayRetentionInterplayTest`,
   `PurgeExpiredPayloadsTest`) — all read the value via `config()` rather than
   pinning `60`, so they were unaffected by the default change, per the ruling's own
   claim (confirmed, not assumed) — with the single exception above.
@@ -114,7 +114,7 @@ this is test-only.
 ## Verification
 - New regression tests, confirmed to fail against the pre-fix code (60-minute
   default, no invariant, no schedule entry) and pass after:
-  - `tests/Feature/Retention/RetryReplayRetentionInterplayAcceptanceTest::test_an_async_replay_dispatch_survives_queue_backlog_past_the_old_sixty_minute_horizon`
+  - `tests/Feature/Retention/RetryReplayRetentionInterplayTest::test_an_async_replay_dispatch_survives_queue_backlog_past_the_old_sixty_minute_horizon`
     — the actual reported bug: an Async replay's `deliveries` row backdated 90
     minutes (past the old 60-minute horizon, inside the new 1440-minute one) must
     not be erased by a GC pass before its `ProcessIngestedWebhook` job can run.
@@ -131,7 +131,7 @@ this is test-only.
     not null.`).
   - `tests/Unit/Config/RetentionConfigTest::test_dispatch_horizon_minutes_defaults_to_1440_when_env_not_set`
     — updated from the old pinned `60`.
-  - `tests/Feature/Retention/RetentionInFlightHoldsAcceptanceTest::test_h4_horizon_hold_never_blocks_an_expired_zero_attempt_event_once_the_horizon_is_bound_below_the_retention_window`
+  - `tests/Feature/Retention/RetentionInFlightHoldsTest::test_h4_horizon_hold_never_blocks_an_expired_zero_attempt_event_once_the_horizon_is_bound_below_the_retention_window`
     — replaces the invariant-violating H4 test (see above).
 - `./vendor/bin/sail test --parallel` (full suite): **721 passed / 721, 2629
   assertions** — fully green.

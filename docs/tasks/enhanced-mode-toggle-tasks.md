@@ -182,8 +182,8 @@
   `tests/Feature/Proxies/ProxyUpdateTest.php` (`test_switching_from_enhanced_to_simple_clears_the_retry_policy_to_null`,
   renamed to `test_switching_from_enhanced_to_simple_preserves_the_retry_policy` and inverted — a
   second, previously-unnamed instance of the same #6-era assumption review-06 Minor 8(c) named once
-  in `RetryPolicyFormAcceptanceTest.php`); and
-  `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php`'s own named test
+  in `RetryPolicyFormTest.php`); and
+  `tests/Feature/Proxies/RetryPolicyFormTest.php`'s own named test
   (`test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`), renamed to
   `test_switching_enhanced_to_simple_on_update_preserves_stored_values` per review-06 Minor 8(c) and
   T2's own Acceptance Criteria — landed here (not deferred to T2) purely to keep this commit's tree
@@ -200,7 +200,7 @@
   endpoints. Rename and invert the #6-era test whose name now asserts the wrong outcome, and add the
   round-trip, tuning, and `prohibited_if` cases the plan's Test strategy names.
 - **Dependencies:** T1
-- **Files:** `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php`
+- **Files:** `tests/Feature/Proxies/RetryPolicyFormTest.php`
 - **Acceptance Criteria:**
   - `test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null` (line 138) is renamed
     to `test_switching_enhanced_to_simple_on_update_preserves_stored_values` and rewritten to assert
@@ -225,7 +225,7 @@
   `test_switching_enhanced_to_simple_on_update_preserves_stored_values` was already landed under
   T1's commit (necessary there to keep that commit's tree green against its own production change —
   see T1's completion notes). This task adds the remaining new cases to
-  `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php`:
+  `tests/Feature/Proxies/RetryPolicyFormTest.php`:
   `test_re_saving_an_already_simple_proxy_holding_a_dormant_policy_leaves_it_untouched` (AC14(b)(iv)
   — a Simple proxy already holding 4/fixed, saved again as Simple with only its name changed, keeps
   4/fixed exactly, no overwrite, no clear); `test_upgrading_resubmits_the_preserved_values_and_they_persist_unedited`
@@ -240,7 +240,7 @@
   existed, pass unmodified, and needed no change — pinning plan §Technical ruling 2 and AC20 parity
   as required.
 
-  Verified: `./vendor/bin/sail test --filter RetryPolicyFormAcceptanceTest` (12 passed, 78
+  Verified: `./vendor/bin/sail test --filter RetryPolicyFormTest` (12 passed, 78
   assertions); full suite `./vendor/bin/sail test --parallel` (734 passed, 2673 assertions);
   `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -250,7 +250,7 @@
   T1's gate with no code of their own — the property the plan states neither consumer needs a mode
   branch to get right. Includes the mid-flight downgrade/upgrade cases the plan's Test strategy names.
 - **Dependencies:** T1
-- **Files:** `tests/Feature/Retry/ModeGatedRetryInheritanceAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retry/ModeGatedRetryInheritanceTest.php` (new)
 - **Acceptance Criteria:**
   - A Simple proxy holding `retry_attempt_limit = 2` whose delivery fails schedules attempt 2 (not
     terminalized) and terminalizes at the system default 5 — proving `DeliverToDestination` resolved
@@ -266,7 +266,7 @@
     proxy switches.
 - **Testing:** `Http::fake()`, `Queue::fake()`, `travel()` — mirroring the patterns in
   `docs/tasks/retry-replay-tasks.md` T38–T40.
-- **Completion notes:** Added `tests/Feature/Retry/ModeGatedRetryInheritanceAcceptanceTest.php` (3
+- **Completion notes:** Added `tests/Feature/Retry/ModeGatedRetryInheritanceTest.php` (3
   tests) proving `DeliverToDestination::settleDelivery()` and `DeliveryResource.attempt_limit`
   inherit T1's gate with no code of their own — no production defect found; `PipelineFactory` not
   touched. Covered: a Simple proxy holding a dormant `retry_attempt_limit = 2` schedules attempt 2
@@ -283,7 +283,7 @@
   (proxy-free by construction) is asserted identical before and after several further mode/limit
   switches.
 
-  Verified: `./vendor/bin/sail test --filter ModeGatedRetryInheritanceAcceptanceTest` (3 passed, 24
+  Verified: `./vendor/bin/sail test --filter ModeGatedRetryInheritanceTest` (3 passed, 24
   assertions); full suite `./vendor/bin/sail test --parallel` (737 passed, 2697 assertions);
   `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -293,7 +293,7 @@
   holds, live mode-reads with no snapshot) and require no new production code. This task is the proof,
   run against the mode-toggle surface #7 actually ships, not an implementation.
 - **Dependencies:** T1
-- **Files:** `tests/Feature/Proxies/ModeSwitchSafetyAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Proxies/ModeSwitchSafetyTest.php` (new)
 - **Acceptance Criteria:**
   - A proxy switched Simple → Enhanced composes `CaptureDispatchedStep` for its next event and not
     for one already dispatched; Enhanced → Simple stops producing new dispatched-output rows and
@@ -314,7 +314,7 @@
     rules); a member who can update, can; **no new permission exists** — asserted by pinning the
     `TeamPermission` case list unchanged (AC5).
 - **Testing:** the cases above; `Http::fake()`, `Queue::fake()`, `travel()`.
-- **Completion notes:** Added `tests/Feature/Proxies/ModeSwitchSafetyAcceptanceTest.php` (11 tests)
+- **Completion notes:** Added `tests/Feature/Proxies/ModeSwitchSafetyTest.php` (11 tests)
   proving plan §Architecture E's guarantees hold via existing, mode-independent machinery — no
   production code needed anywhere in this task; `PipelineFactory` not touched. Covered:
   Simple→Enhanced composes `CaptureDispatchedStep` for the next event only, never retroactively for
@@ -338,7 +338,7 @@
   `TeamPermission` case list is pinned verbatim (14 cases, unchanged) — no new permission exists
   (AC5).
 
-  Verified: `./vendor/bin/sail test --filter ModeSwitchSafetyAcceptanceTest` (11 passed, 45
+  Verified: `./vendor/bin/sail test --filter ModeSwitchSafetyTest` (11 passed, 45
   assertions); full suite `./vendor/bin/sail test --parallel` (748 passed, 2742 assertions);
   `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -366,7 +366,7 @@
   - The same proxy's Edit payload (via `ProxyFormResource`) emits the raw 8 / fixed.
   - An Enhanced proxy with configured values emits those values on Index, Show, **and** Edit (the
     existing `test_proxy_resource_emits_both_fields_on_index_show_and_edit` in
-    `RetryPolicyFormAcceptanceTest.php:160` continues to pass unmodified — it already uses an
+    `RetryPolicyFormTest.php:160` continues to pass unmodified — it already uses an
     Enhanced proxy).
   - No non-Edit response (events list/detail, delivery payloads) carries a proxy retry-column key at
     all.
@@ -380,8 +380,8 @@
     dormant-suppression case). Its sibling, `test_unconfigured_retry_policy_fields_are_null` (line
     169), already asserts `null`/`null` and needs no change.
 - **Testing:** new feature-test cases per the bullets above — extend
-  `RetryPolicyFormAcceptanceTest.php` or add a new
-  `tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php` (Senior Developer's call
+  `RetryPolicyFormTest.php` or add a new
+  `tests/Feature/Proxies/ProxyRetryFieldPresentationTest.php` (Senior Developer's call
   within these constraints, per the T22/T45 house convention in `docs/tasks/retry-replay-tasks.md`)
   — plus the required `ProxyIndexShowTest.php` rewrite named above.
 - **Completion notes:** `ProxyResource::toArray()`'s two retry keys now resolve through
@@ -396,8 +396,8 @@
   Confirmed by grep that `ProxyEventController`'s events index/detail (which also embed
   `ProxyResource`) automatically inherit the same suppression with no code of their own.
 
-  **Test file choice:** new `tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php`
-  (not an extension of `RetryPolicyFormAcceptanceTest.php`). Rationale: that file's existing scope
+  **Test file choice:** new `tests/Feature/Proxies/ProxyRetryFieldPresentationTest.php`
+  (not an extension of `RetryPolicyFormTest.php`). Rationale: that file's existing scope
   is store/update persistence semantics (plus one pre-existing Enhanced-proxy presentation test
   that needed no change); T5's concern — read-surface suppression across Index/Show/Edit/events,
   plus the single-caller invariant on a brand-new resource class — is a distinct axis, and keeping
@@ -416,13 +416,13 @@
   any `assertInertia` assertion against a Simple proxy's raw retry values on Index/Show — only
   `ProxyIndexShowTest.php::test_index_and_show_expose_retry_policy_fields` (line 143) matched, exactly
   as the plan predicted; every other hit either asserts DB/model state directly (store/update tests)
-  or already uses an Enhanced proxy (`RetryPolicyFormAcceptanceTest`'s own presentation test,
+  or already uses an Enhanced proxy (`RetryPolicyFormTest`'s own presentation test,
   unmodified). Renamed to
   `test_index_and_show_suppress_a_simple_proxys_dormant_retry_policy_fields` and rewritten to assert
   `null`/`null` for the same Simple proxy holding 4/`fixed`, per AC14(b) — no second unnamed instance
-  found this time (unlike T1's `RetryPolicyFormAcceptanceTest`/`ProxyUpdateTest` pair).
+  found this time (unlike T1's `RetryPolicyFormTest`/`ProxyUpdateTest` pair).
 
-  Verified: `./vendor/bin/sail test --filter "ProxyRetryFieldPresentationAcceptanceTest|ProxyIndexShowTest|RetryPolicyFormAcceptanceTest"`
+  Verified: `./vendor/bin/sail test --filter "ProxyRetryFieldPresentationTest|ProxyIndexShowTest|RetryPolicyFormTest"`
   (27 passed, 271 assertions); full suite `./vendor/bin/sail test --parallel` (753 passed, 2808
   assertions — up from 748/2742 by T5's 5 new tests, the renamed test carrying no count change);
   `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors).
@@ -760,20 +760,20 @@
   (`resources/js/pages/proxies/events/Show.vue`, currently deriving the label from the earliest
   attempt's `started_at` and the order from the group's highest `Delivery.id`) switch to use the new
   `created_at` directly. The pinning assertion `->missing('event.deliveries.0.created_at')`
-  (`tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php:95`) is inverted to assert presence.
+  (`tests/Feature/ProxyEvents/ReadSurfaceRevealTest.php:95`) is inverted to assert presence.
   Landing the field alone would leave both the label/ordering defect (a FIFO replay queued behind a
   held line with zero attempts degrades to a bare "Replay" with no time — exactly the scenario the
   feature exists to make visible) and a dead field — the plan requires all three in one task.
 - **Dependencies:** none
 - **Files:** `app/Http/Resources/DeliveryResource.php`, `resources/js/types/proxies.ts`
   (`Delivery.created_at`), `resources/js/pages/proxies/events/Show.vue`,
-  `tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php`
+  `tests/Feature/ProxyEvents/ReadSurfaceRevealTest.php`
 - **Acceptance Criteria:** `DeliveryResource` emits `created_at`; the events-detail replay-group label
   reads it directly (no more earliest-attempt derivation) and group ordering (newest-first) sorts by
   it (no more highest-`Delivery.id` derivation); a FIFO replay queued with zero attempts still shows a
-  real time label; the inverted assertion at `ReadSurfaceRevealAcceptanceTest.php:95` passes.
+  real time label; the inverted assertion at `ReadSurfaceRevealTest.php:95` passes.
 - **Testing:** extend `tests/Unit/Http/Resources/DeliveryResourceTest.php` with the new field, and
-  invert the named assertion in `ReadSurfaceRevealAcceptanceTest.php`. **Manual verification** (no
+  invert the named assertion in `ReadSurfaceRevealTest.php`. **Manual verification** (no
   frontend test harness): open an event detail page with a FIFO replay queued behind a held line
   (zero attempts yet) — the replay group shows a real time label, not a bare "Replay"; replay groups
   sort newest-first by `created_at`. `pnpm run build` required before this check.
@@ -789,7 +789,7 @@
   `groupLabel()` itself is unchanged — it already handled `group.time` being `null` gracefully.
   `resources/js/types/proxies.ts`'s `Delivery` interface gained `created_at: string | null`, with its
   docblock updated to include it in the pre-#6 legacy-fallback null list and to name rider 2. The
-  pinning assertion at `tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php:95`
+  pinning assertion at `tests/Feature/ProxyEvents/ReadSurfaceRevealTest.php:95`
   (`->missing('event.deliveries.0.created_at')`) is inverted to `->has(...)`, with its surrounding
   comment rewritten from "the one derived-data gap" to noting the gap is now closed. `PipelineFactory`
   not touched; no migration (the column already existed — serialization only).
@@ -833,7 +833,7 @@
   `Delivery.id` (the pre-fix mechanism would have ranked B before C, since B's id is higher). Test data
   and the temporary team/user were deleted afterward via `sail tinker`.
 
-  Verified: `./vendor/bin/sail test --filter "DeliveryResourceTest|WebhookEventResourceTest|ReadSurfaceRevealAcceptanceTest"`
+  Verified: `./vendor/bin/sail test --filter "DeliveryResourceTest|WebhookEventResourceTest|ReadSurfaceRevealTest"`
   (25 passed, 164 assertions); full suite `./vendor/bin/sail test --parallel` (759 passed, 2820
   assertions — up from 759/2816 by this task's 4 new assertions on existing tests, no new test
   methods); `composer lint` (Pint, clean); `composer types:check` (PHPStan level 7, 0 errors); `pnpm
@@ -1070,7 +1070,7 @@
   sections) or a named ADR-018 decision; no design ambiguity was found requiring a question doc to
   the Principal Engineer or Product Manager. One judgment call is deliberately left to the Senior
   Developer within stated constraints, per house convention (not prescribed in a task's Description):
-  T5's exact new-test-file location (extend `RetryPolicyFormAcceptanceTest.php` vs. a new dedicated
+  T5's exact new-test-file location (extend `RetryPolicyFormTest.php` vs. a new dedicated
   file).
 - **Next Agent:** Senior Developer — implement T1–T13 in order, one feature-branch commit per
   completed task (or per logical part of a large task), leaving `composer lint`, `composer
@@ -1086,7 +1086,7 @@ incl. Amendments A and B, the approved design spec (with its approval note gover
 the annotated ADR-015, review-06's Minors 5/8/9 and Ruling 2, and the affected code on
 `feat/item-07-enhanced-mode-toggle` at `9cdc3a4` (`RetryPolicy`, `ProxyController`, `ProxyResource`,
 `DeliveryResource`, the Form Requests, `ProxyForm.vue`, `Show.vue`, `events/Show.vue`,
-`ProxyIndexShowTest.php`, `RetryPolicyFormAcceptanceTest.php`, `ReadSurfaceRevealAcceptanceTest.php`,
+`ProxyIndexShowTest.php`, `RetryPolicyFormTest.php`, `ReadSurfaceRevealTest.php`,
 `ProxyFactory.php`) to confirm every file path, line reference, and existing-test name cited above is
 accurate against the real tree, not assumed. Every task traces to an explicit plan section or a named
 ADR-018 decision; no task invents scope beyond what plan-07 authorizes.

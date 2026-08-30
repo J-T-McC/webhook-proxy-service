@@ -264,7 +264,7 @@
   **Deviation (test-only, no production code touched, flagged not silently made):** two
   pre-existing feature tests —
   `tests/Feature/Delivery/DeliverToDestinationTest::test_unique_index_rejects_a_raw_duplicate_insert`
-  and `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest::test_the_unique_index_rejects_a_raw_duplicate_insert`
+  and `tests/Feature/Ingest/DeliveryIdempotencyTest::test_the_unique_index_rejects_a_raw_duplicate_insert`
   — probed the now-dropped `UNIQUE(ingest_id, destination_id, attempt_number)` as
   `DeliverToDestination`'s race-condition safety net (ADR-011 Decision 4). `DeliverToDestination`
   itself is untouched by T5 (its idempotency key swap to `delivery_id` is T10's explicit scope,
@@ -352,10 +352,10 @@
   'dispatch_uuid' doesn't have a default value`), exactly the gap T7's own description and
   Acceptance Criteria name ("all existing ingest/FIFO capture tests remain green unmodified" —
   worded as a T7 outcome, implying red beforehand). Affected:
-  `QueuedDispatchAcceptanceTest` (3, fifo dataset only), `FifoOrderingAcceptanceTest` (3),
+  `QueuedDispatchTest` (3, fifo dataset only), `FifoOrderingTest` (3),
   `IngestControllerTest::test_fifo_proxy_commits_a_pending_ordering_row_and_dispatches_the_advancer`,
-  `ProcessingModeSwitchAcceptanceTest` (2), and
-  `RetentionInFlightHoldsAcceptanceTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
+  `ProcessingModeSwitchTest` (2), and
+  `RetentionInFlightHoldsTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
   (1, via its FIFO-mode fixture) — all ten construct a FIFO dispatch through `IngestController`,
   none touch `fifo_dispatches` schema/model behavior directly, and none are in T6's own Files/
   Testing list. No test was weakened, skipped, or removed to hide this; T7 (already gated on T6
@@ -385,12 +385,12 @@
   (the nearest existing FIFO-capture test, per the Testing note) with the named assertion:
   `$row->dispatch_uuid === WebhookEvent::firstOrFail()->ingest_id` (the same correlator the
   capture row and the ordering row now both carry). **T6's documented interim-red set is now
-  closed for 9 of the 10 tests** it named: `QueuedDispatchAcceptanceTest` (3, fifo dataset),
-  `FifoOrderingAcceptanceTest` (3), `IngestControllerTest::test_fifo_proxy_commits_a_pending_ordering_row_and_dispatches_the_advancer`,
-  `ProcessingModeSwitchAcceptanceTest` (2) all pass green again, each having gone through
+  closed for 9 of the 10 tests** it named: `QueuedDispatchTest` (3, fifo dataset),
+  `FifoOrderingTest` (3), `IngestControllerTest::test_fifo_proxy_commits_a_pending_ordering_row_and_dispatches_the_advancer`,
+  `ProcessingModeSwitchTest` (2) all pass green again, each having gone through
   `IngestController`'s FIFO capture path that T7 fixes. **One of the ten does not clear and is
   explicitly out of T7's stated scope ("`IngestController` ... Nothing else")** —
-  `tests/Feature/Retention/RetentionInFlightHoldsAcceptanceTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
+  `tests/Feature/Retention/RetentionInFlightHoldsTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
   still fails with the same MySQL 1364 (`Field 'dispatch_uuid' doesn't have a default value`).
   Root cause is unrelated to `IngestController`: this pre-existing #5 fault-injection test uses a
   raw `DB::table('fifo_dispatches')->insert([...])` (bypassing both the model/factory and
@@ -398,12 +398,12 @@
   fixture row) to simulate a hold reappearing mid-`PurgeExpiredPayloads` run; that raw insert
   omits `dispatch_uuid`, which T6's migration made `NOT NULL` with no default. This is T6-caused
   test debt in a file outside both T6's and T7's Files lists (`tests/Feature/Retention/
-  RetentionInFlightHoldsAcceptanceTest.php` belongs to feature #5), not something either task's
+  RetentionInFlightHoldsTest.php` belongs to feature #5), not something either task's
   stated scope covers — flagging per instruction rather than patching it as an unscoped
   side-fix. Verified: `composer lint` (Pint, passed), `composer types:check` (PHPStan L7, 0
   errors), `./vendor/bin/sail test --filter IngestControllerTest` (13 passed / 41 assertions),
   `./vendor/bin/sail test --parallel` full suite (474 total, 473 passed / 1632 assertions, 1
-  error — the single `RetentionInFlightHoldsAcceptanceTest` case above; net improvement from
+  error — the single `RetentionInFlightHoldsTest` case above; net improvement from
   T6's 464 passed / 9 failures + 1 error).
 
 ---
@@ -519,10 +519,10 @@
   `deliveryId` param has no default, so the full suite now shows 8 errors
   (`ArgumentCountError: DeliveryUnit::__construct(): Argument #8 ($deliveryId) not passed`), all
   in the two files T10's own Acceptance Criteria names verbatim as needing this exact update
-  ("the existing `DeliverToDestinationTest`/`DeliveryIdempotencyAcceptanceTest` suites pass green
+  ("the existing `DeliverToDestinationTest`/`DeliveryIdempotencyTest` suites pass green
   after being updated to construct `DeliveryUnit`s with a `deliveryId`" — T10 Acceptance
   Criteria): `tests/Feature/Delivery/DeliverToDestinationTest.php` (7 tests, all via its shared
-  `unit()` helper) and `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php` (1 test, its
+  `unit()` helper) and `tests/Feature/Ingest/DeliveryIdempotencyTest.php` (1 test, its
   manually-constructed redelivery unit). Neither file is in T9's Files list; T10 (already gated
   on T9 as a dependency, alongside T5) is the task that supplies the real `deliveryId` and
   restores these to green. No test was weakened or removed to hide this. Verified: `composer
@@ -546,11 +546,11 @@
 - **Acceptance Criteria:** a redelivered `DeliveryUnit` for the same `(delivery_id,
   attempt_number)` is a no-op (no duplicate row, no duplicate send) exactly as the old key
   guaranteed; a `dispatched`-status row left by a crashed worker is still re-driven on the same
-  row; the existing `DeliverToDestinationTest`/`DeliveryIdempotencyAcceptanceTest` suites pass
+  row; the existing `DeliverToDestinationTest`/`DeliveryIdempotencyTest` suites pass
   green after being updated to construct `DeliveryUnit`s with a `deliveryId` (the key-swap is the
   only behavioural change asserted).
 - **Testing:** extend `tests/Feature/Delivery/DeliverToDestinationTest.php` and
-  `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php` — update fixtures to the new key,
+  `tests/Feature/Ingest/DeliveryIdempotencyTest.php` — update fixtures to the new key,
   add a case proving two different deliveries legitimately share `attempt_number = 1` (the
   reason the old key could not survive replay) with no collision.
 - **Completion notes:** Implemented as specified — no more. `app/Actions/DeliverToDestination.php`:
@@ -563,7 +563,7 @@
   byte-for-byte unchanged, a failed attempt still just fails; the class docblock updated to name
   the new key and explicitly note M3 is where CAS/scheduling lands, not here. **T9's 8 anticipated
   errors are now closed**: both `DeliverToDestinationTest` (7 tests) and
-  `DeliveryIdempotencyAcceptanceTest` (1 test) construct their `DeliveryUnit`s with a real
+  `DeliveryIdempotencyTest` (1 test) construct their `DeliveryUnit`s with a real
   `deliveryId` again. `tests/Feature/Delivery/DeliverToDestinationTest.php`: added a
   `deliveryFor(Destination): Delivery` helper (one real `deliveries` row per unit — `delivery_id`
   is a restrict FK, T5, so a fabricated int would fail at the DB); the `unit()` helper gained an
@@ -580,7 +580,7 @@
   DB-enforcement probe T5 retired against the old key, now proving the NEW
   `UNIQUE(delivery_id, attempt_number)` index rejects a duplicate pair, fulfilling T5's own
   deviation note ("T10 restores the equivalent race-safety probe on the new key").
-  `tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php`: the manually-constructed
+  `tests/Feature/Ingest/DeliveryIdempotencyTest.php`: the manually-constructed
   redelivery `DeliveryUnit` now resolves the real `Delivery` row T8's `ProcessIngestedWebhook`
   created for the `(dispatch_uuid, destination_id)` pair (`Delivery::query()->where('dispatch_uuid',
   $event->ingest_id)->where('destination_id', $destination->id)->firstOrFail()`) and passes its
@@ -590,7 +590,7 @@
   test was weakened; both restorations replace exactly what T5 removed, against the new key. No
   anticipated-red left behind — the branch is fully green, closing M2. Verified: `composer lint`
   (Pint, passed), `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
-  "DeliverToDestinationTest|DeliveryIdempotencyAcceptanceTest"` (11 passed / 47 assertions),
+  "DeliverToDestinationTest|DeliveryIdempotencyTest"` (11 passed / 47 assertions),
   `./vendor/bin/sail test --parallel` full suite (486 total, 486 passed / 1674 assertions — up
   from T9's 483 total/475 passed/8 errors; all eight closed, no new red).
 
@@ -793,7 +793,7 @@
   int $attemptNumber): void` body that is **deliberately empty** — a bare no-op, not a thrown
   "not implemented" — specifically so every pre-existing test that triggers a below-limit failure
   without `Queue::fake()` (audited across `DeliverToDestinationTest`,
-  `QueuedDispatchAcceptanceTest::test_response_is_independent_of_a_failing_destination`,
+  `QueuedDispatchTest::test_response_is_independent_of_a_failing_destination`,
   `DeliverStepTest::test_fifo_one_destination_failing_does_not_abort_the_loop`) keeps passing
   unchanged rather than fatal-erroring on unfinished T14 behaviour. The class docblock states this
   explicitly and points T14 at the exact body it must fill in (reload/guard/resolve/rebuild/run,
@@ -830,7 +830,7 @@
   (kind/dispatch_uuid/webhook_event_id/proxy_id/team_id on creation) is unchanged and still fully
   covered. No other pre-existing test needed a change — audited every `Http::fake()` failure/
   exception case in the suite (`DeliverToDestinationTest`'s own pre-T13 tests,
-  `QueuedDispatchAcceptanceTest`, `DeliverStepTest`, `FifoLivenessAcceptanceTest` — all-200 fixtures
+  `QueuedDispatchTest`, `DeliverStepTest`, `FifoLivenessTest` — all-200 fixtures
   there, so no failure branch triggers), confirming the `RetryDelivery` no-op stub's silence is
   sufficient everywhere. No anticipated-red left behind — the branch is fully green, T14 has no
   debt to close beyond its own scope. Verified: `composer lint` (Pint, passed — one auto-fix
@@ -925,15 +925,15 @@
   (each deliberately proves the un-faked sync-drain behaviour end-to-end — faking the queue would
   zero out their attempt counts entirely, not just suppress the retry), so their count assertions
   were updated to the real, now-correct cascade totals, each with an inline comment naming T14 and
-  the system-default limit: `QueuedDispatchAcceptanceTest::test_response_is_independent_of_a_failing_destination`
-  (both `async`/`fifo` datasets, 1 → 5 attempts), `AsyncDispatchAcceptanceTest::
+  the system-default limit: `QueuedDispatchTest::test_response_is_independent_of_a_failing_destination`
+  (both `async`/`fifo` datasets, 1 → 5 attempts), `AsyncDispatchTest::
   test_one_destination_failing_does_not_prevent_the_others_succeeding` (1 → 5 failed attempts /
   events, succeeded count unchanged at 2), `DeliverStepTest::test_one_failing_destination_does_not_prevent_the_others`
   in `tests/Unit/Pipeline` (2 → 6, Async-default proxy so attempt 1 itself is a real un-faked
   dispatch), `IngestFanOutTest::test_one_destination_failing_does_not_prevent_others_and_still_returns_202`
   (2 → 6). No production code changed by this audit — every fix lives in the test files, matching
   T13's own "one pre-existing test updated, not new anticipated red" precedent, scaled to six
-  test methods (seven failing test RUNS — `QueuedDispatchAcceptanceTest`'s one method runs twice,
+  test methods (seven failing test RUNS — `QueuedDispatchTest`'s one method runs twice,
   once per `#[DataProvider('modes')]` case) because this task is precisely the one T13 named as
   filling in the real cascade. Verified: `composer lint` (Pint, passed, no changes),
   `composer types:check` (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
@@ -1037,12 +1037,12 @@
   and advances exactly as before (existing #4 behaviour preserved); a head with at least one
   non-terminal delivery after its run transitions to `awaiting_retry` (no lease, no
   self-dispatch) and the line does not advance; the existing FIFO ordering/liveness suites
-  (`FifoOrderingAcceptanceTest`, `FifoLivenessAcceptanceTest`, `AdvanceProxyFifoQueueTest`) are
+  (`FifoOrderingTest`, `FifoLivenessTest`, `AdvanceProxyFifoQueueTest`) are
   updated to assert the `id`-based order key and pass green.
 - **Testing:** extend `tests/Unit/Actions/AdvanceProxyFifoQueueTest.php` — the busy-gate-includes-
   awaiting_retry case, the `id`-vs-`webhook_event_id` order case, the settle-when-all-terminal
-  case, the hold-when-non-terminal case; update `tests/Feature/Ingest/FifoOrderingAcceptanceTest.php`
-  and `FifoLivenessAcceptanceTest.php` fixtures/assertions for the order-key change (enumerated
+  case, the hold-when-non-terminal case; update `tests/Feature/Ingest/FifoOrderingTest.php`
+  and `FifoLivenessTest.php` fixtures/assertions for the order-key change (enumerated
   here per plan Implementation Notes — deliberate, not incidental breakage).
 - **Completion notes:** Implemented as specified — no more (T17's retry-side completion check and
   T18's sweeper extensions land next). `app/Actions/AdvanceProxyFifoQueue.php`: **(a)**
@@ -1072,8 +1072,8 @@
   1-destination coverage), `test_holds_the_line_when_a_delivery_is_left_non_terminal` (a failed-
   below-limit attempt leaves the row `awaiting_retry`, no lease, no self-dispatch), and
   `test_a_held_awaiting_retry_row_blocks_the_next_claim` (the busy-gate-includes-awaiting_retry
-  case, no live lease needed to trip it). `tests/Feature/Ingest/FifoOrderingAcceptanceTest.php` and
-  `FifoLivenessAcceptanceTest.php`: class docblocks only — both note the order-key change and why
+  case, no live lease needed to trip it). `tests/Feature/Ingest/FifoOrderingTest.php` and
+  `FifoLivenessTest.php`: class docblocks only — both note the order-key change and why
   their existing fixtures/assertions needed no behavioural edit (every row is capture-created, so
   `id` and `webhook_event_id` order are provably identical there; the divergence case lives at the
   unit level per the Testing note's split).
@@ -1095,7 +1095,7 @@
   the closure's assertions now actually execute (assertion count 2 → 3) and the response really is
   a success (delivery genuinely settles to `Succeeded`, not silently to `Failed`-then-retried).
   **Anticipated interim red, not fixed in this commit (T17's scope):**
-  `ProcessingModeSwitchAcceptanceTest::test_pre_switch_fifo_events_still_drain_in_order_after_switching_to_async`
+  `ProcessingModeSwitchTest::test_pre_switch_fifo_events_still_drain_in_order_after_switching_to_async`
   goes red under T16 alone — a pre-switch FIFO row claimed after the proxy has switched to Async
   now correctly holds (`awaiting_retry`) rather than settling unconditionally, because its
   deliveries are dispatched (queued), not run inline, so the post-run check sees them still
@@ -1108,7 +1108,7 @@
   Fixed in T17's commit (adds a `runPushedDeliveries()` test helper that executes the faked,
   queued `DeliverToDestination` jobs in place, standing in for a real queue worker — see T17 notes).
   **Verified (T16 scope, isolated per above):** `./vendor/bin/sail test --filter
-  "AdvanceProxyFifoQueueTest|FifoOrderingAcceptanceTest|FifoLivenessAcceptanceTest"` — 12 passed / 60
+  "AdvanceProxyFifoQueueTest|FifoOrderingTest|FifoLivenessTest"` — 12 passed / 60
   assertions; full suite `./vendor/bin/sail test --parallel` — 527/528 (1 anticipated red, above);
   `composer lint` (Pint, passed); `composer types:check` (PHPStan L7, 0 errors).
 
@@ -1172,7 +1172,7 @@
   normally, the fifo row's CAS affects zero rows since it's no longer `awaiting_retry`, no second
   nudge).
   **Consequential fix, not new scope — closes T16's documented anticipated red:**
-  `tests/Feature/Proxies/ProcessingModeSwitchAcceptanceTest.php` gained a `runPushedDeliveries()`
+  `tests/Feature/Proxies/ProcessingModeSwitchTest.php` gained a `runPushedDeliveries()`
   helper (`Queue::pushed(ActionManager::$jobDecorator, ...)` filtered to `DeliverToDestination`
   jobs, running each via `DeliverToDestination::run(...$job->getParameters())` — idempotent against
   re-invocation, since an already-terminal attempt is a resume no-op) standing in for a real queue
@@ -1183,7 +1183,7 @@
   (T18's `SweepStalledFifoDispatches.php` stashed out): 532/532 total, `composer lint` clean,
   `composer types:check` 0 errors — no anticipated red left behind by T17.
   **Verified (T17 scope, isolated per above):** `./vendor/bin/sail test --filter
-  "FifoRetrySettlementTest|DeliverToDestinationTest|ProcessingModeSwitchAcceptanceTest|AdvanceProxyFifoQueueTest|FifoOrderingAcceptanceTest|FifoLivenessAcceptanceTest"`
+  "FifoRetrySettlementTest|DeliverToDestinationTest|ProcessingModeSwitchTest|AdvanceProxyFifoQueueTest|FifoOrderingTest|FifoLivenessTest"`
   — 38 passed / 169 assertions; full suite `./vendor/bin/sail test --parallel` — 532/532 (0
   failures); `composer lint` (Pint, passed); `composer types:check` (PHPStan L7, 0 errors).
 
@@ -1283,7 +1283,7 @@
   its rationale, and the "read-only tables" sentence extended to include `deliveries`.
   `tests/Unit/Actions/PurgeExpiredPayloadsTest.php` extended (5 new tests, `Delivery`/
   `DeliveryStatus`/`DispatchKind`/`Destination`/`Str` imports added, plus a shared `isCleaned()`
-  helper mirroring the one already used in #5's `RetentionInFlightHoldsAcceptanceTest`):
+  helper mirroring the one already used in #5's `RetentionInFlightHoldsTest`):
   a `retrying` delivery holds regardless of age; a `pending` delivery younger than the default
   60-minute horizon holds; a `pending` delivery older than the horizon does not hold; two
   terminal deliveries (`succeeded` and `failed`) on the same event hold nothing, including the
@@ -1580,13 +1580,13 @@
   entry points work and the success toast surfaces on each
   (`test_a_replay_from_the_events_index_redirects_back_to_the_index_with_a_success_toast`,
   `test_a_replay_from_the_event_detail_page_redirects_back_to_the_detail_page_with_a_success_toast`).
-  `tests/Feature/Replay/ReplayAcceptanceTest.php`'s AC8 test
+  `tests/Feature/Replay/ReplayTest.php`'s AC8 test
   (`test_replay_never_produces_an_ingest_response_and_ingest_stays_unaffected_by_retry_state`)
   updated to set the referer to the event's Show page and assert the redirect targets that
   same URL, replacing the comment that had pinned the old `proxies.show` behaviour as an
   unresolved conflict. Verified: `composer lint` (Pint, passed), `composer types:check`
   (PHPStan L7, 0 errors), `./vendor/bin/sail test --filter
-  "ProxyEventReplayControllerTest|ReplayAcceptanceTest"` (31 passed / 112 assertions),
+  "ProxyEventReplayControllerTest|ReplayTest"` (31 passed / 112 assertions),
   `./vendor/bin/sail test --parallel` full suite (711 passed / 2607 assertions, up from
   709/2599).
 
@@ -2419,7 +2419,7 @@ session per the assigning task's instructions.
   automatic-retry requirements — complementing the unit-level tests already embedded in T11–T15.
   No new production code expected; fix any wiring gap found.
 - **Dependencies:** T10, T11, T13, T14, T15
-- **Files:** `tests/Feature/Retry/RetryEngineAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retry/RetryEngineTest.php` (new)
 - **Acceptance Criteria:**
   - A failed attempt on a **simple**-mode proxy schedules attempt 2 under the system default
     (limit 5, exponential first delay) — AC1's every-proxy baseline.
@@ -2436,14 +2436,14 @@ session per the assigning task's instructions.
     next failure; raising it extends the schedule (plan ruling 1).
   - A soft-deleted destination mid-schedule still executes and settles its retry (plan ruling 2).
 - **Testing:** the cases above via `Http::fake()`, `Queue::fake()`/`Bus::fake()`, `travel()`.
-- **Completion notes:** Added `tests/Feature/Retry/RetryEngineAcceptanceTest.php` (10
+- **Completion notes:** Added `tests/Feature/Retry/RetryEngineTest.php` (10
   tests), exercising the real `ProcessIngestedWebhook` → `DeliverStep` →
   `DeliverToDestination` → `RetryDelivery`/`SweepDueRetries` chain — no new production
   code needed, all seven bullets hold as implemented. Proxies use
   `ProcessingMode::Fifo` purely to get an inline first attempt (`DeliverStep`'s Fifo
   branch calls `DeliverToDestination::run()` directly, unaffected by `Queue::fake()`),
   orthogonal to the simple/enhanced retry-config axis under test — Async-mode coverage
-  of the same engine already exists (`AsyncDispatchAcceptanceTest`). Covered: AC1
+  of the same engine already exists (`AsyncDispatchTest`). Covered: AC1
   system-default schedule (limit 5, exponential ≈60s first delay) on a simple proxy;
   AC2 enhanced `limit=2`/fixed stopping at attempt 2 with the configured fixed delay,
   and enhanced-with-unset-columns falling back to 5/exponential; AC3 two-destination
@@ -2476,7 +2476,7 @@ session per the assigning task's instructions.
   compare-and-set across #1/#4/#5/#6 — reopening ADR-005/011/015/016's binding CAS
   invariant, not a T38-scoped change. Flagging for principal-engineer awareness only;
   no action taken.
-  Verified: `./vendor/bin/sail test --filter RetryEngineAcceptanceTest` (10 passed, 41
+  Verified: `./vendor/bin/sail test --filter RetryEngineTest` (10 passed, 41
   assertions); full suite `./vendor/bin/sail test --parallel` (641 passed, 2197
   assertions); `composer lint` (Pint clean); `composer types:check` (PHPStan level 7,
   0 errors).
@@ -2485,7 +2485,7 @@ session per the assigning task's instructions.
 - **Description:** End-to-end proof of the explicit terminal state and its event, complementing
   T13's unit-level cases.
 - **Dependencies:** T13, T14
-- **Files:** `tests/Feature/Retry/TerminalStateAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retry/TerminalStateTest.php` (new)
 - **Acceptance Criteria:**
   - After the limit, the delivery row reads `failed`, `next_attempt_at` NULL, and no further
     attempt is ever created (`travel()` past all schedules, run `SweepDueRetries` — zero new
@@ -2495,7 +2495,7 @@ session per the assigning task's instructions.
   - A terminal delivery remains visible on the read surface (T25/T27) and the event stays
     replayable while retained (AC4).
 - **Testing:** the cases above via `Event::fake()`, `travel()`, and the read-surface resources.
-- **Completion notes:** Added `tests/Feature/Retry/TerminalStateAcceptanceTest.php` (3 tests),
+- **Completion notes:** Added `tests/Feature/Retry/TerminalStateTest.php` (3 tests),
   exercising the real `ProcessIngestedWebhook` → `DeliverToDestination`/`RetryDelivery`/
   `SweepDueRetries` chain and the real `ProxyEventController`/`ProxyEventReplayController`
   routes — no production code needed, all three bullets hold as implemented. Covered: an
@@ -2514,7 +2514,7 @@ session per the assigning task's instructions.
   both `GET .../events` (list) and `GET .../events/{event}` (detail) with `status = 'failed'`,
   and a subsequent replay POST to the same still-retained event succeeding (302), proving a
   terminal delivery does not itself block replay eligibility (AC15 governs only the cleaned
-  case). No defect found. Verified: `./vendor/bin/sail test --filter TerminalStateAcceptanceTest`
+  case). No defect found. Verified: `./vendor/bin/sail test --filter TerminalStateTest`
   (3 passed, 37 assertions); full suite `./vendor/bin/sail test --parallel` (644 passed, 2234
   assertions); `composer lint` (Pint clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -2523,7 +2523,7 @@ session per the assigning task's instructions.
   hold release, complementing T16–T18's unit-level cases; also proves the existing #4 correctness
   primitives are undisturbed.
 - **Dependencies:** T16, T17, T18
-- **Files:** `tests/Feature/Retry/FifoRetryCompositionAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retry/FifoRetryCompositionTest.php` (new)
 - **Acceptance Criteria:**
   - Head's first attempt fails inline → fifo row is `awaiting_retry`, no lease; the next pending
     event is **not** claimed; the sweeper's reaper and nudge both leave the held line alone.
@@ -2540,10 +2540,10 @@ session per the assigning task's instructions.
   - The existing #4 suites (claim atomicity, lease reap, idempotent settle) pass green with only
     the deliberate order-key/unique-key updates enumerated in T5/T6/T16.
 - **Testing:** the cases above; `Queue::fake()` to prevent self-dispatch recursion inline
-  (mirroring `FifoLivenessAcceptanceTest`'s step-by-step-advance pattern).
-- **Completion notes:** Added `tests/Feature/Retry/FifoRetryCompositionAcceptanceTest.php` (8
+  (mirroring `FifoLivenessTest`'s step-by-step-advance pattern).
+- **Completion notes:** Added `tests/Feature/Retry/FifoRetryCompositionTest.php` (8
   tests), driving the real `AdvanceProxyFifoQueue` / `RetryDelivery` / `SweepStalledFifoDispatches`
-  chain over a `fifoProxyWithPending()` fixture mirroring `FifoLivenessAcceptanceTest`'s shape. No
+  chain over a `fifoProxyWithPending()` fixture mirroring `FifoLivenessTest`'s shape. No
   production defect found; all eight bullets hold as implemented. Covered: the head's first
   attempt failing inline holding the line (`awaiting_retry`, no lease), the next pending row
   staying unclaimed with zero delivery work, and the sweeper's reaper/nudge both leaving the held
@@ -2562,7 +2562,7 @@ session per the assigning task's instructions.
   rows ever created and each one's attempt count/status completely unaffected by the other having
   run; and the order key — two capture-created rows processing in `id` order, with a replay row
   created afterward processing only once both captures have settled (AC11 join-at-back). The
-  existing #4 correctness suites (`FifoLivenessAcceptanceTest`, `AdvanceProxyFifoQueueTest`,
+  existing #4 correctness suites (`FifoLivenessTest`, `AdvanceProxyFifoQueueTest`,
   `SweepStalledFifoDispatchesTest`, `FifoDispatchTest`) all pass green, unmodified, in the full
   suite run below.
 
@@ -2577,7 +2577,7 @@ session per the assigning task's instructions.
   Documented inline at each use site; noted in project memory (`testing_patterns.md`) for future
   test-writing.
 
-  Verified: `./vendor/bin/sail test --filter FifoRetryCompositionAcceptanceTest` (8 passed, 48
+  Verified: `./vendor/bin/sail test --filter FifoRetryCompositionTest` (8 passed, 48
   assertions, re-run 3× with no flakiness); full suite `./vendor/bin/sail test --parallel` (652
   passed, 2282 assertions); `composer lint` (Pint clean); `composer types:check` (PHPStan level 7,
   0 errors).
@@ -2586,7 +2586,7 @@ session per the assigning task's instructions.
 - **Description:** End-to-end proof of manual replay through the real endpoint (T24) and the
   real pipeline, complementing T24's own controller-level tests.
 - **Dependencies:** T21, T24
-- **Files:** `tests/Feature/Replay/ReplayAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Replay/ReplayTest.php` (new)
 - **Acceptance Criteria:**
   - Replay of a retained event to a subset dispatches to exactly those destinations; to all via
     select-all; never to a trashed destination or another proxy's destination id (422) (AC10).
@@ -2603,7 +2603,7 @@ session per the assigning task's instructions.
   - A redelivered replay-processing job creates no duplicate delivery rows or attempts.
 - **Testing:** the cases above via a real ingest → replay → assert flow, `Http::fake()`,
   `Queue::fake()`/`Bus::fake()`.
-- **Completion notes:** Added `tests/Feature/Replay/ReplayAcceptanceTest.php` (13 tests) driving
+- **Completion notes:** Added `tests/Feature/Replay/ReplayTest.php` (13 tests) driving
   the real `POST .../events/{event}/replay` endpoint end to end.
 
   **Defect found and fixed (AC10).** A subset-destination replay (e.g. 2 of 3 live destinations
@@ -2650,11 +2650,11 @@ session per the assigning task's instructions.
   an initial draft that used `Queue::fake()` while also needing the replay's own queued dispatch to
   actually execute — `Queue::fake()` freezes an Async proxy's `dispatch()->afterCommit()` (both the
   first attempt AND any retry), so a test needing one controlled real attempt uses a FIFO proxy
-  (inline first attempt, mirroring `RetryEngineAcceptanceTest`'s established pattern) or simply
+  (inline first attempt, mirroring `RetryEngineTest`'s established pattern) or simply
   omits `Queue::fake()` when the whole cascade is safe to let run inline (e.g. `limit=1`, or
   `Http::fake` always-200 with no retry concern).
 
-  Verified: `./vendor/bin/sail test --filter ReplayAcceptanceTest` (13 passed, 53 assertions); full
+  Verified: `./vendor/bin/sail test --filter ReplayTest` (13 passed, 53 assertions); full
   suite `./vendor/bin/sail test --parallel` (665 passed, 2335 assertions); `composer lint` (Pint
   clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -2662,7 +2662,7 @@ session per the assigning task's instructions.
 - **Description:** End-to-end proof that #6's dispatch forms honor the #5 retention contract,
   complementing T19's unit-level H5 cases and #5's existing retention suites.
 - **Dependencies:** T19, T20, T14, T24
-- **Files:** `tests/Feature/Retention/RetryReplayRetentionInterplayAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retention/RetryReplayRetentionInterplayTest.php` (new)
 - **Acceptance Criteria:**
   - Replay of a **cleaned** event: validation-error path, zero delivery rows, zero attempts,
     zero HTTP sends (AC15, AC17).
@@ -2678,9 +2678,9 @@ session per the assigning task's instructions.
     including `never_captured` for an unknown ingest id — never inferred from `body` (AC16).
 - **Testing:** the cases above, reusing #5's `DB::listen()`-based fault-injection technique for
   the race cases.
-- **Completion notes:** Added `tests/Feature/Retention/RetryReplayRetentionInterplayAcceptanceTest.php`
+- **Completion notes:** Added `tests/Feature/Retention/RetryReplayRetentionInterplayTest.php`
   (7 tests), complementing T19's unit-level `PurgeExpiredPayloadsTest` H5 cases and #5's existing
-  `RetentionInFlightHoldsAcceptanceTest`/`CleanedStateReaderGuardAcceptanceTest` by driving the
+  `RetentionInFlightHoldsTest`/`CleanedStateReaderGuardTest` by driving the
   real `ProcessIngestedWebhook`/`RetryDelivery`/replay-endpoint chain against `PurgeExpiredPayloads`,
   rather than constructing `deliveries` rows directly. No production defect found; all five bullets
   hold as implemented. Covered: a replay POST against a cleaned event 422s with zero `Delivery`
@@ -2704,11 +2704,11 @@ session per the assigning task's instructions.
   passes its own row's `ingest_id` to `StoredPayloadLookup`), so it is asserted directly against
   the shared resolver instead, which is what every #6 read path composes through; noted inline
   rather than silently worked around. Two tests needed `Queue::fake()` (mirroring
-  `RetryEngineAcceptanceTest`'s documented pattern) to freeze a delayed retry attempt for
+  `RetryEngineTest`'s documented pattern) to freeze a delayed retry attempt for
   controlled manual invocation — without it the sync queue driver's zero-delay inline cascade
   drains the whole schedule to a terminal state within one call, making the intermediate
   "outstanding retry" state unobservable. Verified: `./vendor/bin/sail test --filter
-  RetryReplayRetentionInterplayAcceptanceTest` (7 passed, 53 assertions); full suite
+  RetryReplayRetentionInterplayTest` (7 passed, 53 assertions); full suite
   `./vendor/bin/sail test --parallel` (**672 passed / 2388 assertions**, up from 665/2335);
   `composer lint` (Pint clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -2716,7 +2716,7 @@ session per the assigning task's instructions.
 - **Description:** End-to-end proof of the three read routes and the payload endpoint,
   complementing T25–T28's per-task tests.
 - **Dependencies:** T25, T26, T27, T28
-- **Files:** `tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/ProxyEvents/ReadSurfaceRevealTest.php` (new)
 - **Acceptance Criteria:**
   - List and detail props contain **no** `body`/`headers` for any state (AC22/AC25 fetch-on-
     reveal).
@@ -2728,7 +2728,7 @@ session per the assigning task's instructions.
   - A pre-#6 event (attempts, no `deliveries`) renders the derived per-destination state with no
     error (ruling 3).
 - **Testing:** the cases above, composing the real controllers/resources end to end.
-- **Completion notes:** Added `tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php`
+- **Completion notes:** Added `tests/Feature/ProxyEvents/ReadSurfaceRevealTest.php`
   (6 tests), complementing T25-T28's own per-task test files by composing the three read routes
   and the payload endpoint together rather than one route/case at a time. No production defect
   found; all five bullets hold as implemented. Covered: list AND detail together never emit
@@ -2758,7 +2758,7 @@ session per the assigning task's instructions.
   event-scoped FIFO-held flag) is structural — `fifoHeldByRetry` is a page-level, not per-event,
   prop, confirmed by reading `ProxyEventController` — nothing to assert beyond what this suite's
   `fifoHeldByRetry` test already proves at the page level. Verified: `./vendor/bin/sail test
-  --filter ReadSurfaceRevealAcceptanceTest` (6 passed, 109 assertions); full suite
+  --filter ReadSurfaceRevealTest` (6 passed, 109 assertions); full suite
   `./vendor/bin/sail test --parallel` (**678 passed / 2497 assertions**, up from 672/2388);
   `composer lint` (Pint clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -2766,7 +2766,7 @@ session per the assigning task's instructions.
 - **Description:** End-to-end proof of the retry-policy form/persistence surface, complementing
   T29–T30's per-task tests.
 - **Dependencies:** T29, T30
-- **Files:** `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Proxies/RetryPolicyFormTest.php` (new)
 - **Acceptance Criteria:**
   - Store/update accept limit 1–10 + strategy on enhanced; reject 0/11/unknown strategy; reject
     any value when `mode = simple`; switching enhanced→simple on update clears stored values to
@@ -2775,7 +2775,7 @@ session per the assigning task's instructions.
   - The `mode` field still gates nothing else — no toggle surface is added, no other field
     becomes conditional on it beyond the pre-existing behaviour (AC20).
 - **Testing:** the cases above via real `store`/`update` requests.
-- **Completion notes:** Added `tests/Feature/Proxies/RetryPolicyFormAcceptanceTest.php` (8 tests),
+- **Completion notes:** Added `tests/Feature/Proxies/RetryPolicyFormTest.php` (8 tests),
   complementing T29's request-validation and T30's controller/resource per-task tests by driving
   real `store`/`update` HTTP requests end to end through to persistence and the resource shape.
   No production defect found; all three bullets hold as implemented. Covered: `store` accepting
@@ -2796,7 +2796,7 @@ session per the assigning task's instructions.
   only, phrased as current behaviour rather than as a guarantee the suite would defend against a
   future change — feature #7's Owner ruling (Q-07-01(b), 2026-08-21) will change this to preserve
   a persisted policy dormant instead, out of scope for #6. Verified: `./vendor/bin/sail test
-  --filter RetryPolicyFormAcceptanceTest` (8 passed, 64 assertions); full suite `./vendor/bin/sail
+  --filter RetryPolicyFormTest` (8 passed, 64 assertions); full suite `./vendor/bin/sail
   test --parallel` (**686 passed / 2561 assertions**, up from 678/2497); `composer lint` (Pint
   clean); `composer types:check` (PHPStan level 7, 0 errors).
 
@@ -2893,7 +2893,7 @@ session per the assigning task's instructions.
   task whose title names it and whose completion notes name the covering test file(s) — confirmed
   by cross-referencing every `## T<n> — ... (AC...)` header against the PRD's own AC list. **AC8**
   ("Upstream sender unaffected") is not named in any task *title*, but is covered:
-  `ReplayAcceptanceTest::test_replay_never_produces_an_ingest_response_and_ingest_stays_unaffected_by_retry_state`
+  `ReplayTest::test_replay_never_produces_an_ingest_response_and_ingest_stays_unaffected_by_retry_state`
   is explicitly headed "AC8" in its own file and T41's body (not title) cites it. **AC19** ("No
   notifications"), **AC21** ("No mapping, no payload transformation"), and **AC24** ("No numeric
   targets") trace to **no task and no test** — all three are pure scope-boundary/negative claims
@@ -2920,7 +2920,7 @@ session per the assigning task's instructions.
      for this endpoint and the app's established convention for every other write endpoint. T37
      could not satisfy its own AC without either changing T24's endpoint shape (outside T37's
      stated scope) or the AC being wrong against the app's established pattern — flagged rather
-     than silently decided either way. `ReplayAcceptanceTest`'s AC8 test asserts and documents
+     than silently decided either way. `ReplayTest`'s AC8 test asserts and documents
      today's real behaviour (a full redirect to `proxies.show`) inline, per this session's own
      explicit instruction not to silently resolve it. Awaiting a ruling.
   2. **T14's cleaned-path attempt-row decision.** `RetryDelivery::terminalizeCleaned()` writes
@@ -2934,7 +2934,7 @@ session per the assigning task's instructions.
   3. **T16's mode-switch behaviour change.** T16's real settle-or-hold logic (reading the
      delivery's actual terminal/non-terminal state instead of unconditionally settling) surfaced a
      genuine, structural interim red in the pre-existing #4 suite:
-     `ProcessingModeSwitchAcceptanceTest::test_pre_switch_fifo_events_still_drain_in_order_after_switching_to_async`
+     `ProcessingModeSwitchTest::test_pre_switch_fifo_events_still_drain_in_order_after_switching_to_async`
      — a pre-switch FIFO row claimed after the proxy has switched to Async now correctly holds
      (`awaiting_retry`) instead of settling unconditionally, because its deliveries are dispatched
      (queued) rather than run inline, and nothing in that test's `Queue::fake()` world executes

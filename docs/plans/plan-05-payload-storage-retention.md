@@ -602,7 +602,7 @@ driver for dispatch, `travel()`/`Carbon::setTestNow()` for the window. Mapped to
 - `content_type` is still populated at capture and **survives erasure**, while the header collection
   does not (AC6, ADR-014 Decision 6).
 - ADR-008 forwarding is unchanged end to end: the same header set reaches every destination after
-  the cast change, with `STRIPPED_HEADERS` still filtered (`WebhookEventCaptureAcceptanceTest` and
+  the cast change, with `STRIPPED_HEADERS` still filtered (`IngestEventCaptureTest` and
   the delivery tests keep passing unmodified).
 
 **Dispatched-output store (AC12–AC15, AC19):**

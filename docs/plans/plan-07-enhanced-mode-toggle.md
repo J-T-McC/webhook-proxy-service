@@ -684,7 +684,7 @@ the label from the earliest attempt's `started_at` and the order from the group'
 bare `Replay` with no time exactly when a FIFO replay is queued behind a held line with zero
 attempts — the scenario the feature exists to make visible (design-06 Screen 3: *"Replay — {time}
 (one group per replay, newest first)"*). The pinning assertion
-`->missing('event.deliveries.0.created_at')` (`tests/Feature/ProxyEvents/ReadSurfaceRevealAcceptanceTest.php:95`)
+`->missing('event.deliveries.0.created_at')` (`tests/Feature/ProxyEvents/ReadSurfaceRevealTest.php:95`)
 is inverted in the same task. Landing the field without switching the consumer would leave the
 defect and the dead field, so they are one task.
 
@@ -695,7 +695,7 @@ columns without gating the resolver lets a dormant value govern a Simple proxy (
 AC2 / PRD-07 AC14(a) violation, and the reason #6 shipped the clearing deliberately). (a) is
 adopted **as omission, not as relaxation** — Minor 8(a)'s second half is declined at
 § *Technical rulings* 2. (c) invert **and rename**
-`RetryPolicyFormAcceptanceTest::test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`
+`RetryPolicyFormTest::test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`
 → `…_preserves_stored_values` (its method name asserts the old outcome, so a rename is required,
 not just a re-assert), plus the Show-page suppression coverage Q-07-01(b) consequence (1) requires
 (§ *Test strategy*).
@@ -867,7 +867,7 @@ tasks. Mapped to acceptance criteria:
 - Mid-flight upgrade: a Simple proxy at attempt 4 upgraded to Enhanced with limit 8 continues
   retrying to 8; the span stays clamped.
 
-**Persistence (AC14, AC14(b)(iv)) — feature, `RetryPolicyFormAcceptanceTest`:**
+**Persistence (AC14, AC14(b)(iv)) — feature, `RetryPolicyFormTest`:**
 - **Inverted + renamed** (Minor 8(c)): `test_switching_enhanced_to_simple_on_update_preserves_stored_values`
   — an Enhanced proxy with 4 / fixed, saved as Simple, still holds **4 / fixed** afterwards.
 - A Simple proxy holding a dormant policy, saved again as Simple (no mode change), still holds it —
@@ -973,7 +973,7 @@ Owner gate cleared on 2026-08-25.
 - **M1 — The resolution gate + the persistence rule (review-06 Minor 8(a)+(b), together).**
   `RetryPolicy::configured*For()` + the rewritten `attemptLimitFor()`/`strategyFor()`;
   `ProxyController::store()`/`update()` omission on a Simple save; the two Form Request docblocks;
-  the inverted-and-renamed `RetryPolicyFormAcceptanceTest` case. *Verify:* the resolution-gate and
+  the inverted-and-renamed `RetryPolicyFormTest` case. *Verify:* the resolution-gate and
   persistence test groups; the full #6 suite still green (`DeliverToDestination`, `DeliveryResource`
   and the retry engine must pass **unmodified** — that is the proof they inherit the gate without
   branching).
@@ -1022,7 +1022,7 @@ Owner gate cleared on 2026-08-25.
   (Finding 1 Major, Finding 3, Minor 4) and the **Project Owner's 2026-08-26 ruling** on it;
   `docs/tasks/enhanced-mode-toggle-tasks.md` T1–T13 as landed; the shipped `ProxyForm.vue`
   (`watch(isEnhanced, …)`, the T9 `form.transform()`, the T8 disclosure) and
-  `tests/Feature/Proxies/ProxyRetryFieldPresentationAcceptanceTest.php` on
+  `tests/Feature/Proxies/ProxyRetryFieldPresentationTest.php` on
   `feat/item-07-enhanced-mode-toggle`.
 - **Outputs:** this plan, including **Revision A**. **No new ADR**, no ADR amendment, and no new
   question document.
@@ -1105,7 +1105,7 @@ re-seed* — on review-07 **Finding 1 (Major)**, with null-on-downgrade explicit
 rejected (§ *Revision A*). I have re-read PRD-07 AC12/AC13/AC14 incl. Amendment A and its closing
 paragraph, design-07 Flows B and C and its *dormant-value restore on upgrade* interaction note,
 `design-06` Flow F, ADR-018 in full, review-07 Findings 1–4, and the shipped `ProxyForm.vue` and
-`ProxyRetryFieldPresentationAcceptanceTest` on this branch.
+`ProxyRetryFieldPresentationTest` on this branch.
 
 Two changes, both inside the approved artifacts: § *Technical rulings* **4** is rewritten to
 distinguish mount-seeded persisted values from in-session typed values and to **require** the

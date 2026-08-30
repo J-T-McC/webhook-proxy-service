@@ -18,7 +18,7 @@ use Tests\TestCase;
  * real `PurgeExpiredPayloads` pass and real `RetentionPolicy` — complementing
  * T11's unit-level happy path.
  */
-class RetentionExpiryAcceptanceTest extends TestCase
+class RetentionExpiryTest extends TestCase
 {
     private function eventFor(Proxy $proxy, int $ageInDays): WebhookEvent
     {

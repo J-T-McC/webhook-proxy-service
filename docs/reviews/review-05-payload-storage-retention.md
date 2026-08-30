@@ -48,10 +48,10 @@ match exactly.
 ## AC coverage (PRD-05, as amended by Amendment A)
 | AC | Verified by | Status |
 |---|---|---|
-| 1 Expiry measured from capture | H1 `created_at <= cutoff` (`PurgeExpiredPayloads.php:143`); `RetentionExpiryAcceptanceTest` 31d-cleaned/29d-untouched, and a recent terminal attempt does **not** reset the clock | Pass |
+| 1 Expiry measured from capture | H1 `created_at <= cutoff` (`PurgeExpiredPayloads.php:143`); `RetentionExpiryTest` 31d-cleaned/29d-untouched, and a recent terminal attempt does **not** reset the clock | Pass |
 | 2 Window is 30 days | `config/retention.php:17` default 30; `RetentionConfigTest` | Pass — but see **Major 1** (no lower bound) |
 | 3 Retention is team-level | `RetentionPolicy::windowFor(Team)` is the sole seam; `cutoffFor`/`expiresAt` compose through it; container-substituted subclass cleans only the other team | Pass |
-| 4 Both proxy modes | `RetentionExpiryAcceptanceTest::test_simple_and_enhanced_mode_proxies_raw_payloads_are_both_cleaned` | Pass |
+| 4 Both proxy modes | `RetentionExpiryTest::test_simple_and_enhanced_mode_proxies_raw_payloads_are_both_cleaned` | Pass |
 | 5 Automatic + recurrent | `routes/console.php:28-32` `daily()->at('02:00')->withoutOverlapping()`; `Schedule::events()` assertion (`0 2 * * *`, `withoutOverlapping === true`); `artisan payloads:purge-expired` exit 0 | Pass |
 | 6 Erasure complete (content, not record) | `body`/`headers`/`dispatched_payloads.body` NULL asserted at the **raw column** level; retained descriptors byte-identical; **only three `Log::` calls exist in `app/`**, all identifiers/counts (`payload.expired` → `ingest_id`; `payload.purged` → `team_id`+`count`) — no payload content, no hash, no prefix, no preview anywhere | Pass — see **Minor 2** |
 | 7 Unexpired never erased | 29-day event byte-for-byte identical incl. `updated_at`; whole-row `assertEquals` | Pass |
@@ -91,7 +91,7 @@ hashed copy exists anywhere in the schema. `delivery_attempts.error_summary` hol
 transport error), never the inbound payload, and is not written by the pass.
 
 **2. AC12 atomicity — the T14 proof is genuine.**
-`RetentionErasureCompletenessAcceptanceTest.php:112-116` registers a `DB::listen()` closure
+`RetentionErasureCompletenessTest.php:112-116` registers a `DB::listen()` closure
 that throws when it sees `` update `dispatched_payloads` ``. `Connection::run()` dispatches
 `QueryExecuted` **after** the statement has executed against the open transaction, so at
 throw time the `webhook_events` `UPDATE` has already run *and* the `dispatched_payloads`
@@ -111,7 +111,7 @@ the real window.** `applyHolds()` (`PurgeExpiredPayloads.php:139-163`) is one pr
 applied to **both** `selectCollectableIds()`'s `SELECT` and `eraseOne()`'s `UPDATE` — the
 holds cannot drift apart by construction. T15's
 `test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
-(`RetentionInFlightHoldsAcceptanceTest.php:114-150`) hooks `DB::listen` on the **selection**
+(`RetentionInFlightHoldsTest.php:114-150`) hooks `DB::listen` on the **selection**
 query (`` select `id` from `webhook_events` ``) and inserts a `pending` `fifo_dispatches`
 row from inside the listener. Because `QueryExecuted` fires after the result set is fetched
 but before `selectCollectableIds()` returns, the insert lands **exactly** in the
@@ -142,7 +142,7 @@ acceptance test proves the stored string contains neither the header name, its v
 `content-type` in plaintext, while the attribute round-trips exactly. No plaintext copy is
 introduced: `content_type` is the single Owner-ruled retained descriptor. ADR-008 forwarding
 is untouched — `DeliverStep`/`DeliveryUnit` are not in the branch diff, and the existing
-`IngestFanOutTest::test_header_forwarding_end_to_end` and `WebhookEventCaptureAcceptanceTest`
+`IngestFanOutTest::test_header_forwarding_end_to_end` and `IngestEventCaptureTest`
 pass unmodified.
 
 **7. The T4 migration.** Correctly implements all four steps: `body` `MODIFY`'d to
@@ -169,7 +169,7 @@ Nit 1 for a small ordering refinement.
 | 3 | Minor | `config/queue.php:123-127`; `app/Actions/DeliverToDestination.php:62-68` | **`failed_jobs` durably retains a plaintext copy of payload content outside the GC's reach.** An Async `DeliverToDestination` job that rethrows (the non-race `QueryException` path, with `$tries = 1`) is written to the `failed_jobs` table with its serialized `DeliveryUnit`, which carries `payload` and `headers` verbatim. That row is never erased by the expiry pass and has no retention of its own, so payload content for a cleaned event remains readable through a system path — the broad reading of AC6 ("none of that event's payload content is retrievable through **any** … system path"). This is **pre-existing from #4/ADR-011**, not introduced or worsened by #5, and no plan or ADR at #5 asks for it; AC6's "as a side effect of the pass" clause is not violated. Recorded so it is not silently inherited by #6/#10. *Owning agent:* Product Manager (is this in AC6's scope?) then Principal Engineer — **not** a code change at #5. |
 | 4 | Nit | `app/Actions/PurgeExpiredPayloads.php:95` | `->orderBy('id')` forces a `filesort` over the collectable set. Verified with a 50 000-row / 90 %-cleaned scratch table and `ANALYZE`: the query **does** use `team_cleaned_created` (`type: range`, `Using index`) so plan Risk 10's index intent is preserved — but `ORDER BY id` adds `Using filesort`, materialising and sorting all ~1 666 candidate rows before applying `LIMIT 500`, whereas `ORDER BY created_at` (the index's trailing column) produces the identical plan **without** the filesort and can stop at 500. Determinism is unaffected. No AC is bound to this (AC20 asserts no performance target). |
 | 5 | Nit | `app/Actions/PurgeExpiredPayloads.php:79-81` | `Log::info('payload.purged', …)` fires once per **batch iteration**, inside the `do/while`, so a team with more than `purge_batch` collectable rows emits several partial-count lines per run rather than one total. Cosmetic; content is correct and never includes payload data. |
-| 6 | Nit | `tests/Feature/Retention/RetentionErasureCompletenessAcceptanceTest.php:96-134` | The AC12 atomicity proof exercises `ROLLBACK TO SAVEPOINT` (the suite's outer `FasterRefreshDatabase` transaction) rather than a top-level `ROLLBACK`. Behaviourally equivalent under Laravel's transaction manager and no cheaper proof exists in this harness — recorded as a known limitation of the evidence, not a defect. |
+| 6 | Nit | `tests/Feature/Retention/RetentionErasureCompletenessTest.php:96-134` | The AC12 atomicity proof exercises `ROLLBACK TO SAVEPOINT` (the suite's outer `FasterRefreshDatabase` transaction) rather than a top-level `ROLLBACK`. Behaviourally equivalent under Laravel's transaction manager and no cheaper proof exists in this harness — recorded as a known limitation of the evidence, not a defect. |
 
 **Not findings (checked, acceptable):** `RetentionPolicy::windowFor`'s unused `$team`
 parameter is the deliberate V5/V6 seam (plan §Services). `StoredPayloadLookup` and

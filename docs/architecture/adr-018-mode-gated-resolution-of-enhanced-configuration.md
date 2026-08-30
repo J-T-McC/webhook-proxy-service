@@ -207,7 +207,7 @@ Accepted.
   `ProxyController::update()` (omit the retry columns on a Simple save instead of clearing),
   `ProxyResource` (stop emitting raw dormant values), `Show.vue`'s Retry policy card comment
   (its "a simple-mode proxy's columns are always NULL" rationale is retired by this ADR), and the
-  inversion of `RetryPolicyFormAcceptanceTest::test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`
+  inversion of `RetryPolicyFormTest::test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`
   (review-06 Minor 8(c) — a rename, not just a re-assert). `PipelineFactory` is **unchanged**.
 - **Security:** neutral. Keeping two clamped scalars on a row that no longer consults them
   widens no surface: the values are inert by Decision 2, bounded by validation *and* by the

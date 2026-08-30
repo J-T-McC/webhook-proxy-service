@@ -25,7 +25,7 @@ use Tests\TestCase;
  * `RetryDelivery::terminalizeCleaned()` can attempt (plan §Test strategy
  * "Unit"), including the invalid/no-op ones — gap-filling beyond the
  * scattered single-transition cases already embedded in
- * `DeliverToDestinationTest`/`RetryDeliveryTest`/`RetryEngineAcceptanceTest`.
+ * `DeliverToDestinationTest`/`RetryDeliveryTest`/`RetryEngineTest`.
  *
  * `DeliverToDestination::transition()` is a compare-and-set keyed on the
  * PRIOR status being `pending` or `retrying` (ADR-015 Decisions 5/6): from

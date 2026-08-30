@@ -1,6 +1,6 @@
 <?php
 
-namespace Tests\Feature\Proxies;
+namespace Tests\Unit\Policies;
 
 use App\Enums\TeamRole;
 use App\Models\Proxy;

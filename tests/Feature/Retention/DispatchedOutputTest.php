@@ -24,7 +24,7 @@ use Tests\TestCase;
  * pipeline (T9) — complementing T7/T8's unit-level step tests (AC12-AC15,
  * AC19).
  */
-class DispatchedOutputAcceptanceTest extends TestCase
+class DispatchedOutputTest extends TestCase
 {
     protected function setUp(): void
     {

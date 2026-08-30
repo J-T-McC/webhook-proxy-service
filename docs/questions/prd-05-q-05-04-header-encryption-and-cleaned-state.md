@@ -63,7 +63,7 @@ attribute access. Nothing filters, matches, indexes, joins, or aggregates on hea
 Encryption makes the column opaque to SQL and **no consumer notices**.
 
 Test-side reads, all cast-transparent: `WebhookEventCaptureTest:28` (`$fresh->headers`),
-`WebhookEventTest:81` `test_headers_round_trip_as_an_array`, `WebhookEventCaptureAcceptanceTest:77-78`
+`WebhookEventTest:81` `test_headers_round_trip_as_an_array`, `IngestEventCaptureTest:77-78`
 (`$event->headers['content-type']`), `ProcessIngestedWebhookTest:32` (create). All keep passing;
 `WebhookEventTest` gains an at-rest assertion mirroring the existing body test.
 `FifoDispatchTest:76` (asserts `fifo_dispatches` has no `headers` column) is unaffected.

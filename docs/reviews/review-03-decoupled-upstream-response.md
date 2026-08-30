@@ -41,7 +41,7 @@ via vue-tsc + eslint per the standing env limitation. No JS test framework exist
 | AC4 configured status must be 2xx | Met | `between:200,299` on Store+Update; `ProxyRequestValidationTest` non-2xx (199/300/404) rejected, 200/299 accepted, null accepted |
 | AC5 capture-before-response ordering | Met | `IngestController::__invoke` captures synchronously before resolve/dispatch/return; `IngestControllerTest::test_successful_ingest_commits_a_capture_row...`; failure path proves 2xx unreachable without commit |
 | AC6 capture-write failure → 500 | Met | `try/catch(Throwable)` → `report()` + `abort(500)`, dispatch nothing; `test_capture_failure_returns_500...` (0 rows, 0 attempts, `Http::assertNothingSent()`) |
-| AC7 capture in both modes | Met | No mode branch; `test_capture_happens_in_enhanced_mode_too`, `WebhookEventCaptureAcceptanceTest::test_enhanced_mode_also_captures_the_raw_event` |
+| AC7 capture in both modes | Met | No mode branch; `test_capture_happens_in_enhanced_mode_too`, `IngestEventCaptureTest::test_enhanced_mode_also_captures_the_raw_event` |
 | AC8 raw/dispatched separation + immutability | Met | `webhook_events` raw-only, no dispatched-output/soft-delete columns (schema test); `body` encrypted cast; `test_captured_body_is_immutable_after_delivery_completes` |
 | AC9 no parallel path | Met | Shared `ingest_id`; `test_no_parallel_path_delivery_attempts_stay_payload_free` asserts `delivery_attempts` has no body/payload/request_body/response_body column |
 | AC10 delivery unchanged | Met | `PipelineFactory` comment-only change; `DeliverStep`/delivery untouched; fan-out still fire-and-forget |
