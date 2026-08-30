@@ -4,10 +4,19 @@ namespace Tests\Feature\Proxies;
 
 use App\Models\Proxy;
 use App\Models\User;
+use App\Support\SensitiveFields;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 class ProxyStoreTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config()->set('inertia.testing.ensure_pages_exist', false);
+    }
+
     private function actingUser(): User
     {
         $user = User::factory()->createQuietly();
@@ -177,5 +186,24 @@ class ProxyStoreTest extends TestCase
             ->assertInvalid(['processing_mode']);
 
         $this->assertSame(0, Proxy::count());
+    }
+
+    /**
+     * T11 — `defaultSensitiveFieldNames` page prop on the create form (AC12;
+     * plan-10 Technical ruling 3): single-sourced from `SensitiveFields::DEFAULTS`.
+     * The edit half lives in `ProxyUpdateTest`, and its absence from the list page
+     * in `ProxyIndexTest`.
+     */
+    public function test_create_emits_the_default_sensitive_field_names_prop_exactly(): void
+    {
+        $user = $this->actingUser();
+
+        $this->actingAs($user)
+            ->get(route('proxies.create', ['current_team' => $user->currentTeam->slug]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('proxies/Create')
+                ->where('defaultSensitiveFieldNames', SensitiveFields::DEFAULTS)
+            );
     }
 }
