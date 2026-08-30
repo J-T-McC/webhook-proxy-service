@@ -22,7 +22,7 @@ use Tests\TestCase;
  * End-to-end proof that the queued-dispatch half is wired correctly over the real
  * ingest route, preserving #3's decoupled-response guarantees (T13, AC1–AC3).
  */
-class QueuedDispatchAcceptanceTest extends TestCase
+class QueuedDispatchTest extends TestCase
 {
     private function proxy(ProcessingMode $mode): Proxy
     {

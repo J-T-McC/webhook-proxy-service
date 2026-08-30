@@ -27,7 +27,7 @@ use Tests\TestCase;
  * `ProcessIngestedWebhookTest` unit-level coverage by composing them over the
  * real services rather than duplicating their cases.
  */
-class CleanedStateReaderGuardAcceptanceTest extends TestCase
+class CleanedStateReaderGuardTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

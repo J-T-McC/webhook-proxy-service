@@ -331,8 +331,8 @@ not a pipeline feature. Three code touches — the config default, the guard in
 `purgeForTeam()`, the docblock — plus tests. `tests/Unit/Config/RetentionConfigTest.php:45`
 pins the default at `60` and **must** be updated to `1440`; the H4/H5 acceptance and unit
 cases are all written relative to `config('retention.dispatch_horizon_minutes')`
-(`RetentionInFlightHoldsAcceptanceTest.php:94`,
-`RetryReplayRetentionInterplayAcceptanceTest.php:240`,
+(`RetentionInFlightHoldsTest.php:94`,
+`RetryReplayRetentionInterplayTest.php:240`,
 `PurgeExpiredPayloadsTest.php:259`) and are unaffected by value. Add: a guard test that a
 horizon ≥ the resolved window throws; and an AC18 acceptance test for the actual bug —
 an Async replay whose `deliveries` rows are older than the *old* 60-minute horizon but

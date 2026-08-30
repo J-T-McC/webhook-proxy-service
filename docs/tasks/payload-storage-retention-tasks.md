@@ -172,7 +172,7 @@
   `WebhookEvent`'s `headers` value round-trips through the model attribute to the original array
   and the raw stored column value is not the plaintext JSON (encrypted at rest); `content_type`
   capture and read is unaffected — existing `WebhookEventCaptureTest`,
-  `WebhookEventCaptureAcceptanceTest`, and `ProcessIngestedWebhookTest` stay green unmodified,
+  `IngestEventCaptureTest`, and `ProcessIngestedWebhookTest` stay green unmodified,
   proving the cast change is transparent to every existing consumer (Q-05-04(i)).
 - **Testing:** extend `tests/Unit/Models/WebhookEventTest.php` — schema assertions for the two
   nullable columns, the `mediumtext` type, the new column + index; a new
@@ -196,7 +196,7 @@
   DATA_TYPE, `payload_cleaned_at` presence/type, the new composite index) and a new
   `test_headers_round_trip_through_the_encrypted_cast`; the pre-existing
   `test_headers_round_trip_as_an_array` and `test_table_is_raw_only_with_no_soft_delete_or_dispatched_output_columns`
-  pass unmodified. `WebhookEventCaptureTest`, `WebhookEventCaptureAcceptanceTest`, and
+  pass unmodified. `WebhookEventCaptureTest`, `IngestEventCaptureTest`, and
   `ProcessIngestedWebhookTest` all pass unmodified, confirming the cast change is transparent
   (Q-05-04(i)). Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test
   --parallel` (370 tests, all green).
@@ -548,7 +548,7 @@
   `RetentionPolicy`, of the retention-window requirements — complementing T11's unit-level happy
   path. No new production code expected; fix any wiring gap here.
 - **Dependencies:** T11
-- **Files:** `tests/Feature/Retention/RetentionExpiryAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retention/RetentionExpiryTest.php` (new)
 - **Acceptance Criteria:**
   - An event captured 31 days ago is cleaned; one captured 29 days ago is not — its `body`,
     `headers`, `payload_cleaned_at` are byte-for-byte unchanged (AC1, AC2, AC7).
@@ -562,7 +562,7 @@
 - **Testing:** the cases above via `travel()`/`Carbon::setTestNow()` to age events,
   `Team::factory()`, `Proxy::factory()->enhanced()`/simple, and a bound test double of
   `RetentionPolicy`.
-- **Completion notes:** Done. `tests/Feature/Retention/RetentionExpiryAcceptanceTest.php` added,
+- **Completion notes:** Done. `tests/Feature/Retention/RetentionExpiryTest.php` added,
   ageing events via an explicit `created_at` (mirrors `RetentionPolicyTest`'s precedent — dirty
   timestamp attributes bypass Eloquent's auto-stamp) rather than `travel()`, since only the
   captured row's age needs to move, not the whole clock. Covers: a 31-day-old event cleaned, a
@@ -574,7 +574,7 @@
   — proving the window is team-keyed via container-injected `RetentionPolicy`, not global (AC3); a
   simple-mode and an enhanced-mode proxy's raw payloads are both cleaned (AC4). No production-code
   gap found; no new wiring needed. Verified: `composer lint`, `composer types:check`,
-  `./vendor/bin/sail test --filter RetentionExpiryAcceptanceTest` (5 tests) and `./vendor/bin/sail
+  `./vendor/bin/sail test --filter RetentionExpiryTest` (5 tests) and `./vendor/bin/sail
   test --parallel` (401 tests), all green.
 
 ## T14 — Erasure completeness & atomicity acceptance tests (AC5, AC6, AC9, AC12, AC22b)
@@ -582,7 +582,7 @@
 - **Description:** End-to-end proof that a pass erases completely, touches nothing else, and is
   atomic across both stores — complementing T11's unit-level happy path.
 - **Dependencies:** T11, T8, T4
-- **Files:** `tests/Feature/Retention/RetentionErasureCompletenessAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retention/RetentionErasureCompletenessTest.php` (new)
 - **Acceptance Criteria:**
   - The `payloads:purge-expired` command is registered and callable (AC5).
   - After a pass: `webhook_events.body IS NULL`, `headers IS NULL`, `payload_cleaned_at` set;
@@ -602,7 +602,7 @@
     re-stamp `payload_cleaned_at` and touches no row.
 - **Testing:** the cases above; raw `DB::table(...)->value(...)` assertions for the raw-column
   checks; a test-only fault-injection point for the atomicity case.
-- **Completion notes:** Done. `tests/Feature/Retention/RetentionErasureCompletenessAcceptanceTest.php`
+- **Completion notes:** Done. `tests/Feature/Retention/RetentionErasureCompletenessTest.php`
   added. **Fault-injection mechanism chosen (the task's open implementation choice):** `DB::listen()`
   registering a closure that throws a `RuntimeException` when it sees a query whose SQL contains
   `` update `dispatched_payloads` `` — `Connection::logQuery()` dispatches the `QueryExecuted` event
@@ -623,7 +623,7 @@
   proves neither `UPDATE` survives when the second fails (AC12); a second `artisan` run over an
   already-cleaned row is a no-op end to end (H0 idempotence). No production-code gap found.
   Verified: `composer lint`, `composer types:check`, `./vendor/bin/sail test --filter
-  RetentionErasureCompletenessAcceptanceTest` (4 tests) and `./vendor/bin/sail test --parallel`
+  RetentionErasureCompletenessTest` (4 tests) and `./vendor/bin/sail test --parallel`
   (405 tests), all green.
 
 ## T15 — In-flight holds acceptance tests (AC8) — one test per hold + compare-and-set + FIFO liveness under GC
@@ -632,7 +632,7 @@
   select→act gap, and of GC composing with a live FIFO line without stalling or reordering it —
   complementing T11's unit-level happy path.
 - **Dependencies:** T11
-- **Files:** `tests/Feature/Retention/RetentionInFlightHoldsAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retention/RetentionInFlightHoldsTest.php` (new)
 - **Acceptance Criteria:**
   - **H2 FIFO:** an expired event whose `fifo_dispatches` row is `pending` is not cleaned; same for
     `claimed`; once `settled`, it is.
@@ -649,7 +649,7 @@
 - **Testing:** the cases above — direct `FifoDispatch`/`DeliveryAttempt` factory states to construct
   each hold, `travel()` to age events, and a targeted test seam to reproduce the reappeared-hold
   race for the compare-and-set case.
-- **Completion notes:** Done. `tests/Feature/Retention/RetentionInFlightHoldsAcceptanceTest.php`
+- **Completion notes:** Done. `tests/Feature/Retention/RetentionInFlightHoldsTest.php`
   added (5 tests). **H2:** a `pending` then `claimed` `fifo_dispatches` row holds an otherwise-expired
   event across two GC passes; once `settled`, a third pass cleans it. **H3:** a `dispatched`
   (non-terminal) `DeliveryAttempt` holds the event; once resolved to `Succeeded`, the next pass
@@ -667,12 +667,12 @@
   `evt-2`/`evt-3` pending), all three events backdated 31 days (expired), proxied through a GC pass —
   the claim, its `lease_expires_at`/`claimed_at`, and the pending set are all untouched (H2 holds all
   three), and no event is cleaned; settling the frozen claim afterward and driving
-  `AdvanceProxyFifoQueue::run()` twice (mirrors the existing `FifoLivenessAcceptanceTest`
+  `AdvanceProxyFifoQueue::run()` twice (mirrors the existing `FifoLivenessTest`
   step-by-step-advance pattern — `Queue::fake()` prevents the internal self-dispatch from recursing
   inline) settles `evt-2` then `evt-3` and delivers them in receive order (`Http::recorded()` bodies
   `['evt-2', 'evt-3']`), proving the GC pass in between disturbed neither the claim nor delivery order
   (ADR-011 composition). No production-code gap found. Verified: `composer lint`, `composer
-  types:check`, `./vendor/bin/sail test --filter RetentionInFlightHoldsAcceptanceTest` (5 tests) and
+  types:check`, `./vendor/bin/sail test --filter RetentionInFlightHoldsTest` (5 tests) and
   `./vendor/bin/sail test --parallel` (410 tests), all green.
 
 ## T16 — Cleaned-state & reader-guard acceptance tests (AC10, AC21)
@@ -681,7 +681,7 @@
   reader guards on it — including proof that `AdvanceProxyFifoQueue`, left **unmodified**, remains
   correct under the entry guard (T10).
 - **Dependencies:** T6, T10
-- **Files:** `tests/Feature/Retention/CleanedStateReaderGuardAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retention/CleanedStateReaderGuardTest.php` (new)
 - **Acceptance Criteria:**
   - `StoredPayloadLookup::for()` returns `Retained` for an uncleaned event, `Cleaned` for a cleaned
     one, and `NeverCaptured` for an unknown `ingest_id` — including the case where
@@ -696,7 +696,7 @@
 - **Testing:** the cases above; the last one constructs a FIFO proxy with a pending line, marks the
   claimed event's parent cleaned before the advancer processes it, and asserts the claim settles and
   the line advances to the next row exactly as it would for a normal delivery.
-- **Completion notes:** Done. `tests/Feature/Retention/CleanedStateReaderGuardAcceptanceTest.php`
+- **Completion notes:** Done. `tests/Feature/Retention/CleanedStateReaderGuardTest.php`
   added (4 tests), composing the real `StoredPayloadLookup`/`ProcessIngestedWebhook`/
   `AdvanceProxyFifoQueue` rather than duplicating their unit-level cases. **`StoredPayloadLookup`:**
   `Retained`/`Cleaned`/`NeverCaptured` all asserted in one pass, including a `DeliveryAttempt` row
@@ -709,10 +709,10 @@
   attribute write outside mass assignment) *before* the advancer claims it — the advancer settles the
   claim, delivers nothing for it (`ProcessIngestedWebhook`'s entry guard fires mid-advance), and no
   exception propagates; a second explicit `::run()` (self-dispatch captured by `Queue::fake()`,
-  mirroring `FifoLivenessAcceptanceTest`'s step-by-step-advance pattern) then claims and delivers the
+  mirroring `FifoLivenessTest`'s step-by-step-advance pattern) then claims and delivers the
   next pending row exactly as it would for a normal delivery. No production-code gap found; T16's own
   requirement that `AdvanceProxyFifoQueue` stay unmodified holds. Verified: `composer lint`,
-  `composer types:check`, `./vendor/bin/sail test --filter CleanedStateReaderGuardAcceptanceTest`
+  `composer types:check`, `./vendor/bin/sail test --filter CleanedStateReaderGuardTest`
   (4 tests) and `./vendor/bin/sail test --parallel` (414 tests), all green.
 
 ## T17 — Header encryption acceptance tests (AC15, AC22a)
@@ -720,7 +720,7 @@
 - **Description:** End-to-end proof that header encryption at rest is transparent to every existing
   consumer, complementing T4's unit-level cast test.
 - **Dependencies:** T4
-- **Files:** `tests/Feature/Retention/HeaderEncryptionAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retention/HeaderEncryptionTest.php` (new)
 - **Acceptance Criteria:**
   - The stored `headers` value is encrypted at rest over the real capture path: the raw column
     value is not the plaintext JSON, and the model attribute round-trips to the original array.
@@ -728,11 +728,11 @@
     does not (AC6, ADR-014 Decision 6).
   - ADR-008 forwarding is unchanged end to end: the same header set reaches every destination after
     the cast change, with `STRIPPED_HEADERS` still filtered — confirm the existing
-    `WebhookEventCaptureAcceptanceTest` and delivery tests keep passing unmodified (no duplicate
+    `IngestEventCaptureTest` and delivery tests keep passing unmodified (no duplicate
     coverage added here).
 - **Testing:** the cases above via a real ingest through `IngestController`, `Http::fake()` for the
   destination call, and raw `DB::table('webhook_events')` column assertions.
-- **Completion notes:** Done. `tests/Feature/Retention/HeaderEncryptionAcceptanceTest.php` added
+- **Completion notes:** Done. `tests/Feature/Retention/HeaderEncryptionTest.php` added
   (2 tests). **Encrypted at rest over the real capture path:** a real ingest with a custom header —
   the raw `headers` column value is a string that contains neither the header name, its value, nor
   `content-type` in plaintext, while the model attribute round-trips to the exact captured array.
@@ -743,11 +743,11 @@
   transparency** (same header set reaches every destination after the cast change, `STRIPPED_HEADERS`
   still filtered) is per the task's own instruction *not* re-tested here — confirmed instead by
   running the existing `IngestFanOutTest::test_header_forwarding_end_to_end` and the full
-  `WebhookEventCaptureAcceptanceTest` suite unmodified (12 tests, both files, all green), proving the
+  `IngestEventCaptureTest` suite unmodified (12 tests, both files, all green), proving the
   `'headers' => 'encrypted:array'` cast change (T4) is transparent to the delivery path. No
   production-code gap found. Verified: `composer lint`, `composer types:check`,
-  `./vendor/bin/sail test --filter HeaderEncryptionAcceptanceTest` (2 tests),
-  `./vendor/bin/sail test --filter "IngestFanOutTest|WebhookEventCaptureAcceptanceTest"` (12 tests),
+  `./vendor/bin/sail test --filter HeaderEncryptionTest` (2 tests),
+  `./vendor/bin/sail test --filter "IngestFanOutTest|IngestEventCaptureTest"` (12 tests),
   and `./vendor/bin/sail test --parallel` (416 tests), all green.
 
 ## T18 — Dispatched-output store acceptance tests (AC12–AC15, AC19)
@@ -755,7 +755,7 @@
 - **Description:** End-to-end proof of the dispatched-output store through the real, wired pipeline
   (T9), complementing T7/T8's unit-level step tests.
 - **Dependencies:** T9
-- **Files:** `tests/Feature/Retention/DispatchedOutputAcceptanceTest.php` (new)
+- **Files:** `tests/Feature/Retention/DispatchedOutputTest.php` (new)
 - **Acceptance Criteria:**
   - An enhanced-mode proxy produces exactly one `dispatched_payloads` row per received event,
     associated to that event (AC12, AC13).
@@ -774,7 +774,7 @@
     produces no `dispatched_payloads` write and no delivery.
 - **Testing:** the cases above via real ingests to enhanced/simple proxies, `Http::fake()`, and
   direct re-invocation of `ProcessIngestedWebhook::run()` to simulate redelivery.
-- **Completion notes:** Done. `tests/Feature/Retention/DispatchedOutputAcceptanceTest.php` added
+- **Completion notes:** Done. `tests/Feature/Retention/DispatchedOutputTest.php` added
   (7 tests), driving the real, wired pipeline (T9) end to end. Covers: an enhanced-mode proxy produces
   exactly one `dispatched_payloads` row associated to the event (AC12, AC13); a simple-mode proxy
   produces none (AC12, AC14); three destinations on one enhanced-mode event still fan out three
@@ -791,7 +791,7 @@
   same redelivery call; re-processing an event whose parent is already cleaned (via T4's `cleaned()`
   factory state) produces no `dispatched_payloads` write and no delivery (the post-clean guard, T8,
   end to end). No production-code gap found. Verified: `composer lint`, `composer types:check`,
-  `./vendor/bin/sail test --filter DispatchedOutputAcceptanceTest` (7 tests) and `./vendor/bin/sail
+  `./vendor/bin/sail test --filter DispatchedOutputTest` (7 tests) and `./vendor/bin/sail
   test --parallel` (423 tests), all green.
 
 ---

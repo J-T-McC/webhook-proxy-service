@@ -63,8 +63,8 @@ against design-04 (no JS test harness — deferred backlog T31; acceptable per
 |---|---|---|---|
 | 1 | **Major** | `app/Actions/AdvanceProxyFifoQueue.php:99-102` | `getJobMiddleware` returns `new WithoutOverlapping("proxy:{$proxyId}")` with **no `expireAfter()`** (framework default `$expiresAfter = 0` → the Redis lock has no TTL; verified in `vendor/.../WithoutOverlapping.php:57,71-85`). On an **ungraceful** worker crash (SIGKILL/OOM/power loss) while an advancer holds the lock, the lock leaks with no expiry. `SweepStalledFifoDispatches` correctly reaps the DB claim (`claimed`→`pending`) after the lease expires and re-dispatches `AdvanceProxyFifoQueue`, **but that job runs the same middleware** — `$lock->get()` fails, `job->release(0)` re-queues it immediately, and the loop repeats forever. The proxy's FIFO line **never advances** until the lock key is manually cleared. This defeats the ADR-005 (b) / plan-04 §Services liveness guarantee "under worker crash/deploy" — precisely the scenario the sweeper exists to cover. Other proxies are unaffected (per-proxy lock), so no PRD AC is directly violated, but a stated plan/ADR guarantee is materially undermined. |
 | 2 | Minor | new FIFO tests (see below) | Single-advancer/ordering under **true** concurrency is not proven (and cannot be in single-connection PHPUnit). T16's "single-advancer under contention" proves the already-committed-claim short-circuit, not the window where two advancers both pass the live-claim check before either commits. In that window the atomic claim alone can let the second advancer skip a just-claimed row and claim the **next** one (adjacent-row double-claim / out-of-order). Production ordering therefore leans on `WithoutOverlapping` serialization — which ADR-011 frames as "not the guard." With finding #1 fixed (overlap lock present + TTL) this holds in production; flag as residual risk for a real-concurrency integration test if a harness is ever added. |
-| 3 | Minor | `tests/Feature/Ingest/FifoLivenessAcceptanceTest.php:43`, `tests/Unit/Actions/AdvanceProxyFifoQueueTest.php:39`, `tests/Unit/Actions/SweepStalledFifoDispatchesTest.php:25` | `FifoDispatch::factory()->create([...])` used instead of `createQuietly()` — violates testing.md → Quiet factory creation ("never `create()`"). Benign here (the factory sets `team_id` explicitly, so `BelongsToCurrentTeam`'s `creating` hook is a no-op), but the standard is absolute. |
-| 4 | Minor | `tests/Feature/Proxies/ProcessingModeSwitchAcceptanceTest.php` (T18) | Mode switch exercised at the model level (`$proxy->update`) not the HTTP endpoint. Adequately covered: endpoint persistence is T20 (`async→fifo→async` on update) and endpoint validation is T19. Noted for transparency, not a defect — the SE's judgment call is sound. |
+| 3 | Minor | `tests/Feature/Ingest/FifoLivenessTest.php:43`, `tests/Unit/Actions/AdvanceProxyFifoQueueTest.php:39`, `tests/Unit/Actions/SweepStalledFifoDispatchesTest.php:25` | `FifoDispatch::factory()->create([...])` used instead of `createQuietly()` — violates testing.md → Quiet factory creation ("never `create()`"). Benign here (the factory sets `team_id` explicitly, so `BelongsToCurrentTeam`'s `creating` hook is a no-op), but the standard is absolute. |
+| 4 | Minor | `tests/Feature/Proxies/ProcessingModeSwitchTest.php` (T18) | Mode switch exercised at the model level (`$proxy->update`) not the HTTP endpoint. Adequately covered: endpoint persistence is T20 (`async→fifo→async` on update) and endpoint validation is T19. Noted for transparency, not a defect — the SE's judgment call is sound. |
 
 **Not findings (checked, acceptable):** T7/T19 caller ripple (the
 `ProcessIngestedWebhook` signature change forcing `IngestController`, and the required
@@ -118,7 +118,7 @@ Confirmed this closes the leaked-lock deadlock:
   same quantity, not two drifting constants.
 
 ### Recovery test — genuine, not a tautology
-`tests/Feature/Ingest/FifoLivenessAcceptanceTest.php:163`
+`tests/Feature/Ingest/FifoLivenessTest.php:163`
 (`test_a_leaked_overlap_lock_self_heals_within_the_lease_and_the_line_advances`)
 drives the **real sync queue** (no `Queue::fake`), so the sweeper's dispatched advancer
 actually runs through the production `WithoutOverlapping` middleware. It:
@@ -138,10 +138,10 @@ actually runs through the production `WithoutOverlapping` middleware. It:
 ### Minors
 - **createQuietly (was finding #3) — RESOLVED.** All three FIFO test files now use
   `->createQuietly(` for `FifoDispatch`/`WebhookEvent`/`Proxy`/`Destination`:
-  `FifoLivenessAcceptanceTest.php:35-45`, `AdvanceProxyFifoQueueTest.php:29-39`,
+  `FifoLivenessTest.php:35-45`, `AdvanceProxyFifoQueueTest.php:29-39`,
   `SweepStalledFifoDispatchesTest.php:20-36`. No bare `->create(` remains in them.
 - **Concurrency-proof limitation (finding #2) — deferred, no regression.** The
-  contention tests (`FifoLivenessAcceptanceTest` `test_a_second_advancer_...`,
+  contention tests (`FifoLivenessTest` `test_a_second_advancer_...`,
   `test_no_two_rows_are_ever_claimed_simultaneously_under_contention`) are intact;
   carries to backlog as a real-concurrency integration test if a harness ever lands.
 - **T18-via-model (finding #4) — no action, no regression.** Endpoint persistence (T20)

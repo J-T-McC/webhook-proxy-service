@@ -23,7 +23,7 @@ use Tests\TestCase;
  * switch is applied at the model level here; endpoint-level persistence/validation is
  * covered by T19/T20.
  */
-class ProcessingModeSwitchAcceptanceTest extends TestCase
+class ProcessingModeSwitchTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

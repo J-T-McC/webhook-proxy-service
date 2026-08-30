@@ -17,14 +17,14 @@ use Tests\TestCase;
 
 /**
  * T5 — read-surface suppression of the retry-policy pair (AC12, AC14(b),
- * AC16; Amendment A; ADR-018 Decision 4). `RetryPolicyFormAcceptanceTest`
+ * AC16; Amendment A; ADR-018 Decision 4). `RetryPolicyFormTest`
  * already proves an Enhanced proxy's retry fields survive on Index/Show/Edit
  * unmodified; this file proves the opposite half — a Simple proxy's fields
  * are suppressed to null on every non-Edit surface, always, regardless of any
  * dormant value, and that the Edit-only carve-out (`ProxyFormResource`) is
  * the sole path a dormant value can reach the client through.
  */
-class ProxyRetryFieldPresentationAcceptanceTest extends TestCase
+class ProxyRetryFieldPresentationTest extends TestCase
 {
     protected function setUp(): void
     {

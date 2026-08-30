@@ -24,7 +24,7 @@ use Tests\TestCase;
  * webhook_event_id divergence case (a replay row) is covered at the unit
  * level in `AdvanceProxyFifoQueueTest`.
  */
-class FifoOrderingAcceptanceTest extends TestCase
+class FifoOrderingTest extends TestCase
 {
     private function ingestRaw(Proxy $proxy, string $rawBody): TestResponse
     {

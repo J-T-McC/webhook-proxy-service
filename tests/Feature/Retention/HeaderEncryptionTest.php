@@ -18,10 +18,10 @@ use Tests\TestCase;
  * ADR-008 forwarding transparency (the cast change reaching every destination
  * unchanged, `STRIPPED_HEADERS` still filtered) is already proven end to end
  * by the existing `IngestFanOutTest::test_header_forwarding_end_to_end` and
- * `WebhookEventCaptureAcceptanceTest` — both keep passing unmodified, so that
+ * `IngestEventCaptureTest` — both keep passing unmodified, so that
  * coverage is not duplicated here.
  */
-class HeaderEncryptionAcceptanceTest extends TestCase
+class HeaderEncryptionTest extends TestCase
 {
     protected function setUp(): void
     {

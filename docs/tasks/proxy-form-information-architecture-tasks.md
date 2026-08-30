@@ -47,7 +47,7 @@
 > **Existing automated tests do not assert on this form's copy or DOM structure — confirmed, not
 > assumed.** Searched during task planning: `tests/Feature/Proxies/SecretAbsenceSweepTest.php`,
 > `ProxyUpdateTest.php`, `ProxyControllerPagePropsTest.php`, `CredentialRemovalTest.php`,
-> `ProxyRetryFieldPresentationAcceptanceTest.php` and `ProxyIndexShowTest.php` are the only test files
+> `ProxyRetryFieldPresentationTest.php` and `ProxyIndexShowTest.php` are the only test files
 > that reference `ProxyForm`/`ProxyFormResource`/`DestinationRows` by name, and every one of them
 > operates at the Inertia-props/persisted-data layer, not against rendered markup or copy strings.
 > There is no Dusk/browser test suite in this project (`tests/Browser/` does not exist) and no frontend
@@ -531,7 +531,7 @@
   the whole tree green. This plan's header already states, and this task proves, that no existing test
   file needs updating: none of `SecretAbsenceSweepTest.php`, `ProxyUpdateTest.php`,
   `ProxyControllerPagePropsTest.php`, `CredentialRemovalTest.php`,
-  `ProxyRetryFieldPresentationAcceptanceTest.php` or `ProxyIndexShowTest.php` — the only existing tests
+  `ProxyRetryFieldPresentationTest.php` or `ProxyIndexShowTest.php` — the only existing tests
   that reference `ProxyForm`/`ProxyFormResource`/`DestinationRows` by name — assert on rendered copy or
   markup structure.
 - **Dependencies:** T7
@@ -569,7 +569,7 @@
   - `pnpm build` (host, not Sail): succeeded, no compile errors.
   - **The plan's central claim — verified true, not assumed:** grepped all six named test files
     (`SecretAbsenceSweepTest.php`, `ProxyUpdateTest.php`, `ProxyControllerPagePropsTest.php`,
-    `CredentialRemovalTest.php`, `ProxyRetryFieldPresentationAcceptanceTest.php`,
+    `CredentialRemovalTest.php`, `ProxyRetryFieldPresentationTest.php`,
     `ProxyIndexShowTest.php`) for `assertSee`/`assertDontSee`/`->component(...)` and every literal
     copy string this feature cut or changed ("A name to recognise this proxy.", "Case and
     separators don't matter", "Leave blank to use the default", "Applies to automatic

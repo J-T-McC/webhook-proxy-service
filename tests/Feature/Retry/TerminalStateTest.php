@@ -27,7 +27,7 @@ use Tests\TestCase;
  * End-to-end proof of the explicit terminal state and its event (PRD-06 AC4,
  * AC5), complementing T13's unit-level cases (`DeliverToDestinationTest`).
  */
-class TerminalStateAcceptanceTest extends TestCase
+class TerminalStateTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 
@@ -59,7 +59,7 @@ class TerminalStateAcceptanceTest extends TestCase
         // Queue::fake() freezes the scheduled attempt 2 for controlled,
         // travel()-paced manual invocation instead of the sync-queue driver's
         // zero-delay inline cascade collapsing the whole schedule into one call
-        // (mirroring RetryEngineAcceptanceTest's established pattern).
+        // (mirroring RetryEngineTest's established pattern).
         Queue::fake();
         Http::fake(['*' => Http::response('nope', 500)]);
 

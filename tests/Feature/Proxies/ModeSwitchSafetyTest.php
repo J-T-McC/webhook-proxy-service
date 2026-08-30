@@ -34,7 +34,7 @@ use Tests\TestCase;
  * independent mechanisms, driven against the real mode-toggle surface #7
  * ships (PRD-07 AC1, AC2, AC3, AC5, AC9, AC10, AC11, AC13, AC17).
  */
-class ModeSwitchSafetyAcceptanceTest extends TestCase
+class ModeSwitchSafetyTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

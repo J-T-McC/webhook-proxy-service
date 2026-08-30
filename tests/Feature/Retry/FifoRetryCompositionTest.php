@@ -32,17 +32,17 @@ use Tests\TestCase;
  * T16–T18's unit-level cases (`AdvanceProxyFifoQueueTest`,
  * `FifoRetrySettlementTest`) and proving the existing #4 correctness
  * primitives (claim atomicity, lease reap, idempotent settle — see
- * `FifoLivenessAcceptanceTest`, exercised unmodified in the full suite) are
+ * `FifoLivenessTest`, exercised unmodified in the full suite) are
  * undisturbed.
  */
-class FifoRetryCompositionAcceptanceTest extends TestCase
+class FifoRetryCompositionTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 
     /**
      * A FIFO proxy with `$destinations` live destinations and `$pendingCount`
      * pending `fifo_dispatches` rows, ordered evt-1..N (mirroring
-     * `FifoLivenessAcceptanceTest`'s fixture shape).
+     * `FifoLivenessTest`'s fixture shape).
      *
      * @return array{0: Proxy, 1: Collection<int, Destination>, 2: Collection<int, FifoDispatch>}
      */
@@ -305,7 +305,7 @@ class FifoRetryCompositionAcceptanceTest extends TestCase
     {
         // No Queue::fake(): an Async proxy's dispatch()->afterCommit() drains
         // fully inline under the sync queue driver (mirroring
-        // RetryEngineAcceptanceTest's documented Async/sync-queue behaviour),
+        // RetryEngineTest's documented Async/sync-queue behaviour),
         // so each event's WHOLE retry cascade — attempt 1 through its terminal
         // state — runs to completion within its own ProcessIngestedWebhook::run()
         // call, with no shared line to pace against.

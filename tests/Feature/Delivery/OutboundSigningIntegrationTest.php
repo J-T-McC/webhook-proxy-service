@@ -291,7 +291,7 @@ class OutboundSigningIntegrationTest extends TestCase
         // technique AdvanceProxyFifoQueueTest uses for its own scalars.
         // `ProcessIngestedWebhook::run()` (not `::dispatch()`) so the
         // Delivery row is created synchronously while the queue is faked —
-        // AsyncDispatchAcceptanceTest's own established pattern for
+        // AsyncDispatchTest's own established pattern for
         // inspecting a pushed-but-undrained DeliverToDestination job.
         //
         // One `Http::fake()` closure for the WHOLE test, branched on

@@ -5,7 +5,7 @@
 - **Reported by:** Project Owner
 
 ## Problem
-`RetentionInFlightHoldsAcceptanceTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
+`RetentionInFlightHoldsTest::test_a_hold_that_reappears_between_selection_and_erase_causes_the_erase_to_affect_zero_rows`
 failed with `SQLSTATE[HY000]: General error: 1364 Field 'dispatch_uuid' doesn't have a
 default value`. Expected: the test's `DB::listen()`-based fault-injection fixture (a raw
 `fifo_dispatches` row inserted mid-`PurgeExpiredPayloads` run, simulating a hold that
@@ -21,7 +21,7 @@ already updated in T6/T7 to supply `dispatch_uuid`), so the insert never picked 
 required column.
 
 ## Fix
-- `tests/Feature/Retention/RetentionInFlightHoldsAcceptanceTest.php` — added
+- `tests/Feature/Retention/RetentionInFlightHoldsTest.php` — added
   `'dispatch_uuid' => $event->ingest_id` to the raw `DB::table('fifo_dispatches')->insert([...])`
   fixture inside the `DB::listen()` callback, using the anchoring event's `ingest_id` (the
   same T6/T7 identity invariant every other `fifo_dispatches` row follows) rather than an
@@ -30,13 +30,13 @@ required column.
   listener) are both preserved exactly as before.
 - Scanned the full test suite (`grep` for any `insert`/`fifo_dispatches` co-occurrence, not
   just this one call site) for other raw `fifo_dispatches` inserts with the same latent gap:
-  none found. `RetentionErasureCompletenessAcceptanceTest`'s two `DB::table('fifo_dispatches')`
+  none found. `RetentionErasureCompletenessTest`'s two `DB::table('fifo_dispatches')`
   calls are both read-only (`->first()`), unaffected. This was the only raw insert bypassing
   the model/factory anywhere in the suite.
 - No production code, migration, or the `NOT NULL` constraint was touched.
 
 ## Verification
-- `./vendor/bin/sail test --filter RetentionInFlightHoldsAcceptanceTest`: 5 passed / 21
+- `./vendor/bin/sail test --filter RetentionInFlightHoldsTest`: 5 passed / 21
   assertions.
 - `./vendor/bin/sail test --parallel` (full suite): **474 passed / 474 total, 1635
   assertions** — fully green (up from 473/474 with 1 error before this fix).

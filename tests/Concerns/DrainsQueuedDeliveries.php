@@ -21,7 +21,7 @@ use Lorisleiva\Actions\Decorators\JobDecorator;
  * pushed `JobDecorator` wrapper, which is never an instance of the wrapped
  * action. Draining explicitly, after the triggering call, is the workable
  * substitute (originally established by
- * `Tests\Feature\Proxies\ProcessingModeSwitchAcceptanceTest`).
+ * `Tests\Feature\Proxies\ProcessingModeSwitchTest`).
  */
 trait DrainsQueuedDeliveries
 {

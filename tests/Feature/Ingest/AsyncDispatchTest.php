@@ -22,7 +22,7 @@ use Tests\TestCase;
  * End-to-end proof that draining an Async proxy's queue fans out correctly (T14,
  * AC5/AC8/AC10), complementing the DeliverStep unit-level branch test.
  */
-class AsyncDispatchAcceptanceTest extends TestCase
+class AsyncDispatchTest extends TestCase
 {
     public function test_a_factory_proxy_defaults_to_async(): void
     {

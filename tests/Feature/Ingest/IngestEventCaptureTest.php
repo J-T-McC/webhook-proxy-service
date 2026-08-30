@@ -20,7 +20,7 @@ use Tests\TestCase;
  * assertions from plan §Test strategy. No new production code — gaps are fixed in
  * the owning task (T9/T10/T11).
  */
-class WebhookEventCaptureAcceptanceTest extends TestCase
+class IngestEventCaptureTest extends TestCase
 {
     protected function setUp(): void
     {

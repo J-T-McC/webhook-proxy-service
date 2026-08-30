@@ -32,13 +32,13 @@ use Tests\TestCase;
  * T42 — end-to-end proof that #6's new dispatch forms (retry, replay) honor
  * the #5 retention contract (PRD-06 AC15-AC18), complementing T19's unit-level
  * `PurgeExpiredPayloads` H5 cases and #5's existing retention suites
- * (`RetentionInFlightHoldsAcceptanceTest`, `CleanedStateReaderGuardAcceptanceTest`).
+ * (`RetentionInFlightHoldsTest`, `CleanedStateReaderGuardTest`).
  * Where T19 constructs `deliveries` rows directly, this suite drives the real
  * `ProcessIngestedWebhook`/`RetryDelivery`/replay-endpoint chain so the hold
  * composes correctly with the live retry engine over time, not just a static
  * row shape.
  */
-class RetryReplayRetentionInterplayAcceptanceTest extends TestCase
+class RetryReplayRetentionInterplayTest extends TestCase
 {
     use DrainsQueuedDeliveries;
 

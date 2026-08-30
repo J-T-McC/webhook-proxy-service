@@ -82,31 +82,31 @@ Verified against the running code and named tests — **not** taken from T46's v
 
 | AC | Verified by | Status |
 |---|---|---|
-| 1 Automatic retry, every proxy, both modes | `RetryEngineAcceptanceTest::test_a_failed_attempt_on_a_simple_mode_proxy_schedules_attempt_2_under_the_system_default`; `DeliverToDestination::settleDelivery()` has no mode branch | Pass |
-| 2 Backoff + enhanced-only configurability, defaults, caps | `RetryEngineAcceptanceTest` (limit-2/fixed, unset→5/exponential); `RetryPolicyTest` (clamp, delay table, worst case); `RetryPolicyFormAcceptanceTest` (1–10 bounds, `prohibited_if:mode,simple`) | Pass — but see **Major 2** (backoff collapses to 0 under a blank env value) |
-| 3 Retry is per destination | `RetryEngineAcceptanceTest::test_two_destinations_one_fails_only_the_failed_one_is_retried` | Pass |
-| 4 Explicit terminal state, never inferred | `deliveries.status = 'failed'` is a stored column; `TerminalStateAcceptanceTest::test_after_the_limit_the_delivery_is_terminal_and_no_further_attempt_is_ever_created` (travels past all schedules, runs sweeps, asserts zero new rows) | Pass |
-| 5 Exhaustion emits an event | `TerminalStateAcceptanceTest::test_delivery_exhausted_fires_exactly_once_under_a_racing_duplicate_settle_and_carries_reachable_state`; emission gated on `$affected` at `DeliverToDestination.php:203` | Pass |
-| 6 FIFO ordered, head-of-line bounded; Async unaffected | `FifoRetryCompositionAcceptanceTest` — 8 cases incl. sweeper-leaves-held-line-alone, exhausted head settles and line advances, multi-destination hold, racing settler no-op, stuck-hold release, Async interleave | Pass |
-| 7 Same record/event stream, exactly-once under redelivery | `RetryEngineAcceptanceTest::test_each_retry_writes_a_new_payload_free_attempt_row_and_fires_the_existing_events`, `..._a_duplicate_retry_delivery_execution_produces_exactly_one_attempt_row` | Pass |
-| 8 Upstream sender unaffected | `ReplayAcceptanceTest::test_replay_never_produces_an_ingest_response_and_ingest_stays_unaffected_by_retry_state` — **T46's claim confirmed**: covered by a real test, just not named in a task title | Pass |
-| 9 Replay a retained event, both modes | `ReplayAcceptanceTest::test_replay_delivers_for_real_on_both_simple_and_enhanced_proxies` (data-provided over `ProxyMode`) | Pass |
-| 10 Target selection — specific or all | `ReplayAcceptanceTest` subset / select-all / trashed / other-proxy cases; `ReplayEventRequest` scoped `Rule::exists` | Pass |
-| 11 New dispatch now, same path, joins at back | `ReplayAcceptanceTest::test_replay_runs_through_the_real_pipeline_and_produces_traceable_replay_deliveries`; `FifoRetryCompositionAcceptanceTest::test_order_key_capture_order_is_preserved_and_a_replay_row_joins_after_all_pending_events` | Pass |
+| 1 Automatic retry, every proxy, both modes | `RetryEngineTest::test_a_failed_attempt_on_a_simple_mode_proxy_schedules_attempt_2_under_the_system_default`; `DeliverToDestination::settleDelivery()` has no mode branch | Pass |
+| 2 Backoff + enhanced-only configurability, defaults, caps | `RetryEngineTest` (limit-2/fixed, unset→5/exponential); `RetryPolicyTest` (clamp, delay table, worst case); `RetryPolicyFormTest` (1–10 bounds, `prohibited_if:mode,simple`) | Pass — but see **Major 2** (backoff collapses to 0 under a blank env value) |
+| 3 Retry is per destination | `RetryEngineTest::test_two_destinations_one_fails_only_the_failed_one_is_retried` | Pass |
+| 4 Explicit terminal state, never inferred | `deliveries.status = 'failed'` is a stored column; `TerminalStateTest::test_after_the_limit_the_delivery_is_terminal_and_no_further_attempt_is_ever_created` (travels past all schedules, runs sweeps, asserts zero new rows) | Pass |
+| 5 Exhaustion emits an event | `TerminalStateTest::test_delivery_exhausted_fires_exactly_once_under_a_racing_duplicate_settle_and_carries_reachable_state`; emission gated on `$affected` at `DeliverToDestination.php:203` | Pass |
+| 6 FIFO ordered, head-of-line bounded; Async unaffected | `FifoRetryCompositionTest` — 8 cases incl. sweeper-leaves-held-line-alone, exhausted head settles and line advances, multi-destination hold, racing settler no-op, stuck-hold release, Async interleave | Pass |
+| 7 Same record/event stream, exactly-once under redelivery | `RetryEngineTest::test_each_retry_writes_a_new_payload_free_attempt_row_and_fires_the_existing_events`, `..._a_duplicate_retry_delivery_execution_produces_exactly_one_attempt_row` | Pass |
+| 8 Upstream sender unaffected | `ReplayTest::test_replay_never_produces_an_ingest_response_and_ingest_stays_unaffected_by_retry_state` — **T46's claim confirmed**: covered by a real test, just not named in a task title | Pass |
+| 9 Replay a retained event, both modes | `ReplayTest::test_replay_delivers_for_real_on_both_simple_and_enhanced_proxies` (data-provided over `ProxyMode`) | Pass |
+| 10 Target selection — specific or all | `ReplayTest` subset / select-all / trashed / other-proxy cases; `ReplayEventRequest` scoped `Rule::exists` | Pass |
+| 11 New dispatch now, same path, joins at back | `ReplayTest::test_replay_runs_through_the_real_pipeline_and_produces_traceable_replay_deliveries`; `FifoRetryCompositionTest::test_order_key_capture_order_is_preserved_and_a_replay_row_joins_after_all_pending_events` | Pass |
 | 12 Replays distinguishable + traceable | `deliveries.kind` + `dispatch_uuid` + `webhook_event_id`; grouped on the detail page | Pass |
-| 13 Failed replay retries like a live delivery | `ReplayAcceptanceTest::test_a_failed_replay_retries_under_policy_and_can_terminalize_with_delivery_exhausted` | Pass |
-| 14 Permission-gated, never role-gated, all three roles | `ReplayAcceptanceTest::test_every_team_role_can_replay_a_proxy_they_did_not_create` (data-provided over `TeamRole`) + non-member denial; `ProxyPolicy::replay()` single-axis | Pass |
-| 15 Cleaned event not replayable, and says so | `RetryReplayRetentionInterplayAcceptanceTest::test_replay_of_a_cleaned_event_is_a_validation_error_with_zero_delivery_rows_zero_attempts_zero_http_sends`; UI gates the affordance on `payload_state === 'retained'` on both list and detail | Pass |
+| 13 Failed replay retries like a live delivery | `ReplayTest::test_a_failed_replay_retries_under_policy_and_can_terminalize_with_delivery_exhausted` | Pass |
+| 14 Permission-gated, never role-gated, all three roles | `ReplayTest::test_every_team_role_can_replay_a_proxy_they_did_not_create` (data-provided over `TeamRole`) + non-member denial; `ProxyPolicy::replay()` single-axis | Pass |
+| 15 Cleaned event not replayable, and says so | `RetryReplayRetentionInterplayTest::test_replay_of_a_cleaned_event_is_a_validation_error_with_zero_delivery_rows_zero_attempts_zero_http_sends`; UI gates the affordance on `payload_state === 'retained'` on both list and detail | Pass |
 | 16 Three payload states visibly distinct | `..._the_three_payload_states_render_distinctly_and_are_never_inferred_from_body`; `StoredPayloadState` mapping is the sole source | Pass |
 | 17 Nothing dispatches erased content | `..._retry_delivery_meeting_a_cleaned_parent_mid_schedule_terminalizes_sends_nothing_and_logs_identifiers_only`; guards at pipeline entry, retry executor, replay endpoint (`lockForUpdate`), payload endpoint | Pass |
 | 18 Outstanding holds erasure; terminal holds nothing | H5 in `applyHolds()` (`PurgeExpiredPayloads.php:222-232`); `..._h5_an_expired_event_with_a_retrying_delivery_is_not_erased_...`, `..._h5_a_pending_delivery_holds_only_within_the_dispatch_horizon`; `RetryPolicyTest::test_worst_case_span_stays_well_inside_the_retention_window` + two regression-catching guards | Pass |
 | 19 No notifications | No listener registered; scope-boundary negative, **no test** | Pass (unverified by test — see Nit 3) |
-| 20 No mode toggle | `RetryPolicyFormAcceptanceTest::test_mode_gates_only_the_retry_policy_pair_nothing_else` | Pass |
+| 20 No mode toggle | `RetryPolicyFormTest::test_mode_gates_only_the_retry_policy_pair_nothing_else` | Pass |
 | 21 No mapping / transformation | Scope-boundary negative, **no test**; branch adds no transform step | Pass (unverified by test) |
-| 22 No sensitive-data policy; one content exposure only | `ReadSurfaceRevealAcceptanceTest::test_list_and_detail_never_emit_body_or_headers_under_any_state`; grep confirms no Resource emits either | Pass |
+| 22 No sensitive-data policy; one content exposure only | `ReadSurfaceRevealTest::test_list_and_detail_never_emit_body_or_headers_under_any_state`; grep confirms no Resource emits either | Pass |
 | 23 No analytics surface | **No test.** Traces only to frontend task T35 (client-side aggregate badge), which has no harness — see **Minor 6**; code inspection confirms no stats/count/dashboard beyond per-event state | Pass (unverified by test) |
 | 24 No numeric targets | Scope-boundary negative, **no test** | Pass (unverified by test) |
-| 25 Masked by default, explicit whole-payload reveal | `ReadSurfaceRevealAcceptanceTest::test_payload_endpoint_retained_cleaned_unknown_cross_team_and_unauthenticated`, `..._a_member_who_did_not_create_the_proxy_can_reveal_its_payload_no_distinct_reveal_permission`; `PayloadViewer.vue` fetch-on-reveal, `v-text` (never `v-html`), `aria-pressed`, re-masks on navigation | Pass |
+| 25 Masked by default, explicit whole-payload reveal | `ReadSurfaceRevealTest::test_payload_endpoint_retained_cleaned_unknown_cross_team_and_unauthenticated`, `..._a_member_who_did_not_create_the_proxy_can_reveal_its_payload_no_distinct_reveal_permission`; `PayloadViewer.vue` fetch-on-reveal, `v-text` (never `v-html`), `aria-pressed`, re-masks on navigation | Pass |
 
 **Independent verdict on T46's coverage claim.** T46 asserts AC1–AC18, AC20, AC22, AC23,
 AC25 all trace to named tests, that AC8 is covered but not task-titled, and that
@@ -134,7 +134,7 @@ for exactly one class of defect — accessibility**, and it produced one here (M
 an `axe`/`vitest-axe` run would have caught mechanically. Everything else in M9 is either
 type-checked (`vue-tsc` covers the prop/resource contracts end-to-end), asserted server-side
 (the Inertia prop shape is covered by `ProxyEventIndexTest`/`ProxyEventShowTest`/
-`ReadSurfaceRevealAcceptanceTest`), or visually deterministic. I do **not** recommend
+`ReadSurfaceRevealTest`), or visually deterministic. I do **not** recommend
 blocking #6 on the harness; I recommend the backlog item be re-raised with the a11y case
 attached, since this feature is the first to ship a multi-select consequence dialog.
 
@@ -223,7 +223,7 @@ and design both single out for deliberateness. **Fix:** add
 `tests/Unit/Actions/SweepDueRetriesTest.php:33`,
 `tests/Unit/Actions/SweepStalledFifoDispatchesTest.php:60`,
 `tests/Feature/Delivery/DeliverToDestinationTest.php:38`,
-`tests/Feature/Ingest/DeliveryIdempotencyAcceptanceTest.php:78`,
+`tests/Feature/Ingest/DeliveryIdempotencyTest.php:78`,
 `tests/Unit/Actions/DeliverStepTest.php:46`,
 `tests/Unit/Pipeline/DeliveryUnitTest.php`, `tests/Unit/Pipeline/PipelineContextTest.php`.
 *Criterion:* `docs/standards/testing.md` → **Quiet factory creation (active)**, Owner-adopted
@@ -378,7 +378,7 @@ T37's own acceptance criterion. It is not a Blocker: no PRD acceptance criterion
 (AC12's traceability is a data property and is correctly modelled and rendered), nothing is
 lost, and the replay itself is correct. The implementer was right to flag rather than resolve
 it — a controller change was genuinely outside T37's stated scope — and right to pin today's
-behaviour explicitly in `ReplayAcceptanceTest` rather than paper over it. The fix is one line
+behaviour explicitly in `ReplayTest` rather than paper over it. The fix is one line
 plus updating that assertion.
 
 ### Ruling 2 — T30 vs feature #7 (mode-switch clearing). **Ship #6 as-is. Do not reconcile now.**
@@ -411,7 +411,7 @@ step 4, and plan-06 §Validation's `prohibited_if:mode,simple` idiom. Q-07-01(b)
 both proxy requests; (b) **simultaneously** mode-gate `RetryPolicy::attemptLimitFor()` /
 `strategyFor()` so a simple proxy always resolves the system default regardless of column
 content — (a) without (b) is a defect; (c) invert
-`RetryPolicyFormAcceptanceTest::test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`
+`RetryPolicyFormTest::test_switching_enhanced_to_simple_on_update_clears_stored_values_to_null`
 (its method name asserts the clearing as the expected outcome, so it will need renaming, not
 just re-asserting) and add the Show-page suppression Q-07-01(b) consequence (1) requires.
 Classified as **Minor 8** — a forward-compatibility note, not a #6 defect.
@@ -445,7 +445,7 @@ design, or the security posture — the parts of this feature that were hardest 
 well. Concretely, the return path is:
 
 1. **Senior Developer** fixes **Major 1** (one line in `ProxyEventReplayController::store()`,
-   plus the corresponding assertion in `ReplayAcceptanceTest`), **Major 2** (route the two
+   plus the corresponding assertion in `ReplayTest`), **Major 2** (route the two
    remaining `config('retry.*')` reads through `positiveConfigInt()`, plus two guard tests
    mirroring the existing four), and **Major 3** (`aria-label`/`aria-labelledby` on the three
    checkbox call sites in `ReplayDialog.vue`). Minors 1–4 are cheap enough to bundle if the
@@ -522,7 +522,7 @@ now returns `back()`, with a comment naming the criterion. Verified:
   gains `test_a_replay_from_the_events_index_redirects_back_to_the_index_with_a_success_toast`
   and `…_from_the_event_detail_page_redirects_back_to_the_detail_page_…`, each asserting the
   redirect target **and** `assertInertiaFlash('toast', …)`. The pre-existing happy-path
-  assertion and `ReplayAcceptanceTest`'s pinned-behaviour comment were rewritten rather than
+  assertion and `ReplayTest`'s pinned-behaviour comment were rewritten rather than
   deleted, and the stale "awaiting a ruling" comment is gone.
 - **No-referer case — benign.** `back()` resolves `UrlGenerator::previous()`: `Referer` →
   session previous URL → `url('/')`. A browser always sends `Referer` here (the app sets no

@@ -993,9 +993,9 @@ Each of the shapes considered, and why it loses.
   - Guard tests for decision 5 mirroring the `retry.*` ones: blank, zero, negative and
     non-numeric each throw. `tests/Unit/Config/IngestConfigTest.php` is the existing home for
     `ingest.*` config assertions.
-  - The FIFO ordering and liveness acceptance tests (`tests/Feature/Ingest/FifoOrderingAcceptanceTest.php`,
-    `FifoLivenessAcceptanceTest.php`, `tests/Feature/Retry/FifoRetrySettlementTest.php`,
-    `FifoRetryCompositionAcceptanceTest.php`) should pass unchanged, because under `sync` a
+  - The FIFO ordering and liveness acceptance tests (`tests/Feature/Ingest/FifoOrderingTest.php`,
+    `FifoLivenessTest.php`, `tests/Feature/Retry/FifoRetrySettlementTest.php`,
+    `FifoRetryCompositionTest.php`) should pass unchanged, because under `sync` a
     dispatch runs inline. **That is a hazard, not a reassurance**: their passing does not
     evidence that parallel fan-out is correct. Any that changes must be reported with the
     reason, and none may be weakened to reach green.
