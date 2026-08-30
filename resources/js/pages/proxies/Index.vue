@@ -1,20 +1,12 @@
 <script setup lang="ts">
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
 import CopyField from '@/components/CopyField.vue';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import EmptyState from '@/components/EmptyState.vue';
+import Pagination from '@/components/Pagination.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
     Table,
     TableBody,
@@ -23,7 +15,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import { proxyProcessingModeLabel } from '@/data/proxyProcessingModes';
+import { proxiesCrumb } from '@/lib/breadcrumbs';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
 import type {
@@ -56,19 +50,11 @@ function canDelete(proxy: ProxyListItem): boolean {
 
 defineOptions({
     layout: (props: { currentTeam?: Team | null }) => ({
-        breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: props.currentTeam
-                    ? proxyRoutes.index(props.currentTeam.slug)
-                    : '/',
-            },
-        ],
+        breadcrumbs: [proxiesCrumb(props.currentTeam)],
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 const deleteTarget = ref<ProxyListItem | null>(null);
 const deleteOpen = ref(false);
@@ -114,22 +100,17 @@ function confirmDelete(): void {
             </Button>
         </div>
 
-        <!-- Empty state -->
-        <Card
+        <EmptyState
             v-if="proxies.data.length === 0"
-            class="items-center gap-3 p-10 text-center"
+            title="No proxies yet"
+            description="Create a proxy to get an ingest URL and start fanning out webhooks."
         >
-            <h2 class="text-lg font-medium">No proxies yet</h2>
-            <p class="text-sm text-muted-foreground">
-                Create a proxy to get an ingest URL and start fanning out
-                webhooks.
-            </p>
             <Button v-if="permissions.canCreateProxy" as-child class="mt-2">
                 <Link :href="proxyRoutes.create(teamSlug)"
                     >Create your first proxy</Link
                 >
             </Button>
-        </Card>
+        </EmptyState>
 
         <template v-else>
             <p class="text-sm text-muted-foreground">
@@ -240,51 +221,17 @@ function confirmDelete(): void {
                 </TableBody>
             </Table>
 
-            <!-- Pagination -->
-            <nav
-                v-if="proxies.last_page > 1"
-                class="flex flex-wrap gap-1"
-                aria-label="Pagination"
-            >
-                <Button
-                    v-for="link in proxies.links"
-                    :key="link.label"
-                    :variant="link.active ? 'default' : 'outline'"
-                    size="sm"
-                    :disabled="!link.url"
-                    :aria-current="link.active ? 'page' : undefined"
-                    @click="link.url && router.get(link.url)"
-                >
-                    <span v-html="link.label" />
-                </Button>
-            </nav>
+            <Pagination :links="proxies.links" :last-page="proxies.last_page" />
         </template>
     </div>
 
-    <AlertDialog
-        :open="deleteOpen"
-        @update:open="(value) => (deleteOpen = value)"
-    >
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>
-                    Delete &ldquo;{{ deleteTarget?.name }}&rdquo;?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                    Its ingest URL will stop accepting webhooks and all its
-                    destinations are removed. This cannot be undone.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                    class="bg-destructive text-white hover:bg-destructive/90"
-                    :disabled="deleting"
-                    @click="confirmDelete"
-                >
-                    Delete proxy
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+        v-model:open="deleteOpen"
+        :title="`Delete “${deleteTarget?.name}”?`"
+        description="Its ingest URL will stop accepting webhooks and all its destinations are removed. This cannot be undone."
+        confirm-label="Delete proxy"
+        destructive
+        :busy="deleting"
+        @confirm="confirmDelete"
+    />
 </template>

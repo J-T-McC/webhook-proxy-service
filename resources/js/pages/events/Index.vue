@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { RefreshCw, RefreshCwOff } from '@lucide/vue';
-import { computed } from 'vue';
+import { Head, Link } from '@inertiajs/vue3';
+import AutoRefreshToggle from '@/components/AutoRefreshToggle.vue';
+import EmptyState from '@/components/EmptyState.vue';
+import Pagination from '@/components/Pagination.vue';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
     Table,
     TableBody,
@@ -14,6 +13,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useAutoRefreshPolling } from '@/composables/useAutoRefreshPolling';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import { webhookQueueStatusOption } from '@/data/webhookQueueStates';
 import { formatByteSize, formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
@@ -35,8 +35,7 @@ defineOptions({
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
     'event-queue:polling',
@@ -51,39 +50,17 @@ const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
         <div class="flex items-start justify-between gap-4">
             <h1 class="text-xl font-semibold">Event queue</h1>
 
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                :aria-pressed="pollingEnabled"
-                :aria-label="
-                    pollingEnabled
-                        ? 'Turn off auto-refresh'
-                        : 'Turn on auto-refresh'
-                "
-                :title="
-                    pollingEnabled
-                        ? 'Auto-refreshing every 5 seconds'
-                        : 'Auto-refresh is off'
-                "
-                @click="togglePolling"
-            >
-                <RefreshCw v-if="pollingEnabled" class="size-4" />
-                <RefreshCwOff v-else class="size-4 text-muted-foreground" />
-            </Button>
+            <AutoRefreshToggle
+                :enabled="pollingEnabled"
+                @toggle="togglePolling"
+            />
         </div>
 
-        <!-- Empty state -->
-        <Card
+        <EmptyState
             v-if="props.events.data.length === 0"
-            class="items-center gap-3 p-10 text-center"
-        >
-            <h2 class="text-lg font-medium">No events yet</h2>
-            <p class="text-sm text-muted-foreground">
-                Events appear here once any of your team's proxies receive a
-                webhook.
-            </p>
-        </Card>
+            title="No events yet"
+            description="Events appear here once any of your team's proxies receive a webhook."
+        />
 
         <template v-else>
             <Table>
@@ -148,24 +125,10 @@ const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
                 </TableBody>
             </Table>
 
-            <!-- Pagination -->
-            <nav
-                v-if="props.events.last_page > 1"
-                class="flex flex-wrap gap-1"
-                aria-label="Pagination"
-            >
-                <Button
-                    v-for="link in props.events.links"
-                    :key="link.label"
-                    :variant="link.active ? 'default' : 'outline'"
-                    size="sm"
-                    :disabled="!link.url"
-                    :aria-current="link.active ? 'page' : undefined"
-                    @click="link.url && router.get(link.url)"
-                >
-                    <span v-html="link.label" />
-                </Button>
-            </nav>
+            <Pagination
+                :links="props.events.links"
+                :last-page="props.events.last_page"
+            />
         </template>
     </div>
 </template>

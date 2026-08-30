@@ -1,71 +1,26 @@
 <script setup lang="ts">
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-import AlertError from '@/components/AlertError.vue';
-import CopyField from '@/components/CopyField.vue';
+import AnalyticsWindowNav from '@/components/analytics/AnalyticsWindowNav.vue';
+import DeliveriesCard from '@/components/analytics/DeliveriesCard.vue';
+import LatencyCard from '@/components/analytics/LatencyCard.vue';
+import RetryReplayCard from '@/components/analytics/RetryReplayCard.vue';
+import TrendCard from '@/components/analytics/TrendCard.vue';
+import ConfirmDialog from '@/components/ConfirmDialog.vue';
+import DestinationsCard from '@/components/proxies/DestinationsCard.vue';
+import IngestUrlCard from '@/components/proxies/IngestUrlCard.vue';
+import ResponseCard from '@/components/proxies/ResponseCard.vue';
+import RetryPolicyCard from '@/components/proxies/RetryPolicyCard.vue';
+import SigningCard from '@/components/proxies/SigningCard.vue';
 import ProxySigningDialog from '@/components/ProxySigningDialog.vue';
-import TrendChart from '@/components/TrendChart.vue';
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import {
-    Collapsible,
-    CollapsibleContent,
-    CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { Spinner } from '@/components/ui/spinner';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import {
-    ATTEMPT_SUCCESS_COLUMN_LABEL,
-    ATTEMPT_SUCCESS_LABEL,
-    DELIVERY_SUCCESS_COLUMN_LABEL,
-    DELIVERY_SUCCESS_LABEL,
-    EVENTUAL_SUCCESS_LABEL,
-    LATENCY_AVERAGE_COLUMN_LABEL,
-    LATENCY_AVERAGE_LABEL,
-    LATENCY_CAPTION,
-    LATENCY_P95_LABEL,
-    LIVE_VS_REPLAY_LABEL,
-    RETRY_VOLUME_LABEL,
-    TERMINAL_FAILURE_LABEL,
-    attemptCaption,
-    bridgeSentence,
-    compactRateText,
-    deliveryCaption,
-    formatBucketPeriod,
-    formatLatencyMs,
-    formatRate,
-    lastWindowSubtitle,
-    liveVsReplayText,
-    trendTableFirstColumnHeader,
-    zeroProxyTrafficMessage,
-} from '@/data/analyticsLabels';
+import { useProxyActions } from '@/composables/useProxyActions';
+import { useTeamSlug } from '@/composables/useTeamSlug';
+import { zeroProxyTrafficMessage } from '@/data/analyticsLabels';
 import { proxyProcessingModeLabel } from '@/data/proxyProcessingModes';
-import {
-    proxyResponseStatusLabel,
-    proxyStatusForcesEmptyBody,
-} from '@/data/proxyResponseStatuses';
-import {
-    proxyRetryAttemptLimitDisplay,
-    proxyRetryBackoffStrategyDisplay,
-} from '@/data/proxyRetryBackoffStrategies';
+import { proxiesCrumb, proxyCrumb } from '@/lib/breadcrumbs';
 import { formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
@@ -108,93 +63,20 @@ const canDelete = computed(
 defineOptions({
     layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
         breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: options.currentTeam
-                    ? proxyRoutes.index(options.currentTeam.slug)
-                    : '/',
-            },
-            {
-                title: options.proxy.name,
-                href: options.currentTeam
-                    ? proxyRoutes.show({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
+            proxiesCrumb(options.currentTeam),
+            proxyCrumb(options.currentTeam, options.proxy),
         ],
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
-// Response card — read-only view of the upstream acknowledgement contract. The
-// status label and the 204 empty-body coupling come from the shared
-// response-status const (@/data/proxyResponseStatuses), the same source the edit
-// form's select options derive from, so a status reads identically in both.
-const responseStatusLabel = computed(() =>
-    proxyResponseStatusLabel(props.proxy.response_status),
-);
-
-// Whether the stored status forces an empty body (204 No Content) — drives the
-// "No content" branch below without a bare 204 literal.
-const statusForcesEmptyBody = computed(() =>
-    proxyStatusForcesEmptyBody(props.proxy.response_status),
-);
-
-// A real body block renders only for a body-allowing status (not unconfigured,
-// not empty-body) with a non-empty string; every other case (unconfigured, 204,
-// or an empty/null body) shows muted text.
-const hasResponseBody = computed(
-    () =>
-        props.proxy.response_status !== null &&
-        !statusForcesEmptyBody.value &&
-        props.proxy.response_body !== null &&
-        props.proxy.response_body !== '',
-);
-
-// Retry policy card — read-only view of the effective retry policy (design-06
-// Screen 1 / Flow G). A simple-mode proxy's `retry_attempt_limit`/
-// `retry_backoff_strategy` are suppressed to null on this payload by
-// `ProxyResource` (T5), gated server-side on `mode === Enhanced`
-// (`RetryPolicy::configuredAttemptLimitFor()`/`configuredStrategyFor()`, T1,
-// ADR-018 Decision 4) — never a raw-column read here, and never leaking a
-// dormant value even if one is persisted (AC14(b)). So this card always
-// renders the same "(default)" values as an unconfigured enhanced proxy — the
-// display helpers don't need to branch on mode for the value itself, only for
-// the extra note.
-const retryAttemptsDisplay = computed(() =>
-    proxyRetryAttemptLimitDisplay(props.proxy.retry_attempt_limit),
-);
-const retryBackoffDisplay = computed(() =>
-    proxyRetryBackoffStrategyDisplay(props.proxy.retry_backoff_strategy),
-);
-
-/** The three windows the page-level selector switches between (AC17). */
-const WINDOW_VALUES: AnalyticsWindowValue[] = ['24h', '7d', '30d'];
-
-/**
- * A full-page navigation to this same proxy with a different `?window=`
- * (design-11 § Interactions) — never client-side state, so the server
- * recomputes every figure for the newly selected window.
- */
 function windowHref(value: AnalyticsWindowValue) {
     return proxyRoutes.show(
         { current_team: teamSlug.value, proxy: props.proxy.id },
         { query: { window: value } },
     );
 }
-
-/**
- * The bridge sentence naming the gap between delivery- and attempt-level
- * success (AC14(d)) — `null` when there is nothing to bridge, so the
- * paragraph is omitted rather than rendered empty.
- */
-const bridgeText = computed(() =>
-    bridgeSentence(props.statistics.bridgeFailedAttempts),
-);
 
 /**
  * The "Retry & replay" Terminal failure tile's drill-through target (Flow C
@@ -219,12 +101,7 @@ function terminalFailureHref() {
 
 /**
  * The Destinations table's "View events" action target (Flow D step 3) —
- * proxy · destination · window, **no** outcome filter (this row's figures
- * are rates over all of that destination's traffic, not a failure count).
- * Carries the same link for a deleted destination as a live one — soft
- * delete preserves the id, and the destination needs only to be
- * identifiable, not manageable, for drill-through to work (design-11 Screen
- * 3, `Q-11-03(9)`'s destination half).
+ * proxy · destination · window, **no** outcome filter.
  */
 function viewEventsHref(destination: DestinationBreakdownRow) {
     return proxyEventRoutes.index(
@@ -239,18 +116,6 @@ function viewEventsHref(destination: DestinationBreakdownRow) {
 }
 
 /**
- * Screen 5's `Credential` badge (T33; AC30; plan Technical ruling 4) — looked
- * up by the row's existing id in the `security.destinations` map (T32),
- * never a field on `DestinationBreakdownRow` itself (that DTO is untouched
- * by this feature). Defaults to `false` for an id the map doesn't carry
- * (there is none in practice — T32's map is built `withTrashed()` over every
- * destination the proxy has — but this keeps the lookup total).
- */
-function hasCredential(destination: DestinationBreakdownRow): boolean {
-    return props.security.destinations[destination.id]?.has_credential ?? false;
-}
-
-/**
  * The Trend table's per-day, per-unit drill-through target (Flow C step 3;
  * design-11 Flow E entry-point table; T23/Revision A, `Q-11-04`, plan
  * Technical ruling 10) — proxy (current) · window (still carried, ruling 10)
@@ -261,9 +126,9 @@ function hasCredential(destination: DestinationBreakdownRow): boolean {
  *
  * Callers pass a row's `date` only when it is present — a row builds a link
  * when and only when it has one (§ *Technical rulings* 13; T32). `date`
- * being `string` here rather than `string | null` is intentional: the
- * template gates on `point.date` before ever calling this function, so an
- * hourly row (whose `date` is `null`) never reaches it.
+ * being `string` here rather than `string | null` is intentional: TrendCard
+ * gates on `point.date` before ever calling this function, so an hourly row
+ * (whose `date` is `null`) never reaches it.
  */
 function trendDayHref(date: string, unit: 'delivery' | 'attempt') {
     return proxyEventRoutes.index(
@@ -279,105 +144,20 @@ function trendDayHref(date: string, unit: 'delivery' | 'attempt') {
     );
 }
 
-// Signing card — Screen 4b (AC54, AC57, AC63; Flows G, I). Proxy-wide status
-// only, driven entirely by `security.signing` (T38); the mutating actions
-// (Enable/Manage signing, End overlap now) are `canUpdate`-gated, the status
-// itself always renders.
-const signingOverlapStatus = computed(() => {
-    const expiresAt = props.security.signing.overlap_expires_at;
-
-    return expiresAt ? formatTimestamp(expiresAt) : null;
-});
-const signingGeneratedStatus = computed(() =>
-    props.security.signing.generated_at
-        ? `Enabled — generated ${formatTimestamp(props.security.signing.generated_at)}`
-        : null,
-);
-
 const signingDialogOpen = ref(false);
-const signingOverlapBusy = ref(false);
-const signingOverlapError = ref<string | null>(null);
-
-function endSigningOverlap(): void {
-    signingOverlapBusy.value = true;
-    signingOverlapError.value = null;
-
-    router.delete(
-        proxyRoutes.signing.overlap.destroy({
-            current_team: teamSlug.value,
-            proxy: props.proxy.id,
-        }).url,
-        {
-            preserveScroll: true,
-            only: ['security'],
-            onError: () => {
-                signingOverlapError.value =
-                    'Could not end the rotation overlap. Try again.';
-            },
-            onFinish: () => {
-                signingOverlapBusy.value = false;
-            },
-        },
-    );
-}
-
 const proxyPauseOpen = ref(false);
-const pauseResumeBusy = ref(false);
-
-function confirmPauseProxy(): void {
-    pauseResumeBusy.value = true;
-
-    router.post(
-        proxyRoutes.pause.store({
-            current_team: teamSlug.value,
-            proxy: props.proxy.id,
-        }).url,
-        {},
-        {
-            onFinish: () => {
-                pauseResumeBusy.value = false;
-                proxyPauseOpen.value = false;
-            },
-        },
-    );
-}
-
-function resumeProxy(): void {
-    // AC10: resuming requires no confirmation.
-    pauseResumeBusy.value = true;
-
-    router.delete(
-        proxyRoutes.pause.destroy({
-            current_team: teamSlug.value,
-            proxy: props.proxy.id,
-        }).url,
-        {
-            onFinish: () => {
-                pauseResumeBusy.value = false;
-            },
-        },
-    );
-}
-
 const proxyDeleteOpen = ref(false);
-const busy = ref(false);
 
-function confirmDeleteProxy(): void {
-    busy.value = true;
-
-    router.delete(
-        proxyRoutes.destroy({
-            current_team: teamSlug.value,
-            proxy: props.proxy.id,
-        }).url,
-        {
-            onFinish: () => {
-                busy.value = false;
-                proxyDeleteOpen.value = false;
-            },
-        },
-    );
-}
+const {
+    pauseResumeBusy,
+    deleteBusy,
+    signingOverlapBusy,
+    signingOverlapError,
+    pauseProxy,
+    resumeProxy,
+    deleteProxy,
+    endSigningOverlap,
+} = useProxyActions(teamSlug, props.proxy.id);
 </script>
 
 <template>
@@ -422,7 +202,7 @@ function confirmDeleteProxy(): void {
                         v-if="canUpdate && props.proxy.paused_at"
                         variant="outline"
                         :disabled="pauseResumeBusy"
-                        @click="resumeProxy"
+                        @click="resumeProxy()"
                     >
                         <Spinner v-if="pauseResumeBusy" />
                         Resume
@@ -461,30 +241,10 @@ function confirmDeleteProxy(): void {
                     </Button>
                 </div>
             </div>
-            <nav class="flex items-center gap-2" aria-label="Time window">
-                <Button
-                    v-for="value in WINDOW_VALUES"
-                    :key="value"
-                    as-child
-                    :variant="
-                        value === props.statistics.window
-                            ? 'default'
-                            : 'outline'
-                    "
-                    size="sm"
-                >
-                    <Link
-                        :href="windowHref(value)"
-                        :aria-current="
-                            value === props.statistics.window
-                                ? 'true'
-                                : undefined
-                        "
-                    >
-                        {{ value }}
-                    </Link>
-                </Button>
-            </nav>
+            <AnalyticsWindowNav
+                :window="props.statistics.window"
+                :href-for="windowHref"
+            />
         </div>
 
         <!-- Analytics cards (design-11 Screen 2; flagged design call 3's
@@ -493,583 +253,86 @@ function confirmDeleteProxy(): void {
              Dashboard drill-through, Flow C step 1). Split from one combined
              card into the same four cards the Dashboard renders, on an Owner
              ruling of 2026-08-26 — see the note in design-11. The window
-             selector is page-level and now sits in the page header, where it
+             selector is page-level and sits in the page header, where it
              stays reachable even in the zero-traffic state so a member can
              check another window. -->
-        <Card class="gap-4 p-6">
-            <h2 class="text-base font-semibold">Deliveries</h2>
-
-            <p
-                v-if="!props.statistics.hasTraffic"
-                class="text-sm text-muted-foreground"
-            >
-                {{ zeroProxyTrafficMessage(props.statistics.window) }}
-            </p>
-
-            <template v-else>
-                <dl class="flex flex-col gap-5">
-                    <div>
-                        <dt class="text-sm text-muted-foreground">
-                            {{ DELIVERY_SUCCESS_LABEL }}
-                        </dt>
-                        <dd>
-                            <span class="text-3xl font-semibold">
-                                {{ formatRate(props.statistics.delivery.rate) }}
-                            </span>
-                            <p class="text-sm text-muted-foreground">
-                                {{
-                                    deliveryCaption(
-                                        props.statistics.delivery.succeeded,
-                                        props.statistics.delivery.total,
-                                        props.statistics.window,
-                                    )
-                                }}
-                            </p>
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm text-muted-foreground">
-                            {{ ATTEMPT_SUCCESS_LABEL }}
-                        </dt>
-                        <dd>
-                            <span class="text-lg font-medium">
-                                {{ formatRate(props.statistics.attempt.rate) }}
-                            </span>
-                            <p class="text-sm text-muted-foreground">
-                                {{
-                                    attemptCaption(
-                                        props.statistics.attempt.succeeded,
-                                        props.statistics.attempt.total,
-                                        props.statistics.window,
-                                    )
-                                }}
-                            </p>
-                        </dd>
-                    </div>
-                </dl>
-                <p
-                    v-if="bridgeText"
-                    class="text-sm text-muted-foreground italic"
-                >
-                    {{ bridgeText }}
-                </p>
-            </template>
-        </Card>
+        <DeliveriesCard
+            :statistics="props.statistics"
+            :empty-message="zeroProxyTrafficMessage(props.statistics.window)"
+        />
 
         <template v-if="props.statistics.hasTraffic">
-            <Card class="gap-4 p-6">
-                <h2 class="text-base font-semibold">Trend</h2>
-                <TrendChart
-                    :series="props.statistics.series"
-                    :window="props.statistics.window"
-                    :bucket="props.statistics.bucket"
-                />
-                <!--
-                    The chart's "View as table" fallback is collapsed by
-                    default now that the chart above it is the primary
-                    representation (design-11 § Interactions).
-                -->
-                <Collapsible>
-                    <CollapsibleTrigger as-child>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            class="h-auto w-fit px-2 py-1 text-xs font-normal text-muted-foreground"
-                        >
-                            View as table
-                        </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>{{
-                                        trendTableFirstColumnHeader(
-                                            props.statistics.bucket,
-                                        )
-                                    }}</TableHead>
-                                    <TableHead>{{
-                                        DELIVERY_SUCCESS_COLUMN_LABEL
-                                    }}</TableHead>
-                                    <TableHead>{{
-                                        ATTEMPT_SUCCESS_COLUMN_LABEL
-                                    }}</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow
-                                    v-for="point in props.statistics.series"
-                                    :key="point.bucketStart"
-                                >
-                                    <TableCell>{{
-                                        formatBucketPeriod(
-                                            point.bucketStart,
-                                            props.statistics.bucket,
-                                        )
-                                    }}</TableCell>
-                                    <!--
-                                        An hourly row (`point.date === null`)
-                                        owes no drill-through (Amendment
-                                        B(ii)) and renders plain text — no
-                                        `Link`, no button, no disabled/muted
-                                        control, no explanatory note (§
-                                        *Technical rulings* 13; T32). The gate
-                                        reads `point.date` alone, never
-                                        `props.statistics.bucket`.
-                                    -->
-                                    <TableCell>
-                                        <Link
-                                            v-if="point.date"
-                                            :href="
-                                                trendDayHref(
-                                                    point.date,
-                                                    'delivery',
-                                                )
-                                            "
-                                            class="hover:underline"
-                                        >
-                                            {{
-                                                compactRateText(point.delivery)
-                                            }}
-                                        </Link>
-                                        <template v-else>{{
-                                            compactRateText(point.delivery)
-                                        }}</template>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Link
-                                            v-if="point.date"
-                                            :href="
-                                                trendDayHref(
-                                                    point.date,
-                                                    'attempt',
-                                                )
-                                            "
-                                            class="hover:underline"
-                                        >
-                                            {{ compactRateText(point.attempt) }}
-                                        </Link>
-                                        <template v-else>{{
-                                            compactRateText(point.attempt)
-                                        }}</template>
-                                    </TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </CollapsibleContent>
-                </Collapsible>
-            </Card>
+            <TrendCard
+                :statistics="props.statistics"
+                :day-href="trendDayHref"
+            />
 
-            <Card class="gap-4 p-6">
-                <div>
-                    <h3 class="text-base font-semibold">Retry & replay</h3>
-                    <p class="text-sm text-muted-foreground">
-                        {{ lastWindowSubtitle(props.statistics.window) }}
-                    </p>
-                </div>
-                <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <div>
-                        <dt class="text-sm text-muted-foreground">
-                            {{ EVENTUAL_SUCCESS_LABEL }}
-                        </dt>
-                        <dd class="text-lg font-medium">
-                            {{ props.statistics.retryReplay.eventualSuccess }}
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm text-muted-foreground">
-                            {{ TERMINAL_FAILURE_LABEL }}
-                        </dt>
-                        <dd class="text-lg font-medium">
-                            <Link
-                                :href="terminalFailureHref()"
-                                class="hover:underline"
-                            >
-                                {{
-                                    props.statistics.retryReplay.terminalFailure
-                                }}
-                            </Link>
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm text-muted-foreground">
-                            {{ RETRY_VOLUME_LABEL }}
-                        </dt>
-                        <dd class="text-lg font-medium">
-                            {{ props.statistics.retryReplay.retryVolume }}
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="text-sm text-muted-foreground">
-                            {{ LIVE_VS_REPLAY_LABEL }}
-                        </dt>
-                        <dd class="text-lg font-medium">
-                            {{
-                                liveVsReplayText(
-                                    props.statistics.retryReplay.live,
-                                    props.statistics.retryReplay.replay,
-                                )
-                            }}
-                        </dd>
-                    </div>
-                </dl>
-            </Card>
+            <RetryReplayCard
+                :statistics="props.statistics"
+                :terminal-failure-href="terminalFailureHref()"
+            />
 
-            <Card class="gap-4 p-6">
-                <div>
-                    <h3 class="text-base font-semibold">Latency</h3>
-                    <p class="text-sm text-muted-foreground">
-                        {{ lastWindowSubtitle(props.statistics.window) }}
-                    </p>
-                </div>
-                <dl class="flex flex-col gap-3">
-                    <div
-                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                    >
-                        <dt class="text-sm text-muted-foreground">
-                            {{ LATENCY_AVERAGE_LABEL }}
-                        </dt>
-                        <dd class="text-lg font-medium">
-                            {{
-                                formatLatencyMs(
-                                    props.statistics.latency.averageMs,
-                                )
-                            }}
-                        </dd>
-                    </div>
-                    <div
-                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                    >
-                        <dt class="text-sm text-muted-foreground">
-                            {{ LATENCY_P95_LABEL }}
-                        </dt>
-                        <dd class="text-lg font-medium">
-                            {{
-                                formatLatencyMs(props.statistics.latency.p95Ms)
-                            }}
-                        </dd>
-                    </div>
-                </dl>
-                <p class="text-sm text-muted-foreground">
-                    {{ LATENCY_CAPTION }}
-                </p>
-            </Card>
+            <LatencyCard :statistics="props.statistics" />
         </template>
 
-        <!-- Ingest URL card -->
-        <Card class="gap-4 p-6">
-            <h2 class="text-base font-semibold">Ingest URL</h2>
-            <CopyField :value="props.proxy.ingest_url" />
-            <p class="text-sm text-muted-foreground">
-                Anyone with this URL can post webhooks to this proxy. Keep it
-                secret.
-            </p>
-        </Card>
+        <IngestUrlCard :ingest-url="props.proxy.ingest_url" />
 
-        <!-- Response card -->
-        <Card class="gap-4 p-6">
-            <h2 class="text-base font-semibold">Response</h2>
-            <p class="text-sm text-muted-foreground">
-                Returned to the sender immediately when the webhook is received
-                — independent of whether delivery to your destinations succeeds.
-            </p>
-            <dl class="flex flex-col gap-3">
-                <div
-                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                >
-                    <dt class="text-sm text-muted-foreground">Status</dt>
-                    <dd>
-                        <Badge variant="secondary">{{
-                            responseStatusLabel
-                        }}</Badge>
-                    </dd>
-                </div>
-                <div
-                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                >
-                    <dt class="text-sm text-muted-foreground">Body</dt>
-                    <dd class="min-w-0 flex-1">
-                        <span
-                            v-if="props.proxy.response_status === null"
-                            class="text-sm text-muted-foreground italic"
-                        >
-                            No custom body configured — the default response has
-                            no body.
-                        </span>
-                        <span
-                            v-else-if="statusForcesEmptyBody"
-                            class="text-sm text-muted-foreground italic"
-                        >
-                            No content (204)
-                        </span>
-                        <div
-                            v-else-if="hasResponseBody"
-                            class="max-h-48 overflow-y-auto rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm break-words whitespace-pre-wrap dark:bg-input/30"
-                            v-text="props.proxy.response_body"
-                        />
-                        <span
-                            v-else
-                            class="text-sm text-muted-foreground italic"
-                        >
-                            (empty)
-                        </span>
-                    </dd>
-                </div>
-            </dl>
-        </Card>
+        <ResponseCard
+            :response-status="props.proxy.response_status"
+            :response-body="props.proxy.response_body"
+        />
 
-        <!-- Destinations card (design-11 Screen 3) — driven from
-             `props.destinations` (T18's `DestinationBreakdownRow[]`), never
-             from `props.proxy.destinations` (that relation is live-only and
-             shared with index()/edit(), plan Implementation Note 11), so a
-             deleted destination with historical traffic still gets a row. -->
-        <Card class="gap-4 p-6">
-            <div>
-                <h2 class="text-base font-semibold">Destinations</h2>
-                <p class="text-sm text-muted-foreground">
-                    {{ lastWindowSubtitle(props.statistics.window) }}
-                </p>
-            </div>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Destination</TableHead>
-                        <TableHead>{{
-                            DELIVERY_SUCCESS_COLUMN_LABEL
-                        }}</TableHead>
-                        <TableHead>{{
-                            ATTEMPT_SUCCESS_COLUMN_LABEL
-                        }}</TableHead>
-                        <TableHead>{{
-                            LATENCY_AVERAGE_COLUMN_LABEL
-                        }}</TableHead>
-                        <TableHead class="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    <TableRow
-                        v-for="destination in props.destinations"
-                        :key="destination.id"
-                    >
-                        <TableCell>
-                            <div class="flex min-w-0 items-center gap-3">
-                                <Badge variant="outline">{{
-                                    destination.httpMethod
-                                }}</Badge>
-                                <span class="truncate font-mono text-sm">{{
-                                    destination.url
-                                }}</span>
-                                <Badge
-                                    v-if="hasCredential(destination)"
-                                    variant="outline"
-                                >
-                                    Credential
-                                </Badge>
-                            </div>
-                        </TableCell>
-                        <TableCell>{{
-                            compactRateText(destination.delivery)
-                        }}</TableCell>
-                        <TableCell>{{
-                            compactRateText(destination.attempt)
-                        }}</TableCell>
-                        <TableCell>{{
-                            formatLatencyMs(destination.latencyAverageMs)
-                        }}</TableCell>
-                        <TableCell class="text-right">
-                            <div class="flex items-center justify-end gap-2">
-                                <Badge
-                                    v-if="destination.isDeleted"
-                                    variant="secondary"
-                                >
-                                    Deleted
-                                </Badge>
-                                <Button variant="ghost" size="sm" as-child>
-                                    <Link :href="viewEventsHref(destination)">
-                                        View events
-                                    </Link>
-                                </Button>
-                            </div>
-                        </TableCell>
-                    </TableRow>
-                </TableBody>
-            </Table>
-        </Card>
+        <DestinationsCard
+            :destinations="props.destinations"
+            :security="props.security.destinations"
+            :window="props.statistics.window"
+            :view-events-href="viewEventsHref"
+        />
 
-        <!-- Signing card (Screen 4b; AC54, AC57, AC63; Flows G, I) — the
-             proxy-wide outbound signing status. No per-destination badge
-             anywhere (Amendment B ruling 1) and no trust-domain warning
-             (ruling 2b) — this card states the proxy-wide fact once, where
-             the setting lives. -->
-        <Card class="gap-4 p-6">
-            <h2 class="text-base font-semibold">Signing</h2>
-            <p class="text-sm text-muted-foreground">
-                Whether this proxy signs its dispatches so every destination it
-                sends to can verify the request really came from this proxy.
-            </p>
+        <SigningCard
+            :signing="props.security.signing"
+            :can-update="canUpdate"
+            :overlap-busy="signingOverlapBusy"
+            :overlap-error="signingOverlapError"
+            @manage="signingDialogOpen = true"
+            @end-overlap="endSigningOverlap()"
+        />
 
-            <template v-if="!props.security.signing.enabled">
-                <p class="text-sm text-muted-foreground">
-                    This proxy does not sign its dispatches yet.
-                </p>
-                <Button
-                    v-if="canUpdate"
-                    variant="outline"
-                    class="w-fit"
-                    @click="signingDialogOpen = true"
-                >
-                    Enable signing
-                </Button>
-            </template>
-
-            <template v-else>
-                <dl class="flex flex-col gap-3">
-                    <div
-                        class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                    >
-                        <dt class="text-sm text-muted-foreground">Status</dt>
-                        <dd class="text-sm">{{ signingGeneratedStatus }}</dd>
-                    </div>
-                </dl>
-
-                <!-- Rotation status always renders for anyone who can view
-                     this proxy; only the mutating actions are canUpdate-gated. -->
-                <template v-if="signingOverlapStatus">
-                    <p class="text-sm">
-                        A rotation is in progress — your previous secret is
-                        still honoured until {{ signingOverlapStatus }}.
-                    </p>
-                    <div class="flex items-center gap-2">
-                        <Button
-                            v-if="canUpdate"
-                            variant="outline"
-                            :disabled="signingOverlapBusy"
-                            @click="endSigningOverlap"
-                        >
-                            <Spinner v-if="signingOverlapBusy" />
-                            End overlap now
-                        </Button>
-                        <Button
-                            v-if="canUpdate"
-                            variant="ghost"
-                            @click="signingDialogOpen = true"
-                        >
-                            Manage signing
-                        </Button>
-                    </div>
-                    <AlertError
-                        v-if="signingOverlapError"
-                        :errors="[signingOverlapError]"
-                        title="Could not end the rotation overlap"
-                    />
-                </template>
-                <Button
-                    v-else-if="canUpdate"
-                    variant="ghost"
-                    class="w-fit"
-                    @click="signingDialogOpen = true"
-                >
-                    Manage signing
-                </Button>
-            </template>
-        </Card>
-
-        <!-- Retry policy card -->
-        <Card class="gap-4 p-6">
-            <h2 class="text-base font-semibold">Retry policy</h2>
-            <p class="text-sm text-muted-foreground">
-                Governs automatic re-attempts to your destinations after a
-                failed delivery.
-            </p>
-            <dl class="flex flex-col gap-3">
-                <div
-                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                >
-                    <dt class="text-sm text-muted-foreground">Attempts</dt>
-                    <dd class="text-sm">{{ retryAttemptsDisplay }}</dd>
-                </div>
-                <div
-                    class="flex flex-col sm:flex-row sm:items-baseline sm:gap-2"
-                >
-                    <dt class="text-sm text-muted-foreground">Backoff</dt>
-                    <dd class="text-sm">{{ retryBackoffDisplay }}</dd>
-                </div>
-            </dl>
-            <p
-                v-if="props.proxy.mode === 'simple'"
-                class="text-sm text-muted-foreground"
-            >
-                Simple-mode proxies use the fixed system default. Configuring
-                attempts and backoff is an Enhanced-mode capability.
-            </p>
-        </Card>
+        <RetryPolicyCard
+            :mode="props.proxy.mode"
+            :retry-attempt-limit="props.proxy.retry_attempt_limit"
+            :retry-backoff-strategy="props.proxy.retry_backoff_strategy"
+        />
     </div>
 
     <!-- Manage proxy signing dialog (Screen 6; Flows G, H, I) -->
     <ProxySigningDialog
-        :open="signingDialogOpen"
+        v-model:open="signingDialogOpen"
         :team-slug="teamSlug"
         :proxy-id="props.proxy.id"
         :proxy-name="props.proxy.name"
         :signing="props.security.signing"
         :can-update="canUpdate"
-        @update:open="(value) => (signingDialogOpen = value)"
     />
 
-    <!-- Pause proxy confirmation (AC10: the consequence is stated before the
-         decision — resuming needs no confirmation at all). -->
-    <AlertDialog
-        :open="proxyPauseOpen"
-        @update:open="(value) => (proxyPauseOpen = value)"
-    >
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>
-                    Pause &ldquo;{{ props.proxy.name }}&rdquo;?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                    Nothing will be sent to its destinations until it is
-                    resumed. Events keep aging and expire on schedule whether or
-                    not they were sent.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                    :disabled="pauseResumeBusy"
-                    @click="confirmPauseProxy"
-                >
-                    Pause proxy
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    <!-- AC10: the consequence is stated before the decision — resuming needs
+         no confirmation at all. -->
+    <ConfirmDialog
+        v-model:open="proxyPauseOpen"
+        :title="`Pause “${props.proxy.name}”?`"
+        description="Nothing will be sent to its destinations until it is resumed. Events keep aging and expire on schedule whether or not they were sent."
+        confirm-label="Pause proxy"
+        :busy="pauseResumeBusy"
+        @confirm="pauseProxy(() => (proxyPauseOpen = false))"
+    />
 
-    <!-- Delete proxy confirmation -->
-    <AlertDialog
-        :open="proxyDeleteOpen"
-        @update:open="(value) => (proxyDeleteOpen = value)"
-    >
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>
-                    Delete &ldquo;{{ props.proxy.name }}&rdquo;?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                    Its ingest URL will stop accepting webhooks and all its
-                    destinations are removed. This cannot be undone.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                    class="bg-destructive text-white hover:bg-destructive/90"
-                    :disabled="busy"
-                    @click="confirmDeleteProxy"
-                >
-                    Delete proxy
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDialog
+        v-model:open="proxyDeleteOpen"
+        :title="`Delete “${props.proxy.name}”?`"
+        description="Its ingest URL will stop accepting webhooks and all its destinations are removed. This cannot be undone."
+        confirm-label="Delete proxy"
+        destructive
+        :busy="deleteBusy"
+        @confirm="deleteProxy(() => (proxyDeleteOpen = false))"
+    />
 </template>

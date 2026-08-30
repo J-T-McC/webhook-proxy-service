@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Info, RefreshCw, RefreshCwOff } from '@lucide/vue';
+import { Head, Link } from '@inertiajs/vue3';
+import { Info } from '@lucide/vue';
 import { computed, ref } from 'vue';
+import AutoRefreshToggle from '@/components/AutoRefreshToggle.vue';
+import EmptyState from '@/components/EmptyState.vue';
+import EventFilterChips from '@/components/events/EventFilterChips.vue';
+import Pagination from '@/components/Pagination.vue';
 import ReplayDialog from '@/components/ReplayDialog.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
     Table,
     TableBody,
@@ -16,12 +19,13 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useAutoRefreshPolling } from '@/composables/useAutoRefreshPolling';
-import { formatSeriesDate, windowLabel } from '@/data/analyticsLabels';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import {
     proxyAggregateDeliveryState,
     proxyAggregateDeliveryStateOption,
 } from '@/data/proxyDeliveryStates';
 import { proxyPayloadStateOption } from '@/data/proxyPayloadStates';
+import { proxiesCrumb, proxyCrumb, proxyEventsCrumb } from '@/lib/breadcrumbs';
 import { formatByteSize, formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
@@ -45,36 +49,14 @@ const props = defineProps<{
 defineOptions({
     layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
         breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: options.currentTeam
-                    ? proxyRoutes.index(options.currentTeam.slug)
-                    : '/',
-            },
-            {
-                title: options.proxy.name,
-                href: options.currentTeam
-                    ? proxyRoutes.show({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
-            {
-                title: 'Events',
-                href: options.currentTeam
-                    ? proxyEventRoutes.index({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
+            proxiesCrumb(options.currentTeam),
+            proxyCrumb(options.currentTeam, options.proxy),
+            proxyEventsCrumb(options.currentTeam, options.proxy),
         ],
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 // --- Filter chips (T24; T23/T24 Revision A, `Q-11-04`; AC10, AC21;
 // design-11 Screen 4) --------------------------------------------------------
@@ -92,17 +74,6 @@ const hasActiveFilters = computed(
         props.filters.destination !== null ||
         props.filters.outcome !== null ||
         props.filters.day !== null,
-);
-
-/**
- * The Window chip's rendered value — the day-narrowed date (same formatter
- * as the trend table's Date column, ruling 10/Implementation Note 20) when
- * `filters.day` resolved, otherwise the usual "last {window}" text.
- */
-const windowChipValue = computed(() =>
-    props.filters.day
-        ? formatSeriesDate(props.filters.day)
-        : `last ${windowLabel(props.filters.window)}`,
 );
 
 /** The `outcome` query token this filter's resolved `unit` came from (T21). */
@@ -206,26 +177,10 @@ const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
                 Events for &ldquo;{{ props.proxy.name }}&rdquo;
             </h1>
 
-            <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                :aria-pressed="pollingEnabled"
-                :aria-label="
-                    pollingEnabled
-                        ? 'Turn off auto-refresh'
-                        : 'Turn on auto-refresh'
-                "
-                :title="
-                    pollingEnabled
-                        ? 'Auto-refreshing every 5 seconds'
-                        : 'Auto-refresh is off'
-                "
-                @click="togglePolling"
-            >
-                <RefreshCw v-if="pollingEnabled" class="size-4" />
-                <RefreshCwOff v-else class="size-4 text-muted-foreground" />
-            </Button>
+            <AutoRefreshToggle
+                :enabled="pollingEnabled"
+                @toggle="togglePolling"
+            />
         </div>
 
         <Alert
@@ -240,82 +195,31 @@ const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
             </AlertDescription>
         </Alert>
 
-        <!-- Filter chips (T24) — window, destination and/or outcome, up to
-             three at once (design-11 Screen 4). Renders only once a
-             drill-through actually narrowed the list (`destination` or
-             `outcome` resolved); an unfiltered arrival is visually
-             identical to today (AC28). -->
-        <div
+        <!-- Renders only once a drill-through actually narrowed the list
+             (`destination`, `outcome` or `day` resolved); an unfiltered
+             arrival is visually identical to today (AC28). -->
+        <EventFilterChips
             v-if="hasActiveFilters"
-            class="flex flex-wrap items-center gap-2"
-            aria-label="Active filters"
-        >
-            <Badge variant="secondary" class="gap-1.5 py-1 pr-1.5 pl-2.5">
-                Window: {{ windowChipValue }}
-                <button
-                    type="button"
-                    aria-label="Remove window filter"
-                    class="rounded-full opacity-70 hover:opacity-100"
-                    @click="router.get(filterHref('window'))"
-                >
-                    ×
-                </button>
-            </Badge>
-            <Badge
-                v-if="props.filters.destination"
-                variant="secondary"
-                class="gap-1.5 py-1 pr-1.5 pl-2.5"
-            >
-                Destination: {{ props.filters.destination.httpMethod }}
-                {{ props.filters.destination.url }}
-                <button
-                    type="button"
-                    :aria-label="`Remove destination filter: ${props.filters.destination.url}`"
-                    class="rounded-full opacity-70 hover:opacity-100"
-                    @click="router.get(filterHref('destination'))"
-                >
-                    ×
-                </button>
-            </Badge>
-            <Badge
-                v-if="props.filters.outcome"
-                variant="secondary"
-                class="gap-1.5 py-1 pr-1.5 pl-2.5"
-            >
-                Outcome: {{ props.filters.outcome.label }}
-                <button
-                    type="button"
-                    aria-label="Remove outcome filter"
-                    class="rounded-full opacity-70 hover:opacity-100"
-                    @click="router.get(filterHref('outcome'))"
-                >
-                    ×
-                </button>
-            </Badge>
-        </div>
+            :filters="props.filters"
+            :href-for="filterHref"
+        />
         <p v-if="outcomeExplanatoryLine" class="text-sm text-muted-foreground">
             {{ outcomeExplanatoryLine }}
         </p>
 
-        <!-- Empty state -->
-        <Card
+        <EmptyState
             v-if="props.events.data.length === 0"
-            class="items-center gap-3 p-10 text-center"
+            :title="
+                hasActiveFilters
+                    ? 'No events match these filters'
+                    : 'No events yet'
+            "
+            :description="
+                hasActiveFilters
+                    ? 'Remove a filter above, or clear them all, to see more events.'
+                    : `Events appear here once this proxy's ingest URL receives a webhook.`
+            "
         >
-            <h2 class="text-lg font-medium">
-                {{
-                    hasActiveFilters
-                        ? 'No events match these filters'
-                        : 'No events yet'
-                }}
-            </h2>
-            <p class="text-sm text-muted-foreground">
-                {{
-                    hasActiveFilters
-                        ? 'Remove a filter above, or clear them all, to see more events.'
-                        : "Events appear here once this proxy's ingest URL receives a webhook."
-                }}
-            </p>
             <Button
                 v-if="hasActiveFilters"
                 variant="outline"
@@ -336,7 +240,7 @@ const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
                     View ingest URL
                 </Link>
             </Button>
-        </Card>
+        </EmptyState>
 
         <template v-else>
             <Table>
@@ -430,24 +334,10 @@ const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
                 </TableBody>
             </Table>
 
-            <!-- Pagination -->
-            <nav
-                v-if="props.events.last_page > 1"
-                class="flex flex-wrap gap-1"
-                aria-label="Pagination"
-            >
-                <Button
-                    v-for="link in props.events.links"
-                    :key="link.label"
-                    :variant="link.active ? 'default' : 'outline'"
-                    size="sm"
-                    :disabled="!link.url"
-                    :aria-current="link.active ? 'page' : undefined"
-                    @click="link.url && router.get(link.url)"
-                >
-                    <span v-html="link.label" />
-                </Button>
-            </nav>
+            <Pagination
+                :links="props.events.links"
+                :last-page="props.events.last_page"
+            />
         </template>
     </div>
 

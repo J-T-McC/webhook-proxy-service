@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Head, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head } from '@inertiajs/vue3';
+import { useTeamSlug } from '@/composables/useTeamSlug';
+import { proxiesCrumb } from '@/lib/breadcrumbs';
 import ProxyForm from '@/pages/proxies/ProxyForm.vue';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
@@ -11,18 +12,12 @@ const props = defineProps<{
     defaultSensitiveFieldNames: string[];
 }>();
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 defineOptions({
     layout: (props: { currentTeam?: Team | null }) => ({
         breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: props.currentTeam
-                    ? proxyRoutes.index(props.currentTeam.slug)
-                    : '/',
-            },
+            proxiesCrumb(props.currentTeam),
             {
                 title: 'New proxy',
                 href: props.currentTeam
