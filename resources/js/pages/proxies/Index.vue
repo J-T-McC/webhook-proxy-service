@@ -2,6 +2,8 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import CopyField from '@/components/CopyField.vue';
+import EmptyState from '@/components/EmptyState.vue';
+import Pagination from '@/components/Pagination.vue';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -14,7 +16,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import {
     Table,
     TableBody,
@@ -114,22 +115,17 @@ function confirmDelete(): void {
             </Button>
         </div>
 
-        <!-- Empty state -->
-        <Card
+        <EmptyState
             v-if="proxies.data.length === 0"
-            class="items-center gap-3 p-10 text-center"
+            title="No proxies yet"
+            description="Create a proxy to get an ingest URL and start fanning out webhooks."
         >
-            <h2 class="text-lg font-medium">No proxies yet</h2>
-            <p class="text-sm text-muted-foreground">
-                Create a proxy to get an ingest URL and start fanning out
-                webhooks.
-            </p>
             <Button v-if="permissions.canCreateProxy" as-child class="mt-2">
                 <Link :href="proxyRoutes.create(teamSlug)"
                     >Create your first proxy</Link
                 >
             </Button>
-        </Card>
+        </EmptyState>
 
         <template v-else>
             <p class="text-sm text-muted-foreground">
@@ -240,24 +236,7 @@ function confirmDelete(): void {
                 </TableBody>
             </Table>
 
-            <!-- Pagination -->
-            <nav
-                v-if="proxies.last_page > 1"
-                class="flex flex-wrap gap-1"
-                aria-label="Pagination"
-            >
-                <Button
-                    v-for="link in proxies.links"
-                    :key="link.label"
-                    :variant="link.active ? 'default' : 'outline'"
-                    size="sm"
-                    :disabled="!link.url"
-                    :aria-current="link.active ? 'page' : undefined"
-                    @click="link.url && router.get(link.url)"
-                >
-                    <span v-html="link.label" />
-                </Button>
-            </nav>
+            <Pagination :links="proxies.links" :last-page="proxies.last_page" />
         </template>
     </div>
 
