@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import AlertError from '@/components/AlertError.vue';
 import AnalyticsWindowNav from '@/components/analytics/AnalyticsWindowNav.vue';
@@ -31,6 +31,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import {
     ATTEMPT_SUCCESS_COLUMN_LABEL,
     DELIVERY_SUCCESS_COLUMN_LABEL,
@@ -49,6 +50,7 @@ import {
     proxyRetryAttemptLimitDisplay,
     proxyRetryBackoffStrategyDisplay,
 } from '@/data/proxyRetryBackoffStrategies';
+import { proxiesCrumb, proxyCrumb } from '@/lib/breadcrumbs';
 import { formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
@@ -91,27 +93,13 @@ const canDelete = computed(
 defineOptions({
     layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
         breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: options.currentTeam
-                    ? proxyRoutes.index(options.currentTeam.slug)
-                    : '/',
-            },
-            {
-                title: options.proxy.name,
-                href: options.currentTeam
-                    ? proxyRoutes.show({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
+            proxiesCrumb(options.currentTeam),
+            proxyCrumb(options.currentTeam, options.proxy),
         ],
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 // Response card — read-only view of the upstream acknowledgement contract. The
 // status label and the 204 empty-body coupling come from the shared

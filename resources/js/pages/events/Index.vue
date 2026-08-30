@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head, Link } from '@inertiajs/vue3';
 import AutoRefreshToggle from '@/components/AutoRefreshToggle.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import Pagination from '@/components/Pagination.vue';
@@ -14,6 +13,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useAutoRefreshPolling } from '@/composables/useAutoRefreshPolling';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import { webhookQueueStatusOption } from '@/data/webhookQueueStates';
 import { formatByteSize, formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
@@ -35,8 +35,7 @@ defineOptions({
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 const { pollingEnabled, togglePolling } = useAutoRefreshPolling(
     'event-queue:polling',

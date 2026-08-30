@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Head, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head } from '@inertiajs/vue3';
+import { useTeamSlug } from '@/composables/useTeamSlug';
+import { proxiesCrumb, proxyCrumb, proxyEditCrumb } from '@/lib/breadcrumbs';
 import ProxyForm from '@/pages/proxies/ProxyForm.vue';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
@@ -15,8 +16,7 @@ const props = defineProps<{
     security: ProxySecurity;
 }>();
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 defineOptions({
     layout: (options: {
@@ -24,30 +24,9 @@ defineOptions({
         proxy: ProxyFormProxy;
     }) => ({
         breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: options.currentTeam
-                    ? proxyRoutes.index(options.currentTeam.slug)
-                    : '/',
-            },
-            {
-                title: options.proxy.name,
-                href: options.currentTeam
-                    ? proxyRoutes.show({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
-            {
-                title: 'Edit',
-                href: options.currentTeam
-                    ? proxyRoutes.edit({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
+            proxiesCrumb(options.currentTeam),
+            proxyCrumb(options.currentTeam, options.proxy),
+            proxyEditCrumb(options.currentTeam, options.proxy),
         ],
     }),
 });

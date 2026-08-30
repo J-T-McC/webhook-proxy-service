@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head, Link } from '@inertiajs/vue3';
 import AnalyticsWindowNav from '@/components/analytics/AnalyticsWindowNav.vue';
 import DeliveriesCard from '@/components/analytics/DeliveriesCard.vue';
 import LatencyCard from '@/components/analytics/LatencyCard.vue';
@@ -10,6 +9,7 @@ import TrendCard from '@/components/analytics/TrendCard.vue';
 import PendingInvitationsModal from '@/components/PendingInvitationsModal.vue';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import { dashboard } from '@/routes';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
@@ -39,8 +39,7 @@ defineOptions({
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 function windowHref(value: AnalyticsWindowValue) {
     return dashboard(teamSlug.value, { query: { window: value } });

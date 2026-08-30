@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import { Info } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import AutoRefreshToggle from '@/components/AutoRefreshToggle.vue';
@@ -19,11 +19,13 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useAutoRefreshPolling } from '@/composables/useAutoRefreshPolling';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import {
     proxyAggregateDeliveryState,
     proxyAggregateDeliveryStateOption,
 } from '@/data/proxyDeliveryStates';
 import { proxyPayloadStateOption } from '@/data/proxyPayloadStates';
+import { proxiesCrumb, proxyCrumb, proxyEventsCrumb } from '@/lib/breadcrumbs';
 import { formatByteSize, formatTimestamp } from '@/lib/format';
 import proxyRoutes from '@/routes/proxies';
 import proxyEventRoutes from '@/routes/proxies/events';
@@ -47,36 +49,14 @@ const props = defineProps<{
 defineOptions({
     layout: (options: { currentTeam?: Team | null; proxy: ProxyDetail }) => ({
         breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: options.currentTeam
-                    ? proxyRoutes.index(options.currentTeam.slug)
-                    : '/',
-            },
-            {
-                title: options.proxy.name,
-                href: options.currentTeam
-                    ? proxyRoutes.show({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
-            {
-                title: 'Events',
-                href: options.currentTeam
-                    ? proxyEventRoutes.index({
-                          current_team: options.currentTeam.slug,
-                          proxy: options.proxy.id,
-                      })
-                    : '/',
-            },
+            proxiesCrumb(options.currentTeam),
+            proxyCrumb(options.currentTeam, options.proxy),
+            proxyEventsCrumb(options.currentTeam, options.proxy),
         ],
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 // --- Filter chips (T24; T23/T24 Revision A, `Q-11-04`; AC10, AC21;
 // design-11 Screen 4) --------------------------------------------------------

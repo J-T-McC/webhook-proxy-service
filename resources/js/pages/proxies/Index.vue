@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import { ref } from 'vue';
 import CopyField from '@/components/CopyField.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import Pagination from '@/components/Pagination.vue';
@@ -24,7 +24,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { useTeamSlug } from '@/composables/useTeamSlug';
 import { proxyProcessingModeLabel } from '@/data/proxyProcessingModes';
+import { proxiesCrumb } from '@/lib/breadcrumbs';
 import proxyRoutes from '@/routes/proxies';
 import type { Team } from '@/types';
 import type {
@@ -57,19 +59,11 @@ function canDelete(proxy: ProxyListItem): boolean {
 
 defineOptions({
     layout: (props: { currentTeam?: Team | null }) => ({
-        breadcrumbs: [
-            {
-                title: 'Proxies',
-                href: props.currentTeam
-                    ? proxyRoutes.index(props.currentTeam.slug)
-                    : '/',
-            },
-        ],
+        breadcrumbs: [proxiesCrumb(props.currentTeam)],
     }),
 });
 
-const page = usePage();
-const teamSlug = computed(() => page.props.currentTeam?.slug ?? '');
+const teamSlug = useTeamSlug();
 
 const deleteTarget = ref<ProxyListItem | null>(null);
 const deleteOpen = ref(false);
