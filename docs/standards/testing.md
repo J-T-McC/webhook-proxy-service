@@ -121,6 +121,12 @@ otherwise collide, name each for what distinguishes it, as with
 against `tests/Feature/Ingest/IngestEventCaptureTest.php` (capture through the
 ingest endpoint).
 
+When a test is renamed, moved or deleted, record it in
+`docs/standards/test-name-history.md`. Completed task plans, reviews and ADRs name
+the files that existed when they were written, and those names are not rewritten
+after the fact, so that index is the only way an agent can resolve an old name
+without concluding the coverage vanished.
+
 The class name and the file name must match, and no two test classes may share a
 short name across directories. Two classes both named `DeliverStepTest` existed
 in `tests/Unit/Actions` and `tests/Unit/Pipeline`; they were not duplicates, but
