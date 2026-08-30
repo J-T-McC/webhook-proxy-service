@@ -1,6 +1,6 @@
 import { router } from '@inertiajs/vue3';
-import { ref  } from 'vue';
-import type {Ref} from 'vue';
+import { ref } from 'vue';
+import type { Ref } from 'vue';
 import proxyRoutes from '@/routes/proxies';
 
 /**
