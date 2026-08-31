@@ -1,8 +1,8 @@
 # Technical Plan: Destination validation (#18)
 
-- **Status:** **Self-certified by the Principal Engineer, 2026-08-31**, except ADR-027's two open
-  decisions — the state columns and the pinned challenge send. Outstanding questions: none. Q-18-02
-  was closed by Owner ruling on 2026-08-31 and PRD-18 AC23 amended to match.
+- **Status:** **Approved, 2026-08-31.** Self-certified by the Principal Engineer; ADR-027's two open
+  decisions accepted by the Project Owner the same day. Outstanding questions: none. Q-18-02 was
+  closed by Owner ruling and PRD-18 AC23 amended to match.
 - **Author:** Principal Engineer
 - **PRD:** `docs/product/prd-18-destination-validation.md` (Approved, Project Owner, 2026-08-31)
 - **Design:** `docs/design/design-18-destination-validation.md` — reference, not a gate. The Owner
@@ -177,4 +177,4 @@ per ADR-007, and Inertia for the two public pages. `docs/stack/stack.md` needs n
 - **Inputs:** PRD-18 (Approved), design-18 (reference), Q-18-01 (Answered), `docs/standards/architecture.md`.
 - **Outputs:** this plan; ADR-027; Q-18-02 to the Product Manager.
 - **Outstanding Questions:** Q-18-02, scoped to the confirmation page.
-- **Next Agent:** **Project Owner**, for ADR-027's three decisions. On approval: Task Planner.
+- **Next Agent:** **Task Planner.** ADR-027 is Accepted and nothing is outstanding.

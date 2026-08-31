@@ -1,6 +1,8 @@
 # ADR-027: Destination validation state, grandfathering, and the guarded challenge send
 
-- **Status:** **Proposed — awaiting Project Owner approval.**
+- **Status:** **Accepted — Project Owner, 2026-08-31.** Both open decisions approved as proposed:
+  three stored states with Expired derived, and the resolve-check-pin challenge send with redirects
+  refused. Decision 2 was never open — it is PRD-18 AC30, approved with the PRD.
 - **Date:** 2026-08-31
 - **Author:** Principal Engineer
 - **Feature:** roadmap item #18, destination validation
