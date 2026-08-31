@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\SendDestinationValidationChallenge;
 use App\Data\ProxyPermissions;
 use App\Enums\AnalyticsWindow;
+use App\Enums\DestinationValidationState;
 use App\Enums\ProxyMode;
 use App\Http\Requests\StoreProxyRequest;
 use App\Http\Requests\UpdateProxyRequest;
@@ -79,7 +81,13 @@ class ProxyController extends Controller
 
         $data = $request->validated();
 
-        $proxy = DB::transaction(function () use ($data, $tokens): Proxy {
+        // Item #18 AC15: a new destination is challenged automatically. Ids are
+        // collected inside the transaction and dispatched after it commits, so a
+        // rolled-back create never sends a challenge for a destination that does
+        // not exist.
+        $toChallenge = [];
+
+        $proxy = DB::transaction(function () use ($data, $tokens, &$toChallenge): Proxy {
             // Pass the validated payload straight to mass-assignment: only
             // name/mode/processing_mode/retry_*/response_* are fillable (see
             // Proxy #[Fillable]), so the `destinations` key is ignored and the
@@ -114,12 +122,12 @@ class ProxyController extends Controller
             $proxy->save();
 
             foreach ($this->destinationRows($data) as $destination) {
-                $proxy->destinations()->create([
+                $toChallenge[] = $proxy->destinations()->create([
                     'team_id' => $proxy->team_id,
                     'url' => $destination['url'],
                     'http_method' => $destination['http_method'],
                     ...$this->destinationCredentialAttributes($destination),
-                ]);
+                ])->id;
             }
 
             // Guard the min-1 live invariant before commit (belt-and-suspenders to
@@ -132,6 +140,8 @@ class ProxyController extends Controller
 
             return $proxy;
         });
+
+        $this->challengeDestinations($toChallenge);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Proxy created.')]);
 
@@ -201,7 +211,11 @@ class ProxyController extends Controller
 
         $data = $request->validated();
 
-        DB::transaction(function () use ($data, $proxy): void {
+        // Item #18 AC5/AC15: a new destination, or one whose URL changed, is
+        // challenged after the transaction commits.
+        $toChallenge = [];
+
+        DB::transaction(function () use ($data, $proxy, &$toChallenge): void {
             // Persist response/retry config alongside name/mode. `?? null` lets
             // an omitted/explicit-null field clear a previously configured
             // response value (AC3, AC20). The two retry keys are OMITTED from
@@ -235,12 +249,41 @@ class ProxyController extends Controller
                     : null;
 
                 if ($existing !== null) {
+                    // Item #18 AC5: changing the URL returns the destination to
+                    // unvalidated and voids the outstanding link. Editing is
+                    // deliberately NOT blocked — blocking would only push
+                    // members to delete and recreate, which is the same work
+                    // with a worse audit trail. Anything other than the URL
+                    // (method, credential) leaves validation alone, because
+                    // configuration is not gated (AC13).
+                    $urlChanged = $existing->url !== $row['url'];
+
                     $existing->update([
                         'url' => $row['url'],
                         'http_method' => $row['http_method'],
                         ...$this->destinationCredentialAttributes($row, $existing->credential_set_at !== null),
                     ]);
+
+                    // forceFill rather than update: the validation columns are
+                    // deliberately absent from the model's #[Fillable] list, so
+                    // that no request payload can ever mass-assign a
+                    // destination into the validated state. Only this reset and
+                    // the approval route write them.
+                    if ($urlChanged) {
+                        $existing->forceFill([
+                            'validation_state' => DestinationValidationState::Unvalidated,
+                            'validated_at' => null,
+                            'validation_challenge_sent_at' => null,
+                            'validation_challenge_expires_at' => null,
+                            'validation_nonce' => null,
+                        ])->save();
+                    }
+
                     $keptIds[] = $existing->id;
+
+                    if ($urlChanged) {
+                        $toChallenge[] = $existing->id;
+                    }
 
                     continue;
                 }
@@ -252,6 +295,7 @@ class ProxyController extends Controller
                     ...$this->destinationCredentialAttributes($row),
                 ]);
                 $keptIds[] = $created->id;
+                $toChallenge[] = $created->id;
             }
 
             // Soft-delete the live destinations that were omitted from the submission.
@@ -264,6 +308,8 @@ class ProxyController extends Controller
                 ]);
             }
         });
+
+        $this->challengeDestinations($toChallenge);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Changes saved.')]);
 
@@ -453,5 +499,29 @@ class ProxyController extends Controller
             'credential_secret' => $row['credential_secret'],
             'credential_set_at' => now(),
         ];
+    }
+
+    /**
+     * Queue a validation challenge for each destination id (#18 AC15).
+     *
+     * Dispatched rather than sent inline: a challenge is an outbound HTTP
+     * request to a host that has not yet proven it wants traffic, and a member
+     * saving a form should not wait on it — nor should a slow or hanging
+     * destination hold the request open.
+     *
+     * A rate-limited send is deliberately not an error here. Product Manager
+     * ruling 1: the destination still saves. The member sees its state on the
+     * proxy page and can send a challenge with the Validate action when the
+     * limit clears.
+     *
+     * @param  list<int>  $destinationIds
+     */
+    private function challengeDestinations(array $destinationIds): void
+    {
+        foreach ($destinationIds as $id) {
+            SendDestinationValidationChallenge::dispatch(
+                Destination::query()->whereKey($id)->firstOrFail()
+            );
+        }
     }
 }

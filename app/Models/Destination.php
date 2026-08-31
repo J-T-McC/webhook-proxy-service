@@ -35,6 +35,10 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Proxy $proxy
  */
+// The `validation_*` columns are deliberately absent: nothing that reaches this
+// model from a request payload may move a destination into the validated state.
+// They are written only by the approval route and by the URL-change reset, both
+// via forceFill (#18 AC3 — exactly one route to Validated).
 #[Fillable(['proxy_id', 'team_id', 'url', 'http_method', 'credential_header_name', 'credential_secret', 'credential_set_at'])]
 class Destination extends Model
 {

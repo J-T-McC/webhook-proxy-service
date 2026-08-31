@@ -13,6 +13,10 @@ createInertiaApp({
         switch (true) {
             case name === 'Welcome':
                 return null;
+            // #18: the destination-validation page is reached by somebody with
+            // no account, arriving cold from a link. AppLayout assumes a signed-in
+            // member with a team and would render navigation they cannot use.
+            case name === 'destinations/Validate':
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

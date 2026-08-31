@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
+use App\Http\Controllers\DestinationValidationController;
 use App\Http\Controllers\EventQueueController;
 use App\Http\Controllers\ProxyController;
 use App\Http\Controllers\ProxyEventController;
@@ -56,6 +57,25 @@ Route::prefix('{current_team}')
         Route::delete('proxies/{proxy}/signing/overlap', [ProxySigningOverlapController::class, 'destroy'])
             ->name('proxies.signing.overlap.destroy');
     });
+
+// Destination validation (#18). PUBLIC and UNAUTHENTICATED by design: the
+// person who approves a destination is whoever receives the webhook there, who
+// has no account and no other contact with the product (AC26). The signature is
+// the only credential, and `signed` is the only gate.
+//
+// Outside the `{current_team}` prefix deliberately — the approver has no team,
+// and the team scope must not hide the destination from its own approval route.
+//
+// The GET renders and never mutates (AC28). Approval is the POST, because a GET
+// that approved on load would be triggered by link scanners, mail preview
+// fetchers and corporate security proxies opening the link before any human
+// does.
+Route::middleware('signed')->group(function () {
+    Route::get('destinations/{destination}/validate', [DestinationValidationController::class, 'show'])
+        ->name('destinations.validate.show');
+    Route::post('destinations/{destination}/validate', [DestinationValidationController::class, 'store'])
+        ->name('destinations.validate.store');
+});
 
 Route::middleware(['auth'])->group(function () {
     Route::get('invitations/{invitation}/accept', [TeamInvitationController::class, 'accept'])->name('invitations.accept');

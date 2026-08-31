@@ -19,6 +19,14 @@ whole feature exists to make safe: a request to a URL nobody has vouched for yet
   IPv6 including IPv4-mapped forms, a multi-address host where only one address is private (must
   refuse), and unresolvable hosts (must refuse).
 
+- **Completion notes:** Done, 2026-08-31. `OutboundAddressGuard` reuses `IngestHostGuard`'s parsing
+  helpers and PHP's own `FILTER_FLAG_NO_PRIV_RANGE|NO_RES_RANGE`, adding only the four CIDRs those
+  flags miss — carrier-grade NAT (which is where Alibaba's metadata endpoint lives), IETF protocol
+  assignments, benchmarking and multicast. IPv4-mapped IPv6 is unwrapped and judged by the IPv4
+  rules, since the mapping is otherwise a trivial bypass. 23 tests including the rebinding proof:
+  a resolver that answers public then loopback cannot reach loopback, because the caller connects to
+  the returned address rather than resolving again.
+
 ## T9 — `SendDestinationValidationChallenge`
 
 - **Description:** Dispatchable action (`AsJob`) that builds the fixed challenge body, applies T8's
@@ -38,6 +46,15 @@ whole feature exists to make safe: a request to a URL nobody has vouched for yet
   replaces the previous nonce, rendering the old link inert; no `deliveries` or `delivery_attempts`
   row is created; the payload is the fixed body and carries no event data.
 
+- **Completion notes:** Done, 2026-08-31. Pins via `CURLOPT_RESOLVE` through the HTTP client's Guzzle
+  options and refuses redirects with the first-party `withoutRedirecting()`. The nonce is minted
+  before the send and persisted only after it succeeds, so a failed send never leaves a destination
+  pending against a link nobody received. Eight tests, including the AC17 credential-exfiltration
+  guard and proof that no `deliveries` or `delivery_attempts` row is created.
+  **Sequencing note for the task plan:** T9 could not be built before T12 as ordered, because a
+  signed URL cannot be minted for a route that does not exist. The two public routes and the
+  controller were therefore created here rather than in M4.
+
 ## T10 — Rate limits on validation sends
 
 - **Description:** Three named limiters via the `RateLimiter` facade, following the existing pattern
@@ -50,6 +67,14 @@ whole feature exists to make safe: a request to a URL nobody has vouched for yet
 - **Verify step:** two sends inside five minutes; the second is refused with a retry-after.
 - **Testing:** each of the three limits, and that a rate-limited automatic send on create still
   **saves the destination** — PM ruling 1: the destination saves even when the send is blocked.
+
+- **Completion notes:** Done, 2026-08-31. Used the `RateLimiter` facade directly rather than
+  registering a named limiter in a provider as the task suggested: named limiters exist to be
+  resolved by the `throttle` middleware, and this is not an HTTP boundary. Limits live in a new
+  `config/destination_validation.php` alongside the challenge lifetime and timeout.
+  **Worth knowing:** `RateLimiter::tooManyAttempts()` with a max of zero does NOT block a first
+  call — it only blocks once a timer key exists. A test written against a zero limit passes for the
+  wrong reason. The tests use a spent real limit instead.
 
 ## T11 — Automatic send on create and on URL change
 
@@ -64,3 +89,11 @@ whole feature exists to make safe: a request to a URL nobody has vouched for yet
 - **Testing:** create dispatches; a URL edit resets state, voids the old nonce and dispatches; an
   edit that does **not** touch the URL leaves a validated destination validated (AC13 — configuration
   is not gated); a rate-limited send still saves.
+
+- **Completion notes:** Done, 2026-08-31. Ids are collected inside the transaction and dispatched
+  after it commits, so a rolled-back create never challenges a destination that does not exist.
+  **A real defect was caught here by the test.** The URL-change reset was silently dropped, because
+  the new `validation_*` columns are not in the model's `#[Fillable]` list and `update()` therefore
+  ignored them. Fixed with `forceFill`, and the exclusion from `#[Fillable]` was kept deliberately
+  and documented on the model: nothing arriving from a request payload may mass-assign a destination
+  into the validated state (AC3 — exactly one route to Validated).
