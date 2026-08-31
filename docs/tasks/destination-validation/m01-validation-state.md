@@ -16,6 +16,11 @@ validated exactly as it is today.
 - **Testing:** none warranted on its own — it is vocabulary with no behaviour. T2 covers it through
   the cast.
 
+- **Completion notes:** Done, 2026-08-31. `DestinationValidationState` holds the three stored cases.
+  A second enum, `DestinationValidationStatus`, carries the four product-facing states for display —
+  a local naming decision, not a plan change: the plan called for a derived four-state read shape and
+  an enum is how this codebase expresses domain vocabulary. Covered through T2's cast tests.
+
 ## T2 — Migration, model columns and the derived Expired accessor
 
 - **Description:** Add `validation_state` (not null, defaults to `unvalidated`), `validated_at`,
@@ -35,6 +40,18 @@ validated exactly as it is today.
   `docs/standards/testing.md` do **not** test migration mechanics; test the behaviour on the model.
   The factory needs states for each case so later milestones can build fixtures.
 
+- **Completion notes:** Done, 2026-08-31. Added `validation_state` (enum, default `unvalidated`),
+  `validated_at`, `validation_challenge_sent_at`, `validation_challenge_expires_at` and
+  `validation_nonce`. Cast the state to `DestinationValidationState` and the three timestamps to
+  `datetime`. `Destination::validationStatus()` derives the four product-facing states and
+  `#[Scope] validated()` is the single gate definition M2's four points share. Factory gained
+  `validated()`, `pendingValidation()` and `expiredValidation()` states.
+  **One thing the task did not anticipate:** the column default only applies on insert, so
+  `validationStatus()` read null on a created-but-not-reloaded model and the display state depended
+  on whether the caller refreshed. Fixed with a matching `$attributes` default on the model, which
+  makes the accessor total. Verified by `DestinationValidationStateTest` (8 tests): all four derived
+  states, the enum cast, and the gate admitting only validated rows.
+
 ## T3 — Backfill existing destinations to validated
 
 - **Description:** In the same migration as T2, set every existing row to `validated` with
@@ -46,3 +63,11 @@ validated exactly as it is today.
   afterwards and that a newly created destination defaults to `unvalidated`.
 - **Testing:** covered by T2's model tests plus one test asserting a **new** destination is
   `unvalidated` by default — the backfill must not leak into the default.
+
+- **Completion notes:** Done, 2026-08-31, in the T2 migration. Every existing row is set to
+  `validated` with `validated_at`, per AC30. **Soft-deleted rows are included deliberately** — a
+  restored destination must return in the state it left, and excluding them would silently
+  unvalidate a destination whose only offence was being deleted before the migration ran. Recorded
+  in the migration docblock. Verified by
+  `test_a_new_destination_is_unvalidated_by_default`, which proves the backfill did not leak into
+  the column default.

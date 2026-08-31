@@ -2,11 +2,13 @@
 
 namespace Database\Factories;
 
+use App\Enums\DestinationValidationState;
 use App\Enums\HttpMethod;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Models\Scopes\TeamScope;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 /**
  * @extends Factory<Destination>
@@ -38,6 +40,44 @@ class DestinationFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'deleted_at' => now(),
+        ]);
+    }
+
+    /**
+     * A validated destination — the only state that receives traffic (#18 AC8).
+     */
+    public function validated(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'validation_state' => DestinationValidationState::Validated,
+            'validated_at' => now(),
+        ]);
+    }
+
+    /**
+     * A challenge sent and still open.
+     */
+    public function pendingValidation(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'validation_state' => DestinationValidationState::Pending,
+            'validation_challenge_sent_at' => now(),
+            'validation_challenge_expires_at' => now()->addDays(7),
+            'validation_nonce' => Str::random(32),
+        ]);
+    }
+
+    /**
+     * A challenge that was sent and whose window has closed. Stored as
+     * `Pending` with a past expiry — `expired` is derived, never written.
+     */
+    public function expiredValidation(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'validation_state' => DestinationValidationState::Pending,
+            'validation_challenge_sent_at' => now()->subDays(8),
+            'validation_challenge_expires_at' => now()->subDay(),
+            'validation_nonce' => Str::random(32),
         ]);
     }
 }
