@@ -76,6 +76,20 @@ never carried by colour alone.
 - **Verify step:** edit the URL of a validated destination; the warning appears before submission.
 - **Testing:** component test — the warning shows on a URL edit of a validated destination and does
   not show for a new destination or a non-URL edit.
+- **Completion notes:** Done, 2026-08-31. Implemented design-18 Screen 1 in full in
+  `DestinationRows.vue`: the fieldset-level approval help line, the read-only per-row status
+  (badge + caption reused from T15's data const; existing rows only — a row with no `id` shows
+  nothing) and the URL-change warning. The warning compares against a `Map` of URLs snapshotted at
+  component setup keyed by destination id — the mount-seeded persisted value, never the last
+  keystroke — so it appears the instant the field differs from what the server holds and clears on
+  reverting, surviving add/remove and failed-submit re-renders. Wording keys off the row's
+  persisted state; per design-18 Screen 1's prose (which its own table contradicts), only the
+  Validated case gets the bordered `Alert` (`Info` icon) and Pending/Unvalidated/Expired get the
+  muted sentence — the prose carries the reasoning, so it won. The URL input's `aria-describedby`
+  gains the warning's id while it shows. `ProxyForm.vue` passes `security.destinations` through
+  (optional — Create renders no status, and new rows warn about nothing). Data path covered by
+  `ProxySecurityResourceTest::test_the_edit_page_carries_each_destinations_validation_state`;
+  warning show/hide behaviour verified by inspection — no JS test framework exists.
 
 ## T18 — The not-all-validated indicator
 

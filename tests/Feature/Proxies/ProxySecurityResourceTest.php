@@ -218,6 +218,28 @@ class ProxySecurityResourceTest extends TestCase
     }
 
     /**
+     * T17 (AC5, design-18 Screen 1) — the edit form reads the same per-id
+     * `validation` object the Show page does, so its rows can show their
+     * persisted state and key the URL-change warning off it.
+     */
+    public function test_the_edit_page_carries_each_destinations_validation_state(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $validated = Destination::factory()->for($proxy)->validated()->createQuietly();
+        $pending = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+
+        $this->actingAs($user)
+            ->get(route('proxies.edit', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where("security.destinations.{$validated->id}.validation.status", 'validated')
+                ->where("security.destinations.{$pending->id}.validation.status", 'pending')
+            );
+    }
+
+    /**
      * T15 (AC24) — the challenge's nonce, the only secret half of the
      * validation link, is never present anywhere in the page: not as a value
      * and not even as a key name, because the resource never selects the
