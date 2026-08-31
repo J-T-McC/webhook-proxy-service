@@ -137,9 +137,31 @@ class SendDestinationValidationChallenge
      */
     public function availableIn(Destination $destination): ?int
     {
-        foreach ($this->limits($destination) as [$key, $max, $decay]) {
+        return $this->blockedBy($destination)['available_in'] ?? null;
+    }
+
+    /**
+     * Which limit currently blocks this destination, or null if none does —
+     * the tightest tripped limiter in check order, as a plain-language
+     * description (design-18 Screen 2's three fixed strings, AC21 "the member
+     * is told which one") plus the seconds until it clears.
+     *
+     * @return array{description: string, available_in: int}|null
+     */
+    public function blockedBy(Destination $destination): ?array
+    {
+        $descriptions = [
+            'the once-per-5-minutes limit for this destination',
+            "today's send limit for this destination",
+            "today's send limit for this team",
+        ];
+
+        foreach ($this->limits($destination) as $index => [$key, $max, $decay]) {
             if (RateLimiter::tooManyAttempts($key, $max)) {
-                return RateLimiter::availableIn($key);
+                return [
+                    'description' => $descriptions[$index],
+                    'available_in' => RateLimiter::availableIn($key),
+                ];
             }
         }
 

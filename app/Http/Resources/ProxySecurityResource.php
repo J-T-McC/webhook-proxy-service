@@ -2,10 +2,12 @@
 
 namespace App\Http\Resources;
 
+use App\Actions\SendDestinationValidationChallenge;
 use App\Enums\SecretPurpose;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\SecretStore;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Attributes\PreserveKeys;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -79,7 +81,7 @@ class ProxySecurityResource extends JsonResource
                 // feeds must never reach any member surface (#18 AC24), and not
                 // loading the column makes leaking it impossible rather than
                 // merely avoided.
-                ->get(['id', 'credential_set_at', 'validation_state', 'validated_at', 'validation_challenge_sent_at', 'validation_challenge_expires_at'])
+                ->get(['id', 'team_id', 'credential_set_at', 'validation_state', 'validated_at', 'validation_challenge_sent_at', 'validation_challenge_expires_at'])
                 ->mapWithKeys(fn (Destination $destination): array => [
                     $destination->id => [
                         // Presence only, derived from the timestamp rather
@@ -98,10 +100,38 @@ class ProxySecurityResource extends JsonResource
                             'approved_at' => $destination->validated_at,
                             'challenge_sent_at' => $destination->validation_challenge_sent_at,
                             'challenge_expires_at' => $destination->validation_challenge_expires_at,
+                            // T16 (AC21, Flow D) — when a send limit blocks
+                            // this destination, which one in plain language
+                            // and when it clears, so the row can replace the
+                            // Validate button with the reason rather than a
+                            // dead control. Null when a send is allowed.
+                            'send_blocked' => $this->sendBlocked($destination),
                         ],
                     ],
                 ])
                 ->all(),
+        ];
+    }
+
+    /**
+     * The rate-limit fact for one destination's Validate control, or null when
+     * a send is allowed. `until` is an absolute time rather than a duration:
+     * the row renders "Try again at {time}", and a duration would go stale the
+     * moment it was serialized.
+     *
+     * @return array{description: string, until: CarbonImmutable}|null
+     */
+    private function sendBlocked(Destination $destination): ?array
+    {
+        $blocked = app(SendDestinationValidationChallenge::class)->blockedBy($destination);
+
+        if ($blocked === null) {
+            return null;
+        }
+
+        return [
+            'description' => $blocked['description'],
+            'until' => now()->addSeconds($blocked['available_in']),
         ];
     }
 }

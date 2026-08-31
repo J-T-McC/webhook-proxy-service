@@ -45,6 +45,26 @@ never carried by colour alone.
   inside five minutes; the retry-after is shown.
 - **Testing:** authorization (a member without update permission does not get the action), the
   happy path, and the rate-limited path.
+- **Completion notes:** Done, 2026-08-31. New authenticated route
+  `POST proxies/{proxy}/destinations/{destination}/validate`
+  (`proxies.destinations.validate.store`, scoped bindings) on
+  `DestinationValidationSendController` — nested under the proxy per the
+  `proxies.destinations.destroy` precedent rather than the plan's flat
+  `/destinations/{destination}/validate`, whose path the public signed routes already occupy.
+  Gated by `authorize('update', $proxy)`, the same ability `DestinationController::destroy` uses
+  (AC44, no new permission). The send is synchronous (`handle()`, not `dispatch()`) so the row
+  reads Pending when the redirect lands — Flow C step 3. Rate limits surface as a
+  `send_blocked {description, until}` fact on the T15 `validation` object, computed by the new
+  `SendDestinationValidationChallenge::blockedBy()` (three fixed plain-language descriptions in
+  check order; `availableIn()` now delegates to it) — so the row replaces the button with the
+  reason both on a fresh page view and after a blocked click, one mechanism for both (Flow D).
+  Busy state per destination id in `useProxyActions.validateDestination()` with a `Spinner` in the
+  button, the `SigningCard` precedent. A blocked click redirects back with no toast (the refreshed
+  props already carry the line); a failed send flashes a generic error toast — per-reason failure
+  copy needs the send outcome stored, the same T15 simplification. Tests:
+  `DestinationValidationSendControllerTest` — happy path to Pending, teammate's-proxy 403 with
+  nothing sent, second click inside five minutes sends nothing and the page reports the
+  5-minute limit with its clear time, unblocked destination reports `send_blocked: null`.
 
 ## T17 — The URL-change warning
 

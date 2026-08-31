@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
     TableBody,
@@ -21,6 +22,8 @@ import {
     lastWindowSubtitle,
 } from '@/data/analyticsLabels';
 import {
+    PENDING_RESEND_CAPTION,
+    destinationValidationBlockedCaption,
     destinationValidationCaption,
     destinationValidationStatusOption,
 } from '@/data/destinationValidationStates';
@@ -45,6 +48,18 @@ const props = defineProps<{
      * value and never a length.
      */
     security: ProxySecurity['destinations'];
+    /**
+     * Whether the acting member may update this proxy's destinations —
+     * `Show.vue`'s existing `canUpdate` computed (AC44). Gates the Validate
+     * button only; the badge and caption stay visible to every member who
+     * can view the page (AC31).
+     */
+    canUpdate: boolean;
+    /**
+     * The destination id whose validation send is in flight, or null (T16) —
+     * disables and spins that row's Validate button only.
+     */
+    validateBusyId: number | null;
     window: AnalyticsWindowValue;
     /**
      * The "View events" action target (Flow D step 3) — proxy · destination
@@ -58,6 +73,11 @@ const props = defineProps<{
     viewEventsHref: (
         destination: DestinationBreakdownRow,
     ) => RouteDefinition<'get'>;
+}>();
+
+const emit = defineEmits<{
+    /** Send (or resend) this destination's validation challenge (T16). */
+    validate: [destinationId: number];
 }>();
 
 /**
@@ -87,10 +107,31 @@ const validationCells = computed(() =>
                     entry.validation.status,
                 ),
                 caption: destinationValidationCaption(entry.validation),
+                status: entry.validation.status,
+                blockedCaption: entry.validation.send_blocked
+                    ? destinationValidationBlockedCaption(
+                          entry.validation.send_blocked,
+                      )
+                    : null,
             },
         ]),
     ),
 );
+
+/**
+ * Whether this row gets the Validate control (T16; AC14, AC3/AC6, AC44) —
+ * any non-Validated live destination, for a member who may update it. A
+ * Validated row has no button at all (nothing to send, nothing to undo), and
+ * a soft-deleted row has nothing to validate toward: it receives no traffic
+ * regardless.
+ */
+function showsValidateAction(destination: DestinationBreakdownRow): boolean {
+    return (
+        props.canUpdate &&
+        !destination.isDeleted &&
+        validationCells.value[destination.id]?.status !== 'validated'
+    );
+}
 </script>
 
 <template>
@@ -166,6 +207,53 @@ const validationCells = computed(() =>
                             >
                                 {{ validationCells[destination.id].caption }}
                             </p>
+                            <template v-if="showsValidateAction(destination)">
+                                <!-- T16 (Flow D) — a tripped rate limit
+                                replaces the button with the reason and when
+                                it clears, never a dead disabled control. -->
+                                <p
+                                    v-if="
+                                        validationCells[destination.id]
+                                            .blockedCaption
+                                    "
+                                    class="text-xs whitespace-normal text-muted-foreground"
+                                >
+                                    {{
+                                        validationCells[destination.id]
+                                            .blockedCaption
+                                    }}
+                                </p>
+                                <template v-else>
+                                    <Button
+                                        class="self-start"
+                                        variant="ghost"
+                                        size="sm"
+                                        :disabled="
+                                            validateBusyId === destination.id
+                                        "
+                                        @click="
+                                            emit('validate', destination.id)
+                                        "
+                                    >
+                                        <Spinner
+                                            v-if="
+                                                validateBusyId ===
+                                                destination.id
+                                            "
+                                        />
+                                        Validate
+                                    </Button>
+                                    <p
+                                        v-if="
+                                            validationCells[destination.id]
+                                                .status === 'pending'
+                                        "
+                                        class="text-xs whitespace-normal text-muted-foreground"
+                                    >
+                                        {{ PENDING_RESEND_CAPTION }}
+                                    </p>
+                                </template>
+                            </template>
                         </div>
                     </TableCell>
                     <TableCell>{{

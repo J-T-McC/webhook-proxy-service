@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestinationController;
 use App\Http\Controllers\DestinationValidationController;
+use App\Http\Controllers\DestinationValidationSendController;
 use App\Http\Controllers\EventQueueController;
 use App\Http\Controllers\ProxyController;
 use App\Http\Controllers\ProxyEventController;
@@ -34,6 +35,11 @@ Route::prefix('{current_team}')
         Route::delete('proxies/{proxy}/destinations/{destination}', [DestinationController::class, 'destroy'])
             ->scopeBindings()
             ->name('proxies.destinations.destroy');
+        // The member-facing Validate action (#18 AC14) — not the public
+        // approval route below, which is signature-gated and team-less.
+        Route::post('proxies/{proxy}/destinations/{destination}/validate', [DestinationValidationSendController::class, 'store'])
+            ->scopeBindings()
+            ->name('proxies.destinations.validate.store');
         Route::get('proxies/{proxy}/events', [ProxyEventController::class, 'index'])
             ->scopeBindings()
             ->name('proxies.events.index');

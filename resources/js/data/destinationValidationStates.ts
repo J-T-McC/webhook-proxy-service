@@ -61,6 +61,16 @@ export interface DestinationValidation {
     approved_at: string | null;
     challenge_sent_at: string | null;
     challenge_expires_at: string | null;
+    /**
+     * The rate limit currently blocking a send, or null when a send is
+     * allowed (T16; AC21, design-18 Flow D). When set, the row replaces the
+     * Validate button with {@link destinationValidationBlockedCaption} —
+     * never a disabled button with no explanation.
+     */
+    send_blocked: {
+        description: string;
+        until: string;
+    } | null;
 }
 
 /**
@@ -116,3 +126,23 @@ export function destinationValidationCaption(
 function sentPhrase(prefix: string, sentAt: string | null): string {
     return sentAt ? `${prefix} ${formatTimestamp(sentAt)}` : prefix;
 }
+
+/**
+ * The rate-limited line that replaces the Validate button (design-18 Screen
+ * 2, Flow D) — names which limit was reached and the exact time it clears,
+ * never a dead control and never a silent no-op.
+ */
+export function destinationValidationBlockedCaption(blocked: {
+    description: string;
+    until: string;
+}): string {
+    return `Validate — you've reached ${blocked.description}. Try again at ${formatTimestamp(blocked.until)}.`;
+}
+
+/**
+ * Pending's standing consequence caption (design-18 Screen 2) — rendered
+ * under the Validate button while a live link is outstanding, so the click
+ * never needs a confirmation dialog (Flow C step 2).
+ */
+export const PENDING_RESEND_CAPTION =
+    'Sending again cancels this link — only the newest one ever works.';

@@ -153,10 +153,12 @@ const {
     deleteBusy,
     signingOverlapBusy,
     signingOverlapError,
+    validateBusyId,
     pauseProxy,
     resumeProxy,
     deleteProxy,
     endSigningOverlap,
+    validateDestination,
 } = useProxyActions(teamSlug, props.proxy.id);
 </script>
 
@@ -285,8 +287,11 @@ const {
         <DestinationsCard
             :destinations="props.destinations"
             :security="props.security.destinations"
+            :can-update="canUpdate"
+            :validate-busy-id="validateBusyId"
             :window="props.statistics.window"
             :view-events-href="viewEventsHref"
+            @validate="validateDestination"
         />
 
         <SigningCard
