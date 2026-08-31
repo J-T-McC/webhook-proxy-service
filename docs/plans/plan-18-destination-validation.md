@@ -1,8 +1,8 @@
 # Technical Plan: Destination validation (#18)
 
-- **Status:** **Self-certified by the Principal Engineer, 2026-08-31**, except the decisions carried
-  to the Project Owner as **ADR-027**, which are marked in place below. Outstanding questions: one,
-  Q-18-02, affecting the confirmation page only.
+- **Status:** **Self-certified by the Principal Engineer, 2026-08-31**, except ADR-027's two open
+  decisions — the state columns and the pinned challenge send. Outstanding questions: none. Q-18-02
+  was closed by Owner ruling on 2026-08-31 and PRD-18 AC23 amended to match.
 - **Author:** Principal Engineer
 - **PRD:** `docs/product/prd-18-destination-validation.md` (Approved, Project Owner, 2026-08-31)
 - **Design:** `docs/design/design-18-destination-validation.md` — reference, not a gate. The Owner
@@ -146,9 +146,10 @@ destinations at private addresses keeps working until their URL changes.
 - **Grandfathering is irreversible in practice.** Rolling the migration back drops the columns; it
   does not restore a pre-migration notion of which destinations were trusted. Owner-approved via
   AC30 and carried as ADR-027 decision 2.
-- **AC23 is not deliverable as written.** The token travels in a URL and URLs are logged outside this
-  application's control. Q-18-02 is open to the Product Manager; the plan is written against the
-  signed-URL shape and only the confirmation page changes if the answer is the fragment shape.
+- **AC23 was narrowed to this application's own layers** by Owner ruling on 2026-08-31, closing
+  Q-18-02. The signed-URL shape is settled and the confirmation page stays plain. Residual risk is
+  bounded by HTTPS in transit, single use, and the 7-day expiry — not by the URL being signed, which
+  prevents tampering rather than replay.
 - **The event-status consequence** described under Architecture — an event with all destinations
   skipped reads as `Dispatched`. Behavioural, visible, recorded here rather than discovered in review.
 - **`CURLOPT_RESOLVE` binds the plan to the cURL transport.** If the HTTP client is ever configured

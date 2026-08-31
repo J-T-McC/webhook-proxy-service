@@ -11,9 +11,11 @@
 
 ## Question
 
-Three decisions in #18 are hard to reverse and need the Owner rather than Principal Engineer
-self-certification: how validation state is stored on a table holding live data, what happens to the
-destinations that already exist, and how an outbound request to an as-yet-untrusted URL is made safe.
+**Two** decisions in #18 are hard to reverse and need the Owner rather than Principal Engineer
+self-certification: how validation state is stored on a table holding live data, and how an outbound
+request to an as-yet-untrusted URL is made safe. A third matter — what happens to the destinations
+that already exist — is recorded below as decision 2 but was **already approved with PRD-18 AC30**
+and is not open.
 
 ## Decision
 
@@ -25,9 +27,10 @@ written by a scheduled sweeper. Single-use links come from the nonce, which ever
 replaces, making the previous link inert without a revocation list. The link itself is a Laravel
 temporary signed URL: no token table, no generated secret, no hand-rolled expiry check.
 
-**2. Every destination that exists when the migration runs is set to `validated`.** PRD-18 AC30, the
-grandfathering the Product Manager settled and the Owner approved in the PRD. The exemption decays:
-any grandfathered destination whose URL is later edited returns to `unvalidated` under AC5.
+**2. Every destination that exists when the migration runs is set to `validated`.** **Already
+approved — this is PRD-18 AC30, which the Owner approved with the PRD on 2026-08-31, and it is
+recorded here for completeness rather than re-raised as a decision.** The exemption decays: any
+grandfathered destination whose URL is later edited returns to `unvalidated` under AC5.
 
 **3. The challenge send resolves, validates and pins.** The host is resolved once; the send is refused
 if any returned address is loopback, private, link-local, unique-local or cloud-metadata; and the
@@ -85,6 +88,7 @@ is custom because the framework has no equivalent.
 - **Two new public unauthenticated routes**, both signature-gated, reachable by somebody with no
   account. This is a new exposure class for the product and the reason #18 ran in the pipeline lane.
 - **No new dependencies and no change to `docs/stack/stack.md`.**
-- **One criterion is contradicted.** PRD-18 AC23 cannot be delivered as written for a URL-borne
-  token; `docs/questions/prd-18-q-18-02-ac23-log-guarantee.md` is open to the Product Manager. The
-  security property that makes the feature meaningful, AC24, is unaffected either way.
+- **AC23 was narrowed and is settled.** It now covers the layers this application controls. The Owner
+  ruled on 2026-08-31, closing `docs/questions/prd-18-q-18-02-ac23-log-guarantee.md`; PRD-18 AC23 is
+  amended in place with the reasoning. The signed-URL shape stands and the confirmation page needs no
+  JavaScript. AC24, the property that makes the feature meaningful, was never in question.

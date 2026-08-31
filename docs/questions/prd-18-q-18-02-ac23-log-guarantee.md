@@ -6,7 +6,21 @@
 - **Required By:** Before the confirmation page is built. **Non-blocking for the rest of `plan-18`** —
   the answer changes one screen and nothing else.
 - **Priority:** Medium. The security property that matters, AC24, is unaffected either way.
-- **Status:** **OPEN.**
+- **Status:** **CLOSED — Project Owner ruled option 1, 2026-08-31.** AC23 is narrowed to the layers
+  this application controls and PRD-18 AC23 is amended in place to say so. The signed-URL shape
+  stands; the confirmation page stays plain and needs no JavaScript to approve.
+
+  **Owner's reasoning, recorded because it is the part worth reusing:** the risk is bounded by the
+  threat model rather than by the token being hashed. The link is HTTPS in transit; the recipient's
+  infrastructure logging it is the feature working, since the recipient is the party being asked to
+  approve; and anyone able to read this application's access logs already has production access and
+  could set the column directly. Single-use and the 7-day expiry bound what a recovered link is worth.
+
+  **One correction recorded so the reasoning is not reused wrongly:** a Laravel signed URL is not
+  encrypted, and its `signature` parameter is an HMAC proving the URL was not *tampered with*. It
+  gives no protection against replay — whoever holds the complete URL resends it verbatim and never
+  needs to reverse anything. A bearer token in a URL is safe here because of the threat model above,
+  not because it is signed.
 
 ## The finding
 

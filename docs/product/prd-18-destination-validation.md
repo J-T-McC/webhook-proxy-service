@@ -268,7 +268,17 @@ and not only to its creator (AC31); and that there is no manual override, anywhe
 22. **The link is unguessable, single-use, and expires 7 days after its challenge was dispatched.**
     *(7 days is a Product Manager ruling; reasoning in § Product Manager rulings.)*
 23. **The link and its token never appear in any log, delivery attempt record, analytics record,
-    error report or support output.**
+    error report or support output that this application controls.** *(Amended by Project Owner
+    ruling, 2026-08-31, closing Q-18-02. As originally written this criterion said "any log" without
+    qualification, which is not deliverable for a token carried in a URL: the web server access log,
+    anything in front of the application, and the recipient's own infrastructure all record URLs, and
+    the last of those is not a layer this project operates. The Owner ruled the residual risk
+    acceptable — the link is HTTPS in transit, single-use, and 7-day-limited; the recipient holding it
+    is the feature working rather than a leak; and anyone reading this application's access logs
+    already has production access. The alternative, carrying the secret in the URL fragment so it is
+    never transmitted to any server, was rejected because it forces a hard JavaScript dependency on
+    the one page reached cold by somebody with no account, and buys nothing against a threat that
+    matters. **AC24 is the property that makes this feature prove anything and is untouched.**)*
 24. **The link is never displayed to any member anywhere inside the product.** The only copy in
     existence is the one that was sent to the destination. **This is the load-bearing security
     property of the whole feature**: a member who could read the link could approve their own
