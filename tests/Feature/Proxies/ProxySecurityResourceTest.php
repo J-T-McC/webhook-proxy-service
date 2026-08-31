@@ -182,4 +182,66 @@ class ProxySecurityResourceTest extends TestCase
 
         $this->assertStringNotContainsString('do-not-leak-this-signing-secret', $editResponse->getContent());
     }
+
+    // --- T15: the `validation` sub-object -----------------------------------
+
+    /**
+     * T15 (AC31, AC32, AC34) — every destination's display state reaches the
+     * Show page, including Expired, which is derived server-side from a
+     * pending challenge whose window closed rather than stored.
+     */
+    public function test_each_destination_reports_its_validation_state_including_derived_expired(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $unvalidated = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+        $pending = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+        $expired = Destination::factory()->for($proxy)->expiredValidation()->createQuietly();
+        $validated = Destination::factory()->for($proxy)->validated()->createQuietly();
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('proxies/Show')
+                ->where("security.destinations.{$unvalidated->id}.validation.status", 'unvalidated')
+                ->where("security.destinations.{$unvalidated->id}.validation.challenge_sent_at", null)
+                ->where("security.destinations.{$pending->id}.validation.status", 'pending')
+                ->has("security.destinations.{$pending->id}.validation.challenge_sent_at")
+                ->has("security.destinations.{$pending->id}.validation.challenge_expires_at")
+                ->where("security.destinations.{$expired->id}.validation.status", 'expired')
+                ->has("security.destinations.{$expired->id}.validation.challenge_expires_at")
+                ->where("security.destinations.{$validated->id}.validation.status", 'validated')
+                ->has("security.destinations.{$validated->id}.validation.approved_at")
+            );
+    }
+
+    /**
+     * T15 (AC24) — the challenge's nonce, the only secret half of the
+     * validation link, is never present anywhere in the page: not as a value
+     * and not even as a key name, because the resource never selects the
+     * column.
+     */
+    public function test_the_validation_nonce_never_reaches_the_page(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $pending = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+
+        $response = $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk();
+
+        $this->assertStringNotContainsString($pending->validation_nonce, $response->getContent());
+        $this->assertStringNotContainsString('validation_nonce', $response->getContent());
+
+        $editResponse = $this->actingAs($user)
+            ->get(route('proxies.edit', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk();
+
+        $this->assertStringNotContainsString($pending->validation_nonce, $editResponse->getContent());
+        $this->assertStringNotContainsString('validation_nonce', $editResponse->getContent());
+    }
 }

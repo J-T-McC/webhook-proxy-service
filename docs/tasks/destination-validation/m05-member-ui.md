@@ -15,6 +15,21 @@ never carried by colour alone.
 - **Verify step:** a proxy with one destination in each state renders four distinct treatments.
 - **Testing:** a controller/resource test asserting the state reaches the page and the token does
   not; a component test for the four treatments.
+- **Completion notes:** Done, 2026-08-31. The state rides the existing `security.destinations`
+  map (`ProxySecurityResource`) as a per-id `validation` object — status (with Expired derived
+  server-side by `Destination::validationStatus()`), `approved_at`, `challenge_sent_at`,
+  `challenge_expires_at`. `validation_nonce` is never selected from the database, so the link's
+  secret half cannot reach any member response (AC24) — asserted by
+  `ProxySecurityResourceTest::test_the_validation_nonce_never_reaches_the_page` against both
+  `show()` and `edit()`. The four treatments (badge variant + icon + label + caption) live in
+  `resources/js/data/destinationValidationStates.ts` following the `proxyDeliveryStates` data-const
+  pattern, so Screen 1 (T17) reuses them verbatim; `DestinationsCard.vue` renders them in a new
+  Validation column between Destination and Delivered %. Deliberate simplifications: the Pending
+  caption omits design-18's `{http_status}` and the Unvalidated caption has no "last send failed —
+  {reason}" variant, because no send-outcome columns exist on `destinations` (AC35 is traced by no
+  task in this plan); upgrade path is storing the last send outcome and threading it through the
+  same `validation` object. Component treatments verified by inspection — no JS test framework
+  exists (review.md standing note).
 
 ## T16 — The Validate action
 

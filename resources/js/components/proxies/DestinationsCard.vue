@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,6 +20,10 @@ import {
     formatLatencyMs,
     lastWindowSubtitle,
 } from '@/data/analyticsLabels';
+import {
+    destinationValidationCaption,
+    destinationValidationStatusOption,
+} from '@/data/destinationValidationStates';
 import type {
     AnalyticsWindowValue,
     DestinationBreakdownRow,
@@ -66,6 +71,26 @@ const props = defineProps<{
 function hasCredential(destination: DestinationBreakdownRow): boolean {
     return props.security[destination.id]?.has_credential ?? false;
 }
+
+/**
+ * The Validation cell per destination id (T15; design-18 Screen 2), built
+ * from the same `security.destinations` map as the credential badge. An id
+ * the map doesn't carry renders an empty cell rather than inventing a state
+ * — same "keeps the lookup total" reasoning as `hasCredential`.
+ */
+const validationCells = computed(() =>
+    Object.fromEntries(
+        Object.entries(props.security).map(([id, entry]) => [
+            id,
+            {
+                option: destinationValidationStatusOption(
+                    entry.validation.status,
+                ),
+                caption: destinationValidationCaption(entry.validation),
+            },
+        ]),
+    ),
+);
 </script>
 
 <template>
@@ -80,6 +105,7 @@ function hasCredential(destination: DestinationBreakdownRow): boolean {
             <TableHeader>
                 <TableRow>
                     <TableHead>Destination</TableHead>
+                    <TableHead>Validation</TableHead>
                     <TableHead>{{ DELIVERY_SUCCESS_COLUMN_LABEL }}</TableHead>
                     <TableHead>{{ ATTEMPT_SUCCESS_COLUMN_LABEL }}</TableHead>
                     <TableHead>{{ LATENCY_AVERAGE_COLUMN_LABEL }}</TableHead>
@@ -105,6 +131,41 @@ function hasCredential(destination: DestinationBreakdownRow): boolean {
                             >
                                 Credential
                             </Badge>
+                        </div>
+                    </TableCell>
+                    <TableCell>
+                        <!-- T15 (design-18 Screen 2) — validation reads
+                        before the delivery figures beside it, because it is
+                        the precondition for them meaning anything. State is
+                        icon + label + caption, never colour alone. -->
+                        <div
+                            v-if="validationCells[destination.id]"
+                            class="flex max-w-64 flex-col gap-1"
+                        >
+                            <div class="flex items-center gap-2">
+                                <Badge
+                                    :variant="
+                                        validationCells[destination.id].option
+                                            .variant
+                                    "
+                                >
+                                    <component
+                                        :is="
+                                            validationCells[destination.id]
+                                                .option.icon
+                                        "
+                                    />
+                                    {{
+                                        validationCells[destination.id].option
+                                            .label
+                                    }}
+                                </Badge>
+                            </div>
+                            <p
+                                class="text-xs whitespace-normal text-muted-foreground"
+                            >
+                                {{ validationCells[destination.id].caption }}
+                            </p>
                         </div>
                     </TableCell>
                     <TableCell>{{

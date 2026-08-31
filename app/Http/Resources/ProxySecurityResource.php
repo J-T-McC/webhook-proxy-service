@@ -75,7 +75,11 @@ class ProxySecurityResource extends JsonResource
             // reopen a shape plan-11 certified.
             'destinations' => $this->destinations()
                 ->withTrashed()
-                ->get(['id', 'credential_set_at'])
+                // `validation_nonce` is deliberately not selected: the link it
+                // feeds must never reach any member surface (#18 AC24), and not
+                // loading the column makes leaking it impossible rather than
+                // merely avoided.
+                ->get(['id', 'credential_set_at', 'validation_state', 'validated_at', 'validation_challenge_sent_at', 'validation_challenge_expires_at'])
                 ->mapWithKeys(fn (Destination $destination): array => [
                     $destination->id => [
                         // Presence only, derived from the timestamp rather
@@ -85,6 +89,16 @@ class ProxySecurityResource extends JsonResource
                         // establish.
                         'has_credential' => $destination->credential_set_at !== null,
                         'credential_changed_at' => $destination->credential_set_at,
+                        // T15 (AC31, AC32) — the display status, with Expired
+                        // derived server-side by `validationStatus()` so every
+                        // surface tells Expired from Unvalidated the same way
+                        // (AC34) and no client re-implements the expiry rule.
+                        'validation' => [
+                            'status' => $destination->validationStatus()->value,
+                            'approved_at' => $destination->validated_at,
+                            'challenge_sent_at' => $destination->validation_challenge_sent_at,
+                            'challenge_expires_at' => $destination->validation_challenge_expires_at,
+                        ],
                     ],
                 ])
                 ->all(),

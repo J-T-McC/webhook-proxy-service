@@ -1,3 +1,4 @@
+import type { DestinationValidation } from '@/data/destinationValidationStates';
 import type { ProxyDeliveryStatus } from '@/data/proxyDeliveryStates';
 import type { ProxyPayloadState } from '@/data/proxyPayloadStates';
 import type { ProcessingMode } from '@/data/proxyProcessingModes';
@@ -38,6 +39,12 @@ export interface ProxySecurity {
         {
             has_credential: boolean;
             credential_changed_at: string | null;
+            /**
+             * Validation display state (T15; AC31, AC32) — status plus
+             * timestamps only. The challenge link and its nonce never appear
+             * in any response (AC24); `expired` is derived server-side.
+             */
+            validation: DestinationValidation;
         }
     >;
 }
