@@ -15,13 +15,15 @@ class DestinationValidationStateTest extends TestCase
 {
     public function test_a_new_destination_is_unvalidated_by_default(): void
     {
-        $destination = Destination::factory()->createQuietly();
-
+        // Deliberately not the factory: the factory defaults to validated,
+        // because it models a destination that works for every other feature's
+        // tests. What must be unvalidated is a destination the application
+        // itself creates.
         $this->assertSame(
             DestinationValidationState::Unvalidated,
-            $destination->fresh()->validation_state,
+            (new Destination)->validation_state,
             'A destination must start unvalidated. The AC30 backfill grandfathers rows that '
-            .'existed at migration time and must not leak into the column default.',
+            .'existed at migration time and must not leak into the default for new ones.',
         );
     }
 
@@ -34,7 +36,7 @@ class DestinationValidationStateTest extends TestCase
 
     public function test_status_is_unvalidated_when_no_challenge_has_been_sent(): void
     {
-        $destination = Destination::factory()->createQuietly();
+        $destination = Destination::factory()->unvalidated()->createQuietly();
 
         $this->assertSame(DestinationValidationStatus::Unvalidated, $destination->validationStatus());
     }
@@ -73,7 +75,7 @@ class DestinationValidationStateTest extends TestCase
     public function test_the_gate_scope_admits_only_validated_destinations(): void
     {
         $validated = Destination::factory()->validated()->createQuietly();
-        Destination::factory()->createQuietly();
+        Destination::factory()->unvalidated()->createQuietly();
         Destination::factory()->pendingValidation()->createQuietly();
         Destination::factory()->expiredValidation()->createQuietly();
 

@@ -10,6 +10,7 @@ use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
 use App\Http\Requests\ReplayEventRequest;
 use App\Models\Delivery;
+use App\Models\Destination;
 use App\Models\FifoDispatch;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
@@ -49,6 +50,29 @@ class ProxyEventReplayController extends Controller
 
         $validatedDestinations = $request->validated('destinations');
         $destinationIds = array_map('intval', is_array($validatedDestinations) ? $validatedDestinations : []);
+
+        // Item #18 AC9: replay pre-creates its own `deliveries` rows below and
+        // so bypasses `ProcessIngestedWebhook`'s queue-check entirely. The
+        // refusal is given here, with the reason, in the same manner #15 makes
+        // replay unavailable while paused — not queued and not silently
+        // dropped.
+        //
+        // The whole selection is refused rather than partially dispatched: a
+        // replay that quietly delivered to some of the chosen destinations
+        // would leave the member believing all of them received the event.
+        $unvalidated = Destination::query()
+            ->whereIn('id', $destinationIds)
+            ->whereNot(fn ($query) => $query->validated())
+            ->pluck('url');
+
+        if ($unvalidated->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'destinations' => __(
+                    'These destinations have not been validated and cannot receive events: :urls',
+                    ['urls' => $unvalidated->implode(', ')],
+                ),
+            ]);
+        }
         $dispatchUuid = (string) Str::uuid();
         $isFifo = $proxy->processing_mode === ProcessingMode::Fifo;
 

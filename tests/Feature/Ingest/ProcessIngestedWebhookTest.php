@@ -5,6 +5,7 @@ namespace Tests\Feature\Ingest;
 use App\Actions\ProcessIngestedWebhook;
 use App\Enums\DeliveryStatus;
 use App\Enums\DispatchKind;
+use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
 use App\Enums\WebhookEventStatus;
 use App\Events\DeliveryExhausted;
@@ -370,5 +371,89 @@ class ProcessIngestedWebhookTest extends TestCase
         ProcessIngestedWebhook::run($event->ingest_id, $replayDispatchUuid);
 
         $this->assertSame(WebhookEventStatus::Pending, $event->fresh()->status);
+    }
+
+    public function test_an_unvalidated_destination_is_not_given_an_original_delivery_row(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $proxy = Proxy::factory()->createQuietly();
+        $validated = Destination::factory()->for($proxy)->createQuietly();
+        $unvalidated = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        $event = WebhookEvent::factory()->for($proxy)->createQuietly(['ingest_id' => 'evt-gate']);
+
+        ProcessIngestedWebhook::run('evt-gate');
+
+        $this->assertDatabaseHas('deliveries', [
+            'dispatch_uuid' => 'evt-gate',
+            'destination_id' => $validated->id,
+        ]);
+
+        $this->assertDatabaseMissing('deliveries', [
+            'dispatch_uuid' => 'evt-gate',
+            'destination_id' => $unvalidated->id,
+        ]);
+
+        $this->assertSame(1, Delivery::query()->where('dispatch_uuid', 'evt-gate')->count());
+        $this->assertSame(0, DeliveryAttempt::query()->where('destination_id', $unvalidated->id)->count());
+        $this->assertNotNull($event->fresh(), 'Ingest never depends on validation state (AC12).');
+    }
+
+    public function test_a_pending_or_expired_destination_is_treated_as_unvalidated(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+        Destination::factory()->for($proxy)->expiredValidation()->createQuietly();
+
+        WebhookEvent::factory()->for($proxy)->createQuietly(['ingest_id' => 'evt-none']);
+
+        ProcessIngestedWebhook::run('evt-none');
+
+        $this->assertSame(0, Delivery::query()->where('dispatch_uuid', 'evt-none')->count());
+    }
+
+    public function test_an_event_whose_destinations_are_all_unvalidated_is_still_captured_and_creates_no_attempts(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $proxy = Proxy::factory()->createQuietly();
+        Destination::factory()->for($proxy)->unvalidated()->count(2)->createQuietly();
+
+        $event = WebhookEvent::factory()->for($proxy)->createQuietly(['ingest_id' => 'evt-empty']);
+
+        ProcessIngestedWebhook::run('evt-empty');
+
+        $this->assertSame(0, Delivery::query()->where('dispatch_uuid', 'evt-empty')->count());
+        $this->assertSame(0, DeliveryAttempt::query()->count());
+        $this->assertNotNull($event->fresh());
+        Http::assertNothingSent();
+    }
+
+    public function test_a_fifo_proxy_settles_rather_than_holding_when_every_destination_is_unvalidated(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $proxy = Proxy::factory()->createQuietly(['processing_mode' => ProcessingMode::Fifo]);
+        Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        WebhookEvent::factory()->for($proxy)->createQuietly(['ingest_id' => 'evt-fifo-skip']);
+
+        ProcessIngestedWebhook::run('evt-fifo-skip');
+
+        // AC10: skipped, not held. The FIFO line must not park behind an event
+        // that reached nobody — the zero-row settle that would be data loss for
+        // pause is the required behaviour here.
+        $this->assertSame(
+            0,
+            FifoDispatch::query()->where('status', FifoDispatchStatus::AwaitingRetry)->count(),
+            'A skipped destination must not leave the FIFO line awaiting a retry that will never come.',
+        );
     }
 }

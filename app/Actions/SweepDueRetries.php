@@ -72,7 +72,22 @@ class SweepDueRetries
      */
     private function overdueQuery(): Builder
     {
-        return Delivery::query()->where('status', DeliveryStatus::Retrying);
+        return Delivery::query()
+            ->where('status', DeliveryStatus::Retrying)
+            // Item #18 (destination validation), AC9. This sweep re-dispatches
+            // from rows that already exist, so it never passes through
+            // `ProcessIngestedWebhook`'s queue-check and needs its own
+            // exclusion. A destination can lose validated state after its row
+            // was created — a URL edit (AC5) or a challenge expiring while the
+            // delivery waited on a retry backoff.
+            //
+            // Placed here rather than beside the `paused_at` filter in
+            // `handle()` deliberately: `forProxy()` shares this query and would
+            // otherwise re-dispatch retries to an unvalidated destination the
+            // moment a proxy resumed.
+            ->whereIn('destination_id', function ($query): void {
+                $query->select('id')->from('destinations')->where('validation_state', 'validated');
+            });
     }
 
     /**

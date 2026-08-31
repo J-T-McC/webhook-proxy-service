@@ -193,4 +193,40 @@ class SweepDueRetriesTest extends TestCase
         $this->assertNotNull($event, 'Expected the retry sweep to be scheduled.');
         $this->assertSame('* * * * *', $event->expression, 'The sweep must run everyMinute().');
     }
+
+    public function test_an_overdue_retry_for_an_unvalidated_destination_is_not_dispatched(): void
+    {
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        $destination = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        Delivery::factory()->for($proxy)->for($destination)->createQuietly([
+            'status' => DeliveryStatus::Retrying,
+            'next_attempt_at' => now()->subHour(),
+        ]);
+
+        SweepDueRetries::run();
+
+        Queue::assertNothingPushed();
+    }
+
+    public function test_resuming_a_proxy_does_not_dispatch_retries_to_an_unvalidated_destination(): void
+    {
+        Queue::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        $destination = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        Delivery::factory()->for($proxy)->for($destination)->createQuietly([
+            'status' => DeliveryStatus::Retrying,
+            'next_attempt_at' => now()->subHour(),
+        ]);
+
+        // forProxy() shares overdueQuery(), so the gate must hold on the resume
+        // path too — otherwise a resume re-opens the hole the sweep closes.
+        SweepDueRetries::make()->forProxy($proxy->id);
+
+        Queue::assertNothingPushed();
+    }
 }
