@@ -2,7 +2,11 @@
 
 Status: Approved by Project Owner on 2026-07-30
 Owner-facing author: Product Manager
-Last updated: 2026-08-27
+Last updated: 2026-08-31
+Revised 2026-08-31: added item #18 (Destination validation) per Project Owner
+ruling. Numbered #18, not #16, because #16 and #17 are already consumed. Approval
+status retained; this is a post-approval addition, and it narrows #1's fan-out
+contract from "every configured destination" to every validated one.
 Revised 2026-07-30: item #1 broadened to include fan-out per Project Owner
 decision — old item #2 (fan-out) merged into #1; backlog renumbered from 15 to
 14 items. Approval status retained; this is a post-approval scope change.
@@ -307,6 +311,31 @@ and awaits the Owner's approval separately.
     order however long it was paused. Paused events keep aging under #5's retention
     window like any other, which is a consequence the member is told about before
     they pause, not one they discover on resume.
+
+18. **Destination validation** — A destination must prove it consents to receive
+    traffic before the proxy will deliver to it. Adding a destination sends it a
+    validation challenge carrying a single-use link; somebody at the receiving end
+    opens that link and approves it, and until they do the destination is skipped
+    on every dispatch path. Changing a destination's URL returns it to the
+    unvalidated state rather than being blocked outright. **Ingest never depends on
+    validation state**: webhooks are still accepted, answered under #3 and captured
+    no matter what state a destination is in. *(Added 2026-08-31 per Project Owner
+    ruling. Numbered #18 because #16 and #17 are consumed — PRD-16 was withdrawn and
+    design-17 shipped. Runs in the pipeline lane: it changes the data model and the
+    security posture. Depends on #1 for the fan-out it gates, #2 for permissions, #4
+    for the queued dispatch, #6 for the retry and replay paths it also gates, #10 for
+    the stored destination credential it deliberately does not send, and #15 for the
+    enforcement points it mirrors. See
+    `docs/product/prd-18-destination-validation.md`.)*
+    **Build-ahead note:** Validation state is a **delivery-side** gate and must hold
+    at both the queue-check and the dispatch-gate — the same two points pause
+    enforcement reaches — because the fan-out path is reached without the interface.
+    Work for a non-validated destination is **skipped, not held**: it resolves
+    without dispatching and is never delivered retroactively, so a destination that
+    is never validated cannot keep a payload alive past #5's retention window.
+    Replay is the recovery path. The validation send is itself an outbound request
+    to an unvalidated, arbitrary URL — the exact abuse vector this item closes — so
+    it carries its own limits and never carries the destination's stored credential.
 
 ## Notes on Scope Boundaries
 

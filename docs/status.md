@@ -12,7 +12,7 @@ reverse: `Requirements → UX Design (UI only) → Technical Design → Task Pla
 Implementation → Review → Done`.
 
 Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-30;
-**15-item backlog** since item #15 was added by the Owner on 2026-08-27; #9 cancelled
+**16-item backlog** since item #18 was added by the Owner on 2026-08-31; #9 cancelled
 and #8 and #12 put on hold indefinitely by Owner ruling, 2026-08-29). Nothing here
 invents or reorders roadmap items.
 
@@ -77,6 +77,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 13 | Notifications (in-app & email) | Backlog | — (brief on start) | Not started. Its #12 dependency is now on hold indefinitely, but **failure alerts do not need #12** — they need #6, which is Done. **Inherits no threshold, a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (brief on start) | Not started; depends on #1 (more useful after #8) | — |
 | 15 | Pause and resume dispatch | Done | — | None | PR #41 (`c6dc42f`). `docs/briefs/pause-and-resume-dispatch.md` is the only artifact — built in the brief lane. PRD-15 and Q-15-01 are retained as background, superseded, unmaintained |
+| 18 | Destination validation | UX Design | Designer | Q-18-01 open to the Principal Engineer — `docs/questions/prd-18-q-18-01-validation-enforcement-and-send-safety.md`. Not blocking the Designer; blocking Technical Design | `docs/product/prd-18-destination-validation.md` Approved (Project Owner, 2026-08-31; 45 ACs). Pipeline lane — data model and security posture. PRD carries `## UX Direction`, so a PM-approved `design-18` gates Technical Design. **Narrows #1's fan-out contract** to validated destinations — see the PRD's § Consequences for approved documents |
 
 ## Item #11 — live detail
 

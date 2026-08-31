@@ -1,8 +1,8 @@
 # PRD: Destination validation
 
-- **Status:** **Draft — awaiting Project Owner approval.** Not approved, and not approvable by the
-  Product Manager. Three things in this document need the Owner specifically rather than riding
-  along with an ordinary requirements sign-off:
+- **Status:** **Approved by the Project Owner, 2026-08-31.** Three things were put to the Owner
+  specifically rather than riding along with an ordinary requirements sign-off. All three were
+  approved as written:
   1. **§ Consequences for approved documents** — this PRD **narrows the fan-out contract** stated at
      roadmap **#1** ("an incoming webhook posted to the ingest URL is delivered … to every
      configured destination"). Under AC8 delivery goes to every **validated** destination. This is
@@ -15,7 +15,7 @@
      pipeline lane rather than as a brief.
 - **Author:** Product Manager
 - **Date:** 2026-08-31
-- **Approved by / date:** —
+- **Approved by / date:** Project Owner, 2026-08-31
 - **Backlog item:** Roadmap **#18**, added 2026-08-31 by the Project Owner. **#16 and #17 are
   consumed** — PRD-16 was withdrawn and design-17 shipped — so this item is **#18**.
 - **Depends on:** **#1 (Done)** — the fan-out delivery this gates, and the destination record it
