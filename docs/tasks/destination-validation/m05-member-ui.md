@@ -104,3 +104,13 @@ never carried by colour alone.
 - **Testing:** component test for both cases, including the all-unvalidated case where the event
   status still reads Dispatched — the consequence recorded in plan-18 § Architecture, which this
   indicator exists to explain.
+- **Completion notes:** Done, 2026-08-31. `unvalidatedCount` computed in `Show.vue` over the
+  **live** `proxy.destinations` relation (a soft-deleted destination is not part of the fan-out and
+  has nothing to validate), looked up against T15's `security.destinations` validation map —
+  Unvalidated, Pending and Expired all count, per Screen 3. Badge (`waiting` variant, `Clock`
+  icon, "{n} destination(s) not yet validated") sits in the existing header badge row beside
+  Paused, renders only when the count is positive, no positive counterpart and no page-level
+  banner. The all-unvalidated Dispatched consequence is already asserted server-side by
+  `ProcessIngestedWebhookTest::test_an_event_whose_destinations_are_all_unvalidated_is_still_captured_and_creates_no_attempts`
+  (M2); badge show/hide verified by inspection plus a green host `npm run build` — no JS test
+  framework exists.
