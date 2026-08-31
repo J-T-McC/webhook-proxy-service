@@ -38,7 +38,7 @@
 | # | Subject | Tasks | File | State |
 |---|---|---|---|---|
 | M1 | Validation state on `destinations` | T1–T3 | `m01-validation-state.md` | **Done, 2026-08-31** |
-| M2 | The four enforcement points | T4–T7 | `m02-enforcement.md` | Not started |
+| M2 | The four enforcement points | T4–T7 | `m02-enforcement.md` | **Done, 2026-08-31** |
 | M3 | The guarded challenge send | T8–T11 | `m03-challenge-send.md` | Not started |
 | M4 | The approval surface | T12–T14 | `m04-approval-surface.md` | Not started |
 | M5 | Member-facing UI | T15–T18 | `m05-member-ui.md` | Not started |

@@ -60,3 +60,40 @@ the gate goes live before anything can be unvalidated.
   response carries the reason.
 - **Testing:** in the replay controller's test group — refusal, the reason present, and that a mixed
   selection does not partially dispatch.
+
+- **Completion notes:** Done, 2026-08-31. The row-creation loop now reads
+  `$proxy->destinations()->validated()->get()`. Four tests added to the existing
+  `ProcessIngestedWebhookTest` group: a mixed proxy creates one row not two; pending and expired are
+  both treated as unvalidated; an all-unvalidated proxy still captures the event, creates no attempt
+  and sends nothing; and a FIFO proxy settles rather than holding.
+  **Blast radius worth recording:** 62 existing tests failed on the first run, because every test
+  that creates a destination expects it to receive traffic. Resolved by defaulting the **factory** to
+  validated while leaving the **column** default at unvalidated — the factory models a destination
+  that works, which is what other features' tests need, and #18's own tests use explicit states. The
+  M1 default test was rewritten to assert `(new Destination)->validation_state` so it tests the model
+  default rather than the factory's opinion.
+
+- **Completion notes:** Done, 2026-08-31, **after an Owner ruling the task did not anticipate.** The
+  task said to resolve the delivery "without an attempt", but no status existed that meant that:
+  `failed` contradicts AC11 and would count against the success rate, and `pending` is non-terminal
+  and would park the FIFO line — the exact failure AC10 exists to prevent. Escalated; the Owner ruled
+  on 2026-08-31 to add a terminal `DeliveryStatus::Skipped`, recorded as **ADR-028** amending ADR-015
+  Decision 1. Implemented as `DeliverToDestination::skip()`, placed before `existingAttempt()` so a
+  re-driven unit is caught too, transitioning by the same compare-and-set as every other settle.
+  `DeliveryStatistics` needed no change — its filters are positive on `succeeded` and `failed`, so a
+  skip is absent from both the numerator and the denominator of every rate (AC42).
+  `proxyDeliveryStates.ts` gained a badge, deliberately not destructive: nothing failed and there is
+  nothing to debug at the destination end. Four tests in `DeliveryStatusTransitionTest`, plus the
+  `DomainEnumsTest` case-list guard updated — that guard caught the change exactly as intended.
+
+- **Completion notes:** Done, 2026-08-31. The exclusion went into `overdueQuery()` rather than beside
+  the `paused_at` filter the task pointed at. `forProxy()` shares that query, so putting it where the
+  task suggested would have left the resume path re-dispatching retries to unvalidated destinations
+  the moment a proxy resumed — one guard in the shared method rather than one per caller. Two tests:
+  the scheduled sweep and the resume path.
+
+- **Completion notes:** Done, 2026-08-31. Refusal in `ProxyEventReplayController::store()` alongside
+  the existing pause refusal, throwing a `ValidationException` on the `destinations` key with the
+  offending URLs named. The whole selection is refused rather than partially dispatched: a replay
+  that quietly delivered to some of the chosen destinations would leave the member believing all of
+  them received the event. Two tests, including the mixed-selection case.

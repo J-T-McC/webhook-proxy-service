@@ -14,14 +14,19 @@ enum DeliveryStatus: string
     case Retrying = 'retrying';
     case Succeeded = 'succeeded';
     case Failed = 'failed';
+    case Skipped = 'skipped';
 
     /**
      * Whether this status is terminal (no further attempts will be made).
+     *
+     * `Skipped` is terminal (ADR-028): the FIFO completion check counts
+     * non-terminal deliveries, so a skipped one must not hold the line behind
+     * a destination nobody is going to contact.
      */
     public function isTerminal(): bool
     {
         return match ($this) {
-            self::Succeeded, self::Failed => true,
+            self::Succeeded, self::Failed, self::Skipped => true,
             self::Pending, self::Retrying => false,
         };
     }
