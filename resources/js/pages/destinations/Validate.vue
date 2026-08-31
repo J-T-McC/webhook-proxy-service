@@ -17,9 +17,16 @@ import { Spinner } from '@/components/ui/spinner';
  * ask for a new link, or this link is not usable.
  */
 const props = defineProps<{
-    outcome: 'approvable' | 'approved' | 'already_approved' | 'expired' | 'invalid';
+    outcome:
+        'approvable' | 'approved' | 'already_approved' | 'expired' | 'invalid';
     destinationUrl?: string;
     approveUrl?: string;
+    /**
+     * The asking team's name (AC27) — the one identifying fact the visitor
+     * gets. Absent only on `invalid`, where no resolved challenge exists to
+     * name a team from.
+     */
+    teamName?: string;
 }>();
 
 defineOptions({
@@ -53,16 +60,23 @@ const heading = computed(() => {
 
         <template v-if="outcome === 'approvable'">
             <p class="text-sm text-muted-foreground">
-                A webhook proxy has been configured to send events to
+                <span class="font-medium">{{ teamName }}</span> uses this
+                service to relay webhook events to
                 <span class="font-medium break-all">{{ destinationUrl }}</span
                 >. No events will be sent until somebody approves it here.
             </p>
             <p class="text-sm text-muted-foreground">
-                Approve only if you expected this. If you did not, close this
-                page — nothing will be sent.
+                If you approve, this address starts receiving webhook traffic
+                from {{ teamName }} immediately. If you don't recognise this
+                team or this address, you can safely close this page — nothing
+                happens unless you click Approve below.
             </p>
 
-            <Form :action="approveUrl ?? ''" method="post" v-slot="{ processing }">
+            <Form
+                :action="approveUrl ?? ''"
+                method="post"
+                v-slot="{ processing }"
+            >
                 <Button type="submit" :disabled="processing">
                     <Spinner v-if="processing" />
                     Approve this destination
@@ -73,21 +87,22 @@ const heading = computed(() => {
         <template v-else-if="outcome === 'approved'">
             <p class="text-sm text-muted-foreground">
                 <span class="font-medium break-all">{{ destinationUrl }}</span>
-                will now receive webhook events. You can close this page.
+                now receives webhook traffic from {{ teamName }}. You can close
+                this page — nothing further is needed here.
             </p>
         </template>
 
         <template v-else-if="outcome === 'already_approved'">
             <p class="text-sm text-muted-foreground">
-                This destination was already approved and is receiving events.
-                Nothing further is needed.
+                This destination was already approved and is receiving traffic
+                from {{ teamName }}. There's nothing more to do.
             </p>
         </template>
 
         <template v-else-if="outcome === 'expired'">
             <p class="text-sm text-muted-foreground">
-                Approval links are valid for a limited time and this one has
-                passed it. Ask whoever configured the destination to send a new
+                This validation link is no longer active. If {{ teamName }}
+                still needs this destination approved, ask them to send a new
                 one.
             </p>
         </template>

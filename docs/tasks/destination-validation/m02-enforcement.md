@@ -91,9 +91,24 @@ the gate goes live before anything can be unvalidated.
   task suggested would have left the resume path re-dispatching retries to unvalidated destinations
   the moment a proxy resumed — one guard in the shared method rather than one per caller. Two tests:
   the scheduled sweep and the resume path.
+- **Rework (review-18 finding 9):** the exclusion this task asked for was **removed**, not moved. It
+  mirrored pause, but pause is hold-semantics and validation is skip-semantics (AC10): excluding the
+  row parked a lost retry as `Retrying` forever and would have delivered it if the destination was
+  ever re-validated. The sweep now picks the row up like any other and the worker's dispatch-gate
+  (T5) settles it as terminal `Skipped`; nothing reaches the network either way. Both tests rewritten
+  to assert the settled `Skipped` status and `Http::assertNothingSent()`.
 
 - **Completion notes:** Done, 2026-08-31. Refusal in `ProxyEventReplayController::store()` alongside
   the existing pause refusal, throwing a `ValidationException` on the `destinations` key with the
   offending URLs named. The whole selection is refused rather than partially dispatched: a replay
   that quietly delivered to some of the chosen destinations would leave the member believing all of
   them received the event. Two tests, including the mixed-selection case.
+- **Rework (review-18 finding 2):** the refusal was correct server-side but invisible in the dialog
+  that issues it — `ReplayDialog.vue` rendered only the `event` error key, so the 422 was a silent
+  no-op (AC9's own words: "does not silently do nothing"). The dialog now surfaces
+  `form.errors.destinations` through the same `AlertError`, and a new controller test asserts the
+  refusal lands in the session error bag on the ordinary Inertia round trip.
+- **Rework (review-18 finding 8):** `ReplayDialog.vue` rows now carry the row's validation badge
+  whenever it is not Validated (AC31 — shown where the destination is offered, so the member learns
+  before submitting). Served by a new `validation_status` field on `DestinationResource` — display
+  status only, never the nonce or challenge timestamps.

@@ -146,6 +146,30 @@ class DestinationValidationSendControllerTest extends TestCase
             );
     }
 
+    public function test_a_validated_destination_is_refused_and_stays_validated(): void
+    {
+        // AC6/AC14 (review-18 finding 4): the UI hides the button on a
+        // Validated row, but the server is the enforcement surface — a
+        // hand-crafted POST must not move the destination back to Pending.
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $team = Team::factory()->createQuietly();
+        $member = $this->member($team, TeamRole::Member);
+        $proxy = Proxy::factory()->createQuietly([
+            'team_id' => $team->id,
+            'created_by' => $member->id,
+        ]);
+        $destination = Destination::factory()->for($proxy)->validated()->createQuietly();
+
+        $this->actingAs($member)
+            ->post($this->sendRoute($member, $proxy, $destination))
+            ->assertRedirect();
+
+        Http::assertNothingSent();
+        $this->assertSame(DestinationValidationState::Validated, $destination->refresh()->validation_state);
+        $this->assertNotNull($destination->validated_at);
+    }
+
     public function test_an_unblocked_destination_reports_no_send_block(): void
     {
         [$member, $proxy, $destination] = $this->memberWithOwnUnvalidatedDestination();

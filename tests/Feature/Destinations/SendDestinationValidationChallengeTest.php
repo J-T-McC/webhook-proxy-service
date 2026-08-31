@@ -8,6 +8,7 @@ use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Services\OutboundAddressGuard;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -123,9 +124,28 @@ class SendDestinationValidationChallengeTest extends TestCase
         );
     }
 
-    public function test_a_failed_send_does_not_leave_the_destination_pending_against_a_link_nobody_received(): void
+    public function test_a_non_2xx_response_is_a_successful_send(): void
     {
+        // AC18 (review-18 finding 1): any HTTP response means the request
+        // reached the host — a human there can still find the link in the
+        // body. A signature-verifying receiver that 4xxes the unfamiliar
+        // payload is the common case this feature exists for; only
+        // connection-level failures and refusals fail the send.
         Http::fake(['*' => Http::response('nope', 500)]);
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+
+        $this->assertTrue(SendDestinationValidationChallenge::run($destination));
+
+        $destination->refresh();
+
+        $this->assertSame(DestinationValidationState::Pending, $destination->validation_state);
+        $this->assertNotNull($destination->validation_nonce);
+    }
+
+    public function test_a_connection_failure_does_not_leave_the_destination_pending_against_a_link_nobody_received(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('cURL error 7: connection refused'));
 
         $destination = Destination::factory()->unvalidated()->createQuietly();
 
@@ -135,6 +155,39 @@ class SendDestinationValidationChallengeTest extends TestCase
 
         $this->assertSame(DestinationValidationState::Unvalidated, $destination->validation_state);
         $this->assertNull($destination->validation_nonce);
+    }
+
+    public function test_a_validated_destination_is_refused_a_send(): void
+    {
+        // AC6 (review-18 finding 4): exactly one route out of Validated
+        // exists — the URL edit. A send here would force-fill the destination
+        // back to Pending, a manual un-validation the state machine forbids.
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->validated()->createQuietly();
+
+        $this->assertFalse(SendDestinationValidationChallenge::run($destination));
+
+        Http::assertNothingSent();
+        $this->assertSame(
+            DestinationValidationState::Validated,
+            $destination->refresh()->validation_state,
+        );
+    }
+
+    public function test_the_challenge_uses_the_destinations_configured_http_method(): void
+    {
+        // AC17 (review-18 finding 5): sent using the destination's configured
+        // method — a PUT-only endpoint must be able to receive its challenge.
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->unvalidated()->createQuietly([
+            'http_method' => 'PUT',
+        ]);
+
+        SendDestinationValidationChallenge::run($destination);
+
+        Http::assertSent(fn ($request) => $request->method() === 'PUT');
     }
 
     public function test_a_fresh_send_replaces_the_previous_nonce_and_voids_the_old_link(): void

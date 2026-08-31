@@ -54,6 +54,22 @@ whole feature exists to make safe: a request to a URL nobody has vouched for yet
   **Sequencing note for the task plan:** T9 could not be built before T12 as ordered, because a
   signed URL cannot be minted for a route that does not exist. The two public routes and the
   controller were therefore created here rather than in M4.
+- **Rework (review-18 finding 1):** the success test was inverted against AC18 — a non-2xx response
+  was treated as a send failure, leaving signature-verifying receivers (which 4xx an unfamiliar
+  payload) permanently unvalidatable while the delivered link read `invalid`. Now **any HTTP
+  response is a successful send**; only connection-level failures, AC20 refusals and redirects
+  (AC19) fail it. The 500-response test asserts Pending; a new connection-failure test carries the
+  old "link nobody received" rationale, which is true only there.
+- **Rework (review-18 finding 5):** the challenge now uses the destination's configured HTTP method
+  (`Http::send($destination->http_method->value, …)`) per AC17's explicit sentence, with a PUT
+  assertion test — a PUT-only endpoint was otherwise unvalidatable.
+- **Rework (review-18 finding 4):** `handle()` refuses a Validated destination outright (logged,
+  returns false, nothing sent) — the send would otherwise force-fill it back to Pending, a manual
+  un-validation AC6 forbids. The T16 controller adds the member-facing feedback layer for the same
+  guard.
+- **Rework (review-18 finding 7):** `composer.json` now requires `ext-curl`, tied by comment to
+  `pinnedTo()` — Guzzle silently drops `curl` options on a non-cURL handler, which would send the
+  challenge unpinned and reopen the DNS-rebinding gap (plan-18 §Risks: fail closed).
 
 ## T10 — Rate limits on validation sends
 

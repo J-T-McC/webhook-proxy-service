@@ -47,6 +47,14 @@ The approver has no account and arrives cold from a link.
   so the GET's does not carry across. 11 tests, including the AC28 proof that a GET does not mutate
   and the single-use proof that a replayed POST with a still-valid signature lands on
   `already_approved`.
+- **Rework (review-18 finding 3):** the page disclosed no team name in any outcome, but the team
+  name is the one identifying fact AC27 owes the visitor, and AC17 carves it out of the
+  no-team-data rule for exactly this page. `outcomeFor()`/`store()` now pass `teamName` (resolved
+  by id — the visitor has no team for a scoped relation) on `approvable`, `approved`,
+  `already_approved` and `expired`; never on `invalid`, which has no resolved challenge to name a
+  team from. `Validate.vue` copy reworked to design-18 Screen 4's wording, naming the team in the
+  description and the consequence sentence. New test asserts presence on every resolved outcome and
+  absence on `invalid`.
 
 ## T14 — Keep the link out of everything
 
@@ -66,3 +74,11 @@ The approver has no account and arrives cold from a link.
   link), never written to a delivery or analytics record, and never handed to the client as a prop —
   covered by `test_the_page_never_receives_the_nonce_as_a_prop`. The token is in the address bar by
   necessity, which is exactly what AC23 was narrowed to accept.
+- **Rework (review-18 finding 10):** the exception-handler exclusion the file list named was not
+  implemented, and deliberately stays unimplemented — recorded here so nobody assumes protection
+  that is not configured. Reasoning: Laravel's default handler reports exception class, message and
+  trace; it does not report the request URL or query string, and this application registers no
+  reporting callback, context processor or third-party error tracker that would. The signed URL's
+  query (where the nonce lives) therefore has no path into a report today. The obligation moves to
+  whoever first adds an error tracker or a `context()`/`report()` customisation: exclude
+  `nonce`/`signature` request parameters when that integration lands.

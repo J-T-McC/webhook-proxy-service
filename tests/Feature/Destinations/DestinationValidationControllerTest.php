@@ -4,6 +4,7 @@ namespace Tests\Feature\Destinations;
 
 use App\Enums\DestinationValidationState;
 use App\Models\Destination;
+use App\Models\Team;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
 
@@ -40,6 +41,41 @@ class DestinationValidationControllerTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('destinations/Validate')
                 ->where('outcome', 'approvable'));
+    }
+
+    public function test_the_page_names_the_asking_team_on_every_resolved_outcome_but_never_on_invalid(): void
+    {
+        // AC27 (review-18 finding 3): the team name is the one identifying
+        // fact the visitor gets — they are deciding whether to accept a
+        // stranger's traffic. AC17 carves it out of the no-team-data rule for
+        // exactly this page. `invalid` has no resolved challenge to name a
+        // team from and discloses nothing.
+        $destination = Destination::factory()->pendingValidation()->createQuietly();
+        $name = Team::query()->whereKey($destination->team_id)->value('name');
+        $this->assertNotNull($name);
+
+        $this->get($this->showUrl($destination))
+            ->assertInertia(fn ($page) => $page
+                ->where('outcome', 'approvable')
+                ->where('teamName', $name));
+
+        $expired = Destination::factory()->expiredValidation()->createQuietly();
+        $this->get($this->showUrl($expired))
+            ->assertInertia(fn ($page) => $page
+                ->where('outcome', 'expired')
+                ->has('teamName'));
+
+        $validated = Destination::factory()->validated()->createQuietly();
+        $this->get($this->showUrl($validated, 'anything'))
+            ->assertInertia(fn ($page) => $page
+                ->where('outcome', 'already_approved')
+                ->has('teamName'));
+
+        $wrongNonce = Destination::factory()->pendingValidation()->createQuietly();
+        $this->get($this->showUrl($wrongNonce, 'not-the-nonce'))
+            ->assertInertia(fn ($page) => $page
+                ->where('outcome', 'invalid')
+                ->missing('teamName'));
     }
 
     public function test_opening_the_link_does_not_approve_it(): void

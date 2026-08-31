@@ -1,4 +1,7 @@
-import type { DestinationValidation } from '@/data/destinationValidationStates';
+import type {
+    DestinationValidation,
+    DestinationValidationStatus,
+} from '@/data/destinationValidationStates';
 import type { ProxyDeliveryStatus } from '@/data/proxyDeliveryStates';
 import type { ProxyPayloadState } from '@/data/proxyPayloadStates';
 import type { ProcessingMode } from '@/data/proxyProcessingModes';
@@ -108,6 +111,12 @@ export interface ProxyDestination {
     id: number;
     url: string;
     http_method: HttpMethod;
+    /**
+     * Display status only (AC31 — shown wherever a destination is
+     * presented). Timestamps and the rate-limit fact live on the
+     * `security.destinations` map, not here.
+     */
+    validation_status: DestinationValidationStatus;
 }
 
 /**

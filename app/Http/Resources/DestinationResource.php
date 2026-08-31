@@ -43,6 +43,11 @@ class DestinationResource extends JsonResource
             // written/cleared together (T29, T31), so this is exact.
             'has_credential' => $this->credential_set_at !== null,
             'credential_changed_at' => $this->credential_set_at,
+            // Display status only (T15 vocabulary; AC31 — shown wherever a
+            // destination is presented; review-18 finding 8). Never the
+            // nonce, never the challenge timestamps — surfaces needing those
+            // read the `security.destinations` map instead.
+            'validation_status' => $this->validationStatus()->value,
         ];
     }
 }

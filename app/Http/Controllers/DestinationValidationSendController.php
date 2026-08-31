@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\SendDestinationValidationChallenge;
+use App\Enums\DestinationValidationState;
 use App\Models\Destination;
 use App\Models\Proxy;
 use Illuminate\Http\RedirectResponse;
@@ -29,6 +30,15 @@ class DestinationValidationSendController extends Controller
         SendDestinationValidationChallenge $action,
     ): RedirectResponse {
         $this->authorize('update', $proxy);
+
+        // AC6/AC14 (review-18 finding 4): the action exists only while the
+        // destination is not Validated. The action itself refuses too — this
+        // is the feedback layer, that one is the enforcement surface.
+        if ($destination->validation_state === DestinationValidationState::Validated) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => __('This destination is already validated.')]);
+
+            return to_route('proxies.show', ['proxy' => $proxy->id]);
+        }
 
         if ($action->blockedBy($destination) !== null) {
             // No toast: the refreshed props carry the blocked-until line the

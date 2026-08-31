@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DestinationValidationState;
 use App\Models\Destination;
 use App\Models\Scopes\TeamScope;
+use App\Models\Team;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
@@ -61,6 +62,7 @@ class DestinationValidationController extends Controller
         return Inertia::render('destinations/Validate', [
             'outcome' => 'approved',
             'destinationUrl' => $model->url,
+            'teamName' => $this->teamName($model),
         ]);
     }
 
@@ -76,11 +78,25 @@ class DestinationValidationController extends Controller
     }
 
     /**
+     * The asking team's name — the one identifying fact this page owes its
+     * visitor (AC27; review-18 finding 3): they are deciding whether to accept
+     * a stranger's traffic, and AC17 carves the team name out of its
+     * no-team-data rule for exactly this page. Resolved by id because the
+     * visitor has no team of their own for a scoped relation to resolve
+     * through. Never on the `invalid` outcome — an unresolvable link has no
+     * challenge to name a team from.
+     */
+    private function teamName(Destination $destination): string
+    {
+        return Team::query()->whereKey($destination->team_id)->value('name') ?? '';
+    }
+
+    /**
      * Which of the four screens this request is owed (design-18 Screen 4).
      * They are four distinct outcomes rather than one screen with a variable
      * message, because the reader's next action differs in each case.
      *
-     * @return array{outcome: string, destinationUrl?: string, approveUrl?: string}
+     * @return array{outcome: string, destinationUrl?: string, approveUrl?: string, teamName?: string}
      */
     private function outcomeFor(?Destination $destination, string $nonce): array
     {
@@ -91,7 +107,11 @@ class DestinationValidationController extends Controller
         }
 
         if ($destination->validation_state === DestinationValidationState::Validated) {
-            return ['outcome' => 'already_approved', 'destinationUrl' => $destination->url];
+            return [
+                'outcome' => 'already_approved',
+                'destinationUrl' => $destination->url,
+                'teamName' => $this->teamName($destination),
+            ];
         }
 
         if ($destination->validation_nonce === null
@@ -101,12 +121,17 @@ class DestinationValidationController extends Controller
         }
 
         if ($destination->validation_challenge_expires_at?->isPast()) {
-            return ['outcome' => 'expired', 'destinationUrl' => $destination->url];
+            return [
+                'outcome' => 'expired',
+                'destinationUrl' => $destination->url,
+                'teamName' => $this->teamName($destination),
+            ];
         }
 
         return [
             'outcome' => 'approvable',
             'destinationUrl' => $destination->url,
+            'teamName' => $this->teamName($destination),
             // The POST needs its own signature — a signature is over one URL,
             // so the GET's does not carry across to the store route. Minted
             // against the same challenge expiry, so the approve button cannot

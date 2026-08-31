@@ -65,6 +65,12 @@ never carried by colour alone.
   `DestinationValidationSendControllerTest` — happy path to Pending, teammate's-proxy 403 with
   nothing sent, second click inside five minutes sends nothing and the page reports the
   5-minute limit with its clear time, unblocked destination reports `send_blocked: null`.
+- **Rework (review-18 finding 4):** the controller now refuses a Validated destination before the
+  rate-limit check (error toast, redirect, nothing sent) — the UI hid the button but the server was
+  not gating, so a hand-crafted POST could send a challenge that force-filled the destination back
+  to Pending (AC6: no manual un-validation route). The action refuses too (T9 rework — that is the
+  enforcement surface; this is the feedback layer). Test asserts a Validated destination stays
+  Validated with `validated_at` intact and nothing sent.
 
 ## T17 — The URL-change warning
 

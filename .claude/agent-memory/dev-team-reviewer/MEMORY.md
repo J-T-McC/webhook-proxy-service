@@ -1,2 +1,2 @@
 - [Review gates](review_gates.md) — which gates run clean (lint:check no longer does), review-doc naming, re-review format, live browser check, copy/reflow diff techniques
-- [Codebase gotchas](codebase_gotchas.md) — auth/serialization/config traps, proxy-form watcher and tooltip/legend rules, stale design.md typography, why a live save can be rejected
+- [Codebase gotchas](codebase_gotchas.md) — auth/serialization/config traps, silent ValidationException keys, 2xx-success drift, curl-pin fragility, tooltip/legend rules

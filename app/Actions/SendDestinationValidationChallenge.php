@@ -54,6 +54,17 @@ class SendDestinationValidationChallenge
      */
     public function handle(Destination $destination): bool
     {
+        // AC6: exactly one route out of Validated exists — the URL edit. A
+        // send that reached a Validated destination would force-fill it back
+        // to Pending, a manual un-validation route the state machine forbids
+        // (review-18 finding 4). The UI hides the button on Validated rows;
+        // this is the enforcement surface.
+        if ($destination->validation_state === DestinationValidationState::Validated) {
+            Log::info('destination.validation_send_refused_validated', ['destination_id' => $destination->id]);
+
+            return false;
+        }
+
         if ($this->availableIn($destination) !== null) {
             Log::info('destination.validation_rate_limited', ['destination_id' => $destination->id]);
 
@@ -87,10 +98,15 @@ class SendDestinationValidationChallenge
         );
 
         try {
+            // AC17: the destination's configured method, not an unconditional
+            // POST — a PUT-only endpoint must be able to receive its challenge
+            // (review-18 finding 5).
             $response = Http::withoutRedirecting()
                 ->timeout((int) config('destination_validation.timeout_seconds'))
                 ->withOptions(['curl' => $this->pinnedTo($destination->url, $address)])
-                ->post($destination->url, $this->challengeBody($link));
+                ->send($destination->http_method->value, $destination->url, [
+                    'json' => $this->challengeBody($link),
+                ]);
         } catch (Throwable $e) {
             Log::info('destination.validation_send_failed', [
                 'destination_id' => $destination->id,
@@ -101,8 +117,12 @@ class SendDestinationValidationChallenge
         }
 
         // A redirect is a failed challenge, not something to chase: the second
-        // hop's address was never checked and cannot be pinned.
-        if ($response->redirect() || ! $response->successful()) {
+        // hop's address was never checked and cannot be pinned (AC19). Any
+        // OTHER HTTP response — 2xx or not — is a successful send (AC18): the
+        // request reached the host, so a human there can still find the link.
+        // A signature-verifying receiver that 4xxes the unfamiliar payload is
+        // the common case, not a failure (review-18 finding 1).
+        if ($response->redirect()) {
             Log::info('destination.validation_send_rejected', [
                 'destination_id' => $destination->id,
                 'status' => $response->status(),
@@ -213,6 +233,12 @@ class SendDestinationValidationChallenge
      * guard checked instead of resolving the host again. Without this the
      * check and the connection are two separate resolutions and an attacker
      * controlling the DNS record answers each differently.
+     *
+     * Guzzle silently ignores `curl` options on a non-cURL handler, which
+     * would send this request unpinned — so `composer.json` requires
+     * `ext-curl` (plan-18 §Risks: fail closed rather than send unpinned;
+     * review-18 finding 7). Removing that requirement reopens the
+     * DNS-rebinding gap this method exists to close.
      *
      * @return array<int, array<int, string>>
      */

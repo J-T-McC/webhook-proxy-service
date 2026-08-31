@@ -484,6 +484,34 @@ class ProxyEventReplayControllerTest extends TestCase
         ProcessIngestedWebhook::assertNotPushed();
     }
 
+    public function test_the_unvalidated_refusal_reaches_the_session_error_bag_the_dialog_reads(): void
+    {
+        // Review-18 finding 2: the dialog surfaces `form.errors.destinations`;
+        // this asserts the refusal actually lands under that key on the
+        // ordinary (non-JSON) Inertia round trip, so the member sees the
+        // reason rather than a silent no-op (AC9).
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = $this->proxyWithDestinations($user);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        $destination = $proxy->destinations()->first();
+        $destination->forceFill([
+            'validation_state' => DestinationValidationState::Unvalidated,
+            'validated_at' => null,
+        ])->save();
+
+        $this->actingAs($user)
+            ->from(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->post($this->route($user, $proxy, $event), ['destinations' => [$destination->id]])
+            ->assertRedirect()
+            ->assertSessionHasErrors('destinations');
+    }
+
     public function test_a_mixed_selection_is_refused_whole_rather_than_partially_dispatched(): void
     {
         Queue::fake();
