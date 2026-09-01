@@ -7,6 +7,7 @@ use App\Models\Proxy;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 
 /**
  * Seeds the fixed accounts the Playwright suite signs in as
@@ -101,7 +102,7 @@ class SeedE2eData extends Command
         $user = User::firstOrNew(['email' => $email]);
 
         $user->fill(['name' => $name, 'password' => self::PASSWORD]);
-        $user->email_verified_at = now();
+        $user->email_verified_at = Carbon::now();
         $user->save();
 
         return $user;

@@ -1,6 +1,7 @@
-import { expect, type Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
-import { type SeededAccount } from './state';
+import type { SeededAccount } from './state';
 
 /**
  * Creates a proxy through the form and leaves the browser on its page. The
@@ -18,5 +19,7 @@ export async function createProxy(
     await page.locator('#destination-0-url').fill(destinationUrl);
     await page.getByRole('button', { name: 'Create proxy' }).click();
 
-    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+    await expect(
+        page.getByRole('heading', { name, exact: true }),
+    ).toBeVisible();
 }

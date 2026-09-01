@@ -1,6 +1,8 @@
-import { expect, type Page } from '@playwright/test';
+import { expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
-import { seedState, type SeededAccount } from './state';
+import { seedState } from './state';
+import type { SeededAccount } from './state';
 
 /**
  * Signs in through the login form — the specs never inject a session, because
@@ -27,5 +29,7 @@ export async function signOut(page: Page): Promise<void> {
     await page.getByTestId('sidebar-menu-button').click();
     await page.getByTestId('logout-button').click();
 
-    await expect(page.getByRole('link', { name: 'Log in' }).first()).toBeVisible();
+    await expect(
+        page.getByRole('link', { name: 'Log in' }).first(),
+    ).toBeVisible();
 }

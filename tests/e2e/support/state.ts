@@ -16,7 +16,10 @@ export type SeedState = {
     foreignProxy: { id: number; name: string };
 };
 
-const e2eDir = dirname(fileURLToPath(import.meta.url)).replace(/\/support$/, '');
+const e2eDir = dirname(fileURLToPath(import.meta.url)).replace(
+    /\/support$/,
+    '',
+);
 
 export const STATE_FILE = join(e2eDir, '.state.json');
 

@@ -3,7 +3,8 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 
 import type { FullConfig } from '@playwright/test';
 
-import { AUTH_DIR, STATE_FILE, type SeedState } from './support/state';
+import { AUTH_DIR, STATE_FILE } from './support/state';
+import type { SeedState } from './support/state';
 
 /**
  * Seeds the fixed accounts once per run and writes what they are to disk for
@@ -12,9 +13,13 @@ import { AUTH_DIR, STATE_FILE, type SeedState } from './support/state';
  * talks to directly.
  */
 export default function globalSetup(config: FullConfig): void {
-    const command = (process.env.E2E_ARTISAN ?? './vendor/bin/sail artisan').split(' ');
+    const command = (
+        process.env.E2E_ARTISAN ?? './vendor/bin/sail artisan'
+    ).split(' ');
     const artisan = (args: string[]): string =>
-        execFileSync(command[0], [...command.slice(1), ...args], { encoding: 'utf8' });
+        execFileSync(command[0], [...command.slice(1), ...args], {
+            encoding: 'utf8',
+        });
 
     assertAppUrlMatches(artisan, config.projects[0]?.use.baseURL ?? '');
 
@@ -36,8 +41,14 @@ export default function globalSetup(config: FullConfig): void {
  * and the failures that follow look like application bugs. Fail here instead,
  * where the cause is obvious.
  */
-function assertAppUrlMatches(artisan: (args: string[]) => string, baseURL: string): void {
-    const appUrl = artisan(['tinker', '--execute=echo config("app.url");']).trim();
+function assertAppUrlMatches(
+    artisan: (args: string[]) => string,
+    baseURL: string,
+): void {
+    const appUrl = artisan([
+        'tinker',
+        '--execute=echo config("app.url");',
+    ]).trim();
 
     if (new URL(appUrl).origin !== new URL(baseURL).origin) {
         throw new Error(

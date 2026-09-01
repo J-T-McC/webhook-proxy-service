@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { test as base } from '@playwright/test';
 
 import { signIn } from './auth';
-import { AUTH_DIR, seedState, type SeededAccount } from './state';
+import { AUTH_DIR, seedState } from './state';
+import type { SeededAccount } from './state';
 
 /**
  * A signed-in test, with one seeded account and one session per parallel
@@ -21,7 +22,6 @@ export const test = base.extend<
     { workerAccount: SeededAccount; workerStorageState: string }
 >({
     workerAccount: [
-        // eslint-disable-next-line no-empty-pattern
         async ({}, use, workerInfo) => {
             const { workers } = seedState();
             const account = workers[workerInfo.parallelIndex % workers.length];
@@ -33,7 +33,10 @@ export const test = base.extend<
 
     workerStorageState: [
         async ({ browser, workerAccount }, use, workerInfo) => {
-            const file = join(AUTH_DIR, `worker-${workerInfo.parallelIndex}.json`);
+            const file = join(
+                AUTH_DIR,
+                `worker-${workerInfo.parallelIndex}.json`,
+            );
 
             if (!existsSync(file)) {
                 // A page made straight from the browser inherits none of the

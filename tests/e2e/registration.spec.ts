@@ -11,8 +11,12 @@ test.use({ storageState: { cookies: [], origins: [] } });
  * dashboard. There is no email step to cover — `App\Models\User` does not
  * implement `MustVerifyEmail`, so registration signs the user straight in.
  */
-test('a new user registers and lands on their own team dashboard', async ({ page }) => {
-    const email = `${uniqueName('e2e').replace(/[^a-z0-9]/gi, '-').toLowerCase()}@example.com`;
+test('a new user registers and lands on their own team dashboard', async ({
+    page,
+}) => {
+    const email = `${uniqueName('e2e')
+        .replace(/[^a-z0-9]/gi, '-')
+        .toLowerCase()}@example.com`;
     const password = 'e2e-password';
 
     await page.goto('/register');
@@ -23,10 +27,14 @@ test('a new user registers and lands on their own team dashboard', async ({ page
     await page.getByTestId('register-user-button').click();
 
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.getByTestId('team-switcher-trigger')).toContainText("E2E Newcomer's Team");
+    await expect(page.getByTestId('team-switcher-trigger')).toContainText(
+        "E2E Newcomer's Team",
+    );
 });
 
-test('registering with an email already in use is refused', async ({ page }) => {
+test('registering with an email already in use is refused', async ({
+    page,
+}) => {
     const password = 'e2e-password';
 
     await page.goto('/register');

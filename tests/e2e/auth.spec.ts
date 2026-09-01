@@ -12,11 +12,15 @@ import { seedState } from './support/state';
 test.use({ storageState: { cookies: [], origins: [] } });
 test.describe.configure({ mode: 'serial' });
 
-test('a member signs in, reaches their team and signs back out', async ({ page }) => {
+test('a member signs in, reaches their team and signs back out', async ({
+    page,
+}) => {
     const account = seedState().signIn;
 
     await signIn(page, account);
-    await expect(page.getByTestId('team-switcher-trigger')).toContainText('E2E Sign In Team');
+    await expect(page.getByTestId('team-switcher-trigger')).toContainText(
+        'E2E Sign In Team',
+    );
 
     await signOut(page);
 
@@ -24,7 +28,9 @@ test('a member signs in, reaches their team and signs back out', async ({ page }
     await expect(page).toHaveURL(/\/login/);
 });
 
-test('a wrong password is rejected and no session is granted', async ({ page }) => {
+test('a wrong password is rejected and no session is granted', async ({
+    page,
+}) => {
     const account = seedState().rejected;
 
     await page.goto('/login');

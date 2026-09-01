@@ -20,7 +20,9 @@ export default defineConfig({
     // browsers asking it for the same pages at once is what makes assertions
     // time out rather than fail honestly.
     workers: process.env.CI ? 2 : 4,
-    reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
+    reporter: process.env.CI
+        ? [['list'], ['html', { open: 'never' }]]
+        : [['list']],
     timeout: 60_000,
     // Locally the app is usually served by a dev-mode Vite server that compiles
     // pages on demand; CI serves a build, where a slow assertion means a real
@@ -41,6 +43,9 @@ export default defineConfig({
     webServer: startServer
         ? {
               command: 'php artisan serve --host=127.0.0.1 --port=8000',
+              // PHP's built-in server answers one request at a time unless it is
+              // told to fork; with parallel workers that serialises the suite.
+              env: { PHP_CLI_SERVER_WORKERS: '4' },
               url: baseURL,
               reuseExistingServer: false,
               timeout: 120_000,
