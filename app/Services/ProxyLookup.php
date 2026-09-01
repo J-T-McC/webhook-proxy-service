@@ -24,6 +24,12 @@ use Illuminate\Support\Facades\Cache;
  * **Misses are never cached.** The token is the authenticator, so unknown
  * tokens are exactly what an attacker enumerating the endpoint produces.
  * Caching those would let anyone fill the cache with garbage keys.
+ *
+ * **The attribute array is cached, not the model.** A serialised Eloquent model
+ * came back from this Redis client as `__PHP_Incomplete_Class` and every read
+ * missed, so the cache was inert. Storing raw attributes and rehydrating avoids
+ * depending on how any store serialises objects, and keeps relations and loaded
+ * state out of the cached value.
  */
 class ProxyLookup
 {
@@ -38,8 +44,8 @@ class ProxyLookup
     {
         $cached = Cache::get(self::key($tokenHash));
 
-        if ($cached instanceof Proxy) {
-            return $cached;
+        if (is_array($cached)) {
+            return self::rehydrate($cached);
         }
 
         $proxy = Proxy::query()
@@ -47,10 +53,22 @@ class ProxyLookup
             ->first();
 
         if ($proxy !== null) {
-            Cache::put(self::key($tokenHash), $proxy, self::ttl());
+            Cache::put(self::key($tokenHash), $proxy->getRawOriginal(), self::ttl());
         }
 
         return $proxy;
+    }
+
+    /**
+     * Rebuilds the model from stored attributes as though it came from the
+     * database, so casts and the encrypted `ingest_token` behave identically
+     * and the instance is not treated as newly created.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private static function rehydrate(array $attributes): Proxy
+    {
+        return (new Proxy)->newFromBuilder($attributes);
     }
 
     /**
