@@ -108,7 +108,11 @@ commit-type keywords and exact error strings all stay verbatim.
   by an agent that was not there. `#7` turned on `plan-07` ruling 4
   distinguishing *mount-seeded persisted* values from *in-session typed* ones —
   compressed to "keep values", the data-loss defect ships.
-- **Code, comments, commit messages and PR bodies.**
+- **Code, comments, commit messages and PR bodies.** Written normally means written
+  in full sentences, not written at length. Code comments carry a hard budget —
+  see `docs/standards/coding.md` § Comments and documentation in code. A comment
+  must be shorter than the code it explains; reasoning that needs more room goes
+  in the plan, an ADR or a `docs/fixes/` note, and the comment cites it.
 - **Security warnings, irreversible-action confirmations, and any multi-step
   sequence where dropped conjunctions could reorder the steps.** Write those in
   full, then resume.

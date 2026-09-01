@@ -190,6 +190,38 @@ never-log list, which is a **codification of the security baseline** (ADR-006,
 
 ## Comments and documentation in code
 
+### Budget (active) — a comment must not outweigh its code
+
+Ruled by the Project Owner on 2026-09-01, after review of this codebase found
+methods carrying twenty lines of comment for twenty lines of code. The
+"explain why, not what" rule below is right and stays; it is not a licence to
+write an essay in a source file.
+
+- **A comment block must be shorter than the code it explains.** If the
+  reasoning genuinely needs more room than that, it does not belong in the
+  file. Put it in the plan, the ADR or a `docs/fixes/` note, and leave a
+  one-line comment citing it.
+- **Ceilings.** Inline comment: 3 lines. Method docblock: 2 lines of prose plus
+  whatever tags PHPStan needs. Class docblock: 5 lines. Exceeding one is a
+  signal to move the text, not to reformat it.
+- **Cite, do not restate.** `(AC18)`, `ADR-027`, or a path to a fix note carries
+  the whole argument in a few characters and stays correct when the argument is
+  amended. A paragraph reproducing that argument is a second copy that will
+  drift from the first.
+- **No history in source.** Who ruled what, on what date, in response to which
+  review finding, is what git log, `docs/` and the pull request are for. A
+  comment describes the code as it stands now. "Amended 2026-09-01 after
+  review-18 finding 5" is history; "the destination's configured method, not an
+  unconditional POST (AC17)" is the code.
+- **The exceptions, and they are narrow.** Spend the words where being wrong is
+  expensive and the reason is invisible in the code: a security invariant, a
+  fail-closed choice, a deliberate non-obvious omission, or a footgun that will
+  look like a bug to the next reader. `OutboundAddressGuard`'s pinning rationale
+  earns its length. A grace-period arithmetic line does not.
+
+Applies equally to test files. A test name that states the behaviour needs no
+comment restating it.
+
 **PHP (codifies observed):**
 - **Class-level PHPDoc** states purpose in one or two lines and cites the driving
   ADR/PRD where relevant (`IngestTokenService`, `StoreProxyRequest`).
