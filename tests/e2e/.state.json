@@ -1,0 +1,53 @@
+{
+  "password": "e2e-password",
+  "workers": [
+    {
+      "email": "e2e-w0@example.com",
+      "teamSlug": "e2e-worker-0-team"
+    },
+    {
+      "email": "e2e-w1@example.com",
+      "teamSlug": "e2e-worker-1-team"
+    },
+    {
+      "email": "e2e-w2@example.com",
+      "teamSlug": "e2e-worker-2-team"
+    },
+    {
+      "email": "e2e-w3@example.com",
+      "teamSlug": "e2e-worker-3-team"
+    },
+    {
+      "email": "e2e-w4@example.com",
+      "teamSlug": "e2e-worker-4-team"
+    },
+    {
+      "email": "e2e-w5@example.com",
+      "teamSlug": "e2e-worker-5-team"
+    },
+    {
+      "email": "e2e-w6@example.com",
+      "teamSlug": "e2e-worker-6-team"
+    },
+    {
+      "email": "e2e-w7@example.com",
+      "teamSlug": "e2e-worker-7-team"
+    }
+  ],
+  "signIn": {
+    "email": "e2e-signin@example.com",
+    "teamSlug": "e2e-sign-in-team"
+  },
+  "rejected": {
+    "email": "e2e-rejected@example.com",
+    "teamSlug": "e2e-rejected-team"
+  },
+  "outsider": {
+    "email": "e2e-outsider@example.com",
+    "teamSlug": "e2e-other-team"
+  },
+  "foreignProxy": {
+    "id": 7,
+    "name": "Foreign Proxy"
+  }
+}

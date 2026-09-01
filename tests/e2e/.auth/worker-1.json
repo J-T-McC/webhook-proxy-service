@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "XSRF-TOKEN",
+      "value": "eyJpdiI6ImFwSEtNSXUzTmR5SndMU3ZPUitmT2c9PSIsInZhbHVlIjoiY3QvOEx4cFJkMk1WV2laVk9OUjdFd0Fpbm9jQTFJMVArSDhtc1BDK3NzenUzc1diTDM3NWNkOTVCdHMwTmpCcytrNmVmZGxJVG5ld01tQUtsYzhWdTlCcmN2dlZaK2JXRmozckZKUmsybXhmMjFOWmE2MTU4RGtSSnBQYmZWY0kiLCJtYWMiOiIyNmFkN2QzMTQ3MzZkOTQxMTc2ZmYzYWQ2YzI5MDc4NTMyM2U5MmQ5YWEyYTJmYmY0N2YzOWJmODFlYTRjM2FlIiwidGFnIjoiIn0%3D",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1788246002.726122,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "webhook-proxies-session",
+      "value": "eyJpdiI6IjFkR3ZYQ09kdlZXQkxsVGVXZlBvUEE9PSIsInZhbHVlIjoiSHpkVFNnQkxNM3B5SXpQeHBMamlqUjYyTktOcnBNUHhxWVA2SDN2VVJxVndEVm55UGhWZ0ZxVS9Lb05hQzVsZ3RXMzVuWUl1N2czdkFIVVZCWWNPRHcxTmc4RENIM2trejAzbmduVjdrU2ZmZE5HNmZTby8vQmo5NlBZeUdVT28iLCJtYWMiOiI5ZDlkNzdjYzJmYzcwOTEyNjZkM2NlNWRkZTZmN2ZhYzVlZDBjYTEyZTkyMWNjYWJiMTI0Y2YyNzVlZTg4Nzg4IiwidGFnIjoiIn0%3D",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1788246002.726157,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
