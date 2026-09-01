@@ -30,7 +30,12 @@ jobs:
       QUEUE_CONNECTION: sync
       CACHE_STORE: database
       SESSION_DRIVER: database
-      MAIL_MAILER: log
+      # Real SMTP into Mailpit: the registration spec reads the verification
+      # link out of the delivered message through Mailpit's HTTP API.
+      MAIL_MAILER: smtp
+      MAIL_HOST: 127.0.0.1
+      MAIL_PORT: '1025'
+      E2E_MAILPIT_URL: http://127.0.0.1:8025
       E2E_ARTISAN: php artisan
       E2E_BASE_URL: http://127.0.0.1:8000
       E2E_START_SERVER: '1'
@@ -48,6 +53,12 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+
+      mailpit:
+        image: axllent/mailpit:latest
+        ports:
+          - 1025:1025
+          - 8025:8025
 
     steps:
       - name: Checkout code
@@ -89,6 +100,8 @@ jobs:
             echo "CACHE_STORE=${CACHE_STORE}"
             echo "SESSION_DRIVER=${SESSION_DRIVER}"
             echo "MAIL_MAILER=${MAIL_MAILER}"
+            echo "MAIL_HOST=${MAIL_HOST}"
+            echo "MAIL_PORT=${MAIL_PORT}"
           } >> .env
 
       # Installs dependencies, generates the app key, migrates, and builds the
