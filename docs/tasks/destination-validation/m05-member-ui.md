@@ -120,3 +120,78 @@ never carried by colour alone.
   `ProcessIngestedWebhookTest::test_an_event_whose_destinations_are_all_unvalidated_is_still_captured_and_creates_no_attempts`
   (M2); badge show/hide verified by inspection plus a green host `npm run build` — no JS test
   framework exists.
+
+## T19 — Record the outcome of the last validation send
+
+- **Description:** Store what happened on a destination's most recent validation send, so the
+  interface can tell a member which of three different situations they are in. Closes review-18
+  finding 6, which found AC35 implemented by nothing and traced by no task — a plan-coverage gap the
+  Senior Developer recorded honestly in the T15 and T16 completion notes rather than papering over.
+  Two nullable columns are added to `destinations`: `validation_last_send_status`, an unsigned small
+  integer holding the HTTP status the destination returned on a send that reached it, and
+  `validation_last_send_failure`, a string holding a reason key for a send that did not reach it.
+  Exactly one of the two is ever set. Every send clears the other, so the pair always describes one
+  outcome rather than two outcomes from different attempts.
+  **The reason is stored as a key, never as member-facing prose.** `SendDestinationValidationChallenge`
+  has exactly three failure exits and the reason key names which one was taken: `address_refused`
+  when `OutboundAddressGuard` rejects the address (AC20), `unreachable` when the HTTP call throws
+  (DNS failure, refused connection, timeout), and `redirected` when the response is a redirect
+  (AC19). The exception message is never stored — design-18 forbids implementation jargon in this
+  copy, and T20 owns the wording. Introduce a backed enum for the three keys, following
+  `DestinationValidationState`'s existing shape.
+  **The two early returns are not sends and must not touch either column.** A send refused because
+  the destination is already Validated, and one refused by a rate limiter, both return before
+  `recordAttempt()`; neither reached the destination, so neither has an outcome to report, and
+  overwriting a real previous outcome with a non-attempt would tell the member the opposite of what
+  happened.
+  **A URL change clears both columns**, alongside the nonce and challenge timestamps it already
+  clears (AC5). The stored outcome describes a send to the old address; leaving it in place would
+  attribute it to the new one. Extend whatever already performs that reset rather than adding a
+  second reset path.
+- **Dependencies:** T10, T15.
+- **Owner gate:** the schema change was approved by the Project Owner on 2026-08-31, in the ruling on
+  review-18 finding 6. No ADR — two nullable columns and a three-value enum are cheap to reverse.
+- **Files:** a new migration under `database/migrations/`, `app/Models/Destination.php`,
+  `app/Enums/DestinationValidationSendFailure.php` (new),
+  `app/Actions/SendDestinationValidationChallenge.php`,
+  `app/Http/Resources/ProxySecurityResource.php`
+- **AC-trace:** PRD-18 AC35, AC18, AC19, AC20; design-18 Screen 2 state table.
+- **Verify step:** send a challenge to a URL that returns 404 — the row records status 404 and no
+  failure. Point a destination at a private address and send — the row records the
+  `address_refused` key and no status. Hit the rate limit and send again — neither column changes.
+- **Testing:** extend `SendDestinationValidationChallengeTest` with one case per exit: a 2xx and a
+  non-2xx both store their status and clear any prior failure; a guard refusal, a transport
+  exception and a redirect each store their own reason key and clear any prior status; a
+  rate-limited send and a send at a Validated destination leave both columns exactly as they were.
+  Extend `ProxySecurityResourceTest` to assert both fields reach the page inside the existing
+  `validation` object, and that `validation_nonce` still does not.
+- **Completion notes:** _pending_
+
+## T20 — Show the outcome of the last validation send
+
+- **Description:** Render T19's stored outcome in the two captions design-18 already specifies but
+  that shipped without it, completing AC35's member-facing half. The Pending caption gains the
+  response status the destination returned: "Sent {sent_at}, destination responded {http_status} —
+  waiting on someone at this address to approve it. Expires {expires_at}." The Unvalidated caption
+  gains a failed-send variant: "Last attempt failed to send — {reason}. Nothing has been asked of
+  this destination yet." The three `{reason}` phrases are design-18's verbatim, mapped from T19's
+  reason keys in the frontend, where all the other validation copy already lives:
+  `unreachable` renders "could not reach this address"; `address_refused` renders "this address
+  can't be used for validation" — never named as an internal-address rule, since the member's remedy
+  is the same either way; `redirected` renders "this address redirected elsewhere, which validation
+  doesn't follow".
+  Both captions keep the existing fallback discipline: a row with no recorded outcome — every row
+  backfilled by T3, and every row whose only send predates T19 — renders today's wording unchanged
+  rather than a gap or an "undefined". Expired and Validated captions are untouched.
+- **Dependencies:** T19.
+- **Files:** `resources/js/data/destinationValidationStates.ts`
+- **AC-trace:** PRD-18 AC35, AC34; design-18 Screen 2 state table and its failure-reason copy block.
+- **Verify step:** on the proxy Show page, a Pending destination that answered 404 reads "…
+  destination responded 404 …"; an Unvalidated destination whose last send was refused reads "Last
+  attempt failed to send — this address can't be used for validation. …"; a destination that has
+  never been sent a challenge reads today's "No validation challenge has been sent yet."
+- **Testing:** no JS test framework exists (the standing note in `docs/standards/review.md`), so the
+  three reason mappings and both fallbacks are verified by inspection plus a green host
+  `npm run build`. The data path behind them is covered server-side by T19's
+  `ProxySecurityResourceTest` additions.
+- **Completion notes:** _pending_

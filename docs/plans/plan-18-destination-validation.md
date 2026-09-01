@@ -54,7 +54,10 @@ tells the member the truth. Recorded, not hidden.
 
 ## Data Model
 
-**`destinations` gains four columns.** ADR-027 decision 1 — a change to a table holding live data.
+**`destinations` gains seven columns.** ADR-027 decision 1 — a change to a table holding live data.
+The last two were added on 2026-08-31 by a separate Project Owner approval, in the ruling on
+review-18 finding 6; the count above was previously written as four while listing five, and is
+corrected here.
 
 - `validation_state` — string-backed enum, `unvalidated` / `pending` / `validated`. Not null.
 - `validated_at` — nullable timestamp.
@@ -62,6 +65,23 @@ tells the member the truth. Recorded, not hidden.
   copy and the rate-limit messaging.
 - `validation_challenge_expires_at` — nullable timestamp.
 - `validation_nonce` — nullable string. Regenerated on every challenge send.
+- `validation_last_send_status` — nullable unsigned small integer. The HTTP status the
+  destination returned on the most recent send that reached it.
+- `validation_last_send_failure` — nullable string, backed by a new
+  `App\Enums\DestinationValidationSendFailure` enum: `unreachable`, `address_refused`,
+  `redirected`. The reason the most recent send did not reach the destination.
+
+**The last send's outcome is stored, and it is not a fifth state.** PRD-18 AC35 requires that a
+member can tell "the challenge never arrived" from "it arrived and was rejected" from "nobody has
+opened it" — three situations with three different remedies. The first two are outcomes of an
+action, not conditions of the destination, which is exactly why PRD-18 refused a `send-failed`
+state and put the distinction in these two columns instead. Exactly one of the pair is ever set:
+every send writes one and clears the other, so the row always describes a single attempt. A send
+refused before it is attempted — the destination is already Validated, or a rate limiter is
+tripped — touches neither column, because nothing was sent and the previous outcome is still the
+most recent one. The reason is stored as a key rather than as prose: design-18 forbids
+implementation jargon in this copy, so the exception message never becomes member-facing text and
+the wording stays where the rest of the validation copy lives.
 
 **Four product states, three stored.** PRD-18 AC1 names Unvalidated, Pending, Expired and Validated.
 `Expired` is **derived**, not stored: state is `pending` and `validation_challenge_expires_at` has
@@ -79,9 +99,11 @@ time — PRD-18 AC30, the Owner-approved grandfathering. ADR-027 decision 2, bec
 production data and cannot be undone by rolling the migration back.
 
 **State transitions.** Unvalidated → Pending on a challenge send. Pending → Validated on approval.
-Any state → Unvalidated on a URL change (AC5), which also clears the nonce and both challenge
-timestamps, voiding any outstanding link. A fresh send from Pending or Expired replaces the nonce,
-which is what makes the previous link inert without a revocation list.
+Any state → Unvalidated on a URL change (AC5), which also clears the nonce, both challenge
+timestamps and both last-send columns, voiding any outstanding link. The outcome columns clear with
+them because they describe a send to the old address and would misdescribe the new one. A fresh
+send from Pending or Expired replaces the nonce, which is what makes the previous link inert
+without a revocation list.
 
 ## API
 

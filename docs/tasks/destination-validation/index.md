@@ -41,7 +41,13 @@
 | M2 | The four enforcement points | T4–T7 | `m02-enforcement.md` | **Done, 2026-08-31** |
 | M3 | The guarded challenge send | T8–T11 | `m03-challenge-send.md` | **Done, 2026-08-31** |
 | M4 | The approval surface | T12–T14 | `m04-approval-surface.md` | **Done, 2026-08-31** |
-| M5 | Member-facing UI | T15–T18 | `m05-member-ui.md` | **Done, 2026-08-31** |
+| M5 | Member-facing UI | T15–T20 | `m05-member-ui.md` | T15–T18 **Done, 2026-08-31**; T19–T20 **Not started** |
+
+T19 and T20 were added after the first review pass: review-18 finding 6 found PRD-18 AC35 —
+the outcome of the most recent validation send — implemented by nothing and traced by no task in
+this plan. That is a coverage defect in the task plan, not implementer drift, so it is repaired
+here. The Project Owner approved the schema change it needs on 2026-08-31 and chose to implement
+AC35 rather than defer it. M5 reopens for these two tasks only; T15–T18 stand as shipped.
 
 Ordering is dependency-driven. M1 first because everything reads the state. M2 next and it is a
 no-op on landing, since T3 backfills every existing destination to validated — the gate is live
@@ -54,4 +60,6 @@ last and is the only milestone that reads design-18.
 - **Outputs:** this task plan
 - **Dependencies:** none outstanding
 - **Outstanding Questions:** none
-- **Next Agent:** Senior Developer, starting at M1/T1
+- **Next Agent:** Senior Developer, at M5/T19 — the rework pass. T1–T18 are shipped; review-18
+  findings 1–5 and 7–10 are reworked in `315b7f4`. T19 and T20 close finding 6, after which the
+  Reviewer re-reviews the whole item.
