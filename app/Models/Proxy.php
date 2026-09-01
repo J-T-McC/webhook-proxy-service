@@ -7,9 +7,11 @@ use App\Concerns\HasCreator;
 use App\Enums\ProcessingMode;
 use App\Enums\ProxyMode;
 use App\Enums\RetryBackoffStrategy;
+use App\Observers\ProxyObserver;
 use App\Services\IngestTokenService;
 use Database\Factories\ProxyFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -54,6 +56,7 @@ use Illuminate\Support\Carbon;
     'response_body',
     'sensitive_fields',
 ])]
+#[ObservedBy(ProxyObserver::class)]
 class Proxy extends Model
 {
     /** @use HasFactory<ProxyFactory> */
