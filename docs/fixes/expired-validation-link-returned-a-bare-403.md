@@ -61,13 +61,25 @@ only minted on the `approvable` branch, so it does not exist on an expired page 
   that expired two days earlier, renders "This link has expired", names the asking team
   per AC27, and shows no Approve button.
 
-## Also observed during the same pass, not fixed
+## Also observed during the same pass
 
-- The confirmation page's layout heading reads "Approve this destination" on every
-  outcome, including "Destination approved" and "This link is not valid". The `<title>`
-  is correct in each case; only the in-page heading is static.
-- The destination URL wraps mid-token under `break-all`, rendering as `http` /
-  `s://webhook.site/…`.
+Two were fixed on the Owner's instruction, in the same commit as the grace period's
+follow-up:
+
+- **The heading named the wrong thing on four outcomes of five.** `app.ts` assigned
+  `AuthLayout` to this page, and a layout assigned there can only be given static props,
+  so its `h1` read "Approve this destination" on "Destination approved", "Already
+  approved", "This link has expired" and "This link is not valid" alike — with the page's
+  own correct heading repeated beneath it as a second `h1`. The page now renders
+  `AuthLayout` itself with the outcome's heading and a per-outcome description, and
+  `app.ts` returns `null` for it. One `h1` per page, naming the outcome. The layout's
+  description paragraph gained a `v-if` so an empty one renders nothing.
+- **The destination URL wrapped mid-token** under `break-all`, rendering as `http` /
+  `s://webhook.site/…`. Now `wrap-anywhere` (`overflow-wrap: anywhere`), which breaks
+  only where it must and prefers a natural boundary — the URL now breaks at a hyphen.
+
+One was left alone, because it is not this feature's:
+
 - In `ReplayDialog`, a partially selected "Select all" renders a tick rather than a dash.
   The semantics are right (`data-state="indeterminate"`, `aria-checked="mixed"`); only
   the glyph is wrong, and it lives in the shared `ui/checkbox` component rather than in
