@@ -40,6 +40,16 @@ pipeline.
   `components/ui/tabs` wrapper set — one page uses it, and the primitive
   already carries the roles and keyboard behaviour a hand-rolled tab strip
   would have to reimplement.
+- **Code blocks are highlighted with Shiki**, through
+  `resources/js/components/CodeBlock.vue`: an IDE-style frame with a title bar,
+  line numbers, and GitHub's light and dark themes following the app's theme
+  toggle. Every part of it is dynamically imported and the grammars load per
+  language on first use, so the documentation page's first paint carries none
+  of it and the PHP grammar is fetched only when a reader opens that tab. The
+  header sample renders as plain text rather than pulling in the `http`
+  grammar, which is an order of magnitude larger than the rest combined. Blocks
+  render as unhighlighted text until Shiki resolves, so the code is readable
+  without the highlighter.
 - **Examples are concrete and copyable.** A `curl` ingest example, a signing
   verification sketch, and the exact header names the service sends. Values
   that come from configuration (retry defaults, retention window) are stated
