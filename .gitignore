@@ -31,3 +31,10 @@ yarn-error.log
 
 # Isolated agent worktrees — scratch checkouts, never part of the repo
 .claude/worktrees/
+
+# Playwright end-to-end suite (docs/briefs/e2e-playwright-coverage.md)
+/test-results
+/playwright-report
+/blob-report
+/tests/e2e/.state.json
+/tests/e2e/.auth

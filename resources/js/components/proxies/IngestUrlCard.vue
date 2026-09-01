@@ -10,7 +10,7 @@ const props = defineProps<{
 <template>
     <Card class="gap-4 p-6">
         <h2 class="text-base font-semibold">Ingest URL</h2>
-        <CopyField :value="props.ingestUrl" />
+        <CopyField data-test="ingest-url" :value="props.ingestUrl" />
         <p class="text-sm text-muted-foreground">
             Anyone with this URL can post webhooks to this proxy. Keep it
             secret.
