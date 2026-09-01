@@ -124,8 +124,9 @@ timing-only benchmark would not see it.
 - T2 `load:seed` artisan command — teams, proxies in both modes, pre-validated
   destinations pointing at the sink. Mirrors `e2e:seed`, including its
   production guard and `--json` output.
-- T3 Query-count instrumentation for the ingest path, enabled only by the
-  harness environment.
+- T3 ~~Query-count instrumentation for the ingest path~~ — not needed. MySQL's
+  own global counters give the same number with no application code at all,
+  and they cover the worker processes as well as the ingest requests.
 - T4 k6 scripts for the five scenarios.
 - T5 `run.sh` — boot the sink, seed, start workers, run k6, drain, verify FIFO
   order, tear down, append a result row. Plus a `composer perf` wrapper.
@@ -142,6 +143,26 @@ timing-only benchmark would not see it.
   three runs, discard the warm-up run, and treat deltas under roughly 15% as
   machine variance rather than signal.
 - `composer lint`, `composer types:check` and the existing suite pass.
+
+## Findings from validation
+
+Three things only surfaced by running the harness against the application, all
+fixed:
+
+- The ingest route asserts HTTPS (`EnsureIngestIsSecure`), so every request
+  returned 403. The scripts send `X-Forwarded-Proto: https`, which
+  `bootstrap/app.php` already trusts from any proxy — the same signal a
+  TLS-terminating load balancer sends. The guard itself is untouched.
+- The FIFO scenario had no think time. Ingest returns in milliseconds, so
+  unpaced virtual users enqueued a backlog far larger than the workers could
+  ever clear. It is now paced above the drain rate but bounded.
+- An interrupted run could leave `.env` pointing at the load database. The
+  backup now sits beside `.env` rather than in a temporary directory, and a run
+  that finds one restores it before doing anything else.
+
+Also worth knowing when reading results: ingest is throttled at
+`ingest.rate_limit_per_minute` (6000 a minute) **per token**. Scenarios spread
+load across twenty proxies so the limiter is not what gets measured.
 
 ## Deferred
 
