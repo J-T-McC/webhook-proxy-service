@@ -5,6 +5,7 @@ namespace Tests\Feature\Retention;
 use App\Actions\CaptureDispatchedStep;
 use App\Actions\ProcessIngestedWebhook;
 use App\Enums\ProxyMode;
+use App\Enums\WebhookEventStatus;
 use App\Models\Destination;
 use App\Models\DispatchedPayload;
 use App\Models\Proxy;
@@ -13,6 +14,7 @@ use App\Pipeline\PipelineContext;
 use App\Pipeline\PipelineStep;
 use Closure;
 use Illuminate\Pipeline\Pipeline;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
@@ -153,10 +155,28 @@ class DispatchedOutputTest extends TestCase
         $before = DB::table('webhook_events')->where('id', $event->id)->first();
 
         // Simulate queue redelivery: re-invoke the pipeline-level action directly.
+        // A second on, so the `updated_at` stamp below always differs rather than
+        // differing only when the re-invocation happens to cross a clock second.
+        $this->travel(1)->second();
         ProcessIngestedWebhook::run($event->ingest_id);
 
         $after = DB::table('webhook_events')->where('id', $event->id)->first();
-        $this->assertEquals($before, $after, 'The raw captured row is never written by the output step.');
+
+        // `updated_at` is excluded, and only `updated_at`. The redelivery re-runs
+        // the original-dispatch block, which re-sets `status` to the value the row
+        // already holds, and an Eloquent builder update stamps `updated_at`
+        // whether or not a column changed. What must not move is everything the
+        // capture wrote — the body, the headers and the rest of the raw record.
+        $this->assertEquals(
+            Arr::except((array) $before, ['updated_at']),
+            Arr::except((array) $after, ['updated_at']),
+            'The raw captured row is never rewritten by the output step.',
+        );
+        $this->assertSame(
+            WebhookEventStatus::Dispatched->value,
+            $after->status,
+            'A redelivery leaves the event dispatched.',
+        );
         $this->assertSame(1, DispatchedPayload::count(), 'Redelivery updates, never duplicates, the output row.');
     }
 
