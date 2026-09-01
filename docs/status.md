@@ -202,7 +202,8 @@ a test account, which the Owner verifies by hand), and production mail already s
 through Mailgun, so a new registration can complete verification.
 
 **Merged 2026-09-01 (PR #61, `de03e30`).** Public user documentation at `/docs`, linked from the
-landing page header and hero. Brief: `docs/briefs/user-docs-page.md`. One static Inertia page,
+landing page header, a closing block at the foot of the landing page, and the app sidebar's
+footer menu above Repository. Brief: `docs/briefs/user-docs-page.md`. One static Inertia page,
 `resources/js/pages/Docs.vue`, with an anchor-linked contents list — no Markdown pipeline and no
 new dependency, so editing the documentation means editing the component. Two things worth
 knowing before adding another public page: `resources/js/app.ts` assigns `AppLayout` by default
