@@ -142,15 +142,31 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                 {{ lastWindowSubtitle(props.window) }}
             </p>
         </div>
-        <Table>
+        <!-- Column widths are declared rather than left to the browser.
+        Under auto layout the destination URL is one long unbreakable token,
+        so it won the width negotiation outright — 559px of 1148px in the
+        case that prompted this — and crushed the Validation column to
+        117px, wrapping its caption to eight lines and making every row
+        ~310px tall. `table-fixed` plus a table minimum width inverts that:
+        the URL truncates (which it always could, given a bounded cell) and
+        the only column with multi-line content gets room to use two. Below
+        the minimum the container's existing `overflow-x-auto` scrolls,
+        which is how this table already behaves on narrow viewports. -->
+        <Table class="min-w-[72rem] table-fixed">
             <TableHeader>
                 <TableRow>
-                    <TableHead>Destination</TableHead>
-                    <TableHead>Validation</TableHead>
-                    <TableHead>{{ DELIVERY_SUCCESS_COLUMN_LABEL }}</TableHead>
-                    <TableHead>{{ ATTEMPT_SUCCESS_COLUMN_LABEL }}</TableHead>
-                    <TableHead>{{ LATENCY_AVERAGE_COLUMN_LABEL }}</TableHead>
-                    <TableHead class="text-right">Actions</TableHead>
+                    <TableHead class="w-[35%]">Destination</TableHead>
+                    <TableHead class="w-[27%]">Validation</TableHead>
+                    <TableHead class="w-[11%]">{{
+                        DELIVERY_SUCCESS_COLUMN_LABEL
+                    }}</TableHead>
+                    <TableHead class="w-[11%]">{{
+                        ATTEMPT_SUCCESS_COLUMN_LABEL
+                    }}</TableHead>
+                    <TableHead class="w-[8%]">{{
+                        LATENCY_AVERAGE_COLUMN_LABEL
+                    }}</TableHead>
+                    <TableHead class="w-[8%] text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -163,7 +179,10 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                             <Badge variant="outline">{{
                                 destination.httpMethod
                             }}</Badge>
-                            <span class="truncate font-mono text-sm">{{
+                            <!-- `min-w-0` is what makes `truncate` fire: a
+                            flex item will not shrink below its content width
+                            without it, so the ellipsis never appeared. -->
+                            <span class="min-w-0 truncate font-mono text-sm">{{
                                 destination.url
                             }}</span>
                             <Badge
@@ -181,7 +200,7 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                         icon + label + caption, never colour alone. -->
                         <div
                             v-if="validationCells[destination.id]"
-                            class="flex max-w-64 flex-col gap-1"
+                            class="flex flex-col gap-1"
                         >
                             <div class="flex items-center gap-2">
                                 <Badge

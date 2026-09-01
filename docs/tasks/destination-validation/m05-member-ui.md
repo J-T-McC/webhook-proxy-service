@@ -24,7 +24,10 @@ never carried by colour alone.
   `show()` and `edit()`. The four treatments (badge variant + icon + label + caption) live in
   `resources/js/data/destinationValidationStates.ts` following the `proxyDeliveryStates` data-const
   pattern, so Screen 1 (T17) reuses them verbatim; `DestinationsCard.vue` renders them in a new
-  Validation column between Destination and Delivered %. Deliberate simplifications: the Pending
+  Validation column between Destination and Delivered %. **Amended 2026-09-01** — the table now
+  declares fixed column widths and a minimum width; without them automatic layout gave the
+  unbreakable URL 559px and crushed this column to 117px. See
+  `docs/fixes/destinations-table-validation-column-width.md`. Deliberate simplifications: the Pending
   caption omits design-18's `{http_status}` and the Unvalidated caption has no "last send failed —
   {reason}" variant, because no send-outcome columns exist on `destinations` (AC35 is traced by no
   task in this plan); upgrade path is storing the last send outcome and threading it through the
@@ -227,4 +230,9 @@ never carried by colour alone.
   "this address can't be used for validation" and is never named as an internal-address rule, per
   design-18. Verified by inspection plus a green host `npm run build` and a clean `vue-tsc --noEmit`
   — no JS test framework exists (the standing note in `docs/standards/review.md`); the data path
-  behind both branches is covered server-side by T19's tests.
+  behind both branches is covered server-side by T19's tests. **Amended 2026-09-01** — all five
+  captions and the rate-limited line were shortened at the Owner's direction, and design-18's
+  state table was updated to match. AC34 reserves wording to the Designer and freezes only the
+  obligation, so no PRD amendment was needed; every fact each criterion requires survives, and
+  `{sent_at}` is no longer interpolated into any caption. Verified live with Playwright across
+  all four states — see `docs/fixes/destinations-table-validation-column-width.md`.

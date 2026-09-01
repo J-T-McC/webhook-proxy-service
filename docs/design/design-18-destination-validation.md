@@ -317,11 +317,24 @@ Screen 1:**
 
 | State | Badge (variant / icon / label) | Caption | Validate action |
 |---|---|---|---|
-| Unvalidated, never sent | `outline` / `Circle` / "Unvalidated" | "No validation challenge has been sent yet." | Button, enabled |
-| Unvalidated, last send failed | `outline` / `Circle` / "Unvalidated" | "Last attempt failed to send — {reason}. Nothing has been asked of this destination yet." | Button, enabled (unless rate-limited — see below) |
-| Pending | `waiting` / `Clock` / "Pending" | "Sent {sent_at}, destination responded {http_status} — waiting on someone at this address to approve it. Expires {expires_at}." | Button, enabled; caption below it always reads: "Sending again cancels this link — only the newest one ever works." |
-| Expired | `outline` / `History` / "Expired" | "The link sent {sent_at} expired {expires_at} — nobody approved it in time. Send a new one to try again." | Button, enabled |
-| Validated | `moved` / `Check` / "Validated" | "Approved {approved_at}. This destination receives events." | **No button at all** — nothing to send, nothing to undo (AC3, AC6). |
+| Unvalidated, never sent | `outline` / `Circle` / "Unvalidated" | "No challenge sent yet." | Button, enabled |
+| Unvalidated, last send failed | `outline` / `Circle` / "Unvalidated" | "Last send failed — {reason}." | Button, enabled (unless rate-limited — see below) |
+| Pending | `waiting` / `Clock` / "Pending" | "Responded {http_status}. Waiting for someone at this address to approve — expires {expires_at}." | Button, enabled; caption below it always reads: "Sending again cancels the current link." |
+| Expired | `outline` / `History` / "Expired" | "Expired {expires_at} — nobody approved in time. Send a new one." | Button, enabled |
+| Validated | `moved` / `Check` / "Validated" | "Approved {approved_at}. Receiving events." | **No button at all** — nothing to send, nothing to undo (AC3, AC6). |
+
+**Captions shortened by Owner ruling, 2026-09-01.** The wording above replaces a
+longer set that ran to three and four lines inside a table cell and drove rows to
+roughly 310px. AC34 reserves wording and presentation to the Designer and freezes
+only the obligation — *"that each state carries this is not"* — and the Owner had
+already dropped the Designer gate for this item, so the copy was theirs to cut. Every
+fact each criterion requires survives: Pending still names who must act and by when
+(AC34) and the status the destination returned (AC35); a failed send still names its
+reason (AC35); Expired still says nobody approved in time and what to do next;
+Validated still says it is receiving events. What went was the restatement of what the
+badge beside the caption already says, and the send timestamp, which told a member
+nothing the expiry did not. `{sent_at}` is consequently no longer interpolated into
+any caption.
 
 **Failure-reason copy (AC18, AC20, AC35) — plain language, never implementation jargon:**
 - Connection could not be made at all (DNS failure, refused connection, timeout):
@@ -337,7 +350,7 @@ Screen 1:**
 disabled button with no text:**
 ```
 p.text-xs.text-muted-foreground
-  "Validate — you've reached {limit description}. Try again at {reset_time}."
+  "Try again {reset_time} — {limit description} was reached."
 ```
 `{limit description}` is one of three fixed strings, in the order the limiters are
 checked: "the once-per-5-minutes limit for this destination", "today's send limit for
@@ -610,10 +623,15 @@ New, introduced by this spec:
 - **Screen 2 (Destinations table):** the new Validation column follows the table's
   existing horizontal-scroll behaviour on narrow viewports (`Table`'s existing overflow
   handling) rather than collapsing to a card list — consistent with how the Credential
-  badge and the Delivered/Attempt/Latency columns already behave on this table today. The
-  column's multi-line content (badge, caption, action) sets a natural minimum column
-  width; no truncation is applied to the caption text, since AC34/AC35's whole point is
-  that this text be read, not hinted at.
+  badge and the Delivered/Attempt/Latency columns already behave on this table today.
+  **Amended 2026-09-01.** This originally said the column's multi-line content "sets a
+  natural minimum column width", and that was wrong: under the browser's automatic table
+  layout the destination URL is one long unbreakable token and wins the width negotiation
+  outright, leaving the Validation column 117px of 1148px and wrapping its caption to
+  eight lines. The table now declares its column widths and a minimum table width, so the
+  URL truncates — which it always could, given a bounded cell — and the caption gets the
+  room it needs. No truncation is applied to the caption text, since AC34/AC35's whole
+  point is that this text be read, not hinted at.
 - **Screen 3 (header badge):** wraps with the other header badges in the existing
   `flex flex-wrap` treatment (matches Mode/Processing/Paused today) — no new behaviour.
 - **Screen 4 (confirmation page):** inherits `AuthSimpleLayout.vue`'s existing

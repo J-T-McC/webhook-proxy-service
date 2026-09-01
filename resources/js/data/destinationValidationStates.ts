@@ -121,10 +121,22 @@ export function destinationValidationStatusOption(
 }
 
 /**
- * The state caption (design-18 Screen 2, reused verbatim on Screen 1) — what
- * this state means and what is expected of whom next (AC34). Timestamps fall
- * back to the bare wording when absent, so a caption never renders
- * "Invalid Date" against a row backfilled without challenge timestamps.
+ * The state caption — what this state means and what is expected of whom next
+ * (AC34). Timestamps fall back to the bare wording when absent, so a caption
+ * never renders "Invalid Date" against a row backfilled without challenge
+ * timestamps.
+ *
+ * **Shorter than design-18 Screen 2's table, by Owner ruling on 2026-09-01.**
+ * The original wording ran to three and four lines in a table cell and made
+ * every row roughly 310px tall. AC34 reserves wording and presentation to the
+ * Designer and freezes only the obligation — "that each state carries this is
+ * not" — and the Owner dropped the Designer gate for this item, so the copy is
+ * theirs to shorten. Each state still carries every fact its criterion
+ * requires: Pending names who must act and by when (AC34) and the status the
+ * destination returned (AC35); a failed send names its reason (AC35); Expired
+ * says nobody approved in time and what to do; Validated says it is receiving
+ * events. What went is the sentence-length restatement of what the badge
+ * beside it already says.
  */
 export function destinationValidationCaption(
     validation: DestinationValidation,
@@ -133,43 +145,37 @@ export function destinationValidationCaption(
         case 'unvalidated':
             // A destination whose last send failed is still Unvalidated, but
             // the member's next move is completely different: fix the address,
-            // not wait for someone (AC35).
+            // not wait for someone (AC35). "Nothing has been asked of this
+            // destination yet" is dropped — the Unvalidated badge says it.
             return validation.last_send_failure
-                ? `Last attempt failed to send — ${SEND_FAILURE_REASONS[validation.last_send_failure]}. Nothing has been asked of this destination yet.`
-                : 'No validation challenge has been sent yet.';
+                ? `Last send failed — ${SEND_FAILURE_REASONS[validation.last_send_failure]}.`
+                : 'No challenge sent yet.';
         case 'pending':
+            // The status the destination answered with distinguishes "it
+            // arrived and was rejected" from "nobody has opened it" (AC35).
+            // Absent on rows sent before that was recorded. The send time is
+            // dropped: the expiry is the date that tells a member anything,
+            // and it is the one AC34 asks for.
             return (
-                sentPhrase('Sent', validation.challenge_sent_at) +
-                // The status the destination answered with distinguishes
-                // "it arrived and was rejected" from "nobody has opened it"
-                // (AC35). Absent on rows sent before that was recorded.
                 (validation.last_send_status !== null
-                    ? `, destination responded ${validation.last_send_status}`
+                    ? `Responded ${validation.last_send_status}. `
                     : '') +
-                ' — waiting on someone at this address to approve it.' +
+                'Waiting for someone at this address to approve' +
                 (validation.challenge_expires_at
-                    ? ` Expires ${formatTimestamp(validation.challenge_expires_at)}.`
-                    : '')
+                    ? ` — expires ${formatTimestamp(validation.challenge_expires_at)}.`
+                    : '.')
             );
         case 'expired':
             return (
-                sentPhrase('The link sent', validation.challenge_sent_at) +
                 (validation.challenge_expires_at
-                    ? ` expired ${formatTimestamp(validation.challenge_expires_at)}`
-                    : ' expired') +
-                ' — nobody approved it in time. Send a new one to try again.'
+                    ? `Expired ${formatTimestamp(validation.challenge_expires_at)} — nobody`
+                    : 'Nobody') + ' approved in time. Send a new one.'
             );
         case 'validated':
-            return (
-                (validation.approved_at
-                    ? `Approved ${formatTimestamp(validation.approved_at)}.`
-                    : 'Approved.') + ' This destination receives events.'
-            );
+            return validation.approved_at
+                ? `Approved ${formatTimestamp(validation.approved_at)}. Receiving events.`
+                : 'Approved. Receiving events.';
     }
-}
-
-function sentPhrase(prefix: string, sentAt: string | null): string {
-    return sentAt ? `${prefix} ${formatTimestamp(sentAt)}` : prefix;
 }
 
 /**
@@ -181,7 +187,7 @@ export function destinationValidationBlockedCaption(blocked: {
     description: string;
     until: string;
 }): string {
-    return `Validate — you've reached ${blocked.description}. Try again at ${formatTimestamp(blocked.until)}.`;
+    return `Try again ${formatTimestamp(blocked.until)} — ${blocked.description} was reached.`;
 }
 
 /**
@@ -189,5 +195,4 @@ export function destinationValidationBlockedCaption(blocked: {
  * under the Validate button while a live link is outstanding, so the click
  * never needs a confirmation dialog (Flow C step 2).
  */
-export const PENDING_RESEND_CAPTION =
-    'Sending again cancels this link — only the newest one ever works.';
+export const PENDING_RESEND_CAPTION = 'Sending again cancels the current link.';
