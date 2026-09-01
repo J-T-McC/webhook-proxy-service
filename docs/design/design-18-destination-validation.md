@@ -317,10 +317,10 @@ Screen 1:**
 
 | State | Badge (variant / icon / label) | Caption | Validate action |
 |---|---|---|---|
-| Unvalidated, never sent | `outline` / `Circle` / "Unvalidated" | "No challenge sent yet." | Button, enabled |
-| Unvalidated, last send failed | `outline` / `Circle` / "Unvalidated" | "Last send failed — {reason}." | Button, enabled (unless rate-limited — see below) |
-| Pending | `waiting` / `Clock` / "Pending" | "Responded {http_status}. Waiting for someone at this address to approve — expires {expires_at}." | Button, enabled; caption below it always reads: "Sending again cancels the current link." |
-| Expired | `outline` / `History` / "Expired" | "Expired {expires_at} — nobody approved in time. Send a new one." | Button, enabled |
+| Unvalidated, never sent | `outline` / `Circle` / "Unvalidated" | **No caption.** | Button, enabled |
+| Unvalidated, last send failed | `outline` / `Circle` / "Unvalidated" | "Send failed — {reason}." | Button, enabled (unless rate-limited — see below) |
+| Pending | `waiting` / `Clock` / "Pending" | "Responded {http_status}. Awaiting approval at this address — expires {expires_at}." | Button, enabled. **No standing caption below it.** |
+| Expired | `outline` / `History` / "Expired" | "Expired {expires_at}." | Button, enabled |
 | Validated | `moved` / `Check` / "Validated" | **No caption.** | **No button at all** — nothing to send, nothing to undo (AC3, AC6). |
 
 **Captions shortened by Owner ruling, 2026-09-01.** The wording above replaces a
@@ -336,24 +336,44 @@ badge beside the caption already says, and the send timestamp, which told a memb
 nothing the expiry did not. `{sent_at}` is consequently no longer interpolated into
 any caption.
 
-**Validated lost its caption entirely, same ruling.** It is the one state that asks
-nothing of anybody, so AC34's "what is expected of whom next" has nothing to require
-of it, and "Approved {approved_at}. Receiving events." only restated the badge beside
-it. A Validated row is now a single-line table row like any other. The three states
-that need a human to act keep their line, because for those the badge genuinely does
-not carry the criterion: "Unvalidated" alone cannot tell a member that the last send
-failed or why, which is the distinction AC35 exists to make. `{approved_at}` is no
-longer rendered on this screen; it remains on the wire, unused.
+**A third pass cut it further, same day and same authority.** The Owner's instruction
+was the badge plus the minimum text needed, and to stop handholding. What went:
+
+- **Validated** and **Unvalidated, never sent** lost their captions entirely. Neither
+  asks anything of anybody that the badge — and, for the latter, the Validate button
+  beside it — does not already say, so AC34 has nothing to require of them.
+- **Pending's standing caption** below the button, "Sending again cancels the current
+  link", was removed on the Owner's reasoning that a member who is re-validating does
+  not have the previous link in front of them anyway. Flow C step 2's claim that this
+  caption is what lets the click skip a confirmation dialog no longer holds through
+  that caption; the click is still not confirmed, on the ground that re-sending a
+  challenge is cheap and reversible by re-sending again.
+- **Expired** kept only its date. "Nobody approved in time" is what the Expired badge
+  means, and "send a new one" is what the button beside it is.
+- The three failure reasons and the three rate-limit descriptions were shortened.
+
+What stayed, and why. **Pending** keeps a clause naming who must act and the expiry: it
+is the one state AC34 spells out — *"including, for Pending, that somebody at the
+destination must open a link and by when"* — so the obligation is explicit rather than
+inferred. **Unvalidated, last send failed** keeps its reason: this is the distinction
+AC35 exists to make, and "Unvalidated" alone cannot tell a member whether nothing was
+ever sent or whether a send failed, which have different remedies. `{approved_at}` and
+`{sent_at}` are no longer rendered on this screen; both remain on the wire, unused.
+
+**No column widths are declared.** An earlier pass in this session gave the table
+`table-fixed` and per-column widths, and the Owner removed them: with the captions cut
+this far the browser's own layout is acceptable, and some wrapping is fine. What the
+declared widths had been compensating for is handled at its source instead — see the
+capped destination URL under Responsive Behavior, Screen 2.
 
 **Failure-reason copy (AC18, AC20, AC35) — plain language, never implementation jargon:**
 - Connection could not be made at all (DNS failure, refused connection, timeout):
-  "could not reach this address"
+  "couldn't reach this address"
 - Refused before sending, per AC20 (loopback/private/link-local/cloud-metadata address):
-  "this address can't be used for validation" — never named as an internal-address rule;
-  the member's remedy either way is the same (fix the URL), so the copy does not
-  distinguish the reason beyond this.
-- A redirect was returned (AC19 — not followed): "this address redirected elsewhere,
-  which validation doesn't follow"
+  "this address can't be used" — never named as an internal-address rule; the member's
+  remedy either way is the same (fix the URL), so the copy does not distinguish the
+  reason beyond this.
+- A redirect was returned (AC19 — not followed): "this address redirected"
 
 **Rate-limited state (AC21, Flow D) — replaces the Validate button entirely, never a
 disabled button with no text:**
@@ -362,8 +382,8 @@ p.text-xs.text-muted-foreground
   "Try again {reset_time} — {limit description} was reached."
 ```
 `{limit description}` is one of three fixed strings, in the order the limiters are
-checked: "the once-per-5-minutes limit for this destination", "today's send limit for
-this destination", "today's send limit for this team". Whichever limiter is tightest at
+checked: "5-minute limit for this destination", "Today's limit for this destination",
+"Today's limit for this team". Whichever limiter is tightest at
 the moment governs which line shows — only one line ever renders, never a stacked list of
 all three limits' status.
 
@@ -636,11 +656,14 @@ New, introduced by this spec:
   **Amended 2026-09-01.** This originally said the column's multi-line content "sets a
   natural minimum column width", and that was wrong: under the browser's automatic table
   layout the destination URL is one long unbreakable token and wins the width negotiation
-  outright, leaving the Validation column 117px of 1148px and wrapping its caption to
-  eight lines. The table now declares its column widths and a minimum table width, so the
-  URL truncates — which it always could, given a bounded cell — and the caption gets the
-  room it needs. No truncation is applied to the caption text, since AC34/AC35's whole
-  point is that this text be read, not hinted at.
+  outright, leaving the Validation column 117px of 1148px and wrapping one sentence to
+  four lines. The fix is applied to the column that causes it rather than to the one that
+  suffers: **the destination URL is capped at `20rem` and truncated, with the full value
+  in a tooltip** — the treatment `ReplayDialog` already gives a destination URL, reused
+  rather than reinvented. Capping what that column can demand leaves the rest to be
+  distributed normally, and no column width is declared anywhere. No truncation is applied
+  to the caption text, since AC34/AC35's whole point is that this text be read, not hinted
+  at; some wrapping there is expected and accepted.
 - **Screen 3 (header badge):** wraps with the other header badges in the existing
   `flex flex-wrap` treatment (matches Mode/Processing/Paused today) — no new behaviour.
 - **Screen 4 (confirmation page):** inherits `AuthSimpleLayout.vue`'s existing

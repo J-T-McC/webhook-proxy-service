@@ -101,10 +101,9 @@ export type DestinationValidationSendFailure =
  * distinguish the reason beyond this.
  */
 const SEND_FAILURE_REASONS: Record<DestinationValidationSendFailure, string> = {
-    unreachable: 'could not reach this address',
-    address_refused: "this address can't be used for validation",
-    redirected:
-        "this address redirected elsewhere, which validation doesn't follow",
+    unreachable: "couldn't reach this address",
+    address_refused: "this address can't be used",
+    redirected: 'this address redirected',
 };
 
 /**
@@ -121,61 +120,55 @@ export function destinationValidationStatusOption(
 }
 
 /**
- * The state caption — what this state means and what is expected of whom next
- * (AC34). Timestamps fall back to the bare wording when absent, so a caption
- * never renders "Invalid Date" against a row backfilled without challenge
- * timestamps.
+ * The state caption — the minimum a member needs that the badge beside it does
+ * not already say. Null where the badge says everything.
  *
- * **Shorter than design-18 Screen 2's table, by Owner ruling on 2026-09-01.**
- * The original wording ran to three and four lines in a table cell and made
- * every row roughly 310px tall. AC34 reserves wording and presentation to the
- * Designer and freezes only the obligation — "that each state carries this is
- * not" — and the Owner dropped the Designer gate for this item, so the copy is
- * theirs to shorten. Each state still carries every fact its criterion
- * requires: Pending names who must act and by when (AC34) and the status the
- * destination returned (AC35); a failed send names its reason (AC35); Expired
- * says nobody approved in time and what to do; Validated says it is receiving
- * events. What went is the sentence-length restatement of what the badge
- * beside it already says.
+ * **Cut to this by Owner ruling, 2026-09-01**, in two passes: first shortened
+ * from design-18 Screen 2's original wording, then cut again to drop the
+ * handholding. AC34 reserves wording and presentation to the Designer and
+ * freezes only the obligation — "that each state carries this is not" — and the
+ * Owner dropped the Designer gate for this item, so the copy is theirs.
  *
- * **Validated carries no caption at all, by Owner ruling on 2026-09-01.** It is
- * the one state that asks nothing of anybody, so there is no "what is expected
- * of whom next" for AC34 to require, and the badge already says the destination
- * is validated. The three states that need a human to act keep their line.
+ * What each state still has to carry, and why:
+ *
+ * - **Validated** and **Unvalidated, never sent** carry nothing. Neither asks
+ *   anything of anybody that the badge and the Validate button beside it do not
+ *   already say, so AC34 has nothing to require of them.
+ * - **Unvalidated, last send failed** must name the reason. This is the one
+ *   distinction AC35 exists to make: "Unvalidated" alone cannot tell a member
+ *   whether nothing was ever sent or whether a send failed, and those have
+ *   different remedies.
+ * - **Pending** is the one state AC34 spells out — "that somebody at the
+ *   destination must open a link and by when" — so it keeps a clause naming who
+ *   must act and the expiry, plus the status the destination returned (AC35).
+ * - **Expired** keeps only its date. "Nobody approved in time" is what the
+ *   Expired badge means, and "send a new one" is what the button beside it is.
+ *
+ * Timestamps fall back to the bare wording when absent, so a caption never
+ * renders "Invalid Date" against a row backfilled without challenge timestamps.
  */
 export function destinationValidationCaption(
     validation: DestinationValidation,
 ): string | null {
     switch (validation.status) {
         case 'unvalidated':
-            // A destination whose last send failed is still Unvalidated, but
-            // the member's next move is completely different: fix the address,
-            // not wait for someone (AC35). "Nothing has been asked of this
-            // destination yet" is dropped — the Unvalidated badge says it.
             return validation.last_send_failure
-                ? `Last send failed — ${SEND_FAILURE_REASONS[validation.last_send_failure]}.`
-                : 'No challenge sent yet.';
+                ? `Send failed — ${SEND_FAILURE_REASONS[validation.last_send_failure]}.`
+                : null;
         case 'pending':
-            // The status the destination answered with distinguishes "it
-            // arrived and was rejected" from "nobody has opened it" (AC35).
-            // Absent on rows sent before that was recorded. The send time is
-            // dropped: the expiry is the date that tells a member anything,
-            // and it is the one AC34 asks for.
             return (
                 (validation.last_send_status !== null
                     ? `Responded ${validation.last_send_status}. `
                     : '') +
-                'Waiting for someone at this address to approve' +
+                'Awaiting approval at this address' +
                 (validation.challenge_expires_at
                     ? ` — expires ${formatTimestamp(validation.challenge_expires_at)}.`
                     : '.')
             );
         case 'expired':
-            return (
-                (validation.challenge_expires_at
-                    ? `Expired ${formatTimestamp(validation.challenge_expires_at)} — nobody`
-                    : 'Nobody') + ' approved in time. Send a new one.'
-            );
+            return validation.challenge_expires_at
+                ? `Expired ${formatTimestamp(validation.challenge_expires_at)}.`
+                : null;
         case 'validated':
             return null;
     }
@@ -190,12 +183,5 @@ export function destinationValidationBlockedCaption(blocked: {
     description: string;
     until: string;
 }): string {
-    return `Try again ${formatTimestamp(blocked.until)} — ${blocked.description} was reached.`;
+    return `${blocked.description} reached. Try again ${formatTimestamp(blocked.until)}.`;
 }
-
-/**
- * Pending's standing consequence caption (design-18 Screen 2) — rendered
- * under the Validate button while a live link is outstanding, so the click
- * never needs a confirmation dialog (Flow C step 2).
- */
-export const PENDING_RESEND_CAPTION = 'Sending again cancels the current link.';

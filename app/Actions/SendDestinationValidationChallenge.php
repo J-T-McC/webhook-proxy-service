@@ -175,16 +175,18 @@ class SendDestinationValidationChallenge
      * Which limit currently blocks this destination, or null if none does —
      * the tightest tripped limiter in check order, as a plain-language
      * description (design-18 Screen 2's three fixed strings, AC21 "the member
-     * is told which one") plus the seconds until it clears.
+     * is told which one") plus the seconds until it clears. The strings were
+     * shortened on 2026-09-01 with the rest of this feature's copy, and they
+     * now open the caption rather than sitting mid-sentence in it.
      *
      * @return array{description: string, available_in: int}|null
      */
     public function blockedBy(Destination $destination): ?array
     {
         $descriptions = [
-            'the once-per-5-minutes limit for this destination',
-            "today's send limit for this destination",
-            "today's send limit for this team",
+            '5-minute limit for this destination',
+            "Today's limit for this destination",
+            "Today's limit for this team",
         ];
 
         foreach ($this->limits($destination) as $index => [$key, $max, $decay]) {

@@ -24,10 +24,10 @@ never carried by colour alone.
   `show()` and `edit()`. The four treatments (badge variant + icon + label + caption) live in
   `resources/js/data/destinationValidationStates.ts` following the `proxyDeliveryStates` data-const
   pattern, so Screen 1 (T17) reuses them verbatim; `DestinationsCard.vue` renders them in a new
-  Validation column between Destination and Delivered %. **Amended 2026-09-01** — the table now
-  declares fixed column widths and a minimum width; without them automatic layout gave the
-  unbreakable URL 559px and crushed this column to 117px. See
-  `docs/fixes/destinations-table-validation-column-width.md`. Deliberate simplifications: the Pending
+  Validation column between Destination and Delivered %. **Amended 2026-09-01** — the destination
+  URL is capped at `20rem` and truncated behind a tooltip, reusing `ReplayDialog`'s treatment.
+  Uncapped it took 559px under automatic table layout and crushed this column to 117px. No
+  column width is declared. See `docs/fixes/destinations-table-validation-column-width.md`. Deliberate simplifications: the Pending
   caption omits design-18's `{http_status}` and the Unvalidated caption has no "last send failed —
   {reason}" variant, because no send-outcome columns exist on `destinations` (AC35 is traced by no
   task in this plan); upgrade path is storing the last send outcome and threading it through the
@@ -236,6 +236,10 @@ never carried by colour alone.
   obligation, so no PRD amendment was needed; every fact each criterion requires survives, and
   `{sent_at}` is no longer interpolated into any caption, and Validated carries no caption at all —
   it asks nothing of anybody, so AC34 has nothing to require of it, and its row is now a single
-  line. `destinationValidationCaption` returns `string | null` accordingly and both consumers
+  line. A third pass cut further still: Unvalidated-never-sent also lost its caption, Pending's
+  standing resend caption was removed entirely, Expired kept only its date, and the failure
+  reasons and rate-limit descriptions were shortened. Pending keeps who-must-act and the expiry
+  because AC34 names that state; a failed send keeps its reason because that is AC35's whole
+  point. `destinationValidationCaption` returns `string | null` accordingly and both consumers
   (`DestinationsCard.vue`, `DestinationRows.vue`) skip the element when it is null. Verified live
   with Playwright across all four states — see `docs/fixes/destinations-table-validation-column-width.md`.

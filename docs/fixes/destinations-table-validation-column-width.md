@@ -23,30 +23,62 @@ layout grew the column rather than clipping the text, and the URL `span` is a fl
 item without `min-w-0`, so it would not shrink below its content width even in a
 bounded cell.
 
+Shortening the captions alone does not fix this. Measured with the shortened copy in
+place and no width intervention, the split was still 559px to 117px and a
+one-sentence caption still wrapped to four lines: automatic layout treats wrapping
+text as infinitely compressible, so the column that can wrap always loses to the one
+that cannot.
+
 ## Fix
 
-- The table declares `table-fixed` and a `min-w-[72rem]` minimum, with explicit
-  per-column widths (Destination 35%, Validation 27%, the three metric columns and
-  Actions taking the rest). Below the minimum the table container's existing
-  `overflow-x-auto` scrolls it, which is how this table already behaved on narrow
-  viewports and which the Project Owner confirmed as acceptable.
-- `min-w-0` added to the URL span, so `truncate` actually produces an ellipsis.
-- `max-w-64` removed from the validation cell, which capped it below its new column.
-- Separately, at the Owner's direction, the state captions were shortened. AC34
-  reserves wording and presentation to the Designer and freezes only the obligation,
-  and the Designer gate was dropped for this item, so no PRD amendment was needed.
-  design-18's state table and its Screen 2 responsive paragraph were both updated to
-  match. In a second pass the Owner removed the Validated caption entirely: it is the
-  one state that asks nothing of anybody, so AC34 has nothing to require of it. The
-  three states that need a human to act keep their line, because there the badge does
-  not carry the criterion — "Unvalidated" alone cannot say that the last send failed or
-  why, which is what AC35 is for.
+Applied to the column that causes the problem rather than the one that suffers it,
+after an intermediate attempt that did the opposite.
+
+- **The destination URL is capped at `20rem` and truncated, with the full value in a
+  tooltip** — the treatment `ReplayDialog` already gives a destination URL, reused
+  rather than reinvented. Capping what that column can demand leaves the remainder to
+  be distributed normally. **No column width is declared anywhere**, and the table no
+  longer needs to scroll at a typical desktop width.
+- `min-w-0` on the URL span, without which `truncate` cannot fire at all.
+- `max-w-64` removed from the validation cell.
+- **Rejected on the way:** `table-fixed` with declared per-column widths and a
+  `min-w-[72rem]` table minimum. It worked — rows fell to 131px — but the Project
+  Owner did not want fixed widths, and it treated the symptom rather than the cause.
+  Reverted.
+
+Separately, and at the Owner's direction across three passes, the state captions were
+cut hard. AC34 reserves wording and presentation to the Designer and freezes only the
+obligation, and the Designer gate was dropped for this item, so no PRD amendment was
+needed.
+
+- Validated and Unvalidated-never-sent carry no caption at all: neither asks anything
+  the badge — and, for the latter, the Validate button beside it — does not already
+  say.
+- Pending's standing "Sending again cancels the current link" was removed, on the
+  Owner's reasoning that a member who is re-validating does not have the previous link
+  in front of them anyway.
+- Expired keeps only its date. The badge means "nobody approved in time", and "send a
+  new one" is what the button beside it is.
+- The three failure reasons and the three rate-limit descriptions were shortened.
+- Pending keeps a clause naming who must act and the expiry, because AC34 spells that
+  state out by name. A failed send keeps its reason, because that is the distinction
+  AC35 exists to make.
+
+design-18's state table, its failure-reason copy, its rate-limited line and its Screen
+2 responsive paragraph were all updated to match.
 
 ## Verified
 
 Playwright against the running application at 1440px and at 360px, with all four
-validation states plus a recorded send failure and a recorded response status. Row
-heights fell from 307px and 319px to 131px and 111px, and a Validated row is now 49px
-— an ordinary single-line table row. At 360px the table scrolls inside its own container and the page body does not
-scroll horizontally. The proxy edit form, which reuses the same captions, was checked
-separately.
+validation states plus a recorded send failure and a recorded response status.
+
+- Row heights fell from 307px and 319px to 127px and 111px; a Validated row is an
+  ordinary single-line table row.
+- The Destination column fell from 559px to roughly 395px and the Validation column
+  rose from 117px to roughly 200px, which is what removed the wrapping.
+- The whole table now fits a 1070px container without scrolling, so the Actions column
+  is no longer pushed past the right edge.
+- At 360px the table scrolls inside its own container and the page body does not
+  scroll horizontally.
+- The tooltip was confirmed to serve the full URL for a truncated row.
+- The proxy edit form, which reuses the same captions, was checked separately.

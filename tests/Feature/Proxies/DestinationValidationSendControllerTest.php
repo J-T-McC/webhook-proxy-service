@@ -140,7 +140,7 @@ class DestinationValidationSendControllerTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where(
                     "security.destinations.{$destination->id}.validation.send_blocked.description",
-                    'the once-per-5-minutes limit for this destination',
+                    '5-minute limit for this destination',
                 )
                 ->has("security.destinations.{$destination->id}.validation.send_blocked.until")
             );

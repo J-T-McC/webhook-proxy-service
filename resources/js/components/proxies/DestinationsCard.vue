@@ -6,6 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
     Table,
     TableBody,
     TableCell,
@@ -22,7 +28,6 @@ import {
     lastWindowSubtitle,
 } from '@/data/analyticsLabels';
 import {
-    PENDING_RESEND_CAPTION,
     destinationValidationBlockedCaption,
     destinationValidationCaption,
     destinationValidationStatusOption,
@@ -142,31 +147,19 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                 {{ lastWindowSubtitle(props.window) }}
             </p>
         </div>
-        <!-- Column widths are declared rather than left to the browser.
-        Under auto layout the destination URL is one long unbreakable token,
-        so it won the width negotiation outright — 559px of 1148px in the
-        case that prompted this — and crushed the Validation column to
-        117px, wrapping its caption to eight lines and making every row
-        ~310px tall. `table-fixed` plus a table minimum width inverts that:
-        the URL truncates (which it always could, given a bounded cell) and
-        the only column with multi-line content gets room to use two. Below
-        the minimum the container's existing `overflow-x-auto` scrolls,
-        which is how this table already behaves on narrow viewports. -->
-        <Table class="min-w-[72rem] table-fixed">
+        <!-- No declared column widths: the captions are now short enough
+        that the browser's own layout gets this right, and the table
+        container's existing `overflow-x-auto` scrolls when the total
+        exceeds the viewport. -->
+        <Table>
             <TableHeader>
                 <TableRow>
-                    <TableHead class="w-[35%]">Destination</TableHead>
-                    <TableHead class="w-[27%]">Validation</TableHead>
-                    <TableHead class="w-[11%]">{{
-                        DELIVERY_SUCCESS_COLUMN_LABEL
-                    }}</TableHead>
-                    <TableHead class="w-[11%]">{{
-                        ATTEMPT_SUCCESS_COLUMN_LABEL
-                    }}</TableHead>
-                    <TableHead class="w-[8%]">{{
-                        LATENCY_AVERAGE_COLUMN_LABEL
-                    }}</TableHead>
-                    <TableHead class="w-[8%] text-right">Actions</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead>Validation</TableHead>
+                    <TableHead>{{ DELIVERY_SUCCESS_COLUMN_LABEL }}</TableHead>
+                    <TableHead>{{ ATTEMPT_SUCCESS_COLUMN_LABEL }}</TableHead>
+                    <TableHead>{{ LATENCY_AVERAGE_COLUMN_LABEL }}</TableHead>
+                    <TableHead class="text-right">Actions</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -179,12 +172,33 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                             <Badge variant="outline">{{
                                 destination.httpMethod
                             }}</Badge>
-                            <!-- `min-w-0` is what makes `truncate` fire: a
-                            flex item will not shrink below its content width
-                            without it, so the ellipsis never appeared. -->
-                            <span class="min-w-0 truncate font-mono text-sm">{{
-                                destination.url
-                            }}</span>
+                            <!-- The URL is capped and truncated, with the
+                            full value in a tooltip — the same treatment
+                            `ReplayDialog` already gives a destination URL.
+                            Uncapped it is one long unbreakable token, and
+                            the browser's automatic table layout hands it
+                            whatever it asks for: it took 559px of 1148px
+                            and left the Validation column beside it 117px.
+                            `min-w-0` is what lets `truncate` fire at all —
+                            a flex item will not shrink below its content
+                            width without it. -->
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger as-child>
+                                        <span
+                                            class="block max-w-[20rem] min-w-0 truncate font-mono text-sm"
+                                            >{{ destination.url }}</span
+                                        >
+                                    </TooltipTrigger>
+                                    <TooltipContent class="max-w-xs">
+                                        <p
+                                            class="text-left break-all whitespace-normal"
+                                        >
+                                            {{ destination.url }}
+                                        </p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                             <Badge
                                 v-if="hasCredential(destination)"
                                 variant="outline"
@@ -197,7 +211,13 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                         <!-- T15 (design-18 Screen 2) — validation reads
                         before the delivery figures beside it, because it is
                         the precondition for them meaning anything. State is
-                        icon + label + caption, never colour alone. -->
+                        icon + label + caption, never colour alone.
+
+                        The column is given no width and the caption is free
+                        to wrap: with the captions cut to a sentence, the
+                        browser's own layout is good enough, and the table
+                        container's existing `overflow-x-auto` handles the
+                        rest. -->
                         <div
                             v-if="validationCells[destination.id]"
                             class="flex flex-col gap-1"
@@ -267,15 +287,6 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                                         />
                                         Validate
                                     </Button>
-                                    <p
-                                        v-if="
-                                            validationCells[destination.id]
-                                                .status === 'pending'
-                                        "
-                                        class="text-xs whitespace-normal text-muted-foreground"
-                                    >
-                                        {{ PENDING_RESEND_CAPTION }}
-                                    </p>
                                 </template>
                             </template>
                         </div>
