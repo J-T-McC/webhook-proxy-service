@@ -210,7 +210,10 @@ and that layout dereferences the signed-out user, so a public page must be named
 switch alongside `Welcome`; and Inertia mounts after the browser has acted on the URL hash, so
 deep links need the `onMounted` scroll the page carries. Verified in a browser against a fresh
 build (`public/hot` moved aside) at 1440px and 390px in both themes. The signing section's
-Node and PHP verification examples sit in a `reka-ui` `Tabs` group used directly on the page.
+Node and PHP verification examples sit in a `reka-ui` `Tabs` group used directly on the page, and
+every code block renders through `CodeBlock.vue` — Shiki, dynamically imported, grammars loaded
+per language on first use (**new dependency, `shiki`, requested by the Project Owner
+2026-09-01**).
 
 ## Owner-commissioned design work (not a roadmap line)
 

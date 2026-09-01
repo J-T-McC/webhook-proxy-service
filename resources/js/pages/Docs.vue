@@ -2,6 +2,7 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import { computed, onMounted } from 'vue';
+import CodeBlock from '@/components/CodeBlock.vue';
 import { dashboard, home, login, register } from '@/routes';
 
 const page = usePage();
@@ -42,6 +43,7 @@ const verifyExamples = [
     {
         value: 'node',
         label: 'Node',
+        lang: 'javascript' as const,
         code: `import crypto from 'node:crypto';
 
 // whsec_... exactly as the dialog showed it.
@@ -61,6 +63,7 @@ const ok = signatureHeader.split(' ').some((entry) =>
     {
         value: 'php',
         label: 'PHP',
+        lang: 'php' as const,
         code: `<?php
 
 // whsec_... exactly as the dialog showed it.
@@ -231,9 +234,12 @@ const challengeExample = `{
                                 The proxy page shows your ingest URL. Point the
                                 sending system at it, or try it by hand:
                             </p>
-                            <pre
-                                class="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 text-xs"
-                            ><code>{{ curlExample }}</code></pre>
+                            <CodeBlock
+                                class="mt-3"
+                                :code="curlExample"
+                                lang="bash"
+                                label="Terminal"
+                            />
                         </li>
                         <li>
                             <h3 class="text-sm font-medium">
@@ -352,9 +358,12 @@ const challengeExample = `{
                                 challenge — a request to that URL, using the
                                 method you configured, with this body:
                             </dd>
-                            <pre
-                                class="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 text-xs"
-                            ><code>{{ challengeExample }}</code></pre>
+                            <CodeBlock
+                                class="mt-3"
+                                :code="challengeExample"
+                                lang="json"
+                                label="Challenge body"
+                            />
                             <p class="mt-3 text-muted-foreground">
                                 The destination is Pending until someone opens
                                 <code>validation_url</code> and approves, which
@@ -478,9 +487,12 @@ const challengeExample = `{
                     <h3 class="mt-6 text-sm font-medium">
                         What the receiver gets
                     </h3>
-                    <pre
-                        class="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 text-xs"
-                    ><code>{{ signingHeaders }}</code></pre>
+                    <CodeBlock
+                        class="mt-3"
+                        :code="signingHeaders"
+                        lang="text"
+                        label="Request headers"
+                    />
                     <p class="mt-3 text-sm text-muted-foreground">
                         The signature is a base64 HMAC-SHA256 over
                         <code>id.timestamp.body</code>, using the secret with
@@ -507,9 +519,12 @@ const challengeExample = `{
                             :key="example.value"
                             :value="example.value"
                         >
-                            <pre
-                                class="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 text-xs"
-                            ><code>{{ example.code }}</code></pre>
+                            <CodeBlock
+                                class="mt-3"
+                                :code="example.code"
+                                :lang="example.lang"
+                                :label="example.label"
+                            />
                         </TabsContent>
                     </TabsRoot>
 
