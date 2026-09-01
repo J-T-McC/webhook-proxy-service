@@ -4,8 +4,11 @@ import { signIn, signOut } from './support/auth';
 import { seedState } from './support/state';
 
 // Signed-out specs: they exercise the way in, so they must not inherit the
-// stored member session. Fortify throttles login attempts per email, so these
-// run in order and sign in as few times as the assertions allow.
+// stored member session. They use an account of their own because Fortify
+// throttles login attempts per email — five a minute — and the shared session
+// setup must not be competing for that budget. Running the whole suite several
+// times inside one minute can still trip the limiter locally; a single CI run
+// spends two attempts.
 test.use({ storageState: { cookies: [], origins: [] } });
 test.describe.configure({ mode: 'serial' });
 
@@ -22,7 +25,7 @@ test('a member signs in, reaches their team and signs back out', async ({ page }
 });
 
 test('a wrong password is rejected and no session is granted', async ({ page }) => {
-    const account = seedState().signIn;
+    const account = seedState().rejected;
 
     await page.goto('/login');
     await page.getByLabel('Email address').fill(account.email);

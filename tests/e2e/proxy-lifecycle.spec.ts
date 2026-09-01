@@ -1,17 +1,14 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './support/fixtures';
 import { createProxy } from './support/proxies';
-import { seedState } from './support/state';
 import { uniqueName } from './support/unique';
 
-test('a proxy can be created, listed, renamed, paused, resumed and deleted', async ({ page }) => {
-    const { member } = seedState();
+test('a proxy can be created, listed, renamed, paused, resumed and deleted', async ({ page, account }) => {
     const name = uniqueName('E2E Proxy');
     const renamed = `${name} renamed`;
 
-    await createProxy(page, name);
+    await createProxy(page, account, name);
 
-    await page.goto(`/${member.teamSlug}/proxies`);
+    await page.goto(`/${account.teamSlug}/proxies`);
     await expect(page.getByRole('link', { name })).toBeVisible();
 
     await page.getByRole('link', { name }).click();
@@ -32,16 +29,15 @@ test('a proxy can be created, listed, renamed, paused, resumed and deleted', asy
     await page.getByRole('button', { name: `Delete proxy ${renamed}` }).click();
     await page.getByRole('button', { name: 'Delete proxy', exact: true }).click();
 
-    await expect(page).toHaveURL(new RegExp(`/${member.teamSlug}/proxies$`));
+    await expect(page).toHaveURL(new RegExp(`/${account.teamSlug}/proxies$`));
     await expect(page.getByRole('link', { name: renamed })).toHaveCount(0);
 });
 
 test('a destination URL that is not https is refused with the error on the field', async ({
     page,
+    account,
 }) => {
-    const { member } = seedState();
-
-    await page.goto(`/${member.teamSlug}/proxies/create`);
+    await page.goto(`/${account.teamSlug}/proxies/create`);
     await page.locator('#name').fill(uniqueName('E2E Invalid'));
     await page.locator('#destination-0-url').fill('http://example.com/webhook');
     const submission = page.waitForResponse((response) => response.request().method() === 'POST');

@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 
 import type { FullConfig } from '@playwright/test';
 
-import { STATE_FILE, type SeedState } from './support/state';
+import { AUTH_DIR, STATE_FILE, type SeedState } from './support/state';
 
 /**
  * Seeds the fixed accounts once per run and writes what they are to disk for
@@ -23,6 +23,10 @@ export default function globalSetup(config: FullConfig): void {
     const state = JSON.parse(json) as SeedState;
 
     writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+
+    // Sessions from an earlier run point at rows a re-seed may have replaced.
+    rmSync(AUTH_DIR, { recursive: true, force: true });
+    mkdirSync(AUTH_DIR, { recursive: true });
 }
 
 /**

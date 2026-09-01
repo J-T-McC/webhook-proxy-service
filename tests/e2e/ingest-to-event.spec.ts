@@ -1,5 +1,4 @@
-import { expect, test } from '@playwright/test';
-
+import { expect, test } from './support/fixtures';
 import { createProxy } from './support/proxies';
 import { uniqueName } from './support/unique';
 
@@ -7,14 +6,11 @@ import { uniqueName } from './support/unique';
  * The product's reason to exist: a webhook posted to a proxy's ingest URL is
  * captured, and a member can find it, read what arrived and replay it.
  */
-test('a webhook posted to the ingest URL is captured, readable and replayable', async ({
-    page,
-    request,
-}) => {
+test('a webhook posted to the ingest URL is captured, readable and replayable', async ({ page, request, account }) => {
     const name = uniqueName('E2E Ingest');
     const marker = uniqueName('marker').replace(/\s/g, '-');
 
-    await createProxy(page, name);
+    await createProxy(page, account, name);
     const proxyUrl = page.url();
 
     const ingestUrl = await page.getByTestId('ingest-url').locator('input').inputValue();

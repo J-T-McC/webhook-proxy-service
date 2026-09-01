@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 
-import { seedState } from './state';
+import { type SeededAccount } from './state';
 
 /**
  * Creates a proxy through the form and leaves the browser on its page. The
@@ -9,12 +9,11 @@ import { seedState } from './state';
  */
 export async function createProxy(
     page: Page,
+    account: SeededAccount,
     name: string,
     destinationUrl = 'https://example.com/webhook',
 ): Promise<void> {
-    const { member } = seedState();
-
-    await page.goto(`/${member.teamSlug}/proxies/create`);
+    await page.goto(`/${account.teamSlug}/proxies/create`);
     await page.locator('#name').fill(name);
     await page.locator('#destination-0-url').fill(destinationUrl);
     await page.getByRole('button', { name: 'Create proxy' }).click();

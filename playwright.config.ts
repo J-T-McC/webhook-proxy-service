@@ -1,7 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
 
-import { MEMBER_STORAGE_STATE } from './tests/e2e/support/state';
-
 /**
  * End-to-end suite — see docs/briefs/e2e-playwright-coverage.md.
  *
@@ -24,7 +22,10 @@ export default defineConfig({
     workers: process.env.CI ? 2 : 4,
     reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
     timeout: 60_000,
-    expect: { timeout: 15_000 },
+    // Locally the app is usually served by a dev-mode Vite server that compiles
+    // pages on demand; CI serves a build, where a slow assertion means a real
+    // problem rather than a cold page.
+    expect: { timeout: process.env.CI ? 10_000 : 30_000 },
 
     use: {
         baseURL,
@@ -35,14 +36,7 @@ export default defineConfig({
         video: 'retain-on-failure',
     },
 
-    projects: [
-        { name: 'setup', testMatch: /.*\.setup\.ts/ },
-        {
-            name: 'chromium',
-            dependencies: ['setup'],
-            use: { ...devices['Desktop Chrome'], storageState: MEMBER_STORAGE_STATE },
-        },
-    ],
+    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 
     webServer: startServer
         ? {

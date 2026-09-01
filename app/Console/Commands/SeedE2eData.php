@@ -25,11 +25,19 @@ class SeedE2eData extends Command
 
     public const PASSWORD = 'e2e-password';
 
-    private const MEMBER_EMAIL = 'e2e@example.com';
+    /**
+     * One account per Playwright worker. Workers must not share a session: the
+     * cookie is the server session, and two workers posting through the same
+     * one race on the flashed validation errors, so one worker's form comes
+     * back blank of the error the other's request cleared.
+     */
+    private const WORKER_COUNT = 8;
 
     private const OUTSIDER_EMAIL = 'e2e-outsider@example.com';
 
     private const SIGN_IN_EMAIL = 'e2e-signin@example.com';
+
+    private const REJECTED_EMAIL = 'e2e-rejected@example.com';
 
     public function handle(): int
     {
@@ -39,14 +47,25 @@ class SeedE2eData extends Command
             return self::FAILURE;
         }
 
-        $member = $this->user(self::MEMBER_EMAIL, 'E2E Member');
-        $memberTeam = $this->team($member, 'E2E Team');
+        $workers = [];
+
+        for ($i = 0; $i < self::WORKER_COUNT; $i++) {
+            $worker = $this->user("e2e-w{$i}@example.com", "E2E Worker {$i}");
+            $team = $this->team($worker, "E2E Worker {$i} Team");
+
+            $workers[] = ['email' => $worker->email, 'teamSlug' => $team->slug];
+        }
 
         // A second account for the specs that exercise the login form itself.
         // Fortify throttles by email, so they must not spend the budget the
         // shared session setup needs.
         $signIn = $this->user(self::SIGN_IN_EMAIL, 'E2E Sign In');
         $signInTeam = $this->team($signIn, 'E2E Sign In Team');
+
+        // And a third for the rejected-password spec, so a failed attempt never
+        // eats the successful spec's allowance.
+        $rejected = $this->user(self::REJECTED_EMAIL, 'E2E Rejected');
+        $rejectedTeam = $this->team($rejected, 'E2E Rejected Team');
 
         // The isolation spec asserts this team's proxy is invisible to the
         // member above, who is deliberately not a member of it.
@@ -63,15 +82,16 @@ class SeedE2eData extends Command
 
         $state = [
             'password' => self::PASSWORD,
-            'member' => ['email' => $member->email, 'teamSlug' => $memberTeam->slug],
+            'workers' => $workers,
             'signIn' => ['email' => $signIn->email, 'teamSlug' => $signInTeam->slug],
+            'rejected' => ['email' => $rejected->email, 'teamSlug' => $rejectedTeam->slug],
             'outsider' => ['email' => $outsider->email, 'teamSlug' => $outsiderTeam->slug],
             'foreignProxy' => ['id' => $foreignProxy->id, 'name' => $foreignProxy->name],
         ];
 
         $this->line($this->option('json')
             ? (string) json_encode($state, JSON_PRETTY_PRINT)
-            : 'Seeded '.$member->email.' (team '.$memberTeam->slug.').');
+            : 'Seeded '.self::WORKER_COUNT.' worker accounts, the sign-in account and one foreign team.');
 
         return self::SUCCESS;
     }

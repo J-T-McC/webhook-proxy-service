@@ -9,8 +9,9 @@ export type SeededAccount = {
 
 export type SeedState = {
     password: string;
-    member: SeededAccount;
+    workers: SeededAccount[];
     signIn: SeededAccount;
+    rejected: SeededAccount;
     outsider: SeededAccount;
     foreignProxy: { id: number; name: string };
 };
@@ -19,8 +20,8 @@ const e2eDir = dirname(fileURLToPath(import.meta.url)).replace(/\/support$/, '')
 
 export const STATE_FILE = join(e2eDir, '.state.json');
 
-/** Session saved by `auth.setup.ts` and reused by the signed-in specs. */
-export const MEMBER_STORAGE_STATE = join(e2eDir, '.auth', 'member.json');
+/** Where each worker's saved session lives (see `fixtures.ts`). */
+export const AUTH_DIR = join(e2eDir, '.auth');
 
 let cached: SeedState | null = null;
 

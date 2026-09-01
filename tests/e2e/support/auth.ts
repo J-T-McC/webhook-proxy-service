@@ -8,13 +8,16 @@ import { seedState, type SeededAccount } from './state';
  */
 export async function signIn(
     page: Page,
-    account: SeededAccount = seedState().member,
+    account: SeededAccount,
     password: string = seedState().password,
 ): Promise<void> {
     await page.goto('/login');
     await page.getByLabel('Email address').fill(account.email);
     await page.getByLabel('Password', { exact: true }).fill(password);
-    await page.getByTestId('login-button').click();
+    // Attribute selector rather than getByTestId: this also runs on a page made
+    // straight from the browser in the worker fixture, which carries none of the
+    // project's `use` options, `testIdAttribute` included.
+    await page.locator('[data-test="login-button"]').click();
 
     await expect(page).toHaveURL(new RegExp(`/${account.teamSlug}/dashboard`));
 }
