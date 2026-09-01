@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Enums\SecretPurpose;
 use App\Exceptions\SecretUnavailableException;
 use App\Models\Delivery;
+use App\Models\Destination;
 use App\Models\Proxy;
 use App\Pipeline\DeliveryUnit;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
  * The single resolver of a {@see DeliveryUnit} from `(Delivery, int $attemptNumber)`
@@ -55,6 +57,8 @@ class DeliveryUnitResolver
     public function __construct(
         private readonly StoredPayloadLookup $payloads,
         private readonly SecretStore $secrets,
+        private readonly DestinationLookup $destinations,
+        private readonly ProxyLookup $proxies,
     ) {}
 
     public function resolve(Delivery $delivery, int $attemptNumber): ?DeliveryUnit
@@ -65,8 +69,15 @@ class DeliveryUnitResolver
             return null;
         }
 
-        $destination = $delivery->destination()->withTrashed()->firstOrFail();
-        $proxy = $delivery->proxy()->withTrashed()->firstOrFail();
+        // Through the cached lookups rather than the relations. Both rows are
+        // configuration read once per delivery, and both keep their
+        // trashed-inclusive semantics: a destination or proxy soft-deleted
+        // after the delivery row was created still settles its attempt.
+        $destination = $this->destinations->byIdWithTrashed($delivery->destination_id)
+            ?? throw (new ModelNotFoundException)->setModel(Destination::class, [$delivery->destination_id]);
+
+        $proxy = $this->proxies->byIdWithTrashed($delivery->proxy_id)
+            ?? throw (new ModelNotFoundException)->setModel(Proxy::class, [$delivery->proxy_id]);
 
         [$signingSecrets, $signingSecretsUnavailable] = $this->signingSecretsFor($proxy);
 

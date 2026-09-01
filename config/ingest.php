@@ -45,6 +45,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Ingest Proxy-Lookup Cache TTL (seconds)
+    |--------------------------------------------------------------------------
+    |
+    | Backstop expiry for `ProxyLookup`'s cached proxy row, NOT the mechanism
+    | that keeps it correct. `ProxyObserver` forgets the entry on every save,
+    | delete and restore, which is what makes a pause or a soft delete take
+    | effect at once rather than at the end of this window. The TTL only bounds
+    | an entry that somehow outlives its row.
+    |
+    */
+
+    'proxy_cache_ttl_seconds' => (int) env('INGEST_PROXY_CACHE_TTL_SECONDS', 600),
+
+    /*
+    |--------------------------------------------------------------------------
     | Response-Body Size Cap (bytes)
     |--------------------------------------------------------------------------
     |

@@ -8,6 +8,7 @@ use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
 use App\Models\FifoDispatch;
 use App\Models\Proxy;
+use App\Services\ProxyLookup;
 use App\Services\ResponseResolver;
 use App\Services\WebhookEventCapture;
 use App\Support\HopCount;
@@ -33,6 +34,7 @@ class IngestController extends Controller
     public function __construct(
         private ResponseResolver $responseResolver,
         private WebhookEventCapture $capture,
+        private ProxyLookup $proxies,
     ) {}
 
     public function __invoke(Request $request, string $token): Response
@@ -40,10 +42,9 @@ class IngestController extends Controller
         // Resolve by SHA-256 token hash on the BINARY(32) UNIQUE index. Not team
         // scoped (no global scope; this route is outside the team group), but
         // SoftDeletes still applies. Unknown/soft-deleted -> 404, no existence
-        // disclosure (AC12c).
-        $proxy = Proxy::query()
-            ->where('ingest_token_hash', hash('sha256', $token, binary: true))
-            ->first();
+        // disclosure (AC12c). Cached per token hash and invalidated on write by
+        // ProxyObserver, so a pause or a delete still takes effect at once.
+        $proxy = $this->proxies->byTokenHash(hash('sha256', $token, binary: true));
 
         abort_if($proxy === null, Response::HTTP_NOT_FOUND);
 
