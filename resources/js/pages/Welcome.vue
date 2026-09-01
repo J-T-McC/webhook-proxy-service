@@ -116,17 +116,6 @@ const reliabilitySteps = [
                     </template>
                 </div>
 
-                <p class="mt-4 text-sm text-muted-foreground">
-                    New here?
-                    <Link
-                        :href="docs()"
-                        class="text-foreground underline underline-offset-4"
-                    >
-                        Read the docs
-                    </Link>
-                    — quick start, examples and how each feature works.
-                </p>
-
                 <FanOutIllustration class="mt-10" />
             </section>
 
@@ -192,6 +181,19 @@ const reliabilitySteps = [
                     </ol>
 
                     <ReliabilityIllustration />
+                </div>
+            </section>
+
+            <!-- Closing docs link -->
+            <section class="mx-auto max-w-6xl px-6 pt-4 pb-16">
+                <div class="border-t border-border pt-8">
+                    <h2 class="text-lg font-medium">Read the docs</h2>
+                    <p class="mt-2 max-w-2xl text-muted-foreground">
+                        Quick start, examples and how each feature works.
+                    </p>
+                    <Button as-child variant="outline" class="mt-4">
+                        <Link :href="docs()">Open documentation</Link>
+                    </Button>
                 </div>
             </section>
         </main>
