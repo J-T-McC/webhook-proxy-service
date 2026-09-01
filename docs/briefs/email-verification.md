@@ -49,19 +49,22 @@ The Project Owner asked for it on 2026-08-31.
   Laravel markdown mail opens with the application name linked to the site root,
   so "the first link in the body" is the header.
 
-## Consequences the Owner should weigh
+## Rollout — settled by the Project Owner, 2026-08-31
 
-- **Existing users whose `email_verified_at` is null are now locked out** of every
-  team route until they verify. They can still sign in and reach
-  `settings/profile`, and the notice page has a resend button, but nothing else
-  is reachable. If any real account is in that state, it needs either a
-  deliberate backfill or a message to those users. No backfill migration is
-  included here, because whether unverified rows should be treated as verified is
-  a product call, not a technical one.
+Both consequences of turning the guard on were put to the Owner before merge and
+answered:
 
-- **`MAIL_MAILER` is `log` in `.env.example`.** Verification is only completable
-  where mail actually sends. Mailgun is already a selectable transport (PR #20);
-  production must be on it, or new registrations cannot get in.
+- **Existing unverified accounts: no backfill.** An account whose
+  `email_verified_at` is null now reaches only `settings/profile` and the
+  verification notice, which carries a resend button. Production holds exactly
+  one such account, a test account, and the Owner will verify it by hand. A
+  backfill migration was therefore not written — and should not be added later
+  without a reason of its own, since treating an unproven address as proven is
+  the thing this feature exists to prevent.
+
+- **Mail already sends in production.** It is on Mailgun (PR #20), so a new
+  registration can complete verification. `.env.example` keeps `MAIL_MAILER=log`,
+  which is a local default and not what production reads.
 
 ## Done when
 

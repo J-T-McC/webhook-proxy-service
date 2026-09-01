@@ -196,12 +196,10 @@ updated; the remaining gap there is component-level JS testing.
 **Branch `feat/email-verification`, open (stacked on `feat/playwright-e2e`).** Email
 verification is now enforced: `App\Models\User` implements `MustVerifyEmail`, which
 is what makes the already-wired Fortify feature and the `verified` middleware apply.
-Brief: `docs/briefs/email-verification.md`. **Two things need an Owner decision**, both
-recorded there: any existing user with a null `email_verified_at` is now shut out of
-every team route until they verify (no backfill is included, because whether those rows
-count as verified is a product call), and verification is only completable where mail
-actually sends — `.env.example` still has `MAIL_MAILER=log`, so production must be on
-Mailgun.
+Brief: `docs/briefs/email-verification.md`, which also records the Owner's rollout
+ruling of 2026-08-31: no backfill for existing unverified accounts (production holds one,
+a test account, which the Owner verifies by hand), and production mail already sends
+through Mailgun, so a new registration can complete verification.
 
 ## Owner-commissioned design work (not a roadmap line)
 
