@@ -20,8 +20,8 @@ chosen (`docs/stack/stack.md`, Deployment row).
 
 **No `Http::fake()`.** It swaps the facade inside a single PHP process. k6
 drives the application over real HTTP, and delivery happens in a separate
-`queue:work` process, so neither one would see the fake. A real sink server on
-loopback stands in for destination endpoints instead, which also keeps the
+`queue:work` process, so neither one would see the fake. A real sink server stands in
+for destination endpoints instead, which also keeps the
 Guzzle and socket path in the measurement.
 
 **The sink is a Node script, not `php -S`.** A sink that sleeps to simulate a
@@ -29,9 +29,24 @@ slow destination must serve other requests while it sleeps. `php -S` is
 single-process and would block, which would mean measuring the sink rather than
 the application.
 
-**The sink binds to `127.0.0.2`, not `127.0.0.1`.** `IngestHostGuard::pointsBackToIngest()`
-compares hosts and ignores ports, so a sink sharing the application's host would
-be refused by the delivery-loop guard.
+**The sink runs on the host and is reached at `host.docker.internal`.**
+`compose.yaml` already maps that name to the host gateway, so no new service is
+added to Sail. It also clears the delivery-loop guard without any special
+handling: `IngestHostGuard::pointsBackToIngest()` compares host strings, and
+`host.docker.internal` is not the `localhost` that `ingest.url` carries. A
+loopback alias such as `127.0.0.2` was the first approach and was dropped —
+macOS does not alias it without `sudo ifconfig`, which is friction a local
+harness should not carry.
+
+**No real destination can be contacted, and that does not rest on seeding
+discipline.** Three independent measures, because a load run that fires
+thousands of webhooks at a real endpoint someone added during manual testing is
+not a mistake worth risking once:
+
+1. The harness runs against its own database, never the development one.
+2. The seeder only ever creates destinations addressed to the sink.
+3. `run.sh` refuses to start if any enabled destination in that database
+   resolves to a host other than the configured sink host.
 
 **The seeder creates destinations already in the `Validated` state.**
 `OutboundAddressGuard` refuses loopback addresses and has no environment
@@ -75,9 +90,9 @@ while earlier events for the same proxy are still in flight. The k6 arrival
 rate is set above the drain rate so a backlog actually forms; without one,
 nothing is contended and the run proves nothing.
 
-1. `async-throughput` — many Async proxies, sink delay 0, 8 delivery workers.
+1. `async-throughput` — many Async proxies, sink delay pinned to 0, 8 delivery workers.
    The primary regression scenario: application time dominates the measurement.
-2. `fifo-parallel` — many FIFO proxies, sink delay a fixed 150ms, 4 advancer
+2. `fifo-parallel` — many FIFO proxies, sink delay 300–600ms, 4 advancer
    and 8 delivery workers. Confirms that several proxies advance in parallel
    while each proxy's own line stays ordered, which is what
    `config/horizon.php` claims when it sets `maxProcesses` above 1 for
@@ -91,9 +106,12 @@ nothing is contended and the run proves nothing.
    sustained rate reached. This is the before-and-after number for the
    caching change.
 
-Sink delays are fixed, never randomised: a random 300–600ms delay would add
-±150ms of variance to the signal and hide exactly the regressions the harness
-exists to catch.
+Sink delays are drawn from a range so the sink behaves like a real endpoint
+rather than an instant one (Owner ruling, 2026-09-01), but the generator is
+seeded, so the same sequence of delays is served on every run. That keeps the
+realism without letting the spread land in the recorded latency as noise that
+looks like a regression. The regression scenario pins the range to zero, so any
+latency change there can only have come from the application.
 
 FIFO scenarios assert that delivery order per proxy matches ingest order once
 the queue drains, and fail the run loudly if it does not. An ordering
