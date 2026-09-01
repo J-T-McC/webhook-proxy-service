@@ -58,14 +58,21 @@ def main() -> int:
     # MySQL's own counters, sampled either side of the run. Deltas cover the
     # ingest requests and the worker processes together, which is the whole
     # point: the caching change this harness exists to measure targets both.
-    before = [int(value) for value in args.before.split(",") if value]
-    after = [int(value) for value in args.after.split(",") if value]
-    labels = ["select", "insert", "update"]
-    queries = {
-        label: after[index] - before[index]
-        for index, label in enumerate(labels)
-        if index < len(before) and index < len(after)
-    }
+    #
+    # Parsed by name, never by position. SHOW GLOBAL STATUS returns its rows
+    # alphabetically, so a positional reader labelled Com_insert as "select" and
+    # selects_per_ingest silently reported inserts instead.
+    def parse(raw: str) -> dict[str, int]:
+        pairs = {}
+        for item in raw.split(","):
+            if "=" in item:
+                name, _, value = item.partition("=")
+                pairs[name.strip().removeprefix("Com_").lower()] = int(value)
+        return pairs
+
+    before = parse(args.before)
+    after = parse(args.after)
+    queries = {name: after[name] - before[name] for name in before if name in after}
 
     row = {
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

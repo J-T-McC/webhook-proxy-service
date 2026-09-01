@@ -201,7 +201,10 @@ done
 # Query counts come from MySQL's own counters rather than from instrumentation
 # inside the application. Nothing test-only has to exist in production code,
 # and the number covers the workers as well as the ingest requests.
-counters() { mysql_q "SHOW GLOBAL STATUS WHERE Variable_name IN ('Com_select','Com_insert','Com_update');" | awk '{print $2}' | paste -sd, -; }
+# Emitted as name=value pairs. Reading them positionally was a defect: MySQL
+# returns SHOW GLOBAL STATUS alphabetically, so Com_insert arrives first and a
+# positional reader labelled inserts as selects.
+counters() { mysql_q "SHOW GLOBAL STATUS WHERE Variable_name IN ('Com_select','Com_insert','Com_update');" | awk '{print $1"="$2}' | paste -sd, -; }
 BEFORE="$(counters)"
 curl -s "http://127.0.0.1:${SINK_PORT}/__reset" >/dev/null
 

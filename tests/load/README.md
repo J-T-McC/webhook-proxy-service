@@ -39,6 +39,11 @@ the most weight:
 - **`selects_per_ingest`** — database reads per event, from MySQL's own global
   counters. Deterministic, so it moves the moment caching works and does not
   move because the machine was busy. This is the best signal in the file.
+  Expect it in the twenties: one ingest with two destinations issues roughly
+  25 reads end to end, most of them in the workers. Rows written before
+  2026-09-01 carry `counters_relabelled` because the counters were read
+  positionally and MySQL returns them alphabetically, so this field held
+  inserts rather than selects; they have been corrected in place.
 - **`drain_rate_per_s`** — deliveries completed per second, measured in the
   worker processes. The web tier cannot distort it.
 - **`ingest_p50_ms` / `ingest_p95_ms`** — latency, noisier than the two above.
