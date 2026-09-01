@@ -224,6 +224,26 @@ metadata:
   visually subordinate to cards headed by an `h2`. Raised Major at review-17. The half living in a
   component the plan pins to a zero diff is a Designer conflict, not an implementation defect — route
   it there.
+- **A server-side `ValidationException::withMessages(['<key>' => …])` is a SILENT no-op unless the
+  consuming Vue form renders that exact key.** `ReplayDialog.vue` renders only `form.errors.event`
+  (`requestError`) — a refusal thrown on any other key (found at review-18: the new `destinations`
+  refusal) 422s, stops the spinner, and shows nothing, breaching any "with the reason given" AC.
+  Whenever a controller gains a new `withMessages` key, trace it to a rendered error surface in the
+  specific dialog/form that submits there; a passing controller test proves nothing about display.
+- **When an AC defines send-success asymmetrically ("ANY HTTP response counts"), grep the
+  implementation for `successful()`** — implementers default to 2xx-success and will even encode it
+  in a test (review-18 finding 1: non-2xx failed the send AND the nonce was never persisted, so the
+  link that WAS delivered could never approve). Read the AC's own rationale sentence before
+  trusting a green test that asserts failure handling.
+- **`composer.json` does NOT require `ext-curl`, and `Http::withOptions(['curl' => …])` silently
+  no-ops on a non-cURL Guzzle handler** — so a `CURLOPT_RESOLVE` DNS pin (OutboundAddressGuard's
+  rebinding defence, ADR-027 d3) evaporates rather than failing closed if the handler ever changes.
+  plan-18 §Risks names fail-closed as required; check for a handler assertion or an ext-curl
+  platform requirement whenever pinning is claimed.
+- **UI-hidden is not enforced: check state-machine gates server-side on every mutating route.**
+  review-18 finding 4: the member Validate POST accepted a Validated destination and force-filled it
+  back to Pending — the button was hidden but the controller never checked state. The PRD's own AC8
+  argument ("a block in the interface alone does not satisfy it") applies to every transition AC.
 - **Reka `TooltipTrigger` sets `aria-describedby` to the content's id automatically while open**
   (`node_modules/reka-ui/dist/Tooltip/TooltipTrigger.js`), so a tooltip needs no manual id-wiring —
   but note the description lands on the TRIGGER, not on the field beside it. The correct in-repo

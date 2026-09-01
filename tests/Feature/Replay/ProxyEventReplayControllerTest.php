@@ -5,6 +5,7 @@ namespace Tests\Feature\Replay;
 use App\Actions\AdvanceProxyFifoQueue;
 use App\Actions\ProcessIngestedWebhook;
 use App\Enums\DeliveryStatus;
+use App\Enums\DestinationValidationState;
 use App\Enums\DispatchKind;
 use App\Enums\FifoDispatchStatus;
 use App\Enums\ProcessingMode;
@@ -453,5 +454,89 @@ class ProxyEventReplayControllerTest extends TestCase
             ->assertNotFound();
 
         $this->assertSame(0, Delivery::query()->where('webhook_event_id', $foreignEvent->id)->count());
+    }
+
+    public function test_a_replay_to_an_unvalidated_destination_is_refused_with_the_reason(): void
+    {
+        // Item #18 AC9: replay pre-creates its own delivery rows and bypasses
+        // the queue-check, so it carries its own refusal — visible, not silent.
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = $this->proxyWithDestinations($user);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        $destination = $proxy->destinations()->first();
+        $destination->forceFill([
+            'validation_state' => DestinationValidationState::Unvalidated,
+            'validated_at' => null,
+        ])->save();
+
+        $this->actingAs($user)
+            ->postJson($this->route($user, $proxy, $event), ['destinations' => [$destination->id]])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('destinations');
+
+        $this->assertSame(0, Delivery::query()->where('webhook_event_id', $event->id)->count());
+        ProcessIngestedWebhook::assertNotPushed();
+    }
+
+    public function test_the_unvalidated_refusal_reaches_the_session_error_bag_the_dialog_reads(): void
+    {
+        // Review-18 finding 2: the dialog surfaces `form.errors.destinations`;
+        // this asserts the refusal actually lands under that key on the
+        // ordinary (non-JSON) Inertia round trip, so the member sees the
+        // reason rather than a silent no-op (AC9).
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = $this->proxyWithDestinations($user);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        $destination = $proxy->destinations()->first();
+        $destination->forceFill([
+            'validation_state' => DestinationValidationState::Unvalidated,
+            'validated_at' => null,
+        ])->save();
+
+        $this->actingAs($user)
+            ->from(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->post($this->route($user, $proxy, $event), ['destinations' => [$destination->id]])
+            ->assertRedirect()
+            ->assertSessionHasErrors('destinations');
+    }
+
+    public function test_a_mixed_selection_is_refused_whole_rather_than_partially_dispatched(): void
+    {
+        Queue::fake();
+
+        $user = $this->actingUser();
+        $proxy = $this->proxyWithDestinations($user);
+        $event = WebhookEvent::factory()->createQuietly([
+            'proxy_id' => $proxy->id,
+            'team_id' => $proxy->team_id,
+        ]);
+
+        $all = $proxy->destinations()->get();
+        $all->first()->forceFill([
+            'validation_state' => DestinationValidationState::Unvalidated,
+            'validated_at' => null,
+        ])->save();
+
+        $this->actingAs($user)
+            ->postJson($this->route($user, $proxy, $event), ['destinations' => $all->pluck('id')->all()])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('destinations');
+
+        // Nothing partial: a replay that quietly delivered to some of the
+        // chosen destinations would leave the member believing all of them
+        // received the event.
+        $this->assertSame(0, Delivery::query()->where('webhook_event_id', $event->id)->count());
     }
 }

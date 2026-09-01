@@ -12,7 +12,7 @@ reverse: `Requirements → UX Design (UI only) → Technical Design → Task Pla
 Implementation → Review → Done`.
 
 Source of truth: `docs/product/roadmap.md` (Approved by Project Owner, 2026-07-30;
-**15-item backlog** since item #15 was added by the Owner on 2026-08-27; #9 cancelled
+**16-item backlog** since item #18 was added by the Owner on 2026-08-31; #9 cancelled
 and #8 and #12 put on hold indefinitely by Owner ruling, 2026-08-29). Nothing here
 invents or reorders roadmap items.
 
@@ -53,6 +53,8 @@ owed against it. Narrative history of items already **Done** is archived in
 | ADR-024 field obfuscation & revealed-payload envelope (partially supersedes ADR-017 — adopts an alternative it rejected by name) | Accepted | Project Owner, 2026-08-27 |
 | ADR-025 outbound header policy, signature pass-through & signing header names (supersedes positions in ADR-008 and ADR-023) | Accepted | Project Owner, 2026-08-28 |
 | ADR-026 inbound-verification removal & minimal outbound header strip (supersedes ADR-022 in full; positions in ADR-008, ADR-023, ADR-025) | Accepted | Project Owner, 2026-08-28 |
+| ADR-027 destination validation state, grandfathering & guarded challenge send (narrows roadmap #1's fan-out contract) | Accepted | Project Owner, 2026-08-31 |
+| ADR-028 `Skipped` terminal delivery status (amends ADR-015 Decision 1) | Accepted | Project Owner, 2026-08-31 |
 
 ## Feature status
 
@@ -77,6 +79,7 @@ Artifact naming is regular: `docs/product/prd-NN-*.md`, `docs/design/design-NN-*
 | 13 | Notifications (in-app & email) | Backlog | — (brief on start) | Not started. Its #12 dependency is now on hold indefinitely, but **failure alerts do not need #12** — they need #6, which is Done. **Inherits no threshold, a cost of the V8 deferral** | — |
 | 14 | Test payloads | Backlog | — (brief on start) | Not started; depends on #1 (more useful after #8) | — |
 | 15 | Pause and resume dispatch | Done | — | None | PR #41 (`c6dc42f`). `docs/briefs/pause-and-resume-dispatch.md` is the only artifact — built in the brief lane. PRD-15 and Q-15-01 are retained as background, superseded, unmaintained |
+| 18 | Destination validation | Pull request open — PR #55 | Project Owner | None. Re-review **Approve with follow-ups**, deep tier, 2026-08-31 — all ten original findings closed, T19–T20 accepted. Its three new Minors are closed in `d9ecf87`. **The live browser pass has never been run** and is the one verification this feature was promised and has not received; the re-review section lists the six things it must cover. ADR-027 Accepted (Project Owner, 2026-08-31); Q-18-01 Answered; Q-18-02 closed | `docs/tasks/destination-validation/` — 18 tasks across 5 milestones, split per `docs/tasks/README.md`. **All milestones shipped 2026-08-31** (M5 last); completion notes per task. M5 reopened for T19–T20, added after the first review pass to cover AC35 — the Project Owner approved the schema change they need on 2026-08-31 and chose to implement AC35 rather than defer it. Branch `docs/prd-18-destination-validation`, pushed; PR #55 open, awaiting CI and Owner merge. plan-18 Approved; PRD-18 Approved (45 ACs); `design-18` reference only, Designer gate dropped by Owner ruling | PRD-18 Approved (Project Owner, 2026-08-31; 45 ACs). `docs/plans/plan-18-destination-validation.md` self-certified except ADR-027's decisions. Q-18-01 Answered — pause's enforcement points are the wrong granularity; the gate is four points, not two. `design-18` written as reference; **the Designer gate was dropped by Owner ruling, 2026-08-31**. **Narrows #1's fan-out contract** to validated destinations |
 
 ## Item #11 — live detail
 

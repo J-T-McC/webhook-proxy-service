@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
+import { Clock } from '@lucide/vue';
 import { computed, ref } from 'vue';
 import AnalyticsWindowNav from '@/components/analytics/AnalyticsWindowNav.vue';
 import DeliveriesCard from '@/components/analytics/DeliveriesCard.vue';
@@ -49,6 +50,23 @@ const props = defineProps<{
 // Edit/delete visibility derives from the shared page-level permissions + the
 // resource's is_creator flag (ADR-009 Amendment B5) — no per-record policy call.
 // The server ProxyPolicy still enforces the mutation.
+/**
+ * How many of this proxy's live destinations are not Validated (T18; AC33,
+ * design-18 Screen 3) — Unvalidated, Pending and Expired together: the
+ * badge's job is to say traffic is incomplete, not which of the three
+ * reasons applies (the Destinations table below says which and why). Counts
+ * over the live relation, never the analytics rows — a soft-deleted
+ * destination is not part of the fan-out and has nothing to validate.
+ */
+const unvalidatedCount = computed(
+    () =>
+        props.proxy.destinations.filter(
+            (destination) =>
+                props.security.destinations[destination.id]?.validation
+                    .status !== 'validated',
+        ).length,
+);
+
 const canUpdate = computed(
     () =>
         props.permissions.canUpdateProxy &&
@@ -153,10 +171,12 @@ const {
     deleteBusy,
     signingOverlapBusy,
     signingOverlapError,
+    validateBusyId,
     pauseProxy,
     resumeProxy,
     deleteProxy,
     endSigningOverlap,
+    validateDestination,
 } = useProxyActions(teamSlug, props.proxy.id);
 </script>
 
@@ -187,6 +207,19 @@ const {
                     <Badge v-if="props.proxy.paused_at" variant="outline">
                         Paused since
                         {{ formatTimestamp(props.proxy.paused_at) }}
+                    </Badge>
+                    <!-- T18 (AC33) — renders only when something needs
+                    attention, like Paused; coexists with it (AC36 — held
+                    traffic and incomplete permission are unrelated facts).
+                    Never "skipped"/"failing": those are delivery and pause
+                    vocabulary (AC32). No positive counterpart when all are
+                    validated. -->
+                    <Badge v-if="unvalidatedCount > 0" variant="waiting">
+                        <Clock />
+                        {{ unvalidatedCount }} destination{{
+                            unvalidatedCount === 1 ? '' : 's'
+                        }}
+                        not yet validated
                     </Badge>
                 </div>
                 <div class="flex items-center gap-2">
@@ -285,8 +318,11 @@ const {
         <DestinationsCard
             :destinations="props.destinations"
             :security="props.security.destinations"
+            :can-update="canUpdate"
+            :validate-busy-id="validateBusyId"
             :window="props.statistics.window"
             :view-events-href="viewEventsHref"
+            @validate="validateDestination"
         />
 
         <SigningCard

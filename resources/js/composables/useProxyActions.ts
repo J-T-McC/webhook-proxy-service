@@ -18,6 +18,7 @@ export function useProxyActions(teamSlug: Ref<string>, proxyId: number) {
     const deleteBusy = ref(false);
     const signingOverlapBusy = ref(false);
     const signingOverlapError = ref<string | null>(null);
+    const validateBusyId = ref<number | null>(null);
 
     function routeArgs() {
         return { current_team: teamSlug.value, proxy: proxyId };
@@ -79,14 +80,46 @@ export function useProxyActions(teamSlug: Ref<string>, proxyId: number) {
         });
     }
 
+    /**
+     * Send (or resend) a destination's validation challenge (T16; AC14, Flow
+     * C) — immediate, no dialog. Busy state is per destination id, so one
+     * row's in-flight send never disables another row's button. Success,
+     * failure and the rate-limited line all arrive via the refreshed
+     * `security` prop and the server's toast; the composable only owns the
+     * request.
+     */
+    function validateDestination(
+        destinationId: number,
+        onFinish?: () => void,
+    ): void {
+        validateBusyId.value = destinationId;
+
+        router.post(
+            proxyRoutes.destinations.validate.store({
+                ...routeArgs(),
+                destination: destinationId,
+            }).url,
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    validateBusyId.value = null;
+                    onFinish?.();
+                },
+            },
+        );
+    }
+
     return {
         pauseResumeBusy,
         deleteBusy,
         signingOverlapBusy,
         signingOverlapError,
+        validateBusyId,
         pauseProxy,
         resumeProxy,
         deleteProxy,
         endSigningOverlap,
+        validateDestination,
     };
 }

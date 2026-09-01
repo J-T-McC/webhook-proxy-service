@@ -116,6 +116,7 @@ function submit(): void {
                         v-model="form.destinations"
                         :errors="form.errors"
                         :disabled="form.processing"
+                        :security="props.security?.destinations"
                     />
                     <InputError :message="form.errors.destinations" />
                 </Card>

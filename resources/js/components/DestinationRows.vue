@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { Plus, Trash2 } from '@lucide/vue';
+import { Info, Plus, Trash2 } from '@lucide/vue';
 import { nextTick, ref } from 'vue';
 import type { ComponentPublicInstance } from 'vue';
 import InputError from '@/components/InputError.vue';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Collapsible,
@@ -16,15 +18,92 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    destinationValidationCaption,
+    destinationValidationStatusOption,
+} from '@/data/destinationValidationStates';
 import { formatTimestamp } from '@/lib/format';
-import type { DestinationRow } from '@/types/proxies';
+import type { DestinationRow, ProxySecurity } from '@/types/proxies';
 
 const model = defineModel<DestinationRow[]>({ required: true });
 
 const props = defineProps<{
     errors?: Partial<Record<string, string>>;
     disabled?: boolean;
+    /**
+     * The per-destination `security.destinations` map (T15) — read-only
+     * validation status for existing rows (design-18 Screen 1). Absent on
+     * Create, where no destination exists yet to have a state.
+     */
+    security?: ProxySecurity['destinations'] | null;
 }>();
+
+/**
+ * The URL each existing row was **loaded** with (T17; AC5, design-18 Flow B)
+ * — snapshotted once at setup, so the URL-change warning compares against
+ * the persisted value, not the last keystroke. Keyed by destination id: ids
+ * never change in-session, so add/remove leaves the snapshot intact, and a
+ * failed submit (no remount) keeps comparing against what the server holds.
+ */
+const originalUrls = new Map<number, string>(
+    model.value
+        .filter((row): row is DestinationRow & { id: number } => row.id != null)
+        .map((row) => [row.id, row.url]),
+);
+
+/**
+ * The persisted validation status shown on an existing row, or null for a
+ * brand-new row this session — nothing has been saved yet for the automatic
+ * send (AC15) to have acted on.
+ */
+function rowValidation(row: DestinationRow) {
+    if (row.id == null) {
+        return null;
+    }
+
+    return props.security?.[row.id]?.validation ?? null;
+}
+
+/**
+ * Which URL-change warning this row is owed (design-18 Screen 1's table):
+ * `alert` — the Validated row's bordered Alert, the one case where saving
+ * stops live traffic; `muted` — a plain sentence for every other persisted
+ * state. Null when the URL still matches the loaded value or the row is new.
+ * Wording keys off the row's **currently persisted** state, never anything
+ * changed elsewhere in the form this session.
+ */
+function urlWarning(
+    row: DestinationRow,
+): { kind: 'alert' | 'muted'; message: string } | null {
+    if (row.id == null || row.url === originalUrls.get(row.id)) {
+        return null;
+    }
+
+    switch (rowValidation(row)?.status) {
+        case 'validated':
+            return {
+                kind: 'alert',
+                message:
+                    'Saving this new URL stops delivery to this destination — it returns to Unvalidated and must be approved again at the new address before events resume.',
+            };
+        case 'pending':
+            return {
+                kind: 'muted',
+                message:
+                    'Saving this new URL cancels the link already sent to the current address. A new one goes to the new address instead.',
+            };
+        default:
+            return {
+                kind: 'muted',
+                message:
+                    'This destination will need to be validated at the new address after you save.',
+            };
+    }
+}
+
+function warningId(index: number): string {
+    return `destination-${index}-url-warning`;
+}
 
 const urlRefs = ref<HTMLInputElement[]>([]);
 
@@ -124,6 +203,12 @@ const inputClass =
         <p id="destinations-help" class="text-sm text-muted-foreground">
             The webhook is delivered to every destination below.
         </p>
+        <!-- design-18 Screen 1 — once per section, not per row. -->
+        <p class="text-sm text-muted-foreground">
+            Each one must be approved by whoever runs it before it receives
+            anything — we send a validation link to its URL automatically when
+            you save.
+        </p>
 
         <div
             v-for="(row, index) in model"
@@ -147,9 +232,14 @@ const inputClass =
                         fieldError(index, 'url') ? 'true' : undefined
                     "
                     :aria-describedby="
-                        fieldError(index, 'url')
-                            ? errorId(index, 'url')
-                            : 'destinations-help'
+                        [
+                            fieldError(index, 'url')
+                                ? errorId(index, 'url')
+                                : 'destinations-help',
+                            urlWarning(row) ? warningId(index) : null,
+                        ]
+                            .filter(Boolean)
+                            .join(' ')
                     "
                 />
                 <div :id="errorId(index, 'url')">
@@ -194,6 +284,60 @@ const inputClass =
             >
                 <Trash2 />
             </Button>
+
+            <!-- Validation status + URL-change warning (T17; design-18
+            Screen 1). Existing rows only — a brand-new row this session has
+            nothing saved for the automatic send to have acted on. Read-only:
+            Validate lives on the Show page, never here, so a click can't
+            read as part of a draft about to be discarded. -->
+            <div v-if="rowValidation(row)" class="grid gap-2 sm:col-span-3">
+                <div class="flex items-center gap-2">
+                    <Badge
+                        :variant="
+                            destinationValidationStatusOption(
+                                rowValidation(row)!.status,
+                            ).variant
+                        "
+                    >
+                        <component
+                            :is="
+                                destinationValidationStatusOption(
+                                    rowValidation(row)!.status,
+                                ).icon
+                            "
+                        />
+                        {{
+                            destinationValidationStatusOption(
+                                rowValidation(row)!.status,
+                            ).label
+                        }}
+                    </Badge>
+                    <span
+                        v-if="destinationValidationCaption(rowValidation(row)!)"
+                        class="text-sm text-muted-foreground"
+                    >
+                        {{ destinationValidationCaption(rowValidation(row)!) }}
+                    </span>
+                </div>
+                <template v-if="urlWarning(row)">
+                    <Alert
+                        v-if="urlWarning(row)!.kind === 'alert'"
+                        :id="warningId(index)"
+                    >
+                        <Info />
+                        <AlertDescription>
+                            {{ urlWarning(row)!.message }}
+                        </AlertDescription>
+                    </Alert>
+                    <p
+                        v-else
+                        :id="warningId(index)"
+                        class="text-sm text-muted-foreground"
+                    >
+                        {{ urlWarning(row)!.message }}
+                    </p>
+                </template>
+            </div>
 
             <!-- Credential subsection (Screen 3; T30; AC30, AC33) -->
             <Collapsible

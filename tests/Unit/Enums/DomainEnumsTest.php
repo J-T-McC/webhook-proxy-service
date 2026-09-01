@@ -79,10 +79,12 @@ class DomainEnumsTest extends TestCase
         );
     }
 
-    public function test_delivery_status_has_exactly_pending_retrying_succeeded_failed(): void
+    public function test_delivery_status_has_exactly_pending_retrying_succeeded_failed_skipped(): void
     {
+        // `skipped` added by ADR-028 (#18): a destination that lost validated
+        // state before its delivery was sent. Terminal, but not a failure.
         $this->assertSame(
-            ['pending', 'retrying', 'succeeded', 'failed'],
+            ['pending', 'retrying', 'succeeded', 'failed', 'skipped'],
             array_map(fn (DeliveryStatus $c) => $c->value, DeliveryStatus::cases()),
         );
     }
@@ -93,5 +95,8 @@ class DomainEnumsTest extends TestCase
         $this->assertFalse(DeliveryStatus::Retrying->isTerminal());
         $this->assertTrue(DeliveryStatus::Succeeded->isTerminal());
         $this->assertTrue(DeliveryStatus::Failed->isTerminal());
+        // Terminal so the FIFO completion check settles the line rather than
+        // holding it behind a destination nobody will contact (ADR-028).
+        $this->assertTrue(DeliveryStatus::Skipped->isTerminal());
     }
 }

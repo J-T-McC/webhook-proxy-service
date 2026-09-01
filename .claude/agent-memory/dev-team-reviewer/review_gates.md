@@ -12,7 +12,16 @@ task output file, not a verbose summary).
 
 Frontend gates: `pnpm types:check` (vue-tsc --noEmit), `pnpm format:check` (prettier --check
 resources/), `pnpm run build` (vite, ~2 s). **The old "build unrunnable, Node 21 < 22" note is
-dead** — host Node is v22.23.2 (sail's is v24), satisfying `engines.node >= 22`.
+dead** — host Node is v22.23.2 (sail's is v24), satisfying `engines.node >= 22`. `npm`/`npx`
+work interchangeably with `pnpm` for these; a caller naming one is not naming a different gate.
+
+**Put `format:check` in the gate table every time — it is the frontend gate most often omitted and
+it does catch real branch breakage.** Missed at review-18 pass 1; pass 2 found two failures, both
+introduced by the branch. Recurring shape is `resources/js/data/*.ts`: a hand-written one-line
+option object or a string literal over the print width, in a file whose diff otherwise looks like
+data. Prove attribution before grading it — `git log <base>..HEAD -- <file>` naming a branch commit
+makes it the branch's fault; otherwise it is pre-existing and not a finding. See the exact-diff
+probe: `npx prettier <file> | diff - <file>`.
 
 **`pnpm lint:check` (eslint .) NO LONGER exits clean and that is not the branch's fault** — stale
 untracked `.claude/worktrees/agent-*` checkouts contribute hundreds of `import/order` errors that
@@ -28,6 +37,12 @@ behaviour an AC turns on**; see `codebase_gotchas.md`. At review-07 a live check
 turned an unverified restore-prefill claim into evidence AND surfaced the one Major nobody's
 tests or manual steps covered — when the notes say "manual verification" for a flow, re-drive
 the flow, and also drive the *reversal* path the flow's own spec names.
+
+**But check the tool set before promising a browser pass in a review's Handoff.** A spawned Reviewer
+agent may have no Playwright/browser tool at all, in which case a deferred-to-re-review browser pass
+cannot be discharged and must be recorded as still outstanding — with an explicit list of what it
+would need to cover — rather than stalled on or quietly dropped. Safer habit: do the live check in
+the pass that has the tooling instead of deferring it.
 
 Useful sandbox probes when verifying a claim rather than trusting it:
 `git diff main..HEAD -- <path>` + `md5 <file>` vs `git show main:<file> | md5` proves a file is

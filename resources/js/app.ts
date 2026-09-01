@@ -13,6 +13,11 @@ createInertiaApp({
         switch (true) {
             case name === 'Welcome':
                 return null;
+            // #18: reached by somebody with no account, so no AppLayout. It
+            // renders `AuthLayout` itself — a layout assigned here takes only
+            // static props, and its heading names the outcome.
+            case name === 'destinations/Validate':
+                return null;
             case name.startsWith('auth/'):
                 return AuthLayout;
             case name.startsWith('settings/'):

@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Enums\AttemptStatus;
 use App\Enums\DeliveryStatus;
+use App\Enums\DestinationValidationState;
 use App\Enums\FifoDispatchStatus;
 use App\Events\DeliveryAttempted;
 use App\Events\DeliveryExhausted;
@@ -131,6 +132,16 @@ class DeliverToDestination
 
     public function handle(DeliveryUnit $unit): void
     {
+        // AC8 dispatch-gate. The queue-check cannot see a state change made
+        // after the row exists: a URL edit (AC5), or a challenge expiring under
+        // a retry backoff. Before `existingAttempt()` so a re-driven unit is
+        // caught too. Enforcement points: plan-18 § Architecture.
+        if ($unit->destination->validation_state !== DestinationValidationState::Validated) {
+            $this->skip($unit);
+
+            return;
+        }
+
         $existing = $this->existingAttempt($unit);
 
         if ($existing !== null) {
@@ -386,6 +397,43 @@ class DeliverToDestination
         if ($affected > 0) {
             AdvanceProxyFifoQueue::dispatch($delivery->proxy_id);
         }
+    }
+
+    /**
+     * Resolve a delivery whose destination is no longer validated (#18 AC8,
+     * AC11; ADR-028). Terminal, so the FIFO completion check settles the line
+     * rather than holding it — but **not** a failure: no attempt row is
+     * written because no attempt is made, no `DeliveryExhausted` or
+     * `DeliveryFailed` fires, and `DeliveryStatistics` excludes it from both
+     * the numerator and the denominator of every rate because its filters are
+     * positive on `succeeded` and `failed`.
+     *
+     * A zero-row compare-and-set means another settler already resolved this
+     * delivery; nothing further is owed.
+     */
+    private function skip(DeliveryUnit $unit): void
+    {
+        $delivery = Delivery::query()->find($unit->deliveryId);
+
+        if ($delivery === null) {
+            return;
+        }
+
+        $affected = $this->transition($delivery, DeliveryStatus::Skipped, ['next_attempt_at' => null]);
+
+        if (! $affected) {
+            return;
+        }
+
+        Log::info('delivery.skipped_unvalidated_destination', [
+            'delivery_id' => $delivery->id,
+            'destination_id' => $unit->destination->id,
+        ]);
+
+        $delivery->status = DeliveryStatus::Skipped;
+        $delivery->next_attempt_at = null;
+
+        $this->settleFifoLineIfComplete($delivery);
     }
 
     /**

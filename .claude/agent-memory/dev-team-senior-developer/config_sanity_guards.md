@@ -20,6 +20,17 @@ follow the value's own resolution seam, not one central validator file:
 - Fail loudly (throw, e.g. plain `RuntimeException` naming the config key and the bad value) rather
   than silently substituting the documented default — a silent fallback can mask an operator's
   genuinely different intended value, especially ahead of an irreversible operation (GC/erasure).
+- **Exception: a hot public request path where refusing every request is worse than a permissive
+  fallback.** `ingest.max_hops` (delivery-loop-guard brief) reads `(int) env('INGEST_MAX_HOPS', 3)`
+  — `env()`'s default only applies when the key is absent, not present-and-blank, so a blank value
+  casts to `0` and a `0` hop limit rejects every inbound webhook with 508 before capture: a silent,
+  total ingest outage, the same defect class as `RETENTION_DAYS=` blank-casting to 0 (review-05
+  Finding 1) but on the request path instead of a batch job. Fixed with `max(1, (int) env(...))` —
+  a clamp, not a throw — because throwing would turn every ingest request into a 500, a worse
+  outage than the one being prevented. The mass-erasure/batch-job guards above are the default;
+  this is the one place clamp-not-throw is correct, and only because the guard sits on the
+  request-serving path itself, not a background job. Record the reasoning in the config comment
+  so it doesn't get "corrected" back to the throwing idiom.
 - Test the exact failure modes named in review/plan text, not just "0" and "-1": reproduce a blank
   env value and a non-numeric env value via `putenv('KEY=')` / `putenv('KEY=not-a-number')` +
   `require base_path('config/....php')`, mirroring the existing `*ConfigTest` pattern in this repo,

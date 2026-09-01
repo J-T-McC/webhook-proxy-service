@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Proxies;
 
+use App\Enums\DestinationValidationSendFailure;
 use App\Enums\SecretPurpose;
 use App\Models\Destination;
 use App\Models\Proxy;
@@ -181,5 +182,124 @@ class ProxySecurityResourceTest extends TestCase
             ->assertOk();
 
         $this->assertStringNotContainsString('do-not-leak-this-signing-secret', $editResponse->getContent());
+    }
+
+    // --- T15: the `validation` sub-object -----------------------------------
+
+    /**
+     * T15 (AC31, AC32, AC34) — every destination's display state reaches the
+     * Show page, including Expired, which is derived server-side from a
+     * pending challenge whose window closed rather than stored.
+     */
+    public function test_each_destination_reports_its_validation_state_including_derived_expired(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $unvalidated = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+        $pending = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+        $expired = Destination::factory()->for($proxy)->expiredValidation()->createQuietly();
+        $validated = Destination::factory()->for($proxy)->validated()->createQuietly();
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('proxies/Show')
+                ->where("security.destinations.{$unvalidated->id}.validation.status", 'unvalidated')
+                ->where("security.destinations.{$unvalidated->id}.validation.challenge_sent_at", null)
+                ->where("security.destinations.{$pending->id}.validation.status", 'pending')
+                ->has("security.destinations.{$pending->id}.validation.challenge_sent_at")
+                ->has("security.destinations.{$pending->id}.validation.challenge_expires_at")
+                ->where("security.destinations.{$expired->id}.validation.status", 'expired')
+                ->has("security.destinations.{$expired->id}.validation.challenge_expires_at")
+                ->where("security.destinations.{$validated->id}.validation.status", 'validated')
+                ->has("security.destinations.{$validated->id}.validation.approved_at")
+            );
+    }
+
+    /**
+     * T19 (AC35) — the outcome of the last validation send reaches the page in
+     * the same `validation` object, so a member can tell "never arrived" from
+     * "arrived and was rejected" from "nobody has opened it". The failure
+     * travels as a key; the sentence design-18 fixes for it is the frontend's.
+     */
+    public function test_each_destination_reports_the_outcome_of_its_last_validation_send(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $answered = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+        $answered->forceFill(['validation_last_send_status' => 404])->save();
+
+        $failed = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+        $failed->forceFill([
+            'validation_last_send_failure' => DestinationValidationSendFailure::AddressRefused,
+        ])->save();
+
+        $never = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('proxies/Show')
+                ->where("security.destinations.{$answered->id}.validation.last_send_status", 404)
+                ->where("security.destinations.{$answered->id}.validation.last_send_failure", null)
+                ->where("security.destinations.{$failed->id}.validation.last_send_failure", 'address_refused')
+                ->where("security.destinations.{$failed->id}.validation.last_send_status", null)
+                ->where("security.destinations.{$never->id}.validation.last_send_status", null)
+                ->where("security.destinations.{$never->id}.validation.last_send_failure", null)
+            );
+    }
+
+    /**
+     * T17 (AC5, design-18 Screen 1) — the edit form reads the same per-id
+     * `validation` object the Show page does, so its rows can show their
+     * persisted state and key the URL-change warning off it.
+     */
+    public function test_the_edit_page_carries_each_destinations_validation_state(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $validated = Destination::factory()->for($proxy)->validated()->createQuietly();
+        $pending = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+
+        $this->actingAs($user)
+            ->get(route('proxies.edit', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where("security.destinations.{$validated->id}.validation.status", 'validated')
+                ->where("security.destinations.{$pending->id}.validation.status", 'pending')
+            );
+    }
+
+    /**
+     * T15 (AC24) — the challenge's nonce, the only secret half of the
+     * validation link, is never present anywhere in the page: not as a value
+     * and not even as a key name, because the resource never selects the
+     * column.
+     */
+    public function test_the_validation_nonce_never_reaches_the_page(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $pending = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+
+        $response = $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk();
+
+        $this->assertStringNotContainsString($pending->validation_nonce, $response->getContent());
+        $this->assertStringNotContainsString('validation_nonce', $response->getContent());
+
+        $editResponse = $this->actingAs($user)
+            ->get(route('proxies.edit', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk();
+
+        $this->assertStringNotContainsString($pending->validation_nonce, $editResponse->getContent());
+        $this->assertStringNotContainsString('validation_nonce', $editResponse->getContent());
     }
 }

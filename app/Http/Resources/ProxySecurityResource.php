@@ -2,10 +2,12 @@
 
 namespace App\Http\Resources;
 
+use App\Actions\SendDestinationValidationChallenge;
 use App\Enums\SecretPurpose;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Services\SecretStore;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Attributes\PreserveKeys;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -75,7 +77,9 @@ class ProxySecurityResource extends JsonResource
             // reopen a shape plan-11 certified.
             'destinations' => $this->destinations()
                 ->withTrashed()
-                ->get(['id', 'credential_set_at'])
+                // `validation_nonce` is not selected: not loading it makes
+                // leaking it impossible rather than merely avoided (AC24).
+                ->get(['id', 'team_id', 'credential_set_at', 'validation_state', 'validated_at', 'validation_challenge_sent_at', 'validation_challenge_expires_at', 'validation_last_send_status', 'validation_last_send_failure'])
                 ->mapWithKeys(fn (Destination $destination): array => [
                     $destination->id => [
                         // Presence only, derived from the timestamp rather
@@ -85,9 +89,46 @@ class ProxySecurityResource extends JsonResource
                         // establish.
                         'has_credential' => $destination->credential_set_at !== null,
                         'credential_changed_at' => $destination->credential_set_at,
+                        // Expired is derived server-side so no client
+                        // re-implements the rule (AC31, AC32).
+                        'validation' => [
+                            'status' => $destination->validationStatus()->value,
+                            'approved_at' => $destination->validated_at,
+                            'challenge_sent_at' => $destination->validation_challenge_sent_at,
+                            'challenge_expires_at' => $destination->validation_challenge_expires_at,
+                            // Which limit blocks a send, and when it clears,
+                            // so the row can replace the button (AC21).
+                            // Last send's outcome (AC35). Exactly one is set;
+                            // the failure is a key, the frontend owns wording.
+                            'last_send_status' => $destination->validation_last_send_status,
+                            'last_send_failure' => $destination->validation_last_send_failure?->value,
+                            'send_blocked' => $this->sendBlocked($destination),
+                        ],
                     ],
                 ])
                 ->all(),
+        ];
+    }
+
+    /**
+     * The rate-limit fact for one destination's Validate control, or null when
+     * a send is allowed. `until` is an absolute time rather than a duration:
+     * the row renders "Try again at {time}", and a duration would go stale the
+     * moment it was serialized.
+     *
+     * @return array{description: string, until: CarbonImmutable}|null
+     */
+    private function sendBlocked(Destination $destination): ?array
+    {
+        $blocked = app(SendDestinationValidationChallenge::class)->blockedBy($destination);
+
+        if ($blocked === null) {
+            return null;
+        }
+
+        return [
+            'description' => $blocked['description'],
+            'until' => now()->addSeconds($blocked['available_in']),
         ];
     }
 }

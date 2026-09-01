@@ -91,7 +91,13 @@ class ProcessIngestedWebhook
         // must never widen that selection by backfilling every other live
         // destination with an extra (wrongly `kind = original`) row (AC10).
         if ($dispatchUuid === $ingestId) {
-            foreach ($proxy->destinations as $destination) {
+            // AC8 queue-check: only a validated destination gets a row. A
+            // skipped destination is the absence of a row, not a skipped one,
+            // so nothing is held and the FIFO line is not parked (AC10, AC11).
+            // Not folded into the pause guard above, which is per proxy and
+            // cannot express one destination but not another — the zero-row
+            // case is data loss there and correct here. See Q-18-01 answer 1.
+            foreach ($proxy->destinations()->validated()->get() as $destination) {
                 Delivery::query()->firstOrCreate(
                     ['dispatch_uuid' => $dispatchUuid, 'destination_id' => $destination->id],
                     [

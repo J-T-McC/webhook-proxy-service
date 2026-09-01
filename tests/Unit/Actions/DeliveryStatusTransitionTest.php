@@ -5,9 +5,11 @@ namespace Tests\Unit\Actions;
 use App\Actions\DeliverToDestination;
 use App\Actions\RetryDelivery;
 use App\Enums\DeliveryStatus;
+use App\Enums\DestinationValidationState;
 use App\Enums\ProxyMode;
 use App\Events\DeliveryExhausted;
 use App\Models\Delivery;
+use App\Models\DeliveryAttempt;
 use App\Models\Destination;
 use App\Models\Proxy;
 use App\Models\WebhookEvent;
@@ -166,5 +168,83 @@ class DeliveryStatusTransitionTest extends TestCase
 
         $this->assertSame(DeliveryStatus::Failed, $delivery->fresh()->status);
         Event::assertDispatchedTimes(DeliveryExhausted::class, 1);
+    }
+
+    public function test_a_delivery_whose_destination_lost_validation_is_skipped_not_failed(): void
+    {
+        // #18 AC8's dispatch-gate, AC11, ADR-028. The row-creation gate cannot
+        // see a state change that happens after the row exists.
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $delivery = $this->deliveryWithStatus(DeliveryStatus::Pending);
+        $delivery->destination->forceFill([
+            'validation_state' => DestinationValidationState::Unvalidated,
+            'validated_at' => null,
+        ])->save();
+
+        DeliverToDestination::run($this->unitFor($delivery->fresh(), 1));
+
+        $this->assertSame(DeliveryStatus::Skipped, $delivery->fresh()->status);
+        $this->assertTrue(DeliveryStatus::Skipped->isTerminal());
+
+        Http::assertNothingSent();
+        $this->assertSame(0, DeliveryAttempt::query()->where('delivery_id', $delivery->id)->count());
+        Event::assertNotDispatched(DeliveryExhausted::class);
+    }
+
+    public function test_a_skipped_delivery_is_reached_from_retrying_too(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $delivery = $this->deliveryWithStatus(DeliveryStatus::Retrying);
+        $delivery->destination->forceFill([
+            'validation_state' => DestinationValidationState::Unvalidated,
+            'validated_at' => null,
+        ])->save();
+
+        DeliverToDestination::run($this->unitFor($delivery->fresh(), 2));
+
+        $this->assertSame(DeliveryStatus::Skipped, $delivery->fresh()->status);
+        $this->assertNull($delivery->fresh()->next_attempt_at);
+    }
+
+    public function test_an_expired_challenge_skips_at_send_time(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $delivery = $this->deliveryWithStatus(DeliveryStatus::Pending);
+        $delivery->destination->forceFill([
+            'validation_state' => DestinationValidationState::Pending,
+            'validated_at' => null,
+            'validation_challenge_expires_at' => now()->subDay(),
+        ])->save();
+
+        DeliverToDestination::run($this->unitFor($delivery->fresh(), 1));
+
+        $this->assertSame(DeliveryStatus::Skipped, $delivery->fresh()->status);
+        Http::assertNothingSent();
+    }
+
+    public function test_an_already_terminal_delivery_is_not_reopened_as_skipped(): void
+    {
+        Event::fake();
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $delivery = $this->deliveryWithStatus(DeliveryStatus::Succeeded);
+        $delivery->destination->forceFill([
+            'validation_state' => DestinationValidationState::Unvalidated,
+            'validated_at' => null,
+        ])->save();
+
+        DeliverToDestination::run($this->unitFor($delivery->fresh(), 1));
+
+        $this->assertSame(
+            DeliveryStatus::Succeeded,
+            $delivery->fresh()->status,
+            'The CAS is keyed on pending/retrying, so a settled delivery stays settled.',
+        );
     }
 }

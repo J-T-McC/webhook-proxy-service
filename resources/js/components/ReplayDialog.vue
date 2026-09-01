@@ -3,6 +3,7 @@ import { useForm } from '@inertiajs/vue3';
 import { computed, watch } from 'vue';
 import AlertError from '@/components/AlertError.vue';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -22,6 +23,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { destinationValidationStatusOption } from '@/data/destinationValidationStates';
 import proxyEventRoutes from '@/routes/proxies/events';
 import type { ProxyDestination } from '@/types/proxies';
 
@@ -55,12 +57,17 @@ const form = useForm({
 
 // The server rejects an expired-event replay under an `event` key
 // (`ValidationException::withMessages(['event' => ...])`, AC15's lifecycle
-// framing) — not a field on this form's own data, so `useForm`'s error type
-// doesn't know about it; read it through the same untyped bag Inertia
-// actually populates.
-const requestError = computed(
-    () => (form.errors as Record<string, string>).event,
-);
+// framing) and a non-validated selection under `destinations` (#18 AC9,
+// review-18 finding 2 — the refusal must be shown, "not silently do
+// nothing"). Neither is a typed field on this form's own data, so read both
+// through the untyped bag Inertia actually populates.
+const requestErrors = computed(() => {
+    const errors = form.errors as Record<string, string>;
+
+    return [errors.event, errors.destinations].filter(
+        (message): message is string => Boolean(message),
+    );
+});
 
 // Re-opening after a close (success or cancel) always resets to
 // nothing-checked — selections are never remembered between opens.
@@ -190,13 +197,33 @@ function submit(): void {
                                 </p>
                             </TooltipContent>
                         </Tooltip>
+                        <!-- AC31 (review-18 finding 8): a non-Validated
+                        destination is flagged where it is offered, so the
+                        member learns before submitting, not from the refusal.
+                        No badge on Validated rows — the normal case stays
+                        quiet. -->
+                        <Badge
+                            v-if="destination.validation_status !== 'validated'"
+                            :variant="
+                                destinationValidationStatusOption(
+                                    destination.validation_status,
+                                ).variant
+                            "
+                            class="shrink-0"
+                        >
+                            {{
+                                destinationValidationStatusOption(
+                                    destination.validation_status,
+                                ).label
+                            }}
+                        </Badge>
                     </Label>
                 </TooltipProvider>
             </fieldset>
 
             <AlertError
-                v-if="requestError"
-                :errors="[requestError]"
+                v-if="requestErrors.length > 0"
+                :errors="requestErrors"
                 title="Replay failed"
             />
 

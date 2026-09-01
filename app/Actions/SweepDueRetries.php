@@ -72,7 +72,12 @@ class SweepDueRetries
      */
     private function overdueQuery(): Builder
     {
-        return Delivery::query()->where('status', DeliveryStatus::Retrying);
+        // No validation filter, deliberately: an overdue row for a
+        // now-unvalidated destination must be picked up so the worker settles
+        // it `Skipped` rather than parking it `Retrying` forever (AC10).
+        // Nothing reaches the network — `DeliverToDestination` refuses.
+        return Delivery::query()
+            ->where('status', DeliveryStatus::Retrying);
     }
 
     /**

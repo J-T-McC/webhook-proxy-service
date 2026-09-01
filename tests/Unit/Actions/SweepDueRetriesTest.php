@@ -193,4 +193,52 @@ class SweepDueRetriesTest extends TestCase
         $this->assertNotNull($event, 'Expected the retry sweep to be scheduled.');
         $this->assertSame('* * * * *', $event->expression, 'The sweep must run everyMinute().');
     }
+
+    public function test_an_overdue_retry_for_an_unvalidated_destination_is_picked_up_and_settled_skipped(): void
+    {
+        // Review-18 finding 9 (AC10 — skipped, not held): the sweep exists for
+        // the LOST delayed job, and that lost job's row must be resolved, not
+        // parked as Retrying forever. The sweep picks the row up like any
+        // other; the worker's dispatch-gate is what refuses the send and
+        // settles the row terminal `Skipped`. Nothing reaches the network.
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        $destination = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        $delivery = Delivery::factory()->for($proxy)->for($destination)->createQuietly([
+            'status' => DeliveryStatus::Retrying,
+            'next_attempt_at' => now()->subHour(),
+        ]);
+
+        SweepDueRetries::run();
+
+        Http::assertNothingSent();
+        $this->assertSame(
+            DeliveryStatus::Skipped,
+            $delivery->refresh()->status,
+            'A lost retry for an unvalidated destination settles Skipped — never held Retrying, never delivered later.',
+        );
+    }
+
+    public function test_resuming_a_proxy_settles_an_unvalidated_destinations_overdue_retry_as_skipped(): void
+    {
+        // forProxy() shares overdueQuery(); the resume path must resolve the
+        // row the same way — the worker gate, not a sweep-side exclusion, is
+        // what keeps the send from happening.
+        Http::fake();
+
+        $proxy = Proxy::factory()->createQuietly();
+        $destination = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        $delivery = Delivery::factory()->for($proxy)->for($destination)->createQuietly([
+            'status' => DeliveryStatus::Retrying,
+            'next_attempt_at' => now()->subHour(),
+        ]);
+
+        SweepDueRetries::make()->forProxy($proxy->id);
+
+        Http::assertNothingSent();
+        $this->assertSame(DeliveryStatus::Skipped, $delivery->refresh()->status);
+    }
 }
