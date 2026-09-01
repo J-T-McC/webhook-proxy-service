@@ -164,6 +164,37 @@ Also worth knowing when reading results: ingest is throttled at
 `ingest.rate_limit_per_minute` (6000 a minute) **per token**. Scenarios spread
 load across twenty proxies so the limiter is not what gets measured.
 
+## Baselines
+
+Recorded 2026-09-01 on the Owner's machine, in `tests/load/history.ndjson`.
+
+| Scenario | Ingested | Delivered | p50 | p95 | Selects/ingest | Order |
+|---|---|---|---|---|---|---|
+| `async-throughput` | 450 | 900 | 16.4ms | 57.0ms | 5.0 | — |
+| `fifo-parallel` | 480 | 960 | 27.6ms | 97.4ms | 6.0 | ok |
+| `fifo-head-of-line` | 96 | 192 | 35.9ms | 84.7ms | 6.0 | ok |
+| `mixed` | 500 | 1000 | 16.6ms | 23.7ms | 5.5 | — |
+| `ingest-breakpoint` | 4496 | 9792 | 49.8ms | 2102ms | 5.44 | — |
+
+Two findings worth carrying forward:
+
+**Delivery is not the constraint.** Under the breakpoint ramp the workers
+drained 123.9 a second while ingest sustained 74.9. The ramp aborted on p95
+latency with zero failed requests and a flat 49.8ms median, which is a queue
+forming in front of the web tier rather than the application failing. Caching
+the queue-processing path therefore speeds up a stage that is already not
+limiting, and the breakpoint number is unlikely to move much even if the
+caching works. Judge that work on `selects_per_ingest` and `ingest_p50_ms`.
+
+**FIFO and Async do not contend badly.** The `mixed` scenario produced the
+lowest p95 of any scenario, not the highest.
+
+**What `fifo-head-of-line` does not yet show.** It confirms that a slow
+destination breaks nothing — every delivery arrives and ordering holds — but it
+records no per-proxy timing, so the claim that a slow destination stalls only
+its own line is demonstrated rather than measured. Quantifying it needs a
+per-proxy first-to-last arrival span in the sink.
+
 ## Deferred
 
 Moving the harness into CI is out of scope. The k6 scripts and sink
