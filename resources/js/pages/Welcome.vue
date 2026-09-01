@@ -5,7 +5,7 @@ import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import FanOutIllustration from '@/components/welcome/FanOutIllustration.vue';
 import ReliabilityIllustration from '@/components/welcome/ReliabilityIllustration.vue';
-import { dashboard, login, register } from '@/routes';
+import { dashboard, docs, login, register } from '@/routes';
 
 const page = usePage();
 const dashboardUrl = computed(() =>
@@ -56,6 +56,12 @@ const reliabilitySteps = [
     <div class="min-h-screen bg-background text-foreground">
         <header class="mx-auto max-w-6xl px-6 py-6">
             <nav class="flex items-center justify-end gap-4 text-sm">
+                <Link
+                    :href="docs()"
+                    class="inline-block rounded-sm border border-transparent px-5 py-1.5 leading-normal text-foreground hover:border-border"
+                >
+                    Docs
+                </Link>
                 <Link
                     v-if="$page.props.auth.user"
                     :href="dashboardUrl"
@@ -109,6 +115,17 @@ const reliabilitySteps = [
                         </Button>
                     </template>
                 </div>
+
+                <p class="mt-4 text-sm text-muted-foreground">
+                    New here?
+                    <Link
+                        :href="docs()"
+                        class="text-foreground underline underline-offset-4"
+                    >
+                        Read the docs
+                    </Link>
+                    — quick start, examples and how each feature works.
+                </p>
 
                 <FanOutIllustration class="mt-10" />
             </section>

@@ -12,6 +12,9 @@ createInertiaApp({
     layout: (name) => {
         switch (true) {
             case name === 'Welcome':
+            // Public documentation, readable signed out — AppLayout would
+            // dereference the absent user.
+            case name === 'Docs':
                 return null;
             // #18: reached by somebody with no account, so no AppLayout. It
             // renders `AuthLayout` itself — a layout assigned here takes only

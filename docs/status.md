@@ -201,6 +201,16 @@ ruling of 2026-08-31: no backfill for existing unverified accounts (production h
 a test account, which the Owner verifies by hand), and production mail already sends
 through Mailgun, so a new registration can complete verification.
 
+**Branch `feat/user-docs-page`, open.** Public user documentation at `/docs`, linked from the
+landing page header and hero. Brief: `docs/briefs/user-docs-page.md`. One static Inertia page,
+`resources/js/pages/Docs.vue`, with an anchor-linked contents list — no Markdown pipeline and no
+new dependency, so editing the documentation means editing the component. Two things worth
+knowing before adding another public page: `resources/js/app.ts` assigns `AppLayout` by default
+and that layout dereferences the signed-out user, so a public page must be named in the layout
+switch alongside `Welcome`; and Inertia mounts after the browser has acted on the URL hash, so
+deep links need the `onMounted` scroll the page carries. Verified in a browser against a fresh
+build (`public/hot` moved aside) at 1440px and 390px in both themes.
+
 ## Owner-commissioned design work (not a roadmap line)
 
 Work the Project Owner commissioned directly, outside the roadmap. `docs/product/roadmap.md`
