@@ -35,6 +35,11 @@ pipeline.
   is a working walkthrough: quick start, proxies, destinations, sending
   webhooks, signing, retries and failure, events and replay, teams, account
   security, troubleshooting.
+- **Signing examples are tabbed by language.** Node and PHP, in a `reka-ui`
+  `Tabs` group used directly on the page rather than through a new
+  `components/ui/tabs` wrapper set — one page uses it, and the primitive
+  already carries the roles and keyboard behaviour a hand-rolled tab strip
+  would have to reimplement.
 - **Examples are concrete and copyable.** A `curl` ingest example, a signing
   verification sketch, and the exact header names the service sends. Values
   that come from configuration (retry defaults, retention window) are stated

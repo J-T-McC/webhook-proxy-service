@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, usePage } from '@inertiajs/vue3';
+import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui';
 import { computed, onMounted } from 'vue';
 import { dashboard, home, login, register } from '@/routes';
 
@@ -32,7 +33,16 @@ const signingHeaders = `WebhookProxy-Id: msg_9f1c...-b2e4_17
 WebhookProxy-Timestamp: 1756713600
 WebhookProxy-Signature: v1,K5m2...base64...=`;
 
-const verifyExample = `import crypto from 'node:crypto';
+/**
+ * Receiver-side verification, one entry per language tab. Same three steps in
+ * each: decode the secret, HMAC `id.timestamp.body`, compare in constant time
+ * against every entry in the header.
+ */
+const verifyExamples = [
+    {
+        value: 'node',
+        label: 'Node',
+        code: `import crypto from 'node:crypto';
 
 // whsec_... exactly as the dialog showed it.
 const key = Buffer.from(process.env.PROXY_SIGNING_SECRET.slice(6), 'base64');
@@ -45,7 +55,32 @@ const expected = 'v1,' + crypto.createHmac('sha256', key)
 
 // During a rotation the header carries several entries. Any match is valid.
 const ok = signatureHeader.split(' ').some((entry) =>
-    crypto.timingSafeEqual(Buffer.from(entry), Buffer.from(expected)));`;
+    entry.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(entry), Buffer.from(expected)));`,
+    },
+    {
+        value: 'php',
+        label: 'PHP',
+        code: `<?php
+
+// whsec_... exactly as the dialog showed it.
+$key = base64_decode(substr($secret, 6), true);
+
+// $rawBody: the exact bytes received, before json_decode().
+$signed = "{$id}.{$timestamp}.{$rawBody}";
+$expected = 'v1,'.base64_encode(hash_hmac('sha256', $signed, $key, true));
+
+// During a rotation the header carries several entries. Any match is valid.
+$ok = false;
+
+foreach (explode(' ', $signatureHeader) as $entry) {
+    if (hash_equals($expected, $entry)) {
+        $ok = true;
+        break;
+    }
+}`,
+    },
+];
 
 // The page mounts after the browser has already acted on the hash, so a deep
 // link like /docs#signing would otherwise land at the top.
@@ -454,9 +489,29 @@ const challengeExample = `{
                         same delivery and differs per destination. Reject a
                         timestamp more than five minutes from now.
                     </p>
-                    <pre
-                        class="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 text-xs"
-                    ><code>{{ verifyExample }}</code></pre>
+                    <TabsRoot default-value="node" class="mt-3">
+                        <TabsList
+                            class="flex gap-1 border-b border-border text-sm"
+                        >
+                            <TabsTrigger
+                                v-for="example in verifyExamples"
+                                :key="example.value"
+                                :value="example.value"
+                                class="-mb-px border-b-2 border-transparent px-3 py-1.5 text-muted-foreground data-[state=active]:border-foreground data-[state=active]:text-foreground"
+                            >
+                                {{ example.label }}
+                            </TabsTrigger>
+                        </TabsList>
+                        <TabsContent
+                            v-for="example in verifyExamples"
+                            :key="example.value"
+                            :value="example.value"
+                        >
+                            <pre
+                                class="mt-3 overflow-x-auto rounded-md border border-border bg-muted/40 p-4 text-xs"
+                            ><code>{{ example.code }}</code></pre>
+                        </TabsContent>
+                    </TabsRoot>
 
                     <h3 class="mt-6 text-sm font-medium">Rotation</h3>
                     <p class="mt-1 text-sm text-muted-foreground">
