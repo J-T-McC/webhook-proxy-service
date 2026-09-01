@@ -38,3 +38,4 @@ yarn-error.log
 /blob-report
 /tests/e2e/.state.json
 /tests/e2e/.auth
+.env.load-backup

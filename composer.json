@@ -72,6 +72,10 @@
             "pnpm run types:check",
             "@test"
         ],
+        "perf": [
+            "Composer\\Config::disableProcessTimeout",
+            "tests/load/run.sh"
+        ],
         "types:check": [
             "phpstan analyse --memory-limit=1G"
         ],
