@@ -68,6 +68,43 @@ class ProxyShowTest extends TestCase
             );
     }
 
+    /**
+     * review-18 finding 8 (AC31) — `DestinationResource` carries a display
+     * validation status so every surface presenting a destination, the replay
+     * dialog included, can show whether it is receiving events. Expired is
+     * derived server-side like everywhere else, and the challenge timestamps
+     * and nonce stay out of this resource entirely: a surface needing those
+     * reads the `security.destinations` map.
+     */
+    public function test_each_destination_on_the_show_payload_carries_its_validation_status(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $validated = Destination::factory()->for($proxy)->validated()->createQuietly();
+        $expired = Destination::factory()->for($proxy)->expiredValidation()->createQuietly();
+
+        $response = $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $this->teamSlug($user), 'proxy' => $proxy->id]));
+
+        $response->assertOk()
+            ->assertInertia(function (Assert $page) use ($validated, $expired) {
+                $destinations = collect($page->toArray()['props']['proxy']['destinations'])
+                    ->keyBy('id');
+
+                $this->assertSame('validated', $destinations[$validated->id]['validation_status']);
+                $this->assertSame(
+                    'expired',
+                    $destinations[$expired->id]['validation_status'],
+                    'Expired is derived from a pending challenge whose window closed, never stored.',
+                );
+                $this->assertArrayNotHasKey('validation_nonce', $destinations[$validated->id]);
+                $this->assertArrayNotHasKey('validation_challenge_expires_at', $destinations[$expired->id]);
+            });
+
+        $this->assertStringNotContainsString('validation_nonce', $response->getContent());
+    }
+
     public function test_show_exposes_response_config_for_a_configured_proxy(): void
     {
         $user = $this->actingUser();

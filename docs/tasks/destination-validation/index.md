@@ -19,10 +19,15 @@
 
 ## Binding constraints — these are not negotiable at task level
 
-1. **The gate is four points, not two.** Delivery-row creation, the worker, the retry sweep and the
-   replay controller. Pause's own enforcement points are per-proxy and are deliberately **not**
-   reused — see Q-18-01 answer 1. Do not add a per-destination test to `ProcessIngestedWebhook`'s
-   pause guard or to `AdvanceProxyFifoQueue`'s claim guard.
+1. **The gate is three points, not two.** Delivery-row creation, the worker and the replay
+   controller. Pause's own enforcement points are per-proxy and are deliberately **not** reused —
+   see Q-18-01 answer 1. Do not add a per-destination test to `ProcessIngestedWebhook`'s pause guard
+   or to `AdvanceProxyFifoQueue`'s claim guard.
+   **Amended 2026-08-31**, after review-18 finding 9. This constraint originally read "four points"
+   and counted `SweepDueRetries` among them. The sweep carries no validation filter, deliberately:
+   an overdue row whose destination has since lost validation must be picked up so the worker can
+   settle it terminal `Skipped`, because excluding it parks the row as `Retrying` forever. See
+   plan-18 § Architecture point 3.
 2. **Skipped means no row, not a skipped row.** A non-validated destination produces no `deliveries`
    row and therefore no `delivery_attempts` record. Never write a row and mark it skipped.
 3. **The validation send never carries the destination's stored credential** (AC17) and never routes

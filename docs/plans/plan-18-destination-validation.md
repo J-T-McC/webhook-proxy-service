@@ -34,8 +34,14 @@ per-proxy, validation is per-destination) so this feature does not reuse them. T
    validated state between row creation and send, via AC5's URL edit or a challenge expiring under a
    retry backoff. This is AC8's dispatch-gate. A delivery whose destination is no longer validated is
    resolved without an attempt record.
-3. **`SweepDueRetries`.** Re-dispatches from existing rows and never passes through point 1, so it
-   must exclude non-validated destinations, mirroring its existing `paused_at` exclusion at line 49.
+3. **`SweepDueRetries` — deliberately carries no validation filter.** Amended 2026-08-31 after
+   review-18 finding 9; this section originally required the sweep to exclude non-validated
+   destinations, mirroring its `paused_at` exclusion, and that was wrong. An overdue row whose
+   destination has since lost validation must be **picked up**, so that point 2's dispatch-gate can
+   resolve it as terminal `Skipped`. Excluding it parks the row as `Retrying` forever, and delivers
+   it later if the destination is ever re-validated — events from the window in which it was
+   unvalidated, which AC10 forbids. Nothing reaches the network either way: the sweep only
+   re-dispatches, and the refusal is point 2's.
 4. **`ProxyEventReplayController`.** Pre-creates its own rows for a chosen subset and bypasses point
    1 entirely. AC9 requires replay to a non-validated destination to be unavailable *with the reason
    given*, so this is a controller and policy refusal, not a silent worker drop.
@@ -186,8 +192,12 @@ per ADR-007, and Inertia for the two public pages. `docs/stack/stack.md` needs n
 
 ## Implementation Notes
 
-- The four gate points are the acceptance surface: a test per point, plus one proving no fifth path
-  exists by asserting `DeliverStep` never consults `$proxy->destinations`.
+- **Three enforcement points are the acceptance surface** — delivery-row creation, the worker and
+  the replay controller — a test per point, plus one proving no fifth path exists by asserting
+  `DeliverStep` never consults `$proxy->destinations`. The retry sweep is the fourth place the gate
+  was considered and the one place it is deliberately absent, so its proof is the opposite shape: a
+  test that an overdue row for a now-unvalidated destination is picked up and settles `Skipped`,
+  rather than a test that the sweep refuses it.
 - The nonce comparison, not the signature, is what makes a link single-use. A test should prove a
   second POST with a still-valid signature is refused after approval.
 - The address guard needs tests against a literal private address, a hostname resolving to one, and a

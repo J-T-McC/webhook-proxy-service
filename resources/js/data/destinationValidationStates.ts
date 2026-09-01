@@ -89,9 +89,7 @@ export interface DestinationValidation {
  * (`app/Enums/DestinationValidationSendFailure.php`), which is authoritative.
  */
 export type DestinationValidationSendFailure =
-    | 'address_refused'
-    | 'unreachable'
-    | 'redirected';
+    'address_refused' | 'unreachable' | 'redirected';
 
 /**
  * design-18's failure-reason copy, verbatim (AC18, AC20, AC35). Plain language
@@ -105,7 +103,8 @@ export type DestinationValidationSendFailure =
 const SEND_FAILURE_REASONS: Record<DestinationValidationSendFailure, string> = {
     unreachable: 'could not reach this address',
     address_refused: "this address can't be used for validation",
-    redirected: "this address redirected elsewhere, which validation doesn't follow",
+    redirected:
+        "this address redirected elsewhere, which validation doesn't follow",
 };
 
 /**

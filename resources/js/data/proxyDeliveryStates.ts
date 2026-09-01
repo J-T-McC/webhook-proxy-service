@@ -31,7 +31,11 @@ export const PROXY_DELIVERY_STATUSES = [
     { value: 'retrying', label: 'Retrying', variant: 'waiting' },
     { value: 'pending', label: 'Retrying', variant: 'waiting' },
     { value: 'failed', label: 'Terminally failed', variant: 'destructive' },
-    { value: 'skipped', label: 'Not sent — destination unvalidated', variant: 'waiting' },
+    {
+        value: 'skipped',
+        label: 'Not sent — destination unvalidated',
+        variant: 'waiting',
+    },
 ] as const satisfies readonly ProxyDeliveryStateOption[];
 
 /**
