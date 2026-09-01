@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { FolderGit2, LayoutGrid, ListOrdered, Webhook } from '@lucide/vue';
+import {
+    BookOpen,
+    FolderGit2,
+    LayoutGrid,
+    ListOrdered,
+    Webhook,
+} from '@lucide/vue';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
@@ -16,7 +22,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
+import { dashboard, docs } from '@/routes';
 import events from '@/routes/events';
 import proxies from '@/routes/proxies';
 import type { NavItem } from '@/types';
@@ -54,9 +60,15 @@ const mainNavItems = computed<NavItem[]>(() => {
 
 const footerNavItems: NavItem[] = [
     {
+        title: 'Documentation',
+        href: docs(),
+        icon: BookOpen,
+    },
+    {
         title: 'Repository',
         href: 'https://github.com/J-T-McC/webhook-proxy-service',
         icon: FolderGit2,
+        external: true,
     },
 ];
 </script>
