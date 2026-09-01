@@ -11,6 +11,10 @@
 - Findings cite a location and the violated criterion or standard.
 - The Reviewer never edits code and never reviews their own work.
 
+## Review tiers (active)
+- **standard** — diff review with targeted caller checks.
+- **deep** — the plan contains a major decision: trace every changed public interface's callers; line-by-line on security-sensitive paths. Set by the Principal Engineer in the task index.
+
 ## Checklists
 
 > **Status: Proposed — pending Project Owner approval.** Owned by the Reviewer
