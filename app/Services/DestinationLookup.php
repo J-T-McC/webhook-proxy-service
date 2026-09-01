@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Destination;
 use App\Models\Scopes\TeamScope;
 use App\Observers\DestinationObserver;
+use App\Support\CachedRow;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -47,9 +48,9 @@ class DestinationLookup
      */
     public function byIdWithTrashed(int $id): ?Destination
     {
-        $cached = Cache::get(self::idKey($id));
+        $cached = CachedRow::decode(Cache::get(self::idKey($id)));
 
-        if (is_array($cached)) {
+        if ($cached !== null) {
             return self::rehydrate($cached);
         }
 
@@ -60,7 +61,7 @@ class DestinationLookup
             ->first();
 
         if ($destination !== null) {
-            Cache::put(self::idKey($id), $destination->getRawOriginal(), self::ttl());
+            Cache::put(self::idKey($id), CachedRow::encode($destination->getRawOriginal()), self::ttl());
         }
 
         return $destination;

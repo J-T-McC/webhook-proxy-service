@@ -113,6 +113,28 @@ class ProxyLookupCacheTest extends TestCase
         $this->assertGreaterThan(0, $queries, 'A miss was cached.');
     }
 
+    /**
+     * The `database` cache driver stores its value in a utf8mb4 text column, and
+     * `proxies.ingest_token_hash` is BINARY(32). Caching raw attributes therefore
+     * worked on Redis and threw "Incorrect string value" on the driver
+     * `config/cache.php` actually defaults to — a 500 on every ingest, caught by
+     * the end-to-end suite rather than by these tests, which ran on the
+     * binary-safe array store.
+     */
+    public function test_the_row_caches_on_a_driver_whose_column_rejects_raw_binary(): void
+    {
+        config(['cache.default' => 'database']);
+
+        $proxy = Proxy::factory()->create();
+        $hash = $this->hashFor($proxy);
+        $lookup = app(ProxyLookup::class);
+
+        $this->assertSame($proxy->id, $lookup->byTokenHash($hash)?->id);
+        $this->assertSame($proxy->id, $lookup->byTokenHash($hash)?->id, 'The cached read failed.');
+        $this->assertSame($proxy->id, $lookup->byIdWithTrashed($proxy->id)?->id);
+        $this->assertSame($proxy->id, $lookup->byIdWithTrashed($proxy->id)?->id);
+    }
+
     public function test_the_ingest_endpoint_rejects_a_paused_proxy_without_waiting_for_expiry(): void
     {
         $proxy = Proxy::factory()->create();

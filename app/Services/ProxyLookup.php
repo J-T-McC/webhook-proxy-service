@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Proxy;
 use App\Observers\ProxyObserver;
+use App\Support\CachedRow;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -42,9 +43,9 @@ class ProxyLookup
      */
     public function byTokenHash(string $tokenHash): ?Proxy
     {
-        $cached = Cache::get(self::key($tokenHash));
+        $cached = CachedRow::decode(Cache::get(self::key($tokenHash)));
 
-        if (is_array($cached)) {
+        if ($cached !== null) {
             return self::rehydrate($cached);
         }
 
@@ -53,7 +54,7 @@ class ProxyLookup
             ->first();
 
         if ($proxy !== null) {
-            Cache::put(self::key($tokenHash), $proxy->getRawOriginal(), self::ttl());
+            Cache::put(self::key($tokenHash), CachedRow::encode($proxy->getRawOriginal()), self::ttl());
         }
 
         return $proxy;
@@ -70,16 +71,16 @@ class ProxyLookup
      */
     public function byIdWithTrashed(int $id): ?Proxy
     {
-        $cached = Cache::get(self::idKey($id));
+        $cached = CachedRow::decode(Cache::get(self::idKey($id)));
 
-        if (is_array($cached)) {
+        if ($cached !== null) {
             return self::rehydrate($cached);
         }
 
         $proxy = Proxy::query()->withTrashed()->whereKey($id)->first();
 
         if ($proxy !== null) {
-            Cache::put(self::idKey($id), $proxy->getRawOriginal(), self::ttl());
+            Cache::put(self::idKey($id), CachedRow::encode($proxy->getRawOriginal()), self::ttl());
         }
 
         return $proxy;
