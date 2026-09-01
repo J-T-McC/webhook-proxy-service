@@ -193,6 +193,14 @@ through to the event page, and team isolation. Destination validation approval
 the challenge has nowhere to land inside CI. The stack table's Testing row is
 updated; the remaining gap there is component-level JS testing.
 
+**Branch `feat/email-verification`, open (stacked on `feat/playwright-e2e`).** Email
+verification is now enforced: `App\Models\User` implements `MustVerifyEmail`, which
+is what makes the already-wired Fortify feature and the `verified` middleware apply.
+Brief: `docs/briefs/email-verification.md`, which also records the Owner's rollout
+ruling of 2026-08-31: no backfill for existing unverified accounts (production holds one,
+a test account, which the Owner verifies by hand), and production mail already sends
+through Mailgun, so a new registration can complete verification.
+
 ## Owner-commissioned design work (not a roadmap line)
 
 Work the Project Owner commissioned directly, outside the roadmap. `docs/product/roadmap.md`
