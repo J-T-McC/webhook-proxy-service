@@ -321,7 +321,7 @@ Screen 1:**
 | Unvalidated, last send failed | `outline` / `Circle` / "Unvalidated" | "Last send failed — {reason}." | Button, enabled (unless rate-limited — see below) |
 | Pending | `waiting` / `Clock` / "Pending" | "Responded {http_status}. Waiting for someone at this address to approve — expires {expires_at}." | Button, enabled; caption below it always reads: "Sending again cancels the current link." |
 | Expired | `outline` / `History` / "Expired" | "Expired {expires_at} — nobody approved in time. Send a new one." | Button, enabled |
-| Validated | `moved` / `Check` / "Validated" | "Approved {approved_at}. Receiving events." | **No button at all** — nothing to send, nothing to undo (AC3, AC6). |
+| Validated | `moved` / `Check` / "Validated" | **No caption.** | **No button at all** — nothing to send, nothing to undo (AC3, AC6). |
 
 **Captions shortened by Owner ruling, 2026-09-01.** The wording above replaces a
 longer set that ran to three and four lines inside a table cell and drove rows to
@@ -335,6 +335,15 @@ Validated still says it is receiving events. What went was the restatement of wh
 badge beside the caption already says, and the send timestamp, which told a member
 nothing the expiry did not. `{sent_at}` is consequently no longer interpolated into
 any caption.
+
+**Validated lost its caption entirely, same ruling.** It is the one state that asks
+nothing of anybody, so AC34's "what is expected of whom next" has nothing to require
+of it, and "Approved {approved_at}. Receiving events." only restated the badge beside
+it. A Validated row is now a single-line table row like any other. The three states
+that need a human to act keep their line, because for those the badge genuinely does
+not carry the criterion: "Unvalidated" alone cannot tell a member that the last send
+failed or why, which is the distinction AC35 exists to make. `{approved_at}` is no
+longer rendered on this screen; it remains on the wire, unused.
 
 **Failure-reason copy (AC18, AC20, AC35) — plain language, never implementation jargon:**
 - Connection could not be made at all (DNS failure, refused connection, timeout):

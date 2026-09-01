@@ -36,13 +36,17 @@ bounded cell.
   reserves wording and presentation to the Designer and freezes only the obligation,
   and the Designer gate was dropped for this item, so no PRD amendment was needed.
   design-18's state table and its Screen 2 responsive paragraph were both updated to
-  match.
+  match. In a second pass the Owner removed the Validated caption entirely: it is the
+  one state that asks nothing of anybody, so AC34 has nothing to require of it. The
+  three states that need a human to act keep their line, because there the badge does
+  not carry the criterion — "Unvalidated" alone cannot say that the last send failed or
+  why, which is what AC35 is for.
 
 ## Verified
 
 Playwright against the running application at 1440px and at 360px, with all four
 validation states plus a recorded send failure and a recorded response status. Row
-heights fell from 307px and 319px to 131px and 111px, and to 59px for a Validated
-row. At 360px the table scrolls inside its own container and the page body does not
+heights fell from 307px and 319px to 131px and 111px, and a Validated row is now 49px
+— an ordinary single-line table row. At 360px the table scrolls inside its own container and the page body does not
 scroll horizontally. The proxy edit form, which reuses the same captions, was checked
 separately.

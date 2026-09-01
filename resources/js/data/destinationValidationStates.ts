@@ -137,10 +137,15 @@ export function destinationValidationStatusOption(
  * says nobody approved in time and what to do; Validated says it is receiving
  * events. What went is the sentence-length restatement of what the badge
  * beside it already says.
+ *
+ * **Validated carries no caption at all, by Owner ruling on 2026-09-01.** It is
+ * the one state that asks nothing of anybody, so there is no "what is expected
+ * of whom next" for AC34 to require, and the badge already says the destination
+ * is validated. The three states that need a human to act keep their line.
  */
 export function destinationValidationCaption(
     validation: DestinationValidation,
-): string {
+): string | null {
     switch (validation.status) {
         case 'unvalidated':
             // A destination whose last send failed is still Unvalidated, but
@@ -172,9 +177,7 @@ export function destinationValidationCaption(
                     : 'Nobody') + ' approved in time. Send a new one.'
             );
         case 'validated':
-            return validation.approved_at
-                ? `Approved ${formatTimestamp(validation.approved_at)}. Receiving events.`
-                : 'Approved. Receiving events.';
+            return null;
     }
 }
 

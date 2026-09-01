@@ -221,7 +221,12 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                                     }}
                                 </Badge>
                             </div>
+                            <!-- Validated carries no caption (Owner ruling,
+                            2026-09-01): nothing is asked of anybody, so
+                            AC34 has nothing to require and the badge says
+                            the rest. -->
                             <p
+                                v-if="validationCells[destination.id].caption"
                                 class="text-xs whitespace-normal text-muted-foreground"
                             >
                                 {{ validationCells[destination.id].caption }}

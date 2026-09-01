@@ -234,5 +234,8 @@ never carried by colour alone.
   captions and the rate-limited line were shortened at the Owner's direction, and design-18's
   state table was updated to match. AC34 reserves wording to the Designer and freezes only the
   obligation, so no PRD amendment was needed; every fact each criterion requires survives, and
-  `{sent_at}` is no longer interpolated into any caption. Verified live with Playwright across
-  all four states — see `docs/fixes/destinations-table-validation-column-width.md`.
+  `{sent_at}` is no longer interpolated into any caption, and Validated carries no caption at all —
+  it asks nothing of anybody, so AC34 has nothing to require of it, and its row is now a single
+  line. `destinationValidationCaption` returns `string | null` accordingly and both consumers
+  (`DestinationsCard.vue`, `DestinationRows.vue`) skip the element when it is null. Verified live
+  with Playwright across all four states — see `docs/fixes/destinations-table-validation-column-width.md`.

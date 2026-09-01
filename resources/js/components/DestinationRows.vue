@@ -312,7 +312,10 @@ const inputClass =
                             ).label
                         }}
                     </Badge>
-                    <span class="text-sm text-muted-foreground">
+                    <span
+                        v-if="destinationValidationCaption(rowValidation(row)!)"
+                        class="text-sm text-muted-foreground"
+                    >
                         {{ destinationValidationCaption(rowValidation(row)!) }}
                     </span>
                 </div>
