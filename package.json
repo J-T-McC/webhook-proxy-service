@@ -14,11 +14,14 @@
         "format:check": "prettier --check resources/",
         "lint": "eslint . --fix",
         "lint:check": "eslint .",
-        "types:check": "vue-tsc --noEmit"
+        "types:check": "vue-tsc --noEmit",
+        "test:e2e": "playwright test",
+        "test:e2e:ui": "playwright test --ui"
     },
     "devDependencies": {
         "@eslint/js": "^9.39.5",
         "@laravel/vite-plugin-wayfinder": "^0.1.7",
+        "@playwright/test": "^1.62.1",
         "@stylistic/eslint-plugin": "^5.10.0",
         "@tailwindcss/vite": "^4.3.3",
         "@types/node": "^22.20.1",
