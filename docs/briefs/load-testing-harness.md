@@ -167,14 +167,17 @@ load across twenty proxies so the limiter is not what gets measured.
 ## Baselines
 
 Recorded 2026-09-01 on the Owner's machine, in `tests/load/history.ndjson`.
+Selects per event are the corrected figures: the counters were first read
+positionally, and MySQL returns them alphabetically, so the column reported
+inserts until that was fixed.
 
 | Scenario | Ingested | Delivered | p50 | p95 | Selects/ingest | Order |
 |---|---|---|---|---|---|---|
-| `async-throughput` | 450 | 900 | 16.4ms | 57.0ms | 5.0 | — |
-| `fifo-parallel` | 480 | 960 | 27.6ms | 97.4ms | 6.0 | ok |
-| `fifo-head-of-line` | 96 | 192 | 35.9ms | 84.7ms | 6.0 | ok |
-| `mixed` | 500 | 1000 | 16.6ms | 23.7ms | 5.5 | — |
-| `ingest-breakpoint` | 4496 | 9792 | 49.8ms | 2102ms | 5.44 | — |
+| `async-throughput` | 450 | 900 | 16.4ms | 57.0ms | 25.00 | — |
+| `fifo-parallel` | 480 | 960 | 27.6ms | 97.4ms | 33.14 | ok |
+| `fifo-head-of-line` | 96 | 192 | 35.9ms | 84.7ms | 32.72 | ok |
+| `mixed` | 500 | 1000 | 16.6ms | 23.7ms | 28.43 | — |
+| `ingest-breakpoint` | 4496 | 9792 | 49.8ms | 2102ms | 27.23 | — |
 
 Two findings worth carrying forward:
 
