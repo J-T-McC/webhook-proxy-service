@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'Welcome')->name('home');
 
+// User documentation (docs/briefs/user-docs-page.md). Public: it has to be
+// readable before registering, and a signed-in user reads the same page.
+Route::inertia('/docs', 'Docs')->name('docs');
+
 Route::prefix('{current_team}')
     ->middleware(['auth', 'verified', EnsureTeamMembership::class, ApplyTeamScope::class])
     ->group(function () {
