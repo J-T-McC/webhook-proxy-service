@@ -81,10 +81,8 @@ class ProxyController extends Controller
 
         $data = $request->validated();
 
-        // Item #18 AC15: a new destination is challenged automatically. Ids are
-        // collected inside the transaction and dispatched after it commits, so a
-        // rolled-back create never sends a challenge for a destination that does
-        // not exist.
+        // AC15: collected in the transaction, dispatched after it commits, so
+        // a rolled-back create never sends a challenge.
         $toChallenge = [];
 
         $proxy = DB::transaction(function () use ($data, $tokens, &$toChallenge): Proxy {
@@ -249,13 +247,9 @@ class ProxyController extends Controller
                     : null;
 
                 if ($existing !== null) {
-                    // Item #18 AC5: changing the URL returns the destination to
-                    // unvalidated and voids the outstanding link. Editing is
-                    // deliberately NOT blocked — blocking would only push
-                    // members to delete and recreate, which is the same work
-                    // with a worse audit trail. Anything other than the URL
-                    // (method, credential) leaves validation alone, because
-                    // configuration is not gated (AC13).
+                    // AC5: a URL change returns the destination to unvalidated.
+                    // Editing is deliberately not blocked, and other fields do
+                    // not gate validation (AC13).
                     $urlChanged = $existing->url !== $row['url'];
 
                     $existing->update([
@@ -264,11 +258,8 @@ class ProxyController extends Controller
                         ...$this->destinationCredentialAttributes($row, $existing->credential_set_at !== null),
                     ]);
 
-                    // forceFill rather than update: the validation columns are
-                    // deliberately absent from the model's #[Fillable] list, so
-                    // that no request payload can ever mass-assign a
-                    // destination into the validated state. Only this reset and
-                    // the approval route write them.
+                    // forceFill: the validation columns are non-fillable so no
+                    // payload can mass-assign a destination into Validated.
                     if ($urlChanged) {
                         $existing->forceFill([
                             'validation_state' => DestinationValidationState::Unvalidated,
@@ -276,9 +267,7 @@ class ProxyController extends Controller
                             'validation_challenge_sent_at' => null,
                             'validation_challenge_expires_at' => null,
                             'validation_nonce' => null,
-                            // AC35's outcome columns clear with the rest: they
-                            // describe a send to the old address and would
-                            // misdescribe the new one.
+                            // These describe a send to the old address.
                             'validation_last_send_status' => null,
                             'validation_last_send_failure' => null,
                         ])->save();

@@ -8,32 +8,20 @@ use Closure;
 
 /**
  * Refuses an outbound request to an address the product must never reach, and
- * pins the connection to the address it checked (#18 AC20, ADR-028's sibling
- * ADR-027 decision 3; Q-18-01 answer 3).
+ * pins the connection to the address it checked (#18 AC20, ADR-027 decision 3).
  *
- * **Why pinning, and not just validation.** A hostname checked now and
- * connected to a moment later can resolve to two different addresses — an
- * attacker who controls the DNS record answers public to the check and private
- * to the connection. Validating the URL, or even resolving it and validating
- * the result, does not close that: only connecting to the *same address that
- * was checked* does. {@see resolve()} returns that address so the caller can
- * hand it to cURL's `CURLOPT_RESOLVE`.
+ * **Pinning, not just validation.** A host checked now and connected to a
+ * moment later can resolve twice — an attacker controlling the DNS record
+ * answers public to the check and private to the connection. Only connecting
+ * to the address that was checked closes that; {@see resolve()} returns it for
+ * cURL's `CURLOPT_RESOLVE`.
  *
- * **Scope.** Validation sends only (AC40). Ordinary delivery is deliberately
- * untouched, so destinations grandfathered by #18's migration keep working even
- * at private addresses until their URL changes. The stated consequence is that
- * a NEW destination at a private address can never be validated.
+ * **Fails closed.** Unresolvable host, malformed URL, no addresses, or any one
+ * of several addresses inside a refused range refuses the whole send —
+ * otherwise the choice of address becomes the security boundary.
  *
- * **Fails closed.** An unresolvable host, a malformed URL, a host with no
- * addresses, or any single returned address inside a refused range refuses the
- * whole send. A host with several addresses is refused if *any* of them is
- * refused, not merely if the one we would have picked is — otherwise the choice
- * of address becomes the security boundary.
- *
- * Redirects are refused rather than followed (AC19), which is what makes this
- * sufficient: pinning cannot extend to a second hop, and a validation challenge
- * has no legitimate reason to be redirected. That refusal lives at the call
- * site, since it is an HTTP-client option rather than an address question.
+ * Validation sends only (AC40); redirects are refused at the call site (AC19),
+ * since pinning cannot extend to a second hop. See plan-18 § Services.
  */
 class OutboundAddressGuard
 {

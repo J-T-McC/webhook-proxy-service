@@ -6,36 +6,21 @@ import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/AuthLayout.vue';
 
 /**
- * The destination-approval page (#18, design-18 Screen 4).
- *
- * Seen by somebody with **no account** who arrived from a link posted to their
- * own webhook endpoint. They have no context beyond what is on this page, so
- * each outcome states plainly what happened, what it means, and whether
- * anything is now expected of them.
- *
- * Four distinct outcomes rather than one screen with a variable message,
- * because the reader's next action differs in each: approve, nothing to do,
- * ask for a new link, or this link is not usable.
+ * The destination-approval page (#18, design-18 Screen 4). Seen by somebody
+ * with no account and no context beyond this page, so each outcome is its own
+ * screen: the reader's next action differs in every one.
  */
 const props = defineProps<{
     outcome:
         'approvable' | 'approved' | 'already_approved' | 'expired' | 'invalid';
     destinationUrl?: string;
     approveUrl?: string;
-    /**
-     * The asking team's name (AC27) — the one identifying fact the visitor
-     * gets. Absent only on `invalid`, where no resolved challenge exists to
-     * name a team from.
-     */
+    /** The asking team's name (AC27). Absent only on `invalid`. */
     teamName?: string;
 }>();
 
-// This page supplies its own layout instance rather than taking the one
-// `app.ts` assigns, so that the heading can name the outcome. Assigned there,
-// the layout's title is a static prop: every outcome rendered under the
-// heading "Approve this destination", including "Destination approved" and
-// "This link is not valid", and the page's own heading repeated beneath it as
-// a second `h1`.
+// Its own layout instance: one assigned in `app.ts` takes only static props,
+// so every outcome shared one wrong heading.
 
 const heading = computed(() => {
     switch (props.outcome) {
@@ -52,11 +37,7 @@ const heading = computed(() => {
     }
 });
 
-/**
- * The line under the heading. Says what the reader is being asked for, or
- * that nothing is being asked — never a restatement of the heading, and never
- * the approval prompt on an outcome that has already resolved.
- */
+/** The line under the heading — never a restatement of it. */
 const description = computed(() => {
     switch (props.outcome) {
         case 'approvable':

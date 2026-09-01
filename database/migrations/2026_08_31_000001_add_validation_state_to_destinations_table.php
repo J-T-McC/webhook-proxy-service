@@ -8,23 +8,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
-     *
-     * Destination validation state (#18, ADR-027 decision 1). A destination
-     * receives traffic only while `validation_state = validated`; the gate is
-     * applied at four points (see `plan-18` § Architecture), all of which read
-     * this column.
-     *
-     * Three states are stored, not four. PRD-18 AC1's `expired` is derived from
-     * `pending` plus a past `validation_challenge_expires_at` — see
-     * `App\Enums\DestinationValidationStatus`. Nothing writes `expired`, so
-     * nothing can leave it stale.
-     *
-     * `validation_nonce` is what makes a link single-use and what makes a newer
-     * challenge void an older one. The link itself is a Laravel temporary
-     * signed URL, so no token is stored: the signature proves the URL was not
-     * tampered with, and the nonce comparison proves it is still the current
-     * one. A signed URL alone is replayable.
+     * Destination validation state (#18, ADR-027 decision 1). Traffic flows
+     * only while `validation_state = validated`; enforcement points are in
+     * plan-18 § Architecture. `expired` is derived, never stored, so nothing
+     * can leave it stale. `validation_nonce` is what makes a signed link
+     * single-use — a signature alone is replayable.
      */
     public function up(): void
     {

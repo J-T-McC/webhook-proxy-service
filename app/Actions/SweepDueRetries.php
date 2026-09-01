@@ -72,14 +72,10 @@ class SweepDueRetries
      */
     private function overdueQuery(): Builder
     {
-        // Item #18: no validation filter here, deliberately (review-18
-        // finding 9). A now-unvalidated destination's overdue row must be
-        // PICKED UP so the worker's dispatch-gate can resolve it as terminal
-        // `Skipped` (AC10 — skipped, not held): excluding it would park the
-        // row as `Retrying` forever, and deliver it later if the destination
-        // is ever re-validated — events from while it was unvalidated, which
-        // AC10 forbids. Nothing reaches the network either way; the gate in
-        // `DeliverToDestination` is what refuses the send.
+        // No validation filter, deliberately: an overdue row for a
+        // now-unvalidated destination must be picked up so the worker settles
+        // it `Skipped` rather than parking it `Retrying` forever (AC10).
+        // Nothing reaches the network — `DeliverToDestination` refuses.
         return Delivery::query()
             ->where('status', DeliveryStatus::Retrying);
     }

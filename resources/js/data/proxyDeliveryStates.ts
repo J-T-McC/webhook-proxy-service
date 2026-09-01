@@ -21,10 +21,8 @@ export interface ProxyDeliveryStateOption extends DataOption<string> {
  * terminal outcome (the backend only reaches it once the retry limit is
  * spent), so it renders as "Terminally failed", never a transient failure.
  *
- * `skipped` (#18, ADR-028) is terminal but deliberately NOT destructive: the
- * destination was never contacted, so nothing failed and there is nothing to
- * debug at the destination end. The fix is to validate the destination, which
- * is why the label names the cause rather than the outcome.
+ * `skipped` (#18, ADR-028) is terminal but not destructive: the destination
+ * was never contacted, so the label names the cause, not an outcome.
  */
 export const PROXY_DELIVERY_STATUSES = [
     { value: 'succeeded', label: 'Delivered', variant: 'moved' },

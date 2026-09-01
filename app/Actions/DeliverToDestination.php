@@ -132,14 +132,10 @@ class DeliverToDestination
 
     public function handle(DeliveryUnit $unit): void
     {
-        // Item #18 AC8 — the dispatch-gate, the second of the feature's two
-        // enforcement points. `ProcessIngestedWebhook`'s queue-check stops an
-        // unvalidated destination ever getting a row, but it cannot see a state
-        // change that happens afterwards: a URL edit returns a destination to
-        // unvalidated (AC5), and a 7-day challenge can expire while a delivery
-        // waits on a retry backoff.
-        //
-        // Placed before `existingAttempt()` so a re-driven unit is caught too.
+        // AC8 dispatch-gate. The queue-check cannot see a state change made
+        // after the row exists: a URL edit (AC5), or a challenge expiring under
+        // a retry backoff. Before `existingAttempt()` so a re-driven unit is
+        // caught too. Enforcement points: plan-18 § Architecture.
         if ($unit->destination->validation_state !== DestinationValidationState::Validated) {
             $this->skip($unit);
 

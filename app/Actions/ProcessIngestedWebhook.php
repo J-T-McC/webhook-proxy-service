@@ -91,23 +91,12 @@ class ProcessIngestedWebhook
         // must never widen that selection by backfilling every other live
         // destination with an extra (wrongly `kind = original`) row (AC10).
         if ($dispatchUuid === $ingestId) {
-            // Item #18 (destination validation), AC8 — the queue-check. Only a
-            // VALIDATED destination gets a row. This is the whole of the skip:
-            // no row means no unit of work, so nothing is held, nothing parks
-            // the FIFO line behind it, and no `delivery_attempts` record is
-            // written (AC10, AC11). A skipped destination is not a skipped
-            // row — it is the absence of one.
-            //
-            // Deliberately NOT placed with the pause guard above: pause is per
-            // proxy and asks "may this proxy dispatch at all", which cannot
-            // express "this destination, but not that one" (Q-18-01 answer 1).
-            //
-            // The zero-row case that pause had to avoid is correct here. When
-            // every destination is unvalidated this creates no rows, and
-            // `AdvanceProxyFifoQueue::settleOrHold()` settles the FIFO row as
-            // done rather than holding it — which is exactly AC10's
-            // skip-not-hold ruling. See the comment above the pause guard for
-            // why the same shape would be data loss for pause.
+            // AC8 queue-check: only a validated destination gets a row. A
+            // skipped destination is the absence of a row, not a skipped one,
+            // so nothing is held and the FIFO line is not parked (AC10, AC11).
+            // Not folded into the pause guard above, which is per proxy and
+            // cannot express one destination but not another — the zero-row
+            // case is data loss there and correct here. See Q-18-01 answer 1.
             foreach ($proxy->destinations()->validated()->get() as $destination) {
                 Delivery::query()->firstOrCreate(
                     ['dispatch_uuid' => $dispatchUuid, 'destination_id' => $destination->id],

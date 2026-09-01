@@ -77,10 +77,8 @@ class ProxySecurityResource extends JsonResource
             // reopen a shape plan-11 certified.
             'destinations' => $this->destinations()
                 ->withTrashed()
-                // `validation_nonce` is deliberately not selected: the link it
-                // feeds must never reach any member surface (#18 AC24), and not
-                // loading the column makes leaking it impossible rather than
-                // merely avoided.
+                // `validation_nonce` is not selected: not loading it makes
+                // leaking it impossible rather than merely avoided (AC24).
                 ->get(['id', 'team_id', 'credential_set_at', 'validation_state', 'validated_at', 'validation_challenge_sent_at', 'validation_challenge_expires_at', 'validation_last_send_status', 'validation_last_send_failure'])
                 ->mapWithKeys(fn (Destination $destination): array => [
                     $destination->id => [
@@ -91,26 +89,17 @@ class ProxySecurityResource extends JsonResource
                         // establish.
                         'has_credential' => $destination->credential_set_at !== null,
                         'credential_changed_at' => $destination->credential_set_at,
-                        // T15 (AC31, AC32) — the display status, with Expired
-                        // derived server-side by `validationStatus()` so every
-                        // surface tells Expired from Unvalidated the same way
-                        // (AC34) and no client re-implements the expiry rule.
+                        // Expired is derived server-side so no client
+                        // re-implements the rule (AC31, AC32).
                         'validation' => [
                             'status' => $destination->validationStatus()->value,
                             'approved_at' => $destination->validated_at,
                             'challenge_sent_at' => $destination->validation_challenge_sent_at,
                             'challenge_expires_at' => $destination->validation_challenge_expires_at,
-                            // T16 (AC21, Flow D) — when a send limit blocks
-                            // this destination, which one in plain language
-                            // and when it clears, so the row can replace the
-                            // Validate button with the reason rather than a
-                            // dead control. Null when a send is allowed.
-                            // T19 (AC35) — the outcome of the last send, so
-                            // "never arrived", "arrived and was rejected" and
-                            // "nobody has opened it" read differently. Exactly
-                            // one is ever set; the failure is a key, never the
-                            // member-facing sentence, which design-18 fixes
-                            // and the frontend owns.
+                            // Which limit blocks a send, and when it clears,
+                            // so the row can replace the button (AC21).
+                            // Last send's outcome (AC35). Exactly one is set;
+                            // the failure is a key, the frontend owns wording.
                             'last_send_status' => $destination->validation_last_send_status,
                             'last_send_failure' => $destination->validation_last_send_failure?->value,
                             'send_blocked' => $this->sendBlocked($destination),

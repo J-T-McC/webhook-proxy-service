@@ -172,16 +172,9 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                             <Badge variant="outline">{{
                                 destination.httpMethod
                             }}</Badge>
-                            <!-- The URL is capped and truncated, with the
-                            full value in a tooltip — the same treatment
-                            `ReplayDialog` already gives a destination URL.
-                            Uncapped it is one long unbreakable token, and
-                            the browser's automatic table layout hands it
-                            whatever it asks for: it took 559px of 1148px
-                            and left the Validation column beside it 117px.
-                            `min-w-0` is what lets `truncate` fire at all —
-                            a flex item will not shrink below its content
-                            width without it. -->
+                            <!-- Capped, or this unbreakable token takes the
+                            width the Validation column needs. `min-w-0` is
+                            what lets `truncate` fire on a flex item. -->
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger as-child>
@@ -208,16 +201,9 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                         </div>
                     </TableCell>
                     <TableCell>
-                        <!-- T15 (design-18 Screen 2) — validation reads
-                        before the delivery figures beside it, because it is
-                        the precondition for them meaning anything. State is
-                        icon + label + caption, never colour alone.
-
-                        The column is given no width and the caption is free
-                        to wrap: with the captions cut to a sentence, the
-                        browser's own layout is good enough, and the table
-                        container's existing `overflow-x-auto` handles the
-                        rest. -->
+                        <!-- Reads before the delivery figures: it is the
+                        precondition for them meaning anything. Icon + label
+                        + caption, never colour alone (design-18 Screen 2). -->
                         <div
                             v-if="validationCells[destination.id]"
                             class="flex flex-col gap-1"
@@ -241,10 +227,7 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                                     }}
                                 </Badge>
                             </div>
-                            <!-- Validated carries no caption (Owner ruling,
-                            2026-09-01): nothing is asked of anybody, so
-                            AC34 has nothing to require and the badge says
-                            the rest. -->
+                            <!-- Null for the states that ask nothing. -->
                             <p
                                 v-if="validationCells[destination.id].caption"
                                 class="text-xs whitespace-normal text-muted-foreground"
@@ -252,9 +235,8 @@ function showsValidateAction(destination: DestinationBreakdownRow): boolean {
                                 {{ validationCells[destination.id].caption }}
                             </p>
                             <template v-if="showsValidateAction(destination)">
-                                <!-- T16 (Flow D) — a tripped rate limit
-                                replaces the button with the reason and when
-                                it clears, never a dead disabled control. -->
+                                <!-- A tripped limit replaces the button, never
+                                disables it (AC21). -->
                                 <p
                                     v-if="
                                         validationCells[destination.id]

@@ -61,44 +61,27 @@ export interface DestinationValidation {
     approved_at: string | null;
     challenge_sent_at: string | null;
     challenge_expires_at: string | null;
-    /**
-     * The outcome of the most recent validation send (T19; AC35). Exactly one
-     * is ever set: `last_send_status` is the HTTP status a destination that
-     * answered returned, `last_send_failure` a key naming why a send never
-     * reached one. Both are null for a destination that has never been sent a
-     * challenge, and for one whose URL changed since — the outcome described
-     * the old address.
-     */
+    /** The last send's outcome (AC35). Exactly one is ever set; both null if
+     * nothing has been sent since the URL last changed. */
     last_send_status: number | null;
     last_send_failure: DestinationValidationSendFailure | null;
-    /**
-     * The rate limit currently blocking a send, or null when a send is
-     * allowed (T16; AC21, design-18 Flow D). When set, the row replaces the
-     * Validate button with {@link destinationValidationBlockedCaption} —
-     * never a disabled button with no explanation.
-     */
+    /** The limit blocking a send, or null (AC21). When set, the row shows
+     * {@link destinationValidationBlockedCaption} instead of the button. */
     send_blocked: {
         description: string;
         until: string;
     } | null;
 }
 
-/**
- * Why the most recent validation send never reached the destination — the
- * value union mirroring the PHP `DestinationValidationSendFailure` enum
- * (`app/Enums/DestinationValidationSendFailure.php`), which is authoritative.
- */
+/** Mirrors the PHP `DestinationValidationSendFailure` enum, which is
+ * authoritative. */
 export type DestinationValidationSendFailure =
     'address_refused' | 'unreachable' | 'redirected';
 
 /**
- * design-18's failure-reason copy, verbatim (AC18, AC20, AC35). Plain language
- * and never implementation jargon: the backend stores a key precisely so the
- * sentence lives here with the rest of the validation wording.
- *
- * `address_refused` is deliberately not named as an internal-address rule. The
- * member's remedy is the same either way — fix the URL — so the copy does not
- * distinguish the reason beyond this.
+ * design-18's failure-reason copy (AC18, AC20, AC35). `address_refused` is
+ * deliberately not named as an internal-address rule — the remedy is the same
+ * either way.
  */
 const SEND_FAILURE_REASONS: Record<DestinationValidationSendFailure, string> = {
     unreachable: "couldn't reach this address",
@@ -121,41 +104,23 @@ export function destinationValidationStatusOption(
 
 /**
  * The state caption — the minimum a member needs that the badge beside it does
- * not already say. Null where the badge says everything.
- *
- * **Cut to this by Owner ruling, 2026-09-01**, in two passes: first shortened
- * from design-18 Screen 2's original wording, then cut again to drop the
- * handholding. AC34 reserves wording and presentation to the Designer and
- * freezes only the obligation — "that each state carries this is not" — and the
- * Owner dropped the Designer gate for this item, so the copy is theirs.
- *
- * What each state still has to carry, and why:
- *
- * - **Validated** and **Unvalidated, never sent** carry nothing. Neither asks
- *   anything of anybody that the badge and the Validate button beside it do not
- *   already say, so AC34 has nothing to require of them.
- * - **Unvalidated, last send failed** must name the reason. This is the one
- *   distinction AC35 exists to make: "Unvalidated" alone cannot tell a member
- *   whether nothing was ever sent or whether a send failed, and those have
- *   different remedies.
- * - **Pending** is the one state AC34 spells out — "that somebody at the
- *   destination must open a link and by when" — so it keeps a clause naming who
- *   must act and the expiry, plus the status the destination returned (AC35).
- * - **Expired** keeps only its date. "Nobody approved in time" is what the
- *   Expired badge means, and "send a new one" is what the button beside it is.
- *
- * Timestamps fall back to the bare wording when absent, so a caption never
- * renders "Invalid Date" against a row backfilled without challenge timestamps.
+ * not already say, so it is null for Validated and for a never-sent
+ * Unvalidated. Wording is design-18 Screen 2's, as cut by the Owner; see
+ * docs/fixes/destinations-table-validation-column-width.md for what went and
+ * what each state still has to carry. Timestamps fall back to bare wording
+ * when absent, so no caption renders "Invalid Date".
  */
 export function destinationValidationCaption(
     validation: DestinationValidation,
 ): string | null {
     switch (validation.status) {
         case 'unvalidated':
+            // Failed-send and never-sent share a badge but not a remedy (AC35).
             return validation.last_send_failure
                 ? `Send failed — ${SEND_FAILURE_REASONS[validation.last_send_failure]}.`
                 : null;
         case 'pending':
+            // AC34 names Pending: who must act, and by when.
             return (
                 (validation.last_send_status !== null
                     ? `Responded ${validation.last_send_status}. `

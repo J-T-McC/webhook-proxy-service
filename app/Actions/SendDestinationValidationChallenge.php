@@ -17,30 +17,9 @@ use Throwable;
 
 /**
  * Sends a destination its validation challenge (#18 AC14–AC22) and moves it to
- * `pending`.
- *
- * **This is not a delivery and must never become one.** It does not route
- * through `DeliverToDestination` or the pipeline, writes no `deliveries` or
- * `delivery_attempts` row, and is absent from item #11's measures (AC42). Most
- * importantly it does **not** attach the destination's stored credential
- * (AC17): a URL edit triggers an automatic send, so a challenge that carried
- * the credential would let a member move a destination's URL to a host they
- * control and have the product post the credential to it.
- *
- * **The request is guarded, and the guard is the point.** A challenge goes to a
- * URL nobody has vouched for yet — the exact vector this feature closes,
- * performed by the mitigation. {@see OutboundAddressGuard} resolves the host,
- * refuses reserved ranges, and returns the address that was checked; the
- * connection is then pinned to that address so a second resolution cannot land
- * somewhere else. Redirects are refused rather than followed (AC19): pinning
- * cannot extend to a second hop, and a challenge has no reason to be
- * redirected.
- *
- * **The link is a temporary signed URL** (`URL::temporarySignedRoute`), so
- * there is no token column, no generated secret and no hand-rolled expiry
- * check. A signed URL is not single-use on its own — the stored
- * `validation_nonce`, replaced on every send, is what makes it so and what
- * makes a newer challenge void an older one.
+ * `pending`. Not a delivery: no pipeline, no `deliveries` row, no credential
+ * attached (AC17) — a URL edit triggers a send, so a challenge carrying the
+ * credential would post it to any host a member names. See plan-18 § Services.
  */
 class SendDestinationValidationChallenge
 {
@@ -55,11 +34,8 @@ class SendDestinationValidationChallenge
      */
     public function handle(Destination $destination): bool
     {
-        // AC6: exactly one route out of Validated exists — the URL edit. A
-        // send that reached a Validated destination would force-fill it back
-        // to Pending, a manual un-validation route the state machine forbids
-        // (review-18 finding 4). The UI hides the button on Validated rows;
-        // this is the enforcement surface.
+        // AC6: the URL edit is the only route out of Validated. A send here
+        // would force-fill it back to Pending — manual un-validation.
         if ($destination->validation_state === DestinationValidationState::Validated) {
             Log::info('destination.validation_send_refused_validated', ['destination_id' => $destination->id]);
 
@@ -90,18 +66,9 @@ class SendDestinationValidationChallenge
         $nonce = Str::random(40);
         $expiresAt = now()->addDays((int) config('destination_validation.challenge_ttl_days'));
 
-        // The signature deliberately outlives the challenge (AC22 is unaffected
-        // — see `config/destination_validation.php`, Link Grace Period). Minted
-        // against `$expiresAt`, the `signed` middleware refuses a late click at
-        // the exact moment the challenge lapses, so the approver gets a bare 403
-        // instead of design-18 Screen 4's Expired outcome, and the controller's
-        // `expired` branch can never run. Outliving it puts the request in front
-        // of the controller, which reports the expiry properly.
-        //
-        // This grants no approval window. The approval gate is the stored
-        // `validation_challenge_expires_at`, which this does not move; the GET
-        // renders and never mutates (AC28), and the POST that would approve is
-        // signed against that stored expiry in the controller, not against this.
+        // Outlives the challenge so a late click reaches the controller rather
+        // than the `signed` middleware. Grants no approval window — see
+        // `config/destination_validation.php`, Link Grace Period.
         $linkExpiresAt = $expiresAt->copy()
             ->addDays((int) config('destination_validation.link_grace_days'));
 
@@ -116,9 +83,7 @@ class SendDestinationValidationChallenge
         );
 
         try {
-            // AC17: the destination's configured method, not an unconditional
-            // POST — a PUT-only endpoint must be able to receive its challenge
-            // (review-18 finding 5).
+            // AC17: the destination's configured method, not always POST.
             $response = Http::withoutRedirecting()
                 ->timeout((int) config('destination_validation.timeout_seconds'))
                 ->withOptions(['curl' => $this->pinnedTo($destination->url, $address)])
@@ -136,12 +101,9 @@ class SendDestinationValidationChallenge
             return false;
         }
 
-        // A redirect is a failed challenge, not something to chase: the second
-        // hop's address was never checked and cannot be pinned (AC19). Any
-        // OTHER HTTP response — 2xx or not — is a successful send (AC18): the
-        // request reached the host, so a human there can still find the link.
-        // A signature-verifying receiver that 4xxes the unfamiliar payload is
-        // the common case, not a failure (review-18 finding 1).
+        // A redirect is a failed challenge: the second hop was never checked
+        // and cannot be pinned (AC19). Any other response is a successful
+        // send (AC18) — the request reached the host.
         if ($response->redirect()) {
             Log::info('destination.validation_send_rejected', [
                 'destination_id' => $destination->id,
@@ -159,8 +121,7 @@ class SendDestinationValidationChallenge
             'validation_challenge_sent_at' => now(),
             'validation_challenge_expires_at' => $expiresAt,
             'validation_nonce' => $nonce,
-            // AC35: the destination answered, so the outcome is its status and
-            // any earlier failure no longer describes the latest send.
+            // AC35: it answered, so the status is the outcome.
             'validation_last_send_status' => $response->status(),
             'validation_last_send_failure' => null,
         ])->save();
@@ -169,17 +130,9 @@ class SendDestinationValidationChallenge
     }
 
     /**
-     * Seconds until this destination may be sent another challenge, or null if
-     * it may be sent one now (AC21).
-     *
-     * The Validate button sends to an arbitrary URL, which is the vector this
-     * whole feature exists to close — so the button is rate limited per
-     * destination and per team. A caller that is blocked reports when it may
-     * try again rather than presenting a dead control.
-     *
-     * Uses the `RateLimiter` facade directly rather than a named limiter
-     * registered in a provider: named limiters exist to be resolved by the
-     * `throttle` middleware, and this is not an HTTP boundary.
+     * Seconds until this destination may be challenged again, or null if now
+     * (AC21). The `RateLimiter` facade directly: this is not an HTTP boundary,
+     * so there is nothing for a named limiter to be resolved by.
      */
     public function availableIn(Destination $destination): ?int
     {
@@ -187,12 +140,8 @@ class SendDestinationValidationChallenge
     }
 
     /**
-     * Which limit currently blocks this destination, or null if none does —
-     * the tightest tripped limiter in check order, as a plain-language
-     * description (design-18 Screen 2's three fixed strings, AC21 "the member
-     * is told which one") plus the seconds until it clears. The strings were
-     * shortened on 2026-09-01 with the rest of this feature's copy, and they
-     * now open the caption rather than sitting mid-sentence in it.
+     * The tightest tripped limiter, described in the words the caption uses,
+     * plus the seconds until it clears (AC21). Null if none blocks.
      *
      * @return array{description: string, available_in: int}|null
      */
@@ -217,19 +166,8 @@ class SendDestinationValidationChallenge
     }
 
     /**
-     * Record what happened on this send (AC35), so the member can tell "the
-     * challenge never arrived" from "it arrived and was rejected" from "nobody
-     * has opened it" — three situations with three different remedies.
-     *
-     * Exactly one of the pair is ever set, and writing one clears the other:
-     * a row must describe a single attempt, never fragments of two. Only the
-     * three failure exits below `recordAttempt()` call this; a send refused
-     * before it is attempted is not a send and leaves the previous outcome
-     * standing, because that outcome is still the most recent one.
-     *
-     * `forceFill` for the same reason the rest of this feature uses it: the
-     * validation columns are absent from the model's fillable list so no
-     * request payload can reach them.
+     * Record why this send never arrived (AC35). Exactly one of the outcome
+     * pair is ever set, so writing the failure clears the status.
      */
     private function recordFailure(Destination $destination, DestinationValidationSendFailure $failure): void
     {
@@ -280,16 +218,12 @@ class SendDestinationValidationChallenge
     }
 
     /**
-     * cURL's `CURLOPT_RESOLVE`, which pins the connection to the address the
-     * guard checked instead of resolving the host again. Without this the
-     * check and the connection are two separate resolutions and an attacker
-     * controlling the DNS record answers each differently.
+     * Pins the connection to the address the guard checked, so check and
+     * connection are not two resolutions an attacker can answer differently.
      *
-     * Guzzle silently ignores `curl` options on a non-cURL handler, which
-     * would send this request unpinned — so `composer.json` requires
-     * `ext-curl` (plan-18 §Risks: fail closed rather than send unpinned;
-     * review-18 finding 7). Removing that requirement reopens the
-     * DNS-rebinding gap this method exists to close.
+     * Guzzle silently ignores `curl` options on a non-cURL handler and would
+     * send this unpinned, so `composer.json` requires `ext-curl`. Dropping
+     * that requirement reopens the DNS-rebinding gap this closes.
      *
      * @return array<int, array<int, string>>
      */

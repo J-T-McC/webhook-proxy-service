@@ -14,20 +14,11 @@ use Inertia\Response;
 /**
  * The public approval surface for destination validation (#18 AC26–AC29).
  *
- * Reached by somebody with **no account**, arriving cold from a link that was
- * posted to the destination's own URL. There is no session, no team and no
- * navigation — the signature on the URL is the entire authorisation, and the
- * `signed` middleware is what checks it.
- *
- * `show()` renders and never mutates. Approval is `store()`, a POST, because a
- * GET that approved on load would be fired by link scanners, mail preview
- * fetchers and corporate security proxies that open URLs before any human sees
- * them.
- *
- * The nonce, not the signature, is what makes a link single-use: a signed URL
- * is replayable by anyone holding it, so approval additionally requires the
- * nonce to still be the destination's current one. That is also what makes a
- * newer challenge void an older link without any revocation list.
+ * Reached by somebody with no account: the URL's signature is the entire
+ * authorisation. `show()` renders and never mutates — a GET that approved on
+ * load would be fired by link scanners and mail preview fetchers. The nonce,
+ * not the signature, is what makes a link single-use and what lets a newer
+ * challenge void an older one without a revocation list.
  */
 class DestinationValidationController extends Controller
 {
@@ -67,10 +58,8 @@ class DestinationValidationController extends Controller
     }
 
     /**
-     * The destination, ignoring the team scope. The approver has no team, so
-     * the scope would otherwise hide every destination from its own approval
-     * route. Soft-deleted destinations are deliberately NOT resolved: a deleted
-     * destination has nothing to approve.
+     * The destination, unscoped — the approver has no team. Soft-deleted ones
+     * are deliberately not resolved: nothing to approve.
      */
     private function find(int $destination): ?Destination
     {
@@ -79,12 +68,8 @@ class DestinationValidationController extends Controller
 
     /**
      * The asking team's name — the one identifying fact this page owes its
-     * visitor (AC27; review-18 finding 3): they are deciding whether to accept
-     * a stranger's traffic, and AC17 carves the team name out of its
-     * no-team-data rule for exactly this page. Resolved by id because the
-     * visitor has no team of their own for a scoped relation to resolve
-     * through. Never on the `invalid` outcome — an unresolvable link has no
-     * challenge to name a team from.
+     * visitor (AC27), never on the `invalid` outcome. By id: the visitor has
+     * no team for a scoped relation to resolve through.
      */
     private function teamName(Destination $destination): string
     {
@@ -92,9 +77,7 @@ class DestinationValidationController extends Controller
     }
 
     /**
-     * Which of the four screens this request is owed (design-18 Screen 4).
-     * They are four distinct outcomes rather than one screen with a variable
-     * message, because the reader's next action differs in each case.
+     * Which screen this request is owed (design-18 Screen 4).
      *
      * @return array{outcome: string, destinationUrl?: string, approveUrl?: string, teamName?: string}
      */
@@ -132,10 +115,8 @@ class DestinationValidationController extends Controller
             'outcome' => 'approvable',
             'destinationUrl' => $destination->url,
             'teamName' => $this->teamName($destination),
-            // The POST needs its own signature — a signature is over one URL,
-            // so the GET's does not carry across to the store route. Minted
-            // against the same challenge expiry, so the approve button cannot
-            // outlive the link that produced it.
+            // Its own signature: one signature covers one URL. Against the
+            // challenge expiry, not the link's grace, so it cannot outlive it.
             'approveUrl' => URL::temporarySignedRoute(
                 'destinations.validate.store',
                 $destination->validation_challenge_expires_at,

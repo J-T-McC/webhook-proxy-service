@@ -13,12 +13,9 @@ createInertiaApp({
         switch (true) {
             case name === 'Welcome':
                 return null;
-            // #18: the destination-validation page is reached by somebody with
-            // no account, arriving cold from a link. AppLayout assumes a signed-in
-            // member with a team and would render navigation they cannot use. It
-            // renders `AuthLayout` itself rather than taking one from here, because
-            // its heading names the outcome and a layout assigned here can only be
-            // given static props.
+            // #18: reached by somebody with no account, so no AppLayout. It
+            // renders `AuthLayout` itself — a layout assigned here takes only
+            // static props, and its heading names the outcome.
             case name === 'destinations/Validate':
                 return null;
             case name.startsWith('auth/'):
