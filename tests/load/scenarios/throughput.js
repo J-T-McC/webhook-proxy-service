@@ -19,12 +19,18 @@ import http from 'k6/http';
  * rather than the application.
  */
 
+// Which processing modes to drive. Async alone for the throughput and
+// breakpoint scenarios; both for `mixed`, whose whole point is FIFO and Async
+// contending for one worker pool — filtering to Async there would seed FIFO
+// proxies and then leave them idle, and the scenario would prove nothing.
+const modes = (__ENV.LOAD_PROXY_MODES || 'async').split(',');
+
 const proxies = new SharedArray('proxies', () => {
     const seeded = JSON.parse(
         open(__ENV.LOAD_SEED_FILE || '/seed/proxies.json'),
     );
 
-    return seeded.proxies.filter((proxy) => proxy.mode === 'async');
+    return seeded.proxies.filter((proxy) => modes.includes(proxy.mode));
 });
 
 const rate = Number(__ENV.LOAD_RATE || 50);

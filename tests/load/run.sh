@@ -60,7 +60,7 @@ case "${SCENARIO}" in
         DELIVERY_WORKERS=8; ADVANCER_WORKERS=4
         SINK_MIN_MS=300; SINK_MAX_MS=600
         MODE=constant; RATE="${LOAD_RATE:-25}"; DURATION="${LOAD_DURATION:-30s}"
-        SCRIPT=throughput.js; ASSERT_ORDER=0
+        SCRIPT=throughput.js; ASSERT_ORDER=0; PROXY_MODES=fifo,async
         ;;
     ingest-breakpoint)
         FIFO_PROXIES=0; ASYNC_PROXIES=20
@@ -194,6 +194,7 @@ docker run --rm --network "${NETWORK}" \
     -v "${HERE}/scenarios:/scripts:ro" -v "${WORK}:/seed" \
     -e LOAD_BASE_URL="${BASE_URL}" -e LOAD_SEED_FILE=/seed/proxies.json \
     -e LOAD_MODE="${MODE}" -e LOAD_RATE="${RATE}" -e LOAD_DURATION="${DURATION}" \
+    -e LOAD_PROXY_MODES="${PROXY_MODES:-async}" \
     -e K6_SUMMARY_EXPORT=/seed/summary.json \
     grafana/k6:latest run --summary-export=/seed/summary.json "/scripts/${SCRIPT}" \
     2>&1 | tee "${WORK}/k6.log" || true
