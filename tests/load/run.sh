@@ -84,6 +84,23 @@ restore_env() {
     fi
 }
 
+# Every sink the scenario started, not just the first. The head-of-line scenario
+# runs a second slow sink; reading only the first would drop that proxy from the
+# delivered count, the drain check and the ordering verdict.
+sink_urls() {
+    echo -n "http://127.0.0.1:${SINK_PORT}/__stats"
+    [[ -n "${SLOW_SINK_PID:-}" ]] && echo -n " http://127.0.0.1:${SLOW_SINK_PORT}/__stats"
+    echo
+}
+
+sink_stats() { python3 "${HERE}/merge_stats.py" $(sink_urls); }
+
+sink_reset() {
+    curl -s "http://127.0.0.1:${SINK_PORT}/__reset" >/dev/null
+    [[ -n "${SLOW_SINK_PID:-}" ]] && curl -s "http://127.0.0.1:${SLOW_SINK_PORT}/__reset" >/dev/null
+    return 0
+}
+
 sail() { "${ROOT}/vendor/bin/sail" "$@"; }
 mysql_q() { docker compose exec -T mysql mysql -uroot -ppassword -N -B -e "$1" 2>/dev/null; }
 
@@ -205,14 +222,14 @@ docker run --rm --network "${NETWORK}" \
 echo "==> draining"
 LAST=-1; STABLE=0; WAITED=0
 while (( STABLE < 5 && WAITED < 180 )); do
-    NOW="$(curl -s "http://127.0.0.1:${SINK_PORT}/__stats" | python3 -c 'import json,sys;print(json.load(sys.stdin)["total"])')"
+    NOW="$(sink_stats | python3 -c 'import json,sys;print(json.load(sys.stdin)["total"])')"
     if [[ "${NOW}" == "${LAST}" ]]; then STABLE=$((STABLE + 1)); else STABLE=0; fi
     LAST="${NOW}"; sleep 2; WAITED=$((WAITED + 2))
 done
 
 FINISHED_AT="$(date +%s)"
 AFTER="$(counters)"
-STATS="$(curl -s "http://127.0.0.1:${SINK_PORT}/__stats")"
+STATS="$(sink_stats)"
 
 # --- ordering verdict -------------------------------------------------------
 ORDER_VERDICT="not-asserted"
