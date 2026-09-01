@@ -81,7 +81,7 @@ class ProxySecurityResource extends JsonResource
                 // feeds must never reach any member surface (#18 AC24), and not
                 // loading the column makes leaking it impossible rather than
                 // merely avoided.
-                ->get(['id', 'team_id', 'credential_set_at', 'validation_state', 'validated_at', 'validation_challenge_sent_at', 'validation_challenge_expires_at'])
+                ->get(['id', 'team_id', 'credential_set_at', 'validation_state', 'validated_at', 'validation_challenge_sent_at', 'validation_challenge_expires_at', 'validation_last_send_status', 'validation_last_send_failure'])
                 ->mapWithKeys(fn (Destination $destination): array => [
                     $destination->id => [
                         // Presence only, derived from the timestamp rather
@@ -105,6 +105,14 @@ class ProxySecurityResource extends JsonResource
                             // and when it clears, so the row can replace the
                             // Validate button with the reason rather than a
                             // dead control. Null when a send is allowed.
+                            // T19 (AC35) — the outcome of the last send, so
+                            // "never arrived", "arrived and was rejected" and
+                            // "nobody has opened it" read differently. Exactly
+                            // one is ever set; the failure is a key, never the
+                            // member-facing sentence, which design-18 fixes
+                            // and the frontend owns.
+                            'last_send_status' => $destination->validation_last_send_status,
+                            'last_send_failure' => $destination->validation_last_send_failure?->value,
                             'send_blocked' => $this->sendBlocked($destination),
                         ],
                     ],

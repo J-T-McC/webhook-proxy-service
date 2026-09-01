@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Concerns\BelongsToCurrentTeam;
+use App\Enums\DestinationValidationSendFailure;
 use App\Enums\DestinationValidationState;
 use App\Enums\DestinationValidationStatus;
 use App\Enums\HttpMethod;
@@ -30,6 +31,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $validation_challenge_sent_at
  * @property Carbon|null $validation_challenge_expires_at
  * @property string|null $validation_nonce
+ * @property int|null $validation_last_send_status
+ * @property DestinationValidationSendFailure|null $validation_last_send_failure
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -82,6 +85,7 @@ class Destination extends Model
             'validated_at' => 'datetime',
             'validation_challenge_sent_at' => 'datetime',
             'validation_challenge_expires_at' => 'datetime',
+            'validation_last_send_failure' => DestinationValidationSendFailure::class,
         ];
     }
 

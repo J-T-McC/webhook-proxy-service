@@ -276,6 +276,11 @@ class ProxyController extends Controller
                             'validation_challenge_sent_at' => null,
                             'validation_challenge_expires_at' => null,
                             'validation_nonce' => null,
+                            // AC35's outcome columns clear with the rest: they
+                            // describe a send to the old address and would
+                            // misdescribe the new one.
+                            'validation_last_send_status' => null,
+                            'validation_last_send_failure' => null,
                         ])->save();
                     }
 

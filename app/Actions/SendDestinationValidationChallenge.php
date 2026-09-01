@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\DestinationValidationSendFailure;
 use App\Enums\DestinationValidationState;
 use App\Exceptions\RefusedOutboundAddress;
 use App\Models\Destination;
@@ -81,6 +82,8 @@ class SendDestinationValidationChallenge
                 'reason' => $e->getMessage(),
             ]);
 
+            $this->recordFailure($destination, DestinationValidationSendFailure::AddressRefused);
+
             return false;
         }
 
@@ -113,6 +116,8 @@ class SendDestinationValidationChallenge
                 'reason' => $e->getMessage(),
             ]);
 
+            $this->recordFailure($destination, DestinationValidationSendFailure::Unreachable);
+
             return false;
         }
 
@@ -128,6 +133,8 @@ class SendDestinationValidationChallenge
                 'status' => $response->status(),
             ]);
 
+            $this->recordFailure($destination, DestinationValidationSendFailure::Redirected);
+
             return false;
         }
 
@@ -137,6 +144,10 @@ class SendDestinationValidationChallenge
             'validation_challenge_sent_at' => now(),
             'validation_challenge_expires_at' => $expiresAt,
             'validation_nonce' => $nonce,
+            // AC35: the destination answered, so the outcome is its status and
+            // any earlier failure no longer describes the latest send.
+            'validation_last_send_status' => $response->status(),
+            'validation_last_send_failure' => null,
         ])->save();
 
         return true;
@@ -186,6 +197,29 @@ class SendDestinationValidationChallenge
         }
 
         return null;
+    }
+
+    /**
+     * Record what happened on this send (AC35), so the member can tell "the
+     * challenge never arrived" from "it arrived and was rejected" from "nobody
+     * has opened it" — three situations with three different remedies.
+     *
+     * Exactly one of the pair is ever set, and writing one clears the other:
+     * a row must describe a single attempt, never fragments of two. Only the
+     * three failure exits below `recordAttempt()` call this; a send refused
+     * before it is attempted is not a send and leaves the previous outcome
+     * standing, because that outcome is still the most recent one.
+     *
+     * `forceFill` for the same reason the rest of this feature uses it: the
+     * validation columns are absent from the model's fillable list so no
+     * request payload can reach them.
+     */
+    private function recordFailure(Destination $destination, DestinationValidationSendFailure $failure): void
+    {
+        $destination->forceFill([
+            'validation_last_send_status' => null,
+            'validation_last_send_failure' => $failure,
+        ])->save();
     }
 
     private function recordAttempt(Destination $destination): void

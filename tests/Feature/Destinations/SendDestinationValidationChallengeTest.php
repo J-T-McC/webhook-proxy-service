@@ -3,6 +3,7 @@
 namespace Tests\Feature\Destinations;
 
 use App\Actions\SendDestinationValidationChallenge;
+use App\Enums\DestinationValidationSendFailure;
 use App\Enums\DestinationValidationState;
 use App\Models\Delivery;
 use App\Models\DeliveryAttempt;
@@ -303,5 +304,150 @@ class SendDestinationValidationChallengeTest extends TestCase
             DestinationValidationState::Unvalidated,
             $second->refresh()->validation_state,
         );
+    }
+
+    public function test_a_send_that_reaches_the_destination_records_the_status_it_returned(): void
+    {
+        // AC35: "arrived and was rejected" has to read differently from "never
+        // arrived", so the status is stored whether or not it was a 2xx.
+        Http::fake(['*' => Http::response('no thanks', 404)]);
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+        $this->givePreviousOutcome($destination, DestinationValidationSendFailure::Unreachable);
+
+        $this->assertTrue(SendDestinationValidationChallenge::run($destination));
+
+        $destination->refresh();
+
+        $this->assertSame(404, $destination->validation_last_send_status);
+        $this->assertNull(
+            $destination->validation_last_send_failure,
+            'A send that arrived must clear the earlier failure, or the row describes two attempts at once.',
+        );
+    }
+
+    public function test_a_refused_address_records_why_the_send_never_left(): void
+    {
+        Http::fake();
+
+        $this->app->bind(
+            OutboundAddressGuard::class,
+            fn () => new OutboundAddressGuard(fn (string $host) => ['10.0.0.1']),
+        );
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+        $this->givePreviousOutcome($destination, status: 200);
+
+        $this->assertFalse(SendDestinationValidationChallenge::run($destination));
+
+        $destination->refresh();
+
+        $this->assertSame(
+            DestinationValidationSendFailure::AddressRefused,
+            $destination->validation_last_send_failure,
+        );
+        $this->assertNull($destination->validation_last_send_status);
+    }
+
+    public function test_a_connection_failure_records_that_the_address_could_not_be_reached(): void
+    {
+        Http::fake(fn () => throw new ConnectionException('cURL error 7: connection refused'));
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+        $this->givePreviousOutcome($destination, status: 200);
+
+        $this->assertFalse(SendDestinationValidationChallenge::run($destination));
+
+        $destination->refresh();
+
+        $this->assertSame(
+            DestinationValidationSendFailure::Unreachable,
+            $destination->validation_last_send_failure,
+        );
+        $this->assertNull($destination->validation_last_send_status);
+    }
+
+    public function test_a_redirect_records_that_the_address_redirected_rather_than_the_status(): void
+    {
+        Http::fake(['*' => Http::response('', 302, ['Location' => 'https://elsewhere.test/hook'])]);
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+
+        $this->assertFalse(SendDestinationValidationChallenge::run($destination));
+
+        $destination->refresh();
+
+        $this->assertSame(
+            DestinationValidationSendFailure::Redirected,
+            $destination->validation_last_send_failure,
+        );
+        // The 302 is not stored as a returned status: a redirect is a failed
+        // send under AC19, and the member's remedy is the address, not the code.
+        $this->assertNull($destination->validation_last_send_status);
+    }
+
+    public function test_the_stored_failure_is_a_key_and_never_the_underlying_error_text(): void
+    {
+        // design-18 fixes the member-facing wording for each reason and forbids
+        // implementation jargon in it, so the exception message must not become
+        // a stored, renderable string.
+        Http::fake(fn () => throw new ConnectionException('cURL error 6: Could not resolve host: nope.test'));
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+
+        SendDestinationValidationChallenge::run($destination);
+
+        $this->assertStringNotContainsString(
+            'cURL',
+            (string) $destination->refresh()->getRawOriginal('validation_last_send_failure'),
+        );
+    }
+
+    public function test_a_rate_limited_send_leaves_the_previous_outcome_standing(): void
+    {
+        // Nothing was sent, so the previous outcome is still the most recent
+        // one. Overwriting it would tell the member the opposite of what
+        // happened to their last real attempt.
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+        $this->givePreviousOutcome($destination, status: 418);
+
+        $action = app(SendDestinationValidationChallenge::class);
+        $this->assertTrue($action->handle($destination));
+        $this->assertFalse($action->handle($destination));
+
+        $this->assertSame(200, $destination->refresh()->validation_last_send_status);
+    }
+
+    public function test_a_send_refused_at_a_validated_destination_leaves_the_previous_outcome_standing(): void
+    {
+        Http::fake(['*' => Http::response('ok', 200)]);
+
+        $destination = Destination::factory()->validated()->createQuietly();
+        $this->givePreviousOutcome($destination, status: 201);
+
+        $this->assertFalse(SendDestinationValidationChallenge::run($destination));
+
+        $destination->refresh();
+
+        $this->assertSame(201, $destination->validation_last_send_status);
+        $this->assertNull($destination->validation_last_send_failure);
+    }
+
+    /**
+     * Seed an outcome from an earlier send, so a test can show that the next
+     * one replaces it rather than merging with it. `forceFill` because the
+     * validation columns are deliberately not fillable.
+     */
+    private function givePreviousOutcome(
+        Destination $destination,
+        ?DestinationValidationSendFailure $failure = null,
+        ?int $status = null,
+    ): void {
+        $destination->forceFill([
+            'validation_last_send_status' => $status,
+            'validation_last_send_failure' => $failure,
+        ])->save();
     }
 }

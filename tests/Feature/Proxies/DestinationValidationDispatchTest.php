@@ -80,6 +80,7 @@ class DestinationValidationDispatchTest extends TestCase
             'team_id' => $proxy->team_id,
             'url' => 'https://original.example.com/hook',
         ]);
+        $destination->forceFill(['validation_last_send_status' => 404])->save();
 
         $this->actingAs($user)
             ->put(
@@ -102,6 +103,11 @@ class DestinationValidationDispatchTest extends TestCase
             $destination->validation_nonce,
             'The outstanding link must be voided, not left usable against the new URL.',
         );
+        $this->assertNull(
+            $destination->validation_last_send_status,
+            'The recorded outcome describes a send to the old address and would misdescribe the new one (AC35).',
+        );
+        $this->assertNull($destination->validation_last_send_failure);
 
         SendDestinationValidationChallenge::assertPushed(1);
     }

@@ -62,6 +62,16 @@ export interface DestinationValidation {
     challenge_sent_at: string | null;
     challenge_expires_at: string | null;
     /**
+     * The outcome of the most recent validation send (T19; AC35). Exactly one
+     * is ever set: `last_send_status` is the HTTP status a destination that
+     * answered returned, `last_send_failure` a key naming why a send never
+     * reached one. Both are null for a destination that has never been sent a
+     * challenge, and for one whose URL changed since — the outcome described
+     * the old address.
+     */
+    last_send_status: number | null;
+    last_send_failure: DestinationValidationSendFailure | null;
+    /**
      * The rate limit currently blocking a send, or null when a send is
      * allowed (T16; AC21, design-18 Flow D). When set, the row replaces the
      * Validate button with {@link destinationValidationBlockedCaption} —
@@ -72,6 +82,31 @@ export interface DestinationValidation {
         until: string;
     } | null;
 }
+
+/**
+ * Why the most recent validation send never reached the destination — the
+ * value union mirroring the PHP `DestinationValidationSendFailure` enum
+ * (`app/Enums/DestinationValidationSendFailure.php`), which is authoritative.
+ */
+export type DestinationValidationSendFailure =
+    | 'address_refused'
+    | 'unreachable'
+    | 'redirected';
+
+/**
+ * design-18's failure-reason copy, verbatim (AC18, AC20, AC35). Plain language
+ * and never implementation jargon: the backend stores a key precisely so the
+ * sentence lives here with the rest of the validation wording.
+ *
+ * `address_refused` is deliberately not named as an internal-address rule. The
+ * member's remedy is the same either way — fix the URL — so the copy does not
+ * distinguish the reason beyond this.
+ */
+const SEND_FAILURE_REASONS: Record<DestinationValidationSendFailure, string> = {
+    unreachable: 'could not reach this address',
+    address_refused: "this address can't be used for validation",
+    redirected: "this address redirected elsewhere, which validation doesn't follow",
+};
 
 /**
  * The badge option (label + variant + icon) for a validation status.
@@ -97,10 +132,21 @@ export function destinationValidationCaption(
 ): string {
     switch (validation.status) {
         case 'unvalidated':
-            return 'No validation challenge has been sent yet.';
+            // A destination whose last send failed is still Unvalidated, but
+            // the member's next move is completely different: fix the address,
+            // not wait for someone (AC35).
+            return validation.last_send_failure
+                ? `Last attempt failed to send — ${SEND_FAILURE_REASONS[validation.last_send_failure]}. Nothing has been asked of this destination yet.`
+                : 'No validation challenge has been sent yet.';
         case 'pending':
             return (
                 sentPhrase('Sent', validation.challenge_sent_at) +
+                // The status the destination answered with distinguishes
+                // "it arrived and was rejected" from "nobody has opened it"
+                // (AC35). Absent on rows sent before that was recorded.
+                (validation.last_send_status !== null
+                    ? `, destination responded ${validation.last_send_status}`
+                    : '') +
                 ' — waiting on someone at this address to approve it.' +
                 (validation.challenge_expires_at
                     ? ` Expires ${formatTimestamp(validation.challenge_expires_at)}.`

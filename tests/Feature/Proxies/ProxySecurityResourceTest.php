@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Proxies;
 
+use App\Enums\DestinationValidationSendFailure;
 use App\Enums\SecretPurpose;
 use App\Models\Destination;
 use App\Models\Proxy;
@@ -214,6 +215,41 @@ class ProxySecurityResourceTest extends TestCase
                 ->has("security.destinations.{$expired->id}.validation.challenge_expires_at")
                 ->where("security.destinations.{$validated->id}.validation.status", 'validated')
                 ->has("security.destinations.{$validated->id}.validation.approved_at")
+            );
+    }
+
+    /**
+     * T19 (AC35) — the outcome of the last validation send reaches the page in
+     * the same `validation` object, so a member can tell "never arrived" from
+     * "arrived and was rejected" from "nobody has opened it". The failure
+     * travels as a key; the sentence design-18 fixes for it is the frontend's.
+     */
+    public function test_each_destination_reports_the_outcome_of_its_last_validation_send(): void
+    {
+        $user = $this->actingUser();
+        $proxy = Proxy::factory()->createQuietly(['team_id' => $user->current_team_id]);
+
+        $answered = Destination::factory()->for($proxy)->pendingValidation()->createQuietly();
+        $answered->forceFill(['validation_last_send_status' => 404])->save();
+
+        $failed = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+        $failed->forceFill([
+            'validation_last_send_failure' => DestinationValidationSendFailure::AddressRefused,
+        ])->save();
+
+        $never = Destination::factory()->for($proxy)->unvalidated()->createQuietly();
+
+        $this->actingAs($user)
+            ->get(route('proxies.show', ['current_team' => $user->currentTeam->slug, 'proxy' => $proxy->id]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('proxies/Show')
+                ->where("security.destinations.{$answered->id}.validation.last_send_status", 404)
+                ->where("security.destinations.{$answered->id}.validation.last_send_failure", null)
+                ->where("security.destinations.{$failed->id}.validation.last_send_failure", 'address_refused')
+                ->where("security.destinations.{$failed->id}.validation.last_send_status", null)
+                ->where("security.destinations.{$never->id}.validation.last_send_status", null)
+                ->where("security.destinations.{$never->id}.validation.last_send_failure", null)
             );
     }
 

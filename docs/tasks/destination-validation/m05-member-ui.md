@@ -165,7 +165,28 @@ never carried by colour alone.
   rate-limited send and a send at a Validated destination leave both columns exactly as they were.
   Extend `ProxySecurityResourceTest` to assert both fields reach the page inside the existing
   `validation` object, and that `validation_nonce` still does not.
-- **Completion notes:** _pending_
+- **Completion notes:** Done, 2026-08-31. Migration
+  `2026_08_31_000002_add_last_send_outcome_to_destinations_table.php` adds
+  `validation_last_send_status` (nullable unsigned small integer) and
+  `validation_last_send_failure` (nullable string), both after `validation_nonce`; new backed enum
+  `App\Enums\DestinationValidationSendFailure` with the three keys, cast on the model and absent
+  from its `#[Fillable]` list like every other validation column. In
+  `SendDestinationValidationChallenge` the three failure exits below `recordAttempt()` call one new
+  private `recordFailure()` helper, which writes the key and nulls the status; the success
+  `forceFill` writes `$response->status()` and nulls the failure in the same save it already
+  performed, so a send costs no extra write. The two early returns — Validated, and rate-limited —
+  are untouched, asserted by two tests each showing a seeded prior outcome still standing
+  afterwards. A redirect stores `redirected` and no status: the 302 is a failed send under AC19 and
+  the member's remedy is the address, not the code. `ProxyController`'s existing URL-change
+  `forceFill` clears both alongside the nonce and timestamps, asserted in
+  `DestinationValidationDispatchTest::test_changing_a_destinations_url_resets_it_and_dispatches_a_fresh_challenge`.
+  `ProxySecurityResource` selects the two columns and exposes them as `last_send_status` and
+  `last_send_failure` inside the existing `validation` object, the failure as `?->value` so the
+  wire carries the key rather than a serialized enum. Seven new tests in
+  `SendDestinationValidationChallengeTest` (22 total, all green) — one per exit, plus one asserting
+  the raw stored failure never contains the cURL error text — and one in `ProxySecurityResourceTest`
+  covering answered, failed and never-sent rows. No ADR: the Owner approved the schema change in the
+  ruling on review-18 finding 6, and two nullable columns are cheap to reverse.
 
 ## T20 — Show the outcome of the last validation send
 
@@ -194,4 +215,16 @@ never carried by colour alone.
   three reason mappings and both fallbacks are verified by inspection plus a green host
   `npm run build`. The data path behind them is covered server-side by T19's
   `ProxySecurityResourceTest` additions.
-- **Completion notes:** _pending_
+- **Completion notes:** Done, 2026-08-31. `DestinationValidation` gains `last_send_status` and
+  `last_send_failure`, mirroring `ProxySecurityResource` exactly as the interface's contract
+  requires; new exported `DestinationValidationSendFailure` value union mirrors the PHP enum, with a
+  `SEND_FAILURE_REASONS` map holding design-18's three phrases verbatim. `destinationValidationCaption`
+  gained two branches and nothing else: Unvalidated returns the failed-send sentence when a failure
+  is recorded and today's wording otherwise, and Pending interpolates ", destination responded
+  {status}" only when a status is present. Both fallbacks follow the file's existing discipline, so
+  every row backfilled by T3 and every row whose only send predates T19 reads exactly as it did
+  before — no gap, no "undefined". Expired and Validated are untouched. `address_refused` renders
+  "this address can't be used for validation" and is never named as an internal-address rule, per
+  design-18. Verified by inspection plus a green host `npm run build` and a clean `vue-tsc --noEmit`
+  — no JS test framework exists (the standing note in `docs/standards/review.md`); the data path
+  behind both branches is covered server-side by T19's tests.
