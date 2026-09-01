@@ -33,21 +33,31 @@ class ProxyObserver
             ProxyLookup::forget($original);
         }
 
-        ProxyLookup::forget($proxy->ingest_token_hash);
+        self::bust($proxy);
     }
 
     public function deleted(Proxy $proxy): void
     {
-        ProxyLookup::forget($proxy->ingest_token_hash);
+        self::bust($proxy);
     }
 
     public function restored(Proxy $proxy): void
     {
-        ProxyLookup::forget($proxy->ingest_token_hash);
+        self::bust($proxy);
     }
 
     public function forceDeleted(Proxy $proxy): void
     {
+        self::bust($proxy);
+    }
+
+    /**
+     * Both keys the proxy is cached under: by token hash for ingest, and by id
+     * for the delivery path.
+     */
+    private static function bust(Proxy $proxy): void
+    {
         ProxyLookup::forget($proxy->ingest_token_hash);
+        ProxyLookup::forgetId($proxy->id);
     }
 }

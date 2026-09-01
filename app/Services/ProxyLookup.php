@@ -60,6 +60,32 @@ class ProxyLookup
     }
 
     /**
+     * The proxy behind an id, including a soft-deleted one.
+     *
+     * The delivery path deliberately resolves a trashed proxy — a retry against
+     * a proxy deleted after its delivery row was created still has to settle
+     * (T27, R3, ADR-026 Decision 3) — so this does not apply the SoftDeletes
+     * scope. It is a separate key from the token lookup, which must never
+     * return a deleted proxy.
+     */
+    public function byIdWithTrashed(int $id): ?Proxy
+    {
+        $cached = Cache::get(self::idKey($id));
+
+        if (is_array($cached)) {
+            return self::rehydrate($cached);
+        }
+
+        $proxy = Proxy::query()->withTrashed()->whereKey($id)->first();
+
+        if ($proxy !== null) {
+            Cache::put(self::idKey($id), $proxy->getRawOriginal(), self::ttl());
+        }
+
+        return $proxy;
+    }
+
+    /**
      * Rebuilds the model from stored attributes as though it came from the
      * database, so casts and the encrypted `ingest_token` behave identically
      * and the instance is not treated as newly created.
@@ -80,6 +106,14 @@ class ProxyLookup
     }
 
     /**
+     * Drop an id's entry.
+     */
+    public static function forgetId(int $id): void
+    {
+        Cache::forget(self::idKey($id));
+    }
+
+    /**
      * The hash is raw BINARY(32), so it is hex-encoded rather than used as a
      * cache key directly — a raw binary key is not safe across cache stores.
      * The plaintext token never appears in a key (ADR-006).
@@ -87,6 +121,11 @@ class ProxyLookup
     private static function key(string $tokenHash): string
     {
         return 'ingest:proxy:'.bin2hex($tokenHash);
+    }
+
+    private static function idKey(int $id): string
+    {
+        return 'ingest:proxy:id:'.$id;
     }
 
     private static function ttl(): int

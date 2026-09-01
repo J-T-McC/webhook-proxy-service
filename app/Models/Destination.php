@@ -7,8 +7,10 @@ use App\Enums\DestinationValidationSendFailure;
 use App\Enums\DestinationValidationState;
 use App\Enums\DestinationValidationStatus;
 use App\Enums\HttpMethod;
+use App\Observers\DestinationObserver;
 use Database\Factories\DestinationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -43,6 +45,7 @@ use Illuminate\Support\Carbon;
 // They are written only by the approval route and by the URL-change reset, both
 // via forceFill (#18 AC3 — exactly one route to Validated).
 #[Fillable(['proxy_id', 'team_id', 'url', 'http_method', 'credential_header_name', 'credential_secret', 'credential_set_at'])]
+#[ObservedBy(DestinationObserver::class)]
 class Destination extends Model
 {
     /** @use HasFactory<DestinationFactory> */
