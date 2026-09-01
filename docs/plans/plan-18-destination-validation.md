@@ -125,6 +125,21 @@ equal the destination's current `validation_nonce`, and the state to be `pending
 Signature failure, nonce mismatch, expiry and already-validated are four distinct outcomes rendered
 as four distinct screens, per design-18 Screen 4.
 
+**The GET link's signature outlives the challenge, by a configured grace period.** Amended
+2026-09-01, after a live browser pass found the Expired screen unreachable. Signed against the
+challenge expiry — as this plan originally implied and the implementation did — the `signed`
+middleware refuses a late click at the exact instant the challenge lapses, so the request never
+reaches the controller, the `expired` branch is dead code, and the approver gets a bare 403 with no
+way to learn a new link can be requested. `destination_validation.link_grace_days` (14) is added to
+the GET link's signature expiry only.
+
+This grants no approval window, and the separation is what makes that true. The approval gate is the
+stored `validation_challenge_expires_at`, which the grace period does not move. The GET renders and
+never mutates (AC28). The POST that would approve is signed by the controller against that stored
+expiry, not against the grace expiry, and is only ever minted on the `approvable` branch — so a
+request arriving inside the grace window can do exactly one thing: read a page saying the link is
+dead.
+
 One authenticated route: `POST /destinations/{destination}/validate`, the member-facing Validate
 action, authorised by the existing update-destination permission (AC44 adds nothing to the #2 model).
 

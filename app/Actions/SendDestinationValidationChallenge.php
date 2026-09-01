@@ -90,13 +90,28 @@ class SendDestinationValidationChallenge
         $nonce = Str::random(40);
         $expiresAt = now()->addDays((int) config('destination_validation.challenge_ttl_days'));
 
+        // The signature deliberately outlives the challenge (AC22 is unaffected
+        // — see `config/destination_validation.php`, Link Grace Period). Minted
+        // against `$expiresAt`, the `signed` middleware refuses a late click at
+        // the exact moment the challenge lapses, so the approver gets a bare 403
+        // instead of design-18 Screen 4's Expired outcome, and the controller's
+        // `expired` branch can never run. Outliving it puts the request in front
+        // of the controller, which reports the expiry properly.
+        //
+        // This grants no approval window. The approval gate is the stored
+        // `validation_challenge_expires_at`, which this does not move; the GET
+        // renders and never mutates (AC28), and the POST that would approve is
+        // signed against that stored expiry in the controller, not against this.
+        $linkExpiresAt = $expiresAt->copy()
+            ->addDays((int) config('destination_validation.link_grace_days'));
+
         // Minted before the send and persisted after it succeeds: the link must
         // carry the nonce the destination will be checked against, and a failed
         // send must not leave a destination pending against a link nobody
         // received.
         $link = URL::temporarySignedRoute(
             'destinations.validate.show',
-            $expiresAt,
+            $linkExpiresAt,
             ['destination' => $destination->id, 'nonce' => $nonce],
         );
 

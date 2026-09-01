@@ -435,6 +435,62 @@ class SendDestinationValidationChallengeTest extends TestCase
         $this->assertNull($destination->validation_last_send_failure);
     }
 
+    public function test_the_sent_link_outlives_the_challenge_so_a_late_click_is_explained_rather_than_403ed(): void
+    {
+        // The `signed` middleware runs before the controller. Minted against
+        // the challenge expiry, the two lapse at the same instant, the
+        // middleware refuses the request, and the controller's `expired`
+        // branch — design-18 Screen 4's Expired outcome — can never run. The
+        // approver gets a bare 403 with no way to know a new link can be
+        // requested.
+        Http::fake(['*' => Http::response('ok', 200)]);
+        config([
+            'destination_validation.challenge_ttl_days' => 7,
+            'destination_validation.link_grace_days' => 14,
+        ]);
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+
+        $this->assertTrue(SendDestinationValidationChallenge::run($destination));
+
+        $link = null;
+        Http::assertSent(function ($request) use (&$link) {
+            $link = json_decode($request->body(), true)['validation_url'];
+
+            return true;
+        });
+
+        parse_str((string) parse_url((string) $link, PHP_URL_QUERY), $query);
+
+        $this->assertSame(
+            $destination->refresh()->validation_challenge_expires_at->addDays(14)->timestamp,
+            (int) $query['expires'],
+            'The signature must outlive the challenge by exactly the grace period.',
+        );
+    }
+
+    public function test_the_grace_period_moves_the_signature_only_and_never_the_approval_deadline(): void
+    {
+        // The whole safety of the grace period rests on this: the approval gate
+        // is the stored expiry, and the grace period does not touch it.
+        Http::fake(['*' => Http::response('ok', 200)]);
+        config([
+            'destination_validation.challenge_ttl_days' => 7,
+            'destination_validation.link_grace_days' => 14,
+        ]);
+
+        $destination = Destination::factory()->unvalidated()->createQuietly();
+
+        SendDestinationValidationChallenge::run($destination);
+
+        $this->assertEqualsWithDelta(
+            now()->addDays(7)->timestamp,
+            $destination->refresh()->validation_challenge_expires_at->timestamp,
+            5,
+            'The stored deadline is set from the challenge TTL alone.',
+        );
+    }
+
     /**
      * Seed an outcome from an earlier send, so a test can show that the next
      * one replaces it rather than merging with it. `forceFill` because the

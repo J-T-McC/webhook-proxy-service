@@ -22,6 +22,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Link Grace Period (days)
+    |--------------------------------------------------------------------------
+    |
+    | How long the signed URL outlives the challenge it carries. This does not
+    | extend approval by a second: the approval gate is
+    | `validation_challenge_expires_at`, which is set from `challenge_ttl_days`
+    | alone and is not moved by this value.
+    |
+    | It exists so that a late click reaches the controller instead of the
+    | `signed` middleware. Minted with the same expiry as the challenge, the
+    | middleware refuses the request at the exact moment the challenge lapses,
+    | and the approver gets a bare 403 rather than design-18 Screen 4's Expired
+    | outcome telling them to ask for a new link. With the grace period the
+    | signature outlives the deadline, the request reaches the controller, and
+    | the controller reports the expiry properly.
+    |
+    | Nothing is approvable during the grace period. The GET renders and never
+    | mutates (AC28), and the POST is refused on the same stored expiry, so the
+    | only thing a link in its grace window can do is explain that it is dead.
+    |
+    */
+
+    'link_grace_days' => 14,
+
+    /*
+    |--------------------------------------------------------------------------
     | Outbound Timeout (seconds)
     |--------------------------------------------------------------------------
     |

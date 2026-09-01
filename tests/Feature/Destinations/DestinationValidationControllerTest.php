@@ -168,6 +168,58 @@ class DestinationValidationControllerTest extends TestCase
         );
     }
 
+    public function test_a_link_in_its_grace_window_shows_the_expired_screen_instead_of_a_403(): void
+    {
+        // The regression this grace period exists for. `showUrl()` above mints
+        // its own generous expiry, which is why the defect survived the first
+        // review: a link signed the way the action actually signs it — against
+        // the challenge expiry — is refused by the `signed` middleware at the
+        // same instant the challenge lapses, and the approver gets a bare 403
+        // rather than being told to ask for a new link.
+        $destination = Destination::factory()->expiredValidation()->createQuietly();
+
+        $graceLink = URL::temporarySignedRoute(
+            'destinations.validate.show',
+            $destination->validation_challenge_expires_at->copy()->addDays(14),
+            ['destination' => $destination->id, 'nonce' => $destination->validation_nonce],
+        );
+
+        $this->get($graceLink)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('outcome', 'expired'));
+    }
+
+    public function test_a_link_in_its_grace_window_still_cannot_approve(): void
+    {
+        // The grace period must buy an explanation and nothing else.
+        $destination = Destination::factory()->expiredValidation()->createQuietly();
+
+        $graceLink = URL::temporarySignedRoute(
+            'destinations.validate.store',
+            $destination->validation_challenge_expires_at->copy()->addDays(14),
+            ['destination' => $destination->id, 'nonce' => $destination->validation_nonce],
+        );
+
+        $approvedAtBefore = $destination->validated_at;
+
+        $this->post($graceLink)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('outcome', 'expired'));
+
+        $destination->refresh();
+
+        $this->assertSame(DestinationValidationState::Pending, $destination->validation_state);
+        $this->assertEquals(
+            $approvedAtBefore,
+            $destination->validated_at,
+            'A post inside the grace window must not stamp an approval.',
+        );
+        $this->assertNotNull(
+            $destination->validation_nonce,
+            'Nor may it burn the nonce, which is what approval does.',
+        );
+    }
+
     public function test_an_unknown_destination_reports_the_same_outcome_as_a_wrong_nonce(): void
     {
         // The page must not be usable to discover which destination ids exist.

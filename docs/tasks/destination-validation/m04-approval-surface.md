@@ -56,6 +56,14 @@ The approver has no account and arrives cold from a link.
   description and the consequence sentence. New test asserts presence on every resolved outcome and
   absence on `invalid`.
 
+- **Rework (live browser pass, 2026-09-01):** the Expired outcome this task renders was
+  unreachable. The challenge link was signed against the challenge expiry, so the `signed`
+  middleware refused a late click at the instant the challenge lapsed and the controller's
+  `expired` branch could never run — an approver got a bare 403. Fixed by giving the GET link's
+  signature a configured grace period beyond the challenge deadline
+  (`destination_validation.link_grace_days`, 14). The approval gate is unmoved and nothing is
+  approvable in that window. See `docs/fixes/expired-validation-link-returned-a-bare-403.md`.
+
 ## T14 — Keep the link out of everything
 
 - **Description:** The token appears in no `Log::` context, no delivery or analytics record, and is
