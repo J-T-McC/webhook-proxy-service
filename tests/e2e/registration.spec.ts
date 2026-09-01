@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 
+import { seedState } from './support/state';
 import { uniqueName } from './support/unique';
 
 // Signed-out specs: they exercise the way in, so they must not inherit the
@@ -39,7 +40,7 @@ test('registering with an email already in use is refused', async ({
 
     await page.goto('/register');
     await page.getByLabel('Name').fill('E2E Duplicate');
-    await page.getByLabel('Email address').fill('e2e@example.com');
+    await page.getByLabel('Email address').fill(seedState().signIn.email);
     await page.getByLabel('Password', { exact: true }).fill(password);
     await page.getByLabel('Confirm password').fill(password);
     await page.getByTestId('register-user-button').click();

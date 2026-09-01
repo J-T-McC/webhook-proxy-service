@@ -181,6 +181,18 @@ assumed to match what production sets;** they are Laravel's conventional names. 
 resolving `MailgunHttpTransport` from the container under `MAIL_MAILER=mailgun` rather than by
 sending mail. Suite 880/880, `composer lint` and `composer types:check` clean.
 
+**Branch `feat/playwright-e2e`, open.** Playwright end-to-end coverage plus an
+`e2e` GitHub Actions workflow, commissioned by the Project Owner on 2026-08-31.
+Brief: `docs/briefs/e2e-playwright-coverage.md`, which holds the decisions and
+the two constraints worth knowing before adding a spec — a session per parallel
+worker (a shared session loses Inertia's flashed validation errors), and
+`APP_URL` having to match the origin the specs browse. Six flows are covered:
+sign in, registration, the proxy lifecycle, an invalid destination URL, ingest
+through to the event page, and team isolation. Destination validation approval
+(#18) is deliberately not covered — `OutboundAddressGuard` refuses loopback, so
+the challenge has nowhere to land inside CI. The stack table's Testing row is
+updated; the remaining gap there is component-level JS testing.
+
 ## Owner-commissioned design work (not a roadmap line)
 
 Work the Project Owner commissioned directly, outside the roadmap. `docs/product/roadmap.md`
