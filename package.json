@@ -43,7 +43,7 @@
     "dependencies": {
         "@inertiajs/vite": "^3.6.1",
         "@inertiajs/vue3": "^3.6.1",
-        "@j-t-mcc/vue3-chartjs": "^2.1.0",
+        "@j-t-mcc/vue3-chartjs": "^3.0.0",
         "@laravel/passkeys": "^0.2.0",
         "@lucide/vue": "^1.28.0",
         "@vueuse/core": "^12.8.2",
