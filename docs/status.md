@@ -263,15 +263,21 @@ Open:
   delivery job removes the exposure. **Choosing the 50 MiB cap itself is the Product Manager's
   or the Owner's, not the Principal Engineer's** — it is flagged in `config/ingest.php` as a
   placeholder to revisit before MVP.
-- **`@j-t-mcc/vue3-chartjs` 2.1.0 has two upstream defects that #11 works around, and no other
-  artifact records them.** Its exposed `update()` replays a `props` snapshot frozen once in
-  `setup()`, so prop-driven colour and data changes silently no-op — `TrendChart.vue` therefore
-  writes to the exposed `chartJSState.chart` directly, without which a live theme toggle leaves
-  the chart painted in the old theme's colours. It also ships a broken `exports` map with no
-  `types` condition, unreachable under `moduleResolution: "bundler"`, so
-  `resources/js/types/vue3-chartjs.d.ts` carries a local ambient shim. **Both are bugs in the
-  Owner's own package**, worth fixing upstream rather than carrying the workarounds
-  indefinitely.
+- **`@j-t-mcc/vue3-chartjs` 3.0.0: every defect #11 worked around is fixed upstream, and all of
+  #11's workarounds are gone.** The defects were the exposed `update()` replaying a `props`
+  snapshot frozen once in `setup()`, an `exports` map with no `types` condition (unreachable under
+  `moduleResolution: "bundler"`), and no unmount cleanup. All three were fixed upstream on
+  2026-09-02 in the Owner's own package and released as **3.0.0**, taken from the npm registry at
+  `^3.0.0` — no Git specifier remains in `package.json` or the lockfile. In 3.0.0 every prop is
+  watched, so `TrendChart.vue` assigns its `chartData` ref and the chart follows on its own: it
+  holds no component ref, calls no `update()`, and runs no teardown of its own, and the local
+  ambient shim `resources/js/types/vue3-chartjs.d.ts` is deleted. The release also makes
+  `preventDefault()` apply to a single emission rather than permanently, which is a breaking
+  change upstream but reaches nothing here — this repo binds no chart event handlers. Two things
+  to know before changing this component: `data` is watched **deeply**, which is cheap at this
+  scale (24–30 points, two datasets) but is worth measuring before anyone plots a far larger
+  series, and `:auto-update="false"` restores the old drive-it-yourself behaviour if that day
+  comes.
 - **Frontend test harness (Vitest + `@vue/test-utils` + DOM env + `test:js` script).** Deferred
   per Owner Option B (2026-07-31); captured as backlog task **T31** in
   `docs/tasks/walking-skeleton-tasks.md`. First test to write once it lands: the Index-table

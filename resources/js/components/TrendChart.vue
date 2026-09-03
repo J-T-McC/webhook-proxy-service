@@ -8,14 +8,10 @@
  * (`StatisticsPanel.bucket`) drives axis and summary wording only, never a
  * drill-through decision (§ *Technical rulings* 13; T32).
  *
- * `Chart` construction happens exclusively inside `Vue3ChartJs`'s own
- * `onMounted` hook (the wrapper's `dist/vue3-chartjs.es.js`: `w(() => l())`,
- * where `l()` calls `new Chart(...)` the first time and `chart.update()`
- * thereafter) — nothing here calls `new Chart` directly, and nothing chart-
- * related runs at module scope, so this component stays renderable if an
- * Inertia SSR entrypoint is ever added (binding constraint 3). The wrapper
- * exposes no automatic unmount cleanup of its own, so `onUnmounted` below
- * calls its exposed `destroy()` explicitly.
+ * `Chart` construction and teardown both happen inside `Vue3ChartJs`'s own
+ * lifecycle hooks — nothing here calls `new Chart` directly, and nothing
+ * chart-related runs at module scope, so this component stays renderable if
+ * an Inertia SSR entrypoint is ever added (binding constraint 3).
  *
  * The canvas is `aria-hidden`: the surrounding `<figure>` carries a short
  * `aria-label` summary, and the accessible table beside this component (T28)
@@ -25,7 +21,7 @@
  */
 import Vue3ChartJs from '@j-t-mcc/vue3-chartjs';
 import type { ChartData, ChartOptions } from 'chart.js';
-import { computed, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useAppearance } from '@/composables/useAppearance';
 import {
     ATTEMPT_SUCCESS_LABEL,
@@ -164,35 +160,16 @@ const chartOptions: ChartOptions<'line'> = {
     },
 };
 
-const chartRef = useTemplateRef<InstanceType<typeof Vue3ChartJs>>('chartRef');
 const { resolvedAppearance } = useAppearance();
 
 // Re-resolve on data change and on theme change alike (T26) — a chart that
 // caches its palette at init keeps the previous theme's colours until torn
-// down and rebuilt.
-//
-// Deliberately bypasses the wrapper's own exposed `update()`: its internal
-// `props` snapshot (`vue3-chartjs.es.js`'s `props: { ...f }`) is captured
-// once in `setup()` and never re-read, so calling it after a `:data` prop
-// change silently reapplies the *original* mount-time data — confirmed
-// empirically (theme toggled live, canvas pixel colour never changed).
-// Writing straight to the exposed `chartJSState.chart` — the real `Chart`
-// instance — and calling its own `update()` is the actual Chart.js API this
-// wrapper is a thin layer over, and is unaffected by that snapshot bug.
+// down and rebuilt. Assigning `chartData` is the whole update: the wrapper
+// watches its `data` prop and applies the new value itself, so nothing here
+// holds a component ref or calls `update()`.
 watch([() => props.series, () => props.bucket, resolvedAppearance], () => {
     chartData.value = buildChartData();
     colours.value = resolveChartSeriesColours();
-
-    const chart = chartRef.value?.chartJSState.chart;
-
-    if (chart) {
-        chart.data = chartData.value;
-        chart.update();
-    }
-});
-
-onUnmounted(() => {
-    chartRef.value?.destroy();
 });
 </script>
 
@@ -230,7 +207,6 @@ onUnmounted(() => {
         </ul>
         <div class="h-64 w-full">
             <Vue3ChartJs
-                ref="chartRef"
                 type="line"
                 :data="chartData"
                 :options="chartOptions"

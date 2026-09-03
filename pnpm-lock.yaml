@@ -15,8 +15,8 @@ importers:
         specifier: ^3.6.1
         version: 3.6.1(vue@3.5.40(typescript@5.9.3))
       '@j-t-mcc/vue3-chartjs':
-        specifier: ^2.1.0
-        version: 2.1.0(chart.js@4.5.1)(vue@3.5.40(typescript@5.9.3))
+        specifier: ^3.0.0
+        version: 3.0.0(chart.js@4.5.1)(vue@3.5.40(typescript@5.9.3))
       '@laravel/passkeys':
         specifier: ^0.2.0
         version: 0.2.0(vue@3.5.40(typescript@5.9.3))
@@ -274,8 +274,8 @@ packages:
   '@internationalized/number@3.6.7':
     resolution: {integrity: sha512-3ji1fcrT+FPAK86UqEhB/psHixYo6niWPJtt7+qRaYFynt/BaJG8GhAPimtWUpEiVSTq8ZM8L5psMxGquiB/Vg==}
 
-  '@j-t-mcc/vue3-chartjs@2.1.0':
-    resolution: {integrity: sha512-dGFLIiUhzP7Mvc4Zr5pzwPbU3rPx4+DHUipJHo4/bOX1nReRfZKxsqhWA3e96/CH5pSie46E0AjrGJxEBZprCw==}
+  '@j-t-mcc/vue3-chartjs@3.0.0':
+    resolution: {integrity: sha512-LkUf/6xb2yUJGMvB6+SpHG037nApsAT6eOP5RD3SwXkiyRkSG5i4IrggctXnH+aEP5I//r0HvT/mkkqWsR+7Mw==}
     peerDependencies:
       chart.js: ^4.0
       vue: ^3.0.0
@@ -2652,7 +2652,7 @@ snapshots:
     dependencies:
       '@swc/helpers': 0.5.23
 
-  '@j-t-mcc/vue3-chartjs@2.1.0(chart.js@4.5.1)(vue@3.5.40(typescript@5.9.3))':
+  '@j-t-mcc/vue3-chartjs@3.0.0(chart.js@4.5.1)(vue@3.5.40(typescript@5.9.3))':
     dependencies:
       chart.js: 4.5.1
       vue: 3.5.40(typescript@5.9.3)
